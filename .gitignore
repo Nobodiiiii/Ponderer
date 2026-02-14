@@ -1,0 +1,41 @@
+# Eclipse
+bin/
+*.launch
+.settings/
+.metadata/
+.classpath
+.project
+
+# IntelliJ IDEA
+.idea/
+out/
+*.iml
+*.ipr
+*.iws
+
+# Kotlin
+.kotlin/
+
+# VS Code
+.vscode/
+
+# Gradle
+build/
+.gradle/
+
+# Minecraft run directory
+run/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Java
+*.class
+hs_err_pid*
+
+# Logs
+*.log
+
+# Reference projects (remove if you want to track them)
+ref/

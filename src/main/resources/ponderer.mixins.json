@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.nododiiiii.ponderer.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "PonderSceneRegistryMixin",
+    "PonderSceneRegistryNbtMixin"
+  ],
+  "client": [
+    "PonderUIMixin",
+    "PonderUINbtMixin",
+    "PonderTooltipNbtMixin"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

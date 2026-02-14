@@ -1,0 +1,668 @@
+{
+  "id": "ponderer:ponderer_example",
+  "items": [
+    "minecraft:writable_book"
+  ],
+  "title": {
+    "en_us": "Ponderer Full Step Demo",
+    "zh_cn": "Ponderer 全步骤演示"
+  },
+  "structures": [
+    "ponderer:ponderer_example_1",
+    "ponderer:ponderer_example_2"
+  ],
+  "tags": [],
+  "steps": [],
+  "scenes": [
+    {
+      "id": "page_1_structure_overlay",
+      "title": {
+        "en_us": "Page 1/4 - Structure \u0026 Overlay",
+        "zh_cn": "第1页/共4页 - 结构与覆盖层"
+      },
+      "steps": [
+        {
+          "type": "show_structure",
+          "structure": "ponderer:ponderer_example_1",
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 80,
+          "text": {
+            "en_us": "show_structure: Displays the loaded structure. Use \u0027structure\u0027 field to reference pool entries.",
+            "zh_cn": "show_structure: 展示已加载的结构。使用 structure 字段引用结构池条目。"
+          },
+          "point": [
+            2.5,
+            1.5,
+            2.5
+          ],
+          "color": "green",
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "text",
+          "duration": 80,
+          "text": {
+            "en_us": "text: Floating text with color, pointer and keyframe options.",
+            "zh_cn": "text: 带颜色、指针和关键帧选项的浮动文字。"
+          },
+          "point": [
+            2.5,
+            2.5,
+            2.5
+          ],
+          "color": "input",
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "shared_text",
+          "duration": 80,
+          "key": "ponderer.shared.demo",
+          "point": [
+            2.5,
+            3.5,
+            2.5
+          ],
+          "color": "input",
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "show_controls",
+          "duration": 60,
+          "point": [
+            4.5,
+            2.8,
+            4.5
+          ],
+          "direction": "down",
+          "action": "right",
+          "item": "minecraft:stone",
+          "attachKeyFrame": true,
+          "whileCTRL": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "show_controls: Input hint bubble with action, item and modifier keys.",
+            "zh_cn": "show_controls: 带操作、物品和修饰键的输入提示气泡。"
+          },
+          "point": [
+            2.5,
+            4.5,
+            2.5
+          ],
+          "placeNearTarget": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "encapsulate_bounds",
+          "bounds": [
+            5,
+            4,
+            5
+          ],
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "encapsulate_bounds: Expand the scene bounding box to the given size.",
+            "zh_cn": "encapsulate_bounds: 将场景包围盒扩展到指定大小。"
+          },
+          "point": [
+            2.5,
+            2.0,
+            2.5
+          ],
+          "placeNearTarget": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        }
+      ]
+    },
+    {
+      "id": "page_2_world_blocks",
+      "title": {
+        "en_us": "Page 2/4 - Block Operations",
+        "zh_cn": "第2页/共4页 - 方块操作"
+      },
+      "steps": [
+        {
+          "type": "show_structure",
+          "structure": "ponderer:ponderer_example_1",
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 20
+        },
+        {
+          "type": "set_block",
+          "block": "minecraft:stone",
+          "blockPos": [
+            1,
+            1,
+            1
+          ],
+          "blockPos2": [
+            1,
+            1,
+            1
+          ],
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "set_block: Places a block at a position with optional particles.",
+            "zh_cn": "set_block: 在指定位置放置方块，可选粒子效果。"
+          },
+          "point": [
+            1.5,
+            1.5,
+            1.5
+          ],
+          "color": "green",
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "replace_blocks",
+          "block": "minecraft:glass",
+          "blockPos": [
+            0,
+            1,
+            0
+          ],
+          "blockPos2": [
+            2,
+            1,
+            2
+          ],
+          "spawnParticles": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "replace_blocks: Replaces all blocks in a region with the given block.",
+            "zh_cn": "replace_blocks: 将区域内的所有方块替换为指定方块。"
+          },
+          "point": [
+            1.5,
+            2.5,
+            1.5
+          ],
+          "placeNearTarget": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "destroy_block",
+          "blockPos": [
+            1,
+            1,
+            1
+          ],
+          "destroyParticles": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "destroy_block: Destroys a block with breaking animation.",
+            "zh_cn": "destroy_block: 销毁方块并播放破坏动画。"
+          },
+          "point": [
+            1.5,
+            3.5,
+            1.5
+          ],
+          "placeNearTarget": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "toggle_redstone_power",
+          "blockPos": [
+            4,
+            1,
+            0
+          ],
+          "blockPos2": [
+            4,
+            1,
+            4
+          ],
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "toggle_redstone_power: Toggles redstone state in a region.",
+            "zh_cn": "toggle_redstone_power: 切换区域内的红石电源状态。"
+          },
+          "point": [
+            4.5,
+            1.5,
+            1.5
+          ],
+          "color": "red",
+          "placeNearTarget": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "set_block",
+          "block": "minecraft:white_banner",
+          "blockPos": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "type": "modify_block_entity_nbt",
+          "blockPos": [
+            0,
+            1,
+            0
+          ],
+          "nbt": "{patterns:[{pattern:\"minecraft:creeper\",color:\"orange\"},{pattern:\"minecraft:flower\",color:\"red\"}]}",
+          "reDrawBlocks": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "modify_block_entity_nbt: Modifies a block entity\u0027s NBT data. Here a banner\u0027s pattern changed visually via reDrawBlocks.",
+            "zh_cn": "modify_block_entity_nbt: 修改方块实体的 NBT 数据。此处通过 reDrawBlocks 使旗帜图案发生可见变化。"
+          },
+          "point": [
+            1.5,
+            1.5,
+            1.5
+          ],
+          "placeNearTarget": true
+        },
+        {
+          "type": "idle",
+          "duration": 30
+        },
+        {
+          "type": "indicate_redstone",
+          "blockPos": [
+            4,
+            1,
+            1
+          ],
+          "attachKeyFrame": true
+        },
+        {
+          "type": "indicate_success",
+          "blockPos": [
+            4,
+            1,
+            4
+          ],
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "indicate_redstone / indicate_success: Visual effect indicators at block positions.",
+            "zh_cn": "indicate_redstone / indicate_success: 在方块位置显示视觉指示器。"
+          },
+          "point": [
+            4.5,
+            1.5,
+            1.5
+          ],
+          "placeNearTarget": true
+        },
+        {
+          "type": "idle",
+          "duration": 30
+        }
+      ]
+    },
+    {
+      "id": "page_3_sections",
+      "title": {
+        "en_us": "Page 3/4 - Section Operations",
+        "zh_cn": "第3页/共4页 - 区段操作"
+      },
+      "steps": [
+        {
+          "type": "show_structure",
+          "structure": "ponderer:ponderer_example_2",
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 20
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "zh_cn": "更改不同背景",
+            "en_us": "Change Background."
+          },
+          "point": [
+            2.0,
+            2.0,
+            2.0
+          ],
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "hide_section",
+          "direction": "up",
+          "blockPos": [
+            0,
+            0,
+            0
+          ],
+          "blockPos2": [
+            2,
+            2,
+            2
+          ],
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "hide_section: Hides blocks in a region with a directional animation.",
+            "zh_cn": "hide_section: 以方向动画隐藏区域内的方块。"
+          },
+          "point": [
+            1.5,
+            1.5,
+            1.5
+          ],
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "show_section_and_merge",
+          "direction": "west",
+          "linkId": "core",
+          "blockPos": [
+            0,
+            0,
+            0
+          ],
+          "blockPos2": [
+            2,
+            3,
+            2
+          ],
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "show_section_and_merge: Shows a section as independent element with a link ID.",
+            "zh_cn": "show_section_and_merge: 以独立元素显示区段并返回链接ID。"
+          },
+          "point": [
+            1.5,
+            2.5,
+            1.5
+          ],
+          "placeNearTarget": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "rotate_section",
+          "duration": 40,
+          "linkId": "core",
+          "rotX": 0.0,
+          "rotY": 90.0,
+          "rotZ": 0.0,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "rotate_section: Rotates a linked section around X/Y/Z axes over a duration.",
+            "zh_cn": "rotate_section: 在指定时间内绕X/Y/Z轴旋转链接的区段。"
+          },
+          "point": [
+            1.5,
+            3.5,
+            1.5
+          ],
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "move_section",
+          "duration": 40,
+          "linkId": "core",
+          "offset": [
+            0.0,
+            1.5,
+            0.0
+          ],
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "move_section: Moves a linked section by the given offset over a duration.",
+            "zh_cn": "move_section: 在指定时间内按偏移量移动链接的区段。"
+          },
+          "point": [
+            1.5,
+            1.5,
+            1.5
+          ],
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        }
+      ]
+    },
+    {
+      "id": "page_4_entities_camera_sound",
+      "title": {
+        "en_us": "Page 4/4 - Entity, Camera \u0026 Sound",
+        "zh_cn": "第4页/共4页 - 实体、镜头与音效"
+      },
+      "steps": [
+        {
+          "type": "show_structure",
+          "structure": "ponderer:ponderer_example_1",
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 20
+        },
+        {
+          "type": "create_entity",
+          "entity": "minecraft:zombie",
+          "pos": [
+            2.5,
+            1.0,
+            2.5
+          ],
+          "yaw": 180.0,
+          "pitch": 0.0,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 80,
+          "text": {
+            "en_us": "create_entity: Spawns an entity. AI and gravity are disabled in ponder scenes.",
+            "zh_cn": "create_entity: 生成实体。思索场景中AI和重力已禁用。"
+          },
+          "point": [
+            2.5,
+            2.0,
+            2.5
+          ],
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "create_item_entity",
+          "pos": [
+            0.5,
+            2.0,
+            0.5
+          ],
+          "motion": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "count": 3,
+          "item": "minecraft:apple",
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "create_item_entity: Spawns an item entity with initial velocity.",
+            "zh_cn": "create_item_entity: 生成带初始速度的掉落物实体。"
+          },
+          "point": [
+            0.5,
+            2.0,
+            0.5
+          ],
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "rotate_camera_y",
+          "degrees": 60.0,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "rotate_camera_y: Rotates the camera around the Y axis.",
+            "zh_cn": "rotate_camera_y: 将摄像机绕Y轴旋转。"
+          },
+          "point": [
+            2.5,
+            3.0,
+            2.5
+          ],
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 30
+        },
+        {
+          "type": "play_sound",
+          "pitch": 1.0,
+          "sound": "minecraft:entity.experience_orb.pickup",
+          "soundVolume": 1.0,
+          "source": "master",
+          "attachKeyFrame": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "play_sound: Plays a sound with configurable source, volume and pitch.",
+            "zh_cn": "play_sound: 播放音效，可配置来源、音量和音调。"
+          },
+          "point": [
+            2.5,
+            1.0,
+            2.5
+          ],
+          "placeNearTarget": true,
+          "attachKeyFrame": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        }
+      ]
+    }
+  ]
+}
