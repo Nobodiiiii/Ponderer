@@ -119,7 +119,7 @@ public class SceneDescEditorScreen extends AbstractSimiScreen {
         new BoxElement()
             .withBackground(new Color(0xdd_000000, true))
             .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
-            .at(guiLeft, guiTop, 100)
+            .at(guiLeft, guiTop, 0)
             .withBounds(WINDOW_W, WINDOW_H)
             .render(graphics);
 

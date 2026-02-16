@@ -121,7 +121,8 @@ public final class PonderJsEmitters {
     private static String emitCreateEntity(DslScene.DslStep step, EmitContext ctx) {
         String entity = step.entity == null ? "minecraft:pig" : escapeJs(step.entity);
         String pos = step.pos != null && step.pos.size() >= 3 ? fmtDoubles(step.pos) : "0, 1, 0";
-        return "const entityLink = scene.world.createEntity(\"" + entity + "\", [" + pos + "]);";
+        String varName = step.linkId == null ? ctx.nextLinkVar() : step.linkId;
+        return "const " + varName + " = scene.world.createEntity(\"" + entity + "\", [" + pos + "]);";
     }
 
     private static String emitCreateItemEntity(DslScene.DslStep step, EmitContext ctx) {

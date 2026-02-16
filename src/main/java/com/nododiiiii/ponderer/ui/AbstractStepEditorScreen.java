@@ -4,7 +4,6 @@ import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.AbstractSimiScreen;
-import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.theme.Color;
@@ -13,7 +12,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -32,11 +30,6 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen {
     protected static final int FORM_TOP = 26;
     protected static final int ROW_HEIGHT = 22;
     private static final int BOTTOM_SECTION = 60;
-
-    private static final ResourceLocation ICON_CONFIRM = ResourceLocation.fromNamespaceAndPath("minecraft",
-            "container/beacon/confirm");
-    private static final ResourceLocation ICON_CANCEL = ResourceLocation.fromNamespaceAndPath("minecraft",
-            "container/beacon/cancel");
 
     protected final DslScene scene;
     protected final int sceneIndex;
@@ -262,7 +255,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen {
         new BoxElement()
                 .withBackground(new Color(0xdd_000000, true))
                 .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
-                .at(guiLeft, guiTop, 100)
+                .at(guiLeft, guiTop, 0)
                 .withBounds(WINDOW_W, wH)
                 .render(graphics);
 
@@ -540,9 +533,10 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen {
     }
 
     protected void renderToggleState(GuiGraphics graphics, BoxWidget toggle, boolean state) {
-        ResourceLocation icon = state ? ICON_CONFIRM : ICON_CANCEL;
-        graphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-        graphics.blitSprite(icon, toggle.getX() + 1, toggle.getY() + 1, 10, 10);
+        var font = Minecraft.getInstance().font;
+        String label = state ? "V" : "X";
+        int color = state ? 0xFF_55FF55 : 0xFF_FF5555;
+        graphics.drawCenteredString(font, label, toggle.getX() + 7, toggle.getY() + 2, color);
     }
 
     /**

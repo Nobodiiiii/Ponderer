@@ -57,7 +57,7 @@ public class BlueprintPromptScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         // Darken game background first
-        this.renderBackground(graphics, mouseX, mouseY, partialTicks);
+        this.renderBackground(graphics);
 
         int x = (this.width - WIDTH) / 2;
         int y = (this.height - HEIGHT) / 2;

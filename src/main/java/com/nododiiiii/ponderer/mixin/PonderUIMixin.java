@@ -102,7 +102,8 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Inject(method = "tick",
             at = @At(value = "INVOKE",
-                     target = "Lnet/createmod/ponder/foundation/ui/PonderUI;updateIdentifiedItem(Lnet/createmod/ponder/foundation/PonderScene;)V"))
+                     target = "Lnet/createmod/ponder/foundation/ui/PonderUI;updateIdentifiedItem(Lnet/createmod/ponder/foundation/PonderScene;)V",
+                     remap = false))
     private void ponderer$tickPickModeEnable(CallbackInfo ci) {
         if (!PickState.isActive()) return;
         PonderUIAccessor accessor = (PonderUIAccessor) this;
@@ -162,7 +163,7 @@ public abstract class PonderUIMixin extends Screen {
      * Styled with opaque background and border matching editor tooltips.
      * Rendered at the highest z-level to avoid being occluded by structures/tooltips.
      */
-    @Inject(method = "renderWidgets", at = @At("TAIL"))
+    @Inject(method = "renderWidgets", at = @At("TAIL"), remap = false)
     private void ponderer$renderPickHint(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         if (!PickState.isActive()) return;
 

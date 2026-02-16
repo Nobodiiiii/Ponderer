@@ -14,9 +14,9 @@ import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.bus.api.EventPriority;
-import net.neoforged.neoforge.client.event.ScreenEvent;
-import net.neoforged.neoforge.common.NeoForge;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.common.MinecraftForge;
 
 import javax.annotation.Nullable;
 import java.util.Optional;
@@ -35,7 +35,7 @@ public class PondererJeiPlugin implements IModPlugin {
 
     @Override
     public ResourceLocation getPluginUid() {
-        return ResourceLocation.fromNamespaceAndPath("ponderer", "jei_plugin");
+        return new ResourceLocation("ponderer", "jei_plugin");
     }
 
     @Override
@@ -43,7 +43,7 @@ public class PondererJeiPlugin implements IModPlugin {
         runtime = jeiRuntime;
         if (!eventRegistered) {
             eventRegistered = true;
-            NeoForge.EVENT_BUS.addListener(EventPriority.HIGH, PondererJeiPlugin::onMouseClick);
+            MinecraftForge.EVENT_BUS.addListener(EventPriority.HIGH, PondererJeiPlugin::onMouseClick);
         }
     }
 
@@ -136,24 +136,24 @@ public class PondererJeiPlugin implements IModPlugin {
         }
 
         @Override
-        public Class<? extends Screen> screenClass() { return screen.getClass(); }
+        public Class<? extends Screen> getScreenClass() { return screen.getClass(); }
 
         @Override
-        public int guiLeft() { return screen.getGuiLeft(); }
+        public int getGuiLeft() { return screen.getGuiLeft(); }
 
         @Override
-        public int guiTop() { return screen.getGuiTop(); }
+        public int getGuiTop() { return screen.getGuiTop(); }
 
         @Override
-        public int guiXSize() { return screen.getGuiWidth(); }
+        public int getGuiXSize() { return screen.getGuiWidth(); }
 
         @Override
-        public int guiYSize() { return screen.getGuiHeight(); }
+        public int getGuiYSize() { return screen.getGuiHeight(); }
 
         @Override
-        public int screenWidth() { return screen.width; }
+        public int getScreenWidth() { return screen.width; }
 
         @Override
-        public int screenHeight() { return screen.height; }
+        public int getScreenHeight() { return screen.height; }
     }
 }

@@ -76,7 +76,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
         helper.forComponents(carrier)
             .addStoryBoard(
-                ResourceLocation.fromNamespaceAndPath("ponder", "debug/scene_1"),
+                new ResourceLocation("ponder", "debug/scene_1"),
                 (scene, util) -> {
                     scene.title("blueprint_usage", I18n.get("ponderer.guide.blueprint.title"));
                     scene.showBasePlate();
@@ -242,7 +242,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 return fromPool;
             }
         }
-        return ResourceLocation.fromNamespaceAndPath("ponder", "debug/scene_1");
+        return new ResourceLocation("ponder", "debug/scene_1");
     }
 
     private List<String> getStructurePool(DslScene scene) {
@@ -306,13 +306,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private ResourceLocation resolveSchematic(String structure) {
         if (structure == null || structure.isBlank()) {
-            return ResourceLocation.fromNamespaceAndPath("ponder", "debug/scene_1");
+            return new ResourceLocation("ponder", "debug/scene_1");
         }
         if (structure.contains(":")) {
             ResourceLocation loc = ResourceLocation.tryParse(structure);
-            return loc == null ? ResourceLocation.fromNamespaceAndPath("ponder", "debug/scene_1") : loc;
+            return loc == null ? new ResourceLocation("ponder", "debug/scene_1") : loc;
         }
-        return ResourceLocation.fromNamespaceAndPath("ponder", structure);
+        return new ResourceLocation("ponder", structure);
     }
 
     private ResourceLocation[] resolveTags(List<String> tags) {
@@ -428,7 +428,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
         ResourceLocation loc = key.contains(":")
             ? ResourceLocation.tryParse(key)
-            : ResourceLocation.fromNamespaceAndPath(scene.getScene().getNamespace(), key);
+            : new ResourceLocation(scene.getScene().getNamespace(), key);
         if (loc == null) {
             LOGGER.warn("shared_text invalid key: {}", key);
             return;

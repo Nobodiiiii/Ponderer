@@ -2,7 +2,9 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'idea'
-    id 'net.neoforged.moddev' version '2.0.140'
+    id 'net.minecraftforge.gradle' version '[6.0, 6.2)'
+    id 'org.spongepowered.mixin' version '0.7-SNAPSHOT'
+    id 'org.parchmentmc.librarian.forgegradle' version "${librarian_version}"
 }
 
 version = mod_version
@@ -10,86 +12,69 @@ group = mod_group_id
 
 repositories {
     mavenLocal()
+    maven { url = "https://repo.spongepowered.org/repository/maven-public/" }
     maven { url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/" }
     maven { url = "https://maven.createmod.net" }
     maven { url = "https://maven.blamejared.com" }
 }
 
 base {
-    archivesName = mod_id
+    archivesName = "${mod_id}-${minecraft_version}-forge"
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-neoForge {
-    // Specify the version of NeoForge to use.
-    version = project.neo_version
+// Ensure UTF-8 encoding for source files
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
 
-    parchment {
-        mappingsVersion = project.parchment_mappings_version
-        minecraftVersion = project.parchment_minecraft_version
+// -- Mixin Support
+mixin {
+    add(sourceSets.main, "${mod_id}.refmap.json")
+    config("${mod_id}.mixins.json")
+}
+
+minecraft {
+    if (Boolean.parseBoolean(project.use_parchment)) {
+        mappings channel: "parchment", version: "${parchment_version}-${minecraft_version}"
+    } else {
+        mappings channel: "official", version: "${minecraft_version}"
     }
 
-    // This line is optional. Access Transformers are automatically detected
-    // accessTransformers.add('src/main/resources/META-INF/accesstransformer.cfg')
+    copyIdeResources = true
 
-    // Default run configurations.
-    // These can be tweaked, removed, or duplicated as needed.
     runs {
-        client {
-            client()
+        configureEach {
+            workingDirectory project.file("run")
 
-            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            property "forge.logging.markers", "REGISTRIES"
+            property "forge.logging.console.level", "debug"
+
+            property "mixin.env.remapRefMap", "true"
+            property "mixin.env.refMapRemappingFile", "${projectDir}/build/createSrgToMcp/output.srg"
+
+            arg "-mixin.config=${mod_id}.mixins.json"
+
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
+            taskName "Client"
         }
 
         server {
-            server()
-            programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-        }
-
-        // This run config launches GameTestServer and runs all registered gametests, then exits.
-        // By default, the server will crash when no gametests are provided.
-        // The gametest system is also enabled by default for other run configs under the /test command.
-        gameTestServer {
-            type = "gameTestServer"
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            taskName "Server"
+            args '--nogui'
         }
 
         data {
-            data()
-
-            // example of overriding the workingDirectory set in configureEach above, uncomment if you want to use it
-            // gameDirectory = project.file('run-data')
-
-            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
-            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
-        }
-
-        // applies to all the run configs above
-        configureEach {
-            // Recommended logging data for a userdev environment
-            // The markers can be added/remove as needed separated by commas.
-            // "SCAN": For mods scan.
-            // "REGISTRIES": For firing of registry events.
-            // "REGISTRYDUMP": For getting the contents of all registries.
-            systemProperty 'forge.logging.markers', 'REGISTRIES'
-
-            // Recommended logging level for the console
-            // You can set various levels here.
-            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
-            logLevel = org.slf4j.event.Level.DEBUG
-        }
-    }
-
-    mods {
-        // define mod <-> source bindings
-        // these are used to tell the game which sources are for which mod
-        // mostly optional in a single mod project
-        // but multi mod projects should define one per mod
-        "${mod_id}" {
-            sourceSet(sourceSets.main)
+            taskName "Data"
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
         }
     }
 }
@@ -97,46 +82,30 @@ neoForge {
 // Include resources generated by data generators.
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
-
 dependencies {
-    // Example mod dependency with JEI
-    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
-    // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
-    // compileOnly "mezz.jei:jei-${mc_version}-forge-api:${jei_version}"
-    // runtimeOnly "mezz.jei:jei-${mc_version}-forge:${jei_version}"
+    minecraft("net.minecraftforge:forge:${minecraft_version}-${forge_version}")
 
-    // Example mod dependency using a mod jar from ./libs with a flat dir repository
-    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
-    // The group id is ignored when searching -- in this case, it is "blank"
-    // implementation "blank:coolmod-${mc_version}:${coolmod_version}"
+    // Ponder - full mod, available at runtime for dev testing
+    implementation(fg.deobf("net.createmod.ponder:Ponder-Forge-${minecraft_version}:${ponder_version}"))
+    // Flywheel - required by Ponder at runtime
+    implementation(fg.deobf("dev.engine-room.flywheel:flywheel-forge-${minecraft_version}:${flywheel_version}"))
+    // Flywheel API - for compilation
+    compileOnly(fg.deobf("dev.engine-room.flywheel:flywheel-forge-api-${minecraft_version}:${flywheel_version}"))
 
-    // Example mod dependency using a file as dependency
-    // implementation files("libs/coolmod-${mc_version}-${coolmod_version}.jar")
+    // JEI - compile API + full mod at runtime for dev testing
+    compileOnly(fg.deobf("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"))
+    compileOnly(fg.deobf("mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}"))
+    runtimeOnly(fg.deobf("mezz.jei:jei-${minecraft_version}-forge:${jei_version}"))
 
-    // Example project dependency using a sister or child project:
-    // implementation project(":myproject")
-
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
-
-    // Ponder API - compile-only; at runtime PonderJS provides Ponder via jarJar
-    compileOnly("net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:${ponder_version}")
-    // Flywheel API - required by Ponder
-    compileOnly("dev.engine-room.flywheel:flywheel-neoforge-api-${flywheel_minecraft_version}:${flywheel_version}")
-
-    // JEI API - compile-only, soft dependency
-    compileOnly("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}")
-    compileOnly("mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}")
+    // Mixin annotation processor
+    annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT:processor")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
-// A missing property will result in an error. Properties are expanded using ${} Groovy notation.
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
     var replaceProperties = [minecraft_version      : minecraft_version,
                              minecraft_version_range: minecraft_version_range,
-                             neo_version            : neo_version,
-                             neo_version_range      : neo_version_range,
+                             forge_version_range    : forge_version_range,
                              loader_version_range   : loader_version_range,
                              mod_id                 : mod_id,
                              mod_name               : mod_name,
@@ -150,13 +119,10 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
     into "build/generated/sources/modMetadata"
 }
 
-// Include the output of "generateModMetadata" as an input directory for the build
-// this works with both building through Gradle and the IDE.
 sourceSets.main.resources.srcDir generateModMetadata
-// To avoid having to run "generateModMetadata" manually, make it run on every project reload
-neoForge.ideSyncTask generateModMetadata
 
-// Example configuration to allow publishing using the maven-publish plugin
+jar.finalizedBy("reobfJar")
+
 publishing {
     publications {
         register('mavenJava', MavenPublication) {
@@ -170,10 +136,18 @@ publishing {
     }
 }
 
-// IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.
 idea {
     module {
         downloadSources = true
         downloadJavadoc = true
+    }
+}
+
+// IntelliJ Mixin annotation processor workaround
+if (System.getProperty("idea.sync.active") == "true") {
+    afterEvaluate {
+        tasks.withType(JavaCompile).all {
+            it.options.annotationProcessorPath = files()
+        }
     }
 }

@@ -1,15 +1,14 @@
 package com.nododiiiii.ponderer.network;
 
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.Ponderer;
+
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 
@@ -18,36 +17,27 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> structures) implements CustomPacketPayload {
-    public static final Type<SyncResponsePayload> TYPE =
-        new Type<>(ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, "sync_response"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, SyncResponsePayload> CODEC =
-        StreamCodec.of(SyncResponsePayload::encode, SyncResponsePayload::decode);
+public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> structures) {
 
     private static final Logger LOGGER = LogUtils.getLogger();
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
-    }
 
     public record FileEntry(String id, byte[] bytes) {
     }
 
-    private static void encode(RegistryFriendlyByteBuf buf, SyncResponsePayload payload) {
-        buf.writeVarInt(payload.scripts().size());
-        for (FileEntry entry : payload.scripts()) {
+    public void encode(FriendlyByteBuf buf) {
+        buf.writeVarInt(scripts().size());
+        for (FileEntry entry : scripts()) {
             buf.writeUtf(entry.id());
             buf.writeByteArray(entry.bytes());
         }
-        buf.writeVarInt(payload.structures().size());
-        for (FileEntry entry : payload.structures()) {
+        buf.writeVarInt(structures().size());
+        for (FileEntry entry : structures()) {
             buf.writeUtf(entry.id());
             buf.writeByteArray(entry.bytes());
         }
     }
 
-    private static SyncResponsePayload decode(RegistryFriendlyByteBuf buf) {
+    public static SyncResponsePayload decode(FriendlyByteBuf buf) {
         int scriptsSize = buf.readVarInt();
         List<FileEntry> scripts = new ArrayList<>(scriptsSize);
         for (int i = 0; i < scriptsSize; i++) {
@@ -89,7 +79,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
                 if ("both_modified".equals(status)) {
                     conflicts++;
                     if (isCheckMode) {
-                        notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.pull.conflict_both", entry.id()));
+                        notifyClient(Component.translatable("ponderer.cmd.pull.conflict_both", entry.id()));
                         skipped++;
                         continue;
                     }
@@ -97,8 +87,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
                         skipped++;
                         continue;
                     }
-                    // overwrite mode: warn but continue
-                    notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.pull.conflict_server", entry.id()));
+                    notifyClient(Component.translatable("ponderer.cmd.pull.conflict_server", entry.id()));
                 } else if ("local_modified".equals(status) && "keep_local".equals(pullMode)) {
                     skipped++;
                     continue;
@@ -119,7 +108,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
                 if ("both_modified".equals(status)) {
                     conflicts++;
                     if (isCheckMode) {
-                        notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.pull.conflict_both", entry.id()));
+                        notifyClient(Component.translatable("ponderer.cmd.pull.conflict_both", entry.id()));
                         skipped++;
                         continue;
                     }
@@ -127,7 +116,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
                         skipped++;
                         continue;
                     }
-                    notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.pull.conflict_server", entry.id()));
+                    notifyClient(Component.translatable("ponderer.cmd.pull.conflict_server", entry.id()));
                 } else if ("local_modified".equals(status) && "keep_local".equals(pullMode)) {
                     skipped++;
                     continue;
@@ -139,16 +128,15 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             written++;
         }
 
-        // Record sync hashes for conflict detection next time
         SyncMeta.recordHashes(syncedHashes);
 
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
 
-        notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.pull.done", written, skipped, conflicts));
+        notifyClient(Component.translatable("ponderer.cmd.pull.done", written, skipped, conflicts));
         if (conflicts > 0 && isCheckMode) {
-            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.pull.hint_force"));
-            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.pull.hint_keep"));
+            notifyClient(Component.translatable("ponderer.cmd.pull.hint_force"));
+            notifyClient(Component.translatable("ponderer.cmd.pull.hint_keep"));
         }
     }
 
@@ -160,7 +148,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             : root.resolve(loc.getNamespace()).resolve(loc.getPath() + ext);
     }
 
-    private static void notifyClient(net.minecraft.network.chat.Component message) {
+    private static void notifyClient(Component message) {
         if (Minecraft.getInstance().player != null) {
             Minecraft.getInstance().player.displayClientMessage(message, false);
         }

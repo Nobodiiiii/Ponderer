@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.ponder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.logging.LogUtils;
-import net.neoforged.fml.loading.FMLPaths;
+import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraft.resources.ResourceLocation;
 import com.nododiiiii.ponderer.Ponderer;
 import net.minecraft.server.MinecraftServer;

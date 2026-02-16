@@ -4,12 +4,11 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
@@ -18,35 +17,26 @@ import java.util.List;
 
 public record UploadScenePayload(String sceneId, String json,
                                  List<StructureEntry> structures,
-                                 String mode, String lastSyncHash) implements CustomPacketPayload {
-    public static final Type<UploadScenePayload> TYPE =
-        new Type<>(ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, "upload_scene"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, UploadScenePayload> CODEC =
-        StreamCodec.of(UploadScenePayload::encode, UploadScenePayload::decode);
+                                 String mode, String lastSyncHash) {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public record StructureEntry(String id, byte[] bytes) {
     }
 
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
-    }
-
-    private static void encode(RegistryFriendlyByteBuf buf, UploadScenePayload payload) {
-        buf.writeUtf(payload.sceneId());
-        buf.writeUtf(payload.json());
-        buf.writeVarInt(payload.structures().size());
-        for (StructureEntry entry : payload.structures()) {
+    public void encode(FriendlyByteBuf buf) {
+        buf.writeUtf(sceneId());
+        buf.writeUtf(json());
+        buf.writeVarInt(structures().size());
+        for (StructureEntry entry : structures()) {
             buf.writeUtf(entry.id());
             buf.writeByteArray(entry.bytes());
         }
-        buf.writeUtf(payload.mode() == null ? "check" : payload.mode());
-        buf.writeUtf(payload.lastSyncHash() == null ? "" : payload.lastSyncHash());
+        buf.writeUtf(mode() == null ? "check" : mode());
+        buf.writeUtf(lastSyncHash() == null ? "" : lastSyncHash());
     }
 
-    private static UploadScenePayload decode(RegistryFriendlyByteBuf buf) {
+    public static UploadScenePayload decode(FriendlyByteBuf buf) {
         String sceneId = buf.readUtf();
         String json = buf.readUtf();
         int size = buf.readVarInt();
@@ -76,9 +66,8 @@ public record UploadScenePayload(String sceneId, String json,
             String serverHash = computeServerSceneHash(player.server, payload.sceneId());
 
             if (!serverHash.isEmpty() && !lastSyncHash.isEmpty() && !serverHash.equals(lastSyncHash)) {
-                // Server file was modified since last sync - conflict
                 player.sendSystemMessage(Component.translatable("ponderer.cmd.push.server_conflict", payload.sceneId()));
-                net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+                PondererNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                     new UploadResponsePayload(payload.sceneId(), "conflict"));
                 return;
             }
@@ -96,13 +85,12 @@ public record UploadScenePayload(String sceneId, String json,
 
         if (ok) {
             player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_ok", payload.sceneId()));
-            // Compute new server hash after write and send it back to client for SyncMeta update
             String newHash = computeServerSceneHash(player.server, payload.sceneId());
-            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+            PondererNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                 new UploadResponsePayload(payload.sceneId(), "ok:" + newHash));
         } else {
             player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_failed", payload.sceneId()));
-            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+            PondererNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                 new UploadResponsePayload(payload.sceneId(), "error"));
         }
     }

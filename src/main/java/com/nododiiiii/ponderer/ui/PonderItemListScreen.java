@@ -78,16 +78,10 @@ public class PonderItemListScreen extends NavigatableSimiScreen {
                         CompoundTag filterTag = TagParser.parseTag(nf);
                         CompoundTag fullTag = new CompoundTag();
                         fullTag.putString("id", rl.toString());
-                        fullTag.putInt("count", 1);
-                        for (String key : filterTag.getAllKeys()) {
-                            fullTag.put(key, filterTag.get(key));
-                        }
-                        var registryAccess = Minecraft.getInstance().level != null
-                            ? Minecraft.getInstance().level.registryAccess() : null;
-                        if (registryAccess != null) {
-                            ItemStack parsed = ItemStack.parseOptional(registryAccess, fullTag);
-                            if (!parsed.isEmpty()) stack = parsed;
-                        }
+                        fullTag.putByte("Count", (byte) 1);
+                        fullTag.put("tag", filterTag);
+                        ItemStack parsed = ItemStack.of(fullTag);
+                        if (!parsed.isEmpty()) stack = parsed;
                     } catch (Exception ignored) {}
                 }
                 stacks.add(new ItemEntry(stack, nf));
@@ -146,7 +140,7 @@ public class PonderItemListScreen extends NavigatableSimiScreen {
         new BoxElement()
                 .withBackground(new Color(0xdd_000000, true))
                 .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
-                .at(gLeft, gTop, 100)
+                .at(gLeft, gTop, 0)
                 .withBounds(WINDOW_W, wH)
                 .render(graphics);
 
@@ -251,8 +245,7 @@ public class PonderItemListScreen extends NavigatableSimiScreen {
     }
 
     private static List<Component> getItemTooltip(Minecraft mc, ItemStack stack) {
-        return stack.getTooltipLines(Item.TooltipContext.of(mc.level), mc.player,
-            net.minecraft.world.item.TooltipFlag.NORMAL);
+        return stack.getTooltipLines(mc.player, net.minecraft.world.item.TooltipFlag.NORMAL);
     }
 
     @Override

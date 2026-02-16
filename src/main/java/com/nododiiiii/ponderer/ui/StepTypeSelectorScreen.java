@@ -96,7 +96,7 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
         new BoxElement()
             .withBackground(new Color(0xdd_000000, true))
             .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
-            .at(guiLeft, guiTop, 100)
+            .at(guiLeft, guiTop, 0)
             .withBounds(W, h)
             .render(graphics);
 
@@ -104,7 +104,6 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
         graphics.drawString(font, UIText.of("ponderer.ui.step_selector.title"), guiLeft + 10, guiTop + 8, 0xFFFFFF);
         graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + W - 5, guiTop + 21, 0x60_FFFFFF);
         graphics.drawCenteredString(font, UIText.of(PAGE_KEYS[pageIndex]), guiLeft + W / 2, guiTop + 30, 0xCCCCFF);
-
     }
 
     @Override

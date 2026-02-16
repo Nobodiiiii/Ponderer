@@ -1,5 +1,7 @@
 # Ponderer 模组介绍
 
+Create 制作组在 6.0 版本将 Ponder 拆分为独立模组，然而较高的使用门槛使这一优秀功能未能被更多玩家所体验。Ponderer 正是为此而生。
+
 Ponderer 是一个面向玩家与整合包作者的「游戏内思索（Ponder）制作工具」。
 你不需要离开游戏，也不需要先写脚本，就可以直接在世界里搭建、录制和调整思索教学流程。
 
@@ -66,7 +68,9 @@ Ponderer 采用更安全的数据传输方式，并提供与 PonderJS 的双向�
 
 ---
 
-# Ponderer Mod Introduction (English)
+# Ponderer Mod Introduction 
+
+The Create team spun Ponder off into a standalone module in version 6.0. Unfortunately, its steep learning curve has kept this brilliant feature hidden from much of the community — and that's exactly the problem Ponderer aims to solve.
 
 Ponderer is an in-game Ponder authoring tool for players and modpack creators.
 You can build, edit, and iterate tutorial scenes directly in Minecraft without leaving the game or writing scripts first.

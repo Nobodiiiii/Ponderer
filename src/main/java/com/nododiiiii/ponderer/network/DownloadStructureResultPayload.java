@@ -1,32 +1,19 @@
 package com.nododiiiii.ponderer.network;
 
-import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ui.ShowStructureScreen;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 
 public record DownloadStructureResultPayload(String sourceId, String targetId,
-                                             boolean success, String message) implements CustomPacketPayload {
-    public static final Type<DownloadStructureResultPayload> TYPE =
-        new Type<>(ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, "download_structure_result"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, DownloadStructureResultPayload> CODEC =
-        StreamCodec.of(DownloadStructureResultPayload::encode, DownloadStructureResultPayload::decode);
+                                             boolean success, String message) {
 
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public void encode(FriendlyByteBuf buf) {
+        buf.writeUtf(sourceId());
+        buf.writeUtf(targetId());
+        buf.writeBoolean(success());
+        buf.writeUtf(message());
     }
 
-    private static void encode(RegistryFriendlyByteBuf buf, DownloadStructureResultPayload payload) {
-        buf.writeUtf(payload.sourceId());
-        buf.writeUtf(payload.targetId());
-        buf.writeBoolean(payload.success());
-        buf.writeUtf(payload.message());
-    }
-
-    private static DownloadStructureResultPayload decode(RegistryFriendlyByteBuf buf) {
+    public static DownloadStructureResultPayload decode(FriendlyByteBuf buf) {
         return new DownloadStructureResultPayload(
             buf.readUtf(),
             buf.readUtf(),

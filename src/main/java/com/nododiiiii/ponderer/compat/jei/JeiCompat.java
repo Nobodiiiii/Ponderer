@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.compat.jei;
 
 import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
-import net.neoforged.fml.ModList;
+import net.minecraftforge.fml.ModList;
 
 /**
  * Safe entry point for JEI integration.

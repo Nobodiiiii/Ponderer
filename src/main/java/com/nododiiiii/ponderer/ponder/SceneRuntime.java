@@ -68,7 +68,7 @@ public final class SceneRuntime {
                 sceneIndex = Integer.parseInt(partNum) - 1; // 1-based to 0-based
             } catch (NumberFormatException ignored) {}
 
-            ResourceLocation baseId = ResourceLocation.fromNamespaceAndPath(ponderSceneId.getNamespace(), basePath);
+            ResourceLocation baseId = new ResourceLocation(ponderSceneId.getNamespace(), basePath);
             for (DslScene scene : scenes) {
                 if (scene.id == null) continue;
                 ResourceLocation sceneId = ResourceLocation.tryParse(scene.id);

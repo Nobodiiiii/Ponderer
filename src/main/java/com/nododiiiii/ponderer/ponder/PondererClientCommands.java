@@ -17,8 +17,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.LevelResource;
-import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.client.event.RegisterClientCommandsEvent;
+import com.nododiiiii.ponderer.network.PondererNetwork;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -135,7 +135,7 @@ public final class PondererClientCommands {
 
     private static int pull(String mode) {
         pendingPullMode = mode;
-        PacketDistributor.sendToServer(new SyncRequestPayload());
+        PondererNetwork.CHANNEL.sendToServer(new SyncRequestPayload());
         notifyClient(Component.translatable("ponderer.cmd.pull.requesting", mode));
         return 1;
     }
@@ -162,7 +162,7 @@ public final class PondererClientCommands {
         if (sourceId == null) {
             return;
         }
-        PacketDistributor.sendToServer(new DownloadStructurePayload(sourceId.toString()));
+        PondererNetwork.CHANNEL.sendToServer(new DownloadStructurePayload(sourceId.toString()));
         notifyClient(Component.translatable("ponderer.cmd.download.requesting", sourceId.toString()));
     }
 
@@ -186,7 +186,7 @@ public final class PondererClientCommands {
         Map<String, String> meta = SyncMeta.load();
         String lastSyncHash = meta.getOrDefault(metaKey, "");
 
-        PacketDistributor.sendToServer(new UploadScenePayload(id.toString(), json, structures, mode, lastSyncHash));
+        PondererNetwork.CHANNEL.sendToServer(new UploadScenePayload(id.toString(), json, structures, mode, lastSyncHash));
         notifyClient(Component.translatable("ponderer.cmd.push.uploading", id.toString(), mode));
         return 1;
     }
@@ -243,7 +243,7 @@ public final class PondererClientCommands {
             return null;
         }
 
-        ResourceLocation target = ResourceLocation.fromNamespaceAndPath("ponderer", source.getPath());
+        ResourceLocation target = new ResourceLocation("ponderer", source.getPath());
         Path sourcePath = findStructureSourcePath(source);
         if (sourcePath == null || !Files.exists(sourcePath)) {
             notifyClient(Component.translatable("ponderer.cmd.push.structure_not_found", source.toString()));
@@ -289,7 +289,7 @@ public final class PondererClientCommands {
         if (raw.contains(":")) {
             return ResourceLocation.tryParse(raw);
         }
-        return ResourceLocation.fromNamespaceAndPath("ponder", raw);
+        return new ResourceLocation("ponder", raw);
     }
 
     private static boolean isNumeric(String raw) {
@@ -342,22 +342,13 @@ public final class PondererClientCommands {
             notifyClient(Component.translatable("ponderer.cmd.new.no_item"));
             return 0;
         }
-        net.minecraft.core.RegistryAccess registryAccess = player.registryAccess();
-        net.minecraft.nbt.Tag saved = held.save(registryAccess);
-        if (!(saved instanceof CompoundTag fullTag)) {
-            notifyClient(Component.translatable("ponderer.cmd.new.no_nbt"));
-            return 0;
-        }
-        // Keep only custom components for NBT filter (remove id and count)
-        CompoundTag filterTag = fullTag.copy();
-        filterTag.remove("count");
-        filterTag.remove("id");
-        if (filterTag.isEmpty()) {
+        CompoundTag tag = held.getTag();
+        if (tag == null || tag.isEmpty()) {
             notifyClient(Component.translatable("ponderer.cmd.new.no_nbt"));
             return 0;
         }
         ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(held.getItem());
-        return newSceneForItem(itemId, filterTag);
+        return newSceneForItem(itemId, tag);
     }
 
     private static int newSceneForItem(ResourceLocation itemId, @Nullable CompoundTag nbt) {
@@ -520,7 +511,7 @@ public final class PondererClientCommands {
         }
         if (!filename.endsWith(".zip")) filename += ".zip";
 
-        Path baseDir = net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get().resolve("ponderer");
+        Path baseDir = net.minecraftforge.fml.loading.FMLPaths.CONFIGDIR.get().resolve("ponderer");
         Path scriptsDir = SceneStore.getSceneDir();
         Path structuresDir = SceneStore.getStructureDir();
         Path outputFile = baseDir.resolve(filename);
@@ -563,7 +554,7 @@ public final class PondererClientCommands {
     private static int importPack(String filename) {
         if (!filename.endsWith(".zip")) filename += ".zip";
 
-        Path baseDir = net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get().resolve("ponderer");
+        Path baseDir = net.minecraftforge.fml.loading.FMLPaths.CONFIGDIR.get().resolve("ponderer");
         Path zipFile = baseDir.resolve(filename);
 
         if (!Files.exists(zipFile)) {

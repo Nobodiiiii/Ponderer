@@ -183,7 +183,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
 
                 ResourceLocation target = source.getNamespace().equals("ponderer")
                     ? source
-                    : ResourceLocation.fromNamespaceAndPath("ponderer", source.getPath());
+                    : new ResourceLocation("ponderer", source.getPath());
 
                 if (source.getNamespace().equals("ponderer") && localStructureExists(target)) {
                     s.structure = target.toString();

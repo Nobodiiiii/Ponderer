@@ -1,28 +1,31 @@
 package com.nododiiiii.ponderer.blueprint;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.InputEvent;
+import com.nododiiiii.ponderer.Ponderer;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.client.event.InputEvent;
 
 /**
  * Bridges Forge events to {@link BlueprintHandler} (client-only).
  */
-@EventBusSubscriber(value = Dist.CLIENT)
+@Mod.EventBusSubscriber(modid = Ponderer.MODID, value = Dist.CLIENT)
 public class BlueprintEvents {
 
     /** Singleton handler instance. */
     public static final BlueprintHandler HANDLER = new BlueprintHandler();
 
     @SubscribeEvent
-    public static void onClientTick(ClientTickEvent.Post event) {
-        HANDLER.tick();
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase == TickEvent.Phase.END) {
+            HANDLER.tick();
+        }
     }
 
     @SubscribeEvent
     public static void onMouseScrolled(InputEvent.MouseScrollingEvent event) {
-        if (HANDLER.mouseScrolled(event.getScrollDeltaY())) {
+        if (HANDLER.mouseScrolled(event.getScrollDelta())) {
             event.setCanceled(true);
         }
     }

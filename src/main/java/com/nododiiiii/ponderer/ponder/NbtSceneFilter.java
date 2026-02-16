@@ -149,11 +149,7 @@ public final class NbtSceneFilter {
         if (filter == null || filter.isEmpty()) return true;
 
         try {
-            RegistryAccess registryAccess = getRegistryAccess();
-            if (registryAccess == null) return false;
-
-            Tag saved = stack.save(registryAccess);
-            if (!(saved instanceof CompoundTag stackTag)) return false;
+            CompoundTag stackTag = stack.save(new CompoundTag());
 
             return isSubset(filter, stackTag);
         } catch (Exception e) {

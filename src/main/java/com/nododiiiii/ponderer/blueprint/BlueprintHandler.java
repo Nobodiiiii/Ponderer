@@ -137,7 +137,7 @@ public class BlueprintHandler {
 
         // Free-aiming with Ctrl held
         if (hasCtrlDown()) {
-            float pt = Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(true);
+            float pt = Minecraft.getInstance().getFrameTime();
             Vec3 targetVec = player.getEyePosition(pt).add(player.getLookAngle().scale(range));
             selectedPos = BlockPos.containing(targetVec);
         } else {

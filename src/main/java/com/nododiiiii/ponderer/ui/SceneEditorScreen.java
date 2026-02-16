@@ -42,13 +42,6 @@ public class SceneEditorScreen extends AbstractSimiScreen {
     /** Each small inline button width */
     private static final int SMALL_BTN = 14;
 
-    private static final ResourceLocation ICON_MOVE_UP = ResourceLocation.fromNamespaceAndPath("minecraft",
-            "server_list/move_up");
-    private static final ResourceLocation ICON_MOVE_DOWN = ResourceLocation.fromNamespaceAndPath("minecraft",
-            "server_list/move_down");
-    private static final ResourceLocation ICON_DELETE = ResourceLocation.fromNamespaceAndPath("minecraft",
-            "container/beacon/cancel");
-
     /** Client-side clipboard for copy/paste. Holds a deep-copied step. */
     private static DslScene.DslStep clipboard = null;
 
@@ -207,7 +200,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         new BoxElement()
                 .withBackground(new Color(0xdd_000000, true))
                 .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
-                .at(guiLeft, guiTop, 100)
+                .at(guiLeft, guiTop, 0)
                 .withBounds(WINDOW_W, WINDOW_H)
                 .render(graphics);
 
@@ -383,33 +376,18 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         int bg = hovered ? 0x60_FFFFFF : 0x30_FFFFFF;
         graphics.fill(x, y, x + SMALL_BTN, y + STEP_ROW_HEIGHT - 2, bg);
 
-        ResourceLocation icon = switch (actionId) {
-            case 0 -> ICON_MOVE_UP;
-            case 1 -> ICON_MOVE_DOWN;
-            case 5 -> ICON_DELETE;
-            default -> null;
-        };
-
-        if (icon != null) {
-            graphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-            graphics.pose().pushPose();
-            graphics.pose().translate(0, 0, 500);
-            if (actionId == 5) {
-                // Delete icon (14x14 fits the button perfectly)
-                graphics.blitSprite(icon, x, y + 1, 14, 14);
-            } else {
-                // Move Up/Down icons (using 24x24 as requested, centered on the 14x16 button)
-                graphics.blitSprite(icon, x, y - 4, 24, 24);
-            }
-            graphics.pose().popPose();
-        } else {
+        // In 1.20.1, use text labels instead of blitSprite (which is 1.20.2+)
+        {
             var font = Minecraft.getInstance().font;
             graphics.pose().pushPose();
             graphics.pose().translate(0, 0, 500);
             int textColor = switch (actionId) {
+                case 0 -> 0xFF_FFFFFF; // move up
+                case 1 -> 0xFF_FFFFFF; // move down
                 case 2 -> 0xFF_80FF80; // green for insert
                 case 3 -> 0xFF_80C0FF; // blue for copy
                 case 4 -> clipboard != null ? 0xFF_FFD080 : 0xFF_606060; // orange for paste, gray when empty
+                case 5 -> 0xFF_FF5555; // red for delete
                 default -> 0xFFFFFFFF;
             };
             graphics.drawCenteredString(font, label, x + SMALL_BTN / 2, y + 4, textColor);
@@ -455,15 +433,15 @@ public class SceneEditorScreen extends AbstractSimiScreen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         List<DslScene.DslStep> steps = getSteps();
         clampScrollOffset(steps.size());
         int mv = maxVisible();
         if (steps.size() > mv) {
-            scrollOffset = Math.max(0, Math.min(scrollOffset - (int) scrollY, steps.size() - mv));
+            scrollOffset = Math.max(0, Math.min(scrollOffset - (int) delta, steps.size() - mv));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override

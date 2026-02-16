@@ -76,14 +76,14 @@ public class StepEditorGhostHandler implements IGhostIngredientHandler<AbstractS
             }
             case ENTITY -> {
                 if (stack.getItem() instanceof SpawnEggItem egg) {
-                    var type = egg.getType(stack);
+                    var type = egg.getType(stack.getTag());
                     yield BuiltInRegistries.ENTITY_TYPE.getKey(type).toString();
                 }
                 // Boats: item names (oak_boat) don't match entity type (boat) in 1.21.1
                 if (stack.getItem() instanceof BoatItem) {
                     ResourceLocation itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
                     String entityName = itemKey.getPath().contains("chest") ? "chest_boat" : "boat";
-                    yield ResourceLocation.fromNamespaceAndPath(itemKey.getNamespace(), entityName).toString();
+                    yield new ResourceLocation(itemKey.getNamespace(), entityName).toString();
                 }
                 // Fallback: check if item registry name matches an entity type
                 // (works for minecarts, armor stands, etc.)
