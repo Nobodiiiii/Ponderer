@@ -141,10 +141,6 @@
         {
           "type": "idle",
           "duration": 40
-        },
-        {
-          "type": "idle",
-          "duration": 40
         }
       ]
     },
@@ -296,7 +292,7 @@
         },
         {
           "type": "set_block",
-          "block": "minecraft:white_banner",
+          "block": "minecraft:lime_banner",
           "blockProperties": {
             "rotation": "8"
           },
@@ -307,13 +303,17 @@
           ]
         },
         {
+          "type": "idle",
+          "duration": 40
+        },
+        {
           "type": "modify_block_entity_nbt",
           "blockPos": [
             0,
             1,
             0
           ],
-          "nbt": "{patterns:[{pattern:\"minecraft:creeper\",color:\"orange\"},{pattern:\"minecraft:flower\",color:\"red\"}]}",
+          "nbt": "{patterns:[{pattern:\"minecraft:creeper\",color:\"green\"}]}",
           "reDrawBlocks": true,
           "attachKeyFrame": true
         },
@@ -333,7 +333,7 @@
         },
         {
           "type": "idle",
-          "duration": 30
+          "duration": 40
         },
         {
           "type": "indicate_redstone",
@@ -369,7 +369,7 @@
         },
         {
           "type": "idle",
-          "duration": 30
+          "duration": 40
         }
       ]
     },
@@ -636,7 +636,7 @@
         },
         {
           "type": "idle",
-          "duration": 30
+          "duration": 40
         },
         {
           "type": "play_sound",

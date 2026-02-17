@@ -159,11 +159,11 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     private String normalizeDirection(String raw) {
         String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
         return switch (value) {
-            case "\u4e0a", "\u5411\u4e0a", "up" -> "up";
-            case "\u5317", "\u5411\u5317", "north" -> "north";
-            case "\u5357", "\u5411\u5357", "south" -> "south";
-            case "\u897f", "\u5411\u897f", "west" -> "west";
-            case "\u4e1c", "\u5411\u4e1c", "east" -> "east";
+            case "上", "向上", "up" -> "up";
+            case "北", "向北", "north" -> "north";
+            case "南", "向南", "south" -> "south";
+            case "西", "向西", "west" -> "west";
+            case "东", "向东", "east" -> "east";
             default -> "down";
         };
     }

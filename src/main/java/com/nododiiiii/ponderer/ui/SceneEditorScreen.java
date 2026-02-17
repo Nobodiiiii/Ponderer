@@ -2,15 +2,18 @@ package com.nododiiiii.ponderer.ui;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.foundation.PonderIndex;
+import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
@@ -20,6 +23,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -870,13 +874,56 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             itemId = ResourceLocation.tryParse(scene.items.get(0));
         }
         final ResourceLocation reopenId = itemId;
+        final String targetSceneId = computeCurrentSceneId();
 
         mc.execute(() -> {
             PonderIndex.reload();
             if (reopenId != null && PonderIndex.getSceneAccess().doScenesExistForId(reopenId)) {
-                mc.setScreen(PonderUI.of(reopenId));
+                PonderUI ui = PonderUI.of(reopenId);
+                if (targetSceneId != null) {
+                    navigateToScene(ui, targetSceneId);
+                }
+                mc.setScreen(ui);
             }
         });
+    }
+
+    /**
+     * Compute the PonderScene ID that corresponds to the current editor scene index.
+     * Mirrors the ID construction logic in DynamicPonderPlugin.
+     */
+    @Nullable
+    private String computeCurrentSceneId() {
+        ResourceLocation baseId = ResourceLocation.tryParse(scene.id);
+        if (baseId == null) return null;
+        String basePath = baseId.getPath();
+
+        List<DslScene.SceneSegment> sceneList = getScenes();
+        if (sceneList.size() <= 1) {
+            return "ponderer:" + basePath;
+        }
+        if (sceneIndex < 0 || sceneIndex >= sceneList.size()) {
+            return "ponderer:" + basePath;
+        }
+        DslScene.SceneSegment sc = sceneList.get(sceneIndex);
+        String suffix = (sc.id != null && !sc.id.isBlank()) ? sc.id : String.valueOf(sceneIndex + 1);
+        return "ponderer:" + basePath + "_" + suffix;
+    }
+
+    /**
+     * Navigate a PonderUI to the scene matching the given scene ID.
+     */
+    private static void navigateToScene(PonderUI ui, String targetSceneId) {
+        PonderUIAccessor accessor = (PonderUIAccessor) (Object) ui;
+        List<PonderScene> scenes = accessor.ponderer$getScenes();
+        for (int i = 0; i < scenes.size(); i++) {
+            if (targetSceneId.equals(scenes.get(i).getId().toString())) {
+                accessor.ponderer$setIndex(i);
+                accessor.ponderer$getLazyIndex().chase(i, 1.0f / 3, LerpedFloat.Chaser.EXP);
+                accessor.ponderer$getLazyIndex().startWithValue(i);
+                break;
+            }
+        }
     }
 
     @Override

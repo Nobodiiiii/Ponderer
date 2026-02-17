@@ -59,7 +59,8 @@ public abstract class PonderUIMixin extends Screen {
             .showing(new ItemStack(Items.WRITABLE_BOOK))
             .enableFade(0, 5);
         editButton.withCallback(() -> {
-            var result = SceneRuntime.findBySceneId(active.getId());
+            PonderScene current = ((PonderUI) (Object) this).getActiveScene();
+            var result = SceneRuntime.findBySceneId(current.getId());
             if (result != null) {
                 Minecraft.getInstance().setScreen(new SceneEditorScreen(result.scene(), result.sceneIndex()));
             }
@@ -185,14 +186,14 @@ public abstract class PonderUIMixin extends Screen {
                 line1 = "[ " + ponderer$fmtCoord(pos.getX(), faceAxis != Direction.Axis.X)
                         + ", " + ponderer$fmtCoord(pos.getY(), faceAxis != Direction.Axis.Y)
                         + ", " + ponderer$fmtCoord(pos.getZ(), faceAxis != Direction.Axis.Z)
-                        + " ] \u5de6\u952e\u9009\u53d6";
+                        + " ] 左键选取";
                 line2 = "[ " + ponderer$fmtCoord(adjacent.getX(), faceAxis != Direction.Axis.X)
                         + ", " + ponderer$fmtCoord(adjacent.getY(), faceAxis != Direction.Axis.Y)
                         + ", " + ponderer$fmtCoord(adjacent.getZ(), faceAxis != Direction.Axis.Z)
-                        + " ] \u53f3\u952e\u9009\u53d6";
+                        + " ] 右键选取";
             } else {
-                line1 = "[ " + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + " ] \u5de6\u952e\u9009\u53d6";
-                line2 = "[ " + adjacent.getX() + ", " + adjacent.getY() + ", " + adjacent.getZ() + " ] \u53f3\u952e\u9009\u53d6";
+                line1 = "[ " + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + " ] 左键选取";
+                line2 = "[ " + adjacent.getX() + ", " + adjacent.getY() + ", " + adjacent.getZ() + " ] 右键选取";
             }
 
             int w1 = font.width(line1);
@@ -217,7 +218,7 @@ public abstract class PonderUIMixin extends Screen {
             graphics.drawString(font, line2, tx + 4, ty + 15, 0x66FF66);
         } else {
             // No block hovered: show minimal instruction above cursor
-            String hint = "ESC/Backspace \u8fd4\u56de";
+            String hint = "ESC/Backspace 返回";
             int textW = font.width(hint) + 8;
             int tx = mouseX + 10;
             int ty = mouseY - 31;
