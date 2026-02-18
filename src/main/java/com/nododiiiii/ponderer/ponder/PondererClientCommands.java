@@ -367,7 +367,7 @@ public final class PondererClientCommands {
         scene.id = sceneId;
         scene.items = List.of(itemId.toString());
         scene.title = LocalizedText.of("New Scene - " + itemId.getPath());
-        scene.structures = List.of("ponderjs:basic");
+        scene.structures = List.of("ponderer:basic");
         scene.tags = List.of();
         scene.steps = List.of();
         if (nbt != null) {
