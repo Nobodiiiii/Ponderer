@@ -104,31 +104,14 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 
 dependencies {
-    // Example mod dependency with JEI
-    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
-    // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
-    // compileOnly "mezz.jei:jei-${mc_version}-forge-api:${jei_version}"
-    // runtimeOnly "mezz.jei:jei-${mc_version}-forge:${jei_version}"
+    // Ponder - bundled via jarJar; NeoForge auto-deduplicates by mod ID when
+    // Create / PonderJS / other mods also ship Ponder, picking the highest version.
+    implementation("net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:${ponder_version}")
+    jarJar("net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:[${ponder_version},)")
 
-    // Example mod dependency using a mod jar from ./libs with a flat dir repository
-    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
-    // The group id is ignored when searching -- in this case, it is "blank"
-    // implementation "blank:coolmod-${mc_version}:${coolmod_version}"
-
-    // Example mod dependency using a file as dependency
-    // implementation files("libs/coolmod-${mc_version}-${coolmod_version}.jar")
-
-    // Example project dependency using a sister or child project:
-    // implementation project(":myproject")
-
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
-
-    // Ponder API - compile-only; at runtime PonderJS provides Ponder via jarJar
-    compileOnly("net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:${ponder_version}")
-    // Flywheel API - required by Ponder
+    // Flywheel - required by Ponder, also bundled via jarJar for standalone use.
     compileOnly("dev.engine-room.flywheel:flywheel-neoforge-api-${flywheel_minecraft_version}:${flywheel_version}")
+    jarJar("dev.engine-room.flywheel:flywheel-neoforge-${flywheel_minecraft_version}:[${flywheel_version},)")
 
     // JEI API - compile-only, soft dependency
     compileOnly("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}")

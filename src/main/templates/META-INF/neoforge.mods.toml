@@ -76,8 +76,16 @@ side = "BOTH"
 [[dependencies."${mod_id}"]]
 modId = "ponder"
 type = "required"
-# Ponder library is provided by any of: Create, standalone Ponder, or PonderJS
-versionRange = "[0,)"
+# Ponder is bundled via jarJar; NeoForge deduplicates when Create/PonderJS also ships it
+versionRange = "[1.0,)"
+ordering = "AFTER"
+side = "CLIENT"
+
+[[dependencies."${mod_id}"]]
+modId = "flywheel"
+type = "required"
+# Flywheel is bundled via jarJar; NeoForge deduplicates when Create also ships it
+versionRange = "[1.0,)"
 ordering = "AFTER"
 side = "CLIENT"
 

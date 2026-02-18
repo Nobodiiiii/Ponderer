@@ -275,6 +275,8 @@ public final class SceneStore {
             structureDir.resolve("ponderer_example_1.nbt"));
         extractResource("data/ponderer/default_structures/ponderer_example_2.nbt",
             structureDir.resolve("ponderer_example_2.nbt"));
+        extractResource("data/ponderer/default_structures/basic.nbt",
+            structureDir.resolve("basic.nbt"));
 
         try {
             Files.writeString(marker, "initialized");

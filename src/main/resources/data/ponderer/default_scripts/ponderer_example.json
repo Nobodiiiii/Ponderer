@@ -93,7 +93,7 @@
           ],
           "direction": "down",
           "action": "right",
-          "item": "minecraft:stone",
+          "item": "minecraft:stick",
           "attachKeyFrame": true,
           "whileCTRL": true
         },
