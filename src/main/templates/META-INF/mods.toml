@@ -26,7 +26,16 @@ description='''${mod_description}'''
 [[dependencies.${mod_id}]]
     modId="ponder"
     mandatory=true
-    versionRange="[0,)"
+    # Ponder is bundled via jarJar; Forge deduplicates when Create/PonderJS also ships it
+    versionRange="[1.0,)"
+    ordering="AFTER"
+    side="CLIENT"
+
+[[dependencies.${mod_id}]]
+    modId="flywheel"
+    mandatory=true
+    # Flywheel is bundled via jarJar; Forge deduplicates when Create also ships it
+    versionRange="[1.0,)"
     ordering="AFTER"
     side="CLIENT"
 
