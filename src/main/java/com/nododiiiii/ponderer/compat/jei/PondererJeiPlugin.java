@@ -1,7 +1,9 @@
 package com.nododiiiii.ponderer.compat.jei;
 
 import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
+import com.nododiiiii.ponderer.ui.CommandParamScreen;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
+import com.nododiiiii.ponderer.ui.JeiAwareScreen;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.gui.handlers.IGuiProperties;
@@ -25,7 +27,7 @@ import java.util.Optional;
 public class PondererJeiPlugin implements IModPlugin {
 
     @Nullable
-    private static AbstractStepEditorScreen activeEditor = null;
+    private static Screen activeScreen = null;
     @Nullable
     private static IdFieldMode activeMode = null;
     @Nullable
@@ -50,32 +52,47 @@ public class PondererJeiPlugin implements IModPlugin {
     @Override
     public void onRuntimeUnavailable() {
         runtime = null;
-        activeEditor = null;
+        activeScreen = null;
         activeMode = null;
     }
 
     @Override
     public void registerGuiHandlers(IGuiHandlerRegistration registration) {
         registration.addGuiScreenHandler(AbstractStepEditorScreen.class, screen -> {
-            if (activeEditor != screen) return null;
-            return new PondererGuiProperties(screen);
+            if (activeScreen != screen) return null;
+            return new PondererGuiProperties((JeiAwareScreen) screen, screen);
+        });
+
+        registration.addGuiScreenHandler(CommandParamScreen.class, screen -> {
+            if (activeScreen != screen) return null;
+            return new PondererGuiProperties((JeiAwareScreen) screen, screen);
         });
 
         registration.addGhostIngredientHandler(
                 AbstractStepEditorScreen.class,
-                new StepEditorGhostHandler()
+                new StepEditorGhostHandler<>()
+        );
+
+        registration.addGhostIngredientHandler(
+                CommandParamScreen.class,
+                new StepEditorGhostHandler<>()
         );
     }
 
     // ---- State management (called from JeiCompat) ----
 
     static void setActiveEditor(AbstractStepEditorScreen screen, IdFieldMode mode) {
-        activeEditor = screen;
+        activeScreen = screen;
+        activeMode = mode;
+    }
+
+    static void setActiveScreen(Screen screen, IdFieldMode mode) {
+        activeScreen = screen;
         activeMode = mode;
     }
 
     static void clearActiveEditor() {
-        activeEditor = null;
+        activeScreen = null;
         activeMode = null;
     }
 
@@ -85,16 +102,17 @@ public class PondererJeiPlugin implements IModPlugin {
     }
 
     @Nullable
-    static AbstractStepEditorScreen getActiveEditor() {
-        return activeEditor;
+    static Screen getActiveScreen() {
+        return activeScreen;
     }
 
     // ---- Click interception ----
 
     private static void onMouseClick(ScreenEvent.MouseButtonPressed.Pre event) {
-        if (!(event.getScreen() instanceof AbstractStepEditorScreen editor)) return;
+        Screen screen = event.getScreen();
+        if (!(screen instanceof JeiAwareScreen aware)) return;
         if (activeMode == null || runtime == null) return;
-        if (activeEditor != editor) return;
+        if (activeScreen != screen) return;
 
         IIngredientListOverlay overlay = runtime.getIngredientListOverlay();
         IBookmarkOverlay bookmarks = runtime.getBookmarkOverlay();
@@ -114,14 +132,14 @@ public class PondererJeiPlugin implements IModPlugin {
 
         String id = StepEditorGhostHandler.resolveId(stack, activeMode);
         if (id != null) {
-            HintableTextFieldWidget field = editor.getJeiTargetField();
+            HintableTextFieldWidget field = aware.getJeiTargetField();
             if (field != null) {
                 field.setValue(id);
             }
-            editor.deactivateJei();
+            aware.deactivateJei();
             event.setCanceled(true);
         } else {
-            editor.showJeiIncompatibleWarning(activeMode);
+            aware.showJeiIncompatibleWarning(activeMode);
             event.setCanceled(true);
         }
     }
@@ -129,9 +147,11 @@ public class PondererJeiPlugin implements IModPlugin {
     // ---- IGuiProperties implementation ----
 
     private static class PondererGuiProperties implements IGuiProperties {
-        private final AbstractStepEditorScreen screen;
+        private final JeiAwareScreen aware;
+        private final Screen screen;
 
-        PondererGuiProperties(AbstractStepEditorScreen screen) {
+        PondererGuiProperties(JeiAwareScreen aware, Screen screen) {
+            this.aware = aware;
             this.screen = screen;
         }
 
@@ -139,16 +159,16 @@ public class PondererJeiPlugin implements IModPlugin {
         public Class<? extends Screen> screenClass() { return screen.getClass(); }
 
         @Override
-        public int guiLeft() { return screen.getGuiLeft(); }
+        public int guiLeft() { return aware.getGuiLeft(); }
 
         @Override
-        public int guiTop() { return screen.getGuiTop(); }
+        public int guiTop() { return aware.getGuiTop(); }
 
         @Override
-        public int guiXSize() { return screen.getGuiWidth(); }
+        public int guiXSize() { return aware.getGuiWidth(); }
 
         @Override
-        public int guiYSize() { return screen.getGuiHeight(); }
+        public int guiYSize() { return aware.getGuiHeight(); }
 
         @Override
         public int screenWidth() { return screen.width; }

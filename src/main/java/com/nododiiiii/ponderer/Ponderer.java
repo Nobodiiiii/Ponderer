@@ -31,7 +31,9 @@ public class Ponderer {
         modEventBus.addListener(this::onClientSetup);
         modEventBus.addListener(this::onRegisterPayloads);
         modEventBus.addListener(this::onBuildCreativeTab);
+        modEventBus.addListener(ModKeyBindings::register);
         NeoForge.EVENT_BUS.addListener(this::onRegisterClientCommands);
+        NeoForge.EVENT_BUS.addListener(ModKeyEvents::onClientTick);
     }
 
     private void onClientSetup(FMLClientSetupEvent event) {

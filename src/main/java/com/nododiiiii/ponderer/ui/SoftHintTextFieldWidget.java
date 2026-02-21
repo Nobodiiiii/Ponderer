@@ -27,6 +27,8 @@ public class SoftHintTextFieldWidget extends HintableTextFieldWidget {
         if (!getValue().isEmpty())
             return;
 
+        graphics.enableScissor(getX() + 1, getY(), getX() + width - 1, getY() + height);
         graphics.drawString(font, hint, getX() + 5, this.getY() + (this.height - 8) / 2, SOFT_HINT_COLOR);
+        graphics.disableScissor();
     }
 }

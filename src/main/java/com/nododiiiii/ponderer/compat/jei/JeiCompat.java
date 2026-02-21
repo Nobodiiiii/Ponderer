@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.compat.jei;
 
 import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
+import net.minecraft.client.gui.screens.Screen;
 import net.neoforged.fml.ModList;
 
 /**
@@ -28,6 +29,12 @@ public final class JeiCompat {
     public static void setActiveEditor(AbstractStepEditorScreen screen, IdFieldMode mode) {
         if (!isAvailable()) return;
         PondererJeiPlugin.setActiveEditor(screen, mode);
+    }
+
+    /** Tell JEI plugin to show overlay for any JeiAwareScreen (e.g. CommandParamScreen). */
+    public static void setActiveScreen(Screen screen, IdFieldMode mode) {
+        if (!isAvailable()) return;
+        PondererJeiPlugin.setActiveScreen(screen, mode);
     }
 
     /** Tell JEI plugin to hide the overlay. */
