@@ -34,6 +34,7 @@ public class Ponderer {
         modEventBus.addListener(this::onCommonSetup);
         modEventBus.addListener(this::onClientSetup);
         modEventBus.addListener(this::onBuildCreativeTab);
+        modEventBus.addListener(ModKeyBindings::register);
         MinecraftForge.EVENT_BUS.addListener(this::onRegisterClientCommands);
     }
 

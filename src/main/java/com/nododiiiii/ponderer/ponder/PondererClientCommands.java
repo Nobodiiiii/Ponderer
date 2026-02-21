@@ -119,7 +119,7 @@ public final class PondererClientCommands {
         return PonderJsConversionService.convertToPonderJs(id);
     }
 
-    private static int convertAllToPonderJs() {
+    public static int convertAllToPonderJs() {
         return PonderJsConversionService.convertAllToPonderJs();
     }
 
@@ -127,13 +127,13 @@ public final class PondererClientCommands {
         return PonderJsConversionService.convertFromPonderJs(id);
     }
 
-    private static int convertAllFromPonderJs() {
+    public static int convertAllFromPonderJs() {
         return PonderJsConversionService.convertAllFromPonderJs();
     }
 
     private static String pendingPullMode = "check";
 
-    private static int pull(String mode) {
+    public static int pull(String mode) {
         pendingPullMode = mode;
         PondererNetwork.CHANNEL.sendToServer(new SyncRequestPayload());
         notifyClient(Component.translatable("ponderer.cmd.pull.requesting", mode));
@@ -146,7 +146,7 @@ public final class PondererClientCommands {
         return mode;
     }
 
-    private static int reloadLocal() {
+    public static int reloadLocal() {
         int count = SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
         notifyClient(Component.translatable("ponderer.cmd.reload.done", count));
@@ -166,7 +166,7 @@ public final class PondererClientCommands {
         notifyClient(Component.translatable("ponderer.cmd.download.requesting", sourceId.toString()));
     }
 
-    private static int push(ResourceLocation id, String mode) {
+    public static int push(ResourceLocation id, String mode) {
         Optional<DslScene> scene = SceneRuntime.getScenes().stream()
             .filter(s -> id.toString().equals(s.id))
             .findFirst();
@@ -302,7 +302,7 @@ public final class PondererClientCommands {
         return true;
     }
 
-    private static int pushAll(String mode) {
+    public static int pushAll(String mode) {
         List<DslScene> scenes = SceneRuntime.getScenes();
         if (scenes.isEmpty()) {
             notifyClient(Component.translatable("ponderer.cmd.push.no_scenes"));
@@ -322,7 +322,7 @@ public final class PondererClientCommands {
 
     // ---- /ponderer new ----
 
-    private static int newSceneFromHand(@Nullable CompoundTag nbt) {
+    public static int newSceneFromHand(@Nullable CompoundTag nbt) {
         var player = Minecraft.getInstance().player;
         if (player == null) return 0;
         ItemStack held = player.getMainHandItem();
@@ -351,7 +351,7 @@ public final class PondererClientCommands {
         return newSceneForItem(itemId, tag);
     }
 
-    private static int newSceneForItem(ResourceLocation itemId, @Nullable CompoundTag nbt) {
+    public static int newSceneForItem(ResourceLocation itemId, @Nullable CompoundTag nbt) {
         String basePath = itemId.getPath();
         String baseId = "ponderer:" + basePath;
 
@@ -414,7 +414,7 @@ public final class PondererClientCommands {
 
     // ---- /ponderer copy ----
 
-    private static int copyScene(ResourceLocation sceneId, ResourceLocation targetItem) {
+    public static int copyScene(ResourceLocation sceneId, ResourceLocation targetItem) {
         Optional<DslScene> source = SceneRuntime.getScenes().stream()
             .filter(s -> sceneId.toString().equals(s.id))
             .findFirst();
@@ -452,7 +452,7 @@ public final class PondererClientCommands {
 
     // ---- /ponderer delete ----
 
-    private static int deleteScene(ResourceLocation sceneId) {
+    public static int deleteScene(ResourceLocation sceneId) {
         String id = sceneId.toString();
         Optional<DslScene> target = SceneRuntime.getScenes().stream()
             .filter(s -> id.equals(s.id))
@@ -473,7 +473,7 @@ public final class PondererClientCommands {
         }
     }
 
-    private static int deleteScenesForItem(ResourceLocation itemId) {
+    public static int deleteScenesForItem(ResourceLocation itemId) {
         String itemStr = itemId.toString();
         List<DslScene> matching = SceneRuntime.getScenes().stream()
             .filter(s -> s.items != null && s.items.contains(itemStr))
@@ -496,7 +496,7 @@ public final class PondererClientCommands {
 
     // ---- /ponderer list ----
 
-    private static int openItemList() {
+    public static int openItemList() {
         Minecraft.getInstance().execute(() ->
             net.createmod.catnip.gui.ScreenOpener.transitionTo(new com.nododiiiii.ponderer.ui.PonderItemListScreen()));
         return 1;
@@ -504,7 +504,7 @@ public final class PondererClientCommands {
 
     // ---- /ponderer export / import ----
 
-    private static int exportPack(@Nullable String filename) {
+    public static int exportPack(@Nullable String filename) {
         if (filename == null || filename.isBlank()) {
             filename = "ponderer_export_" + LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
@@ -551,7 +551,7 @@ public final class PondererClientCommands {
         }
     }
 
-    private static int importPack(String filename) {
+    public static int importPack(String filename) {
         if (!filename.endsWith(".zip")) filename += ".zip";
 
         Path baseDir = net.minecraftforge.fml.loading.FMLPaths.CONFIGDIR.get().resolve("ponderer");

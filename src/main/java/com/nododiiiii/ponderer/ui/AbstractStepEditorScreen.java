@@ -24,7 +24,7 @@ import java.util.Map;
  * Supports both "add new step" and "edit existing step" modes.
  * Subclasses implement buildForm(), populateFromStep(), buildStep().
  */
-public abstract class AbstractStepEditorScreen extends AbstractSimiScreen {
+public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implements JeiAwareScreen {
 
     protected static final int WINDOW_W = 220;
     protected static final int FORM_TOP = 26;
