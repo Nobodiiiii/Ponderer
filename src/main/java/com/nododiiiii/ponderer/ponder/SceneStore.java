@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -74,7 +75,7 @@ public final class SceneStore {
 
         try {
             Files.createDirectories(scenePath.getParent());
-            Files.writeString(scenePath, json);
+            Files.writeString(scenePath, json, StandardCharsets.UTF_8);
         } catch (IOException e) {
             LOGGER.error("Failed to write scene json: {}", scenePath, e);
             return false;
@@ -200,7 +201,7 @@ public final class SceneStore {
             Files.createDirectories(filePath.getParent());
             sanitizeScene(scene);
             String json = GSON_PRETTY.toJson(scene);
-            Files.writeString(filePath, json);
+            Files.writeString(filePath, json, StandardCharsets.UTF_8);
             LOGGER.info("Saved scene {} to {}", scene.id, filePath);
             return true;
         } catch (IOException e) {
@@ -216,7 +217,7 @@ public final class SceneStore {
         if (!Files.exists(dir)) return null;
         try (Stream<Path> paths = Files.list(dir)) {
             for (Path path : paths.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json")).toList()) {
-                try (Reader reader = Files.newBufferedReader(path)) {
+                try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
                     DslScene existing = GSON.fromJson(reader, DslScene.class);
                     if (existing != null && sceneId.equals(existing.id)) {
                         return path;
@@ -277,7 +278,7 @@ public final class SceneStore {
             structureDir.resolve("ponderer_example_2.nbt"));
 
         try {
-            Files.writeString(marker, "initialized");
+            Files.writeString(marker, "initialized", StandardCharsets.UTF_8);
         } catch (IOException e) {
             LOGGER.warn("Failed to write initialization marker", e);
         }
@@ -338,7 +339,7 @@ public final class SceneStore {
             paths.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
                 .sorted(Comparator.comparing(Path::toString))
                 .forEach(path -> {
-                    try (Reader reader = Files.newBufferedReader(path)) {
+                    try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
                         DslScene scene = GSON.fromJson(reader, DslScene.class);
                         if (scene == null || scene.id == null || scene.id.isBlank()) {
                             LOGGER.warn("Skipping invalid scene file (missing id): {}", path);

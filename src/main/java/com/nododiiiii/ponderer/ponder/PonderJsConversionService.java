@@ -6,6 +6,7 @@ import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -53,7 +54,7 @@ public final class PonderJsConversionService {
             String json = GSON.toJson(scene.get());
             String b64 = Base64.getEncoder().encodeToString(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             String content = buildPonderJsScript(scene.get(), id.toString(), b64);
-            Files.writeString(out, content);
+            Files.writeString(out, content, StandardCharsets.UTF_8);
             notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.to_done", out.toString()));
             return 1;
         } catch (Exception e) {
@@ -139,7 +140,7 @@ public final class PonderJsConversionService {
         try {
             String id = null;
             String b64 = null;
-            for (String line : Files.readAllLines(file)) {
+            for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
                 if (line.startsWith(BRIDGE_ID_PREFIX)) {
                     id = line.substring(BRIDGE_ID_PREFIX.length()).trim();
                 } else if (line.startsWith(BRIDGE_JSON_PREFIX)) {
@@ -171,7 +172,7 @@ public final class PonderJsConversionService {
 
     private static DslScene parseAnyPonderJsFile(Path file) {
         try {
-            String content = Files.readString(file);
+            String content = Files.readString(file, StandardCharsets.UTF_8);
 
             BridgeExtract extracted = extractBridge(file);
             if (extracted != null) {

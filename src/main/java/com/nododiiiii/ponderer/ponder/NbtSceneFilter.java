@@ -149,8 +149,14 @@ public final class NbtSceneFilter {
         if (filter == null || filter.isEmpty()) return true;
 
         try {
-            CompoundTag stackTag = stack.save(new CompoundTag());
+            // Check against the item's custom tag (where book data like author/title lives)
+            CompoundTag itemTag = stack.getTag();
+            if (itemTag != null && isSubset(filter, itemTag)) {
+                return true;
+            }
 
+            // Fallback: check against the full serialized stack (for filters that include id/Count/tag)
+            CompoundTag stackTag = stack.save(new CompoundTag());
             return isSubset(filter, stackTag);
         } catch (Exception e) {
             LOGGER.debug("NBT match check failed", e);
