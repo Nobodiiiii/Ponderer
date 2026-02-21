@@ -4,7 +4,7 @@ import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
-import net.createmod.catnip.gui.ScreenOpener;
+import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.theme.Color;
@@ -12,8 +12,6 @@ import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
@@ -40,7 +38,7 @@ import java.util.function.Supplier;
  * Reusable parameter input screen for commands.
  * Uses unified button abstractions for JEI, scene selector, and toggle widgets.
  */
-public class CommandParamScreen extends Screen implements JeiAwareScreen {
+public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareScreen {
 
     // -- Layout constants --
     private static final int WIDTH = 240;
@@ -74,16 +72,18 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
     private record LabeledButton(PonderButton button, String label, int inactiveColor, int activeColor,
                                   BooleanSupplier isActive) {}
 
+    private record ClickableButton(int x, int y, int w, int h, Supplier<String> labelSupplier, Runnable action) {}
+
     // -- State --
 
     private final List<FieldDef> fieldDefs;
     private final Consumer<Map<String, String>> onExecute;
     private final Map<String, HintableTextFieldWidget> textInputs = new LinkedHashMap<>();
     private final Map<String, Integer> choiceSelections = new HashMap<>();
-    private final Map<String, Button> choiceButtons = new HashMap<>();
     private final Map<String, Boolean> toggleStates = new HashMap<>();
     private final Map<String, BoxWidget> toggleWidgets = new HashMap<>();
     private final List<LabeledButton> labeledButtons = new ArrayList<>();
+    private final List<ClickableButton> clickableButtons = new ArrayList<>();
     private final Map<String, String> defaultValues = new HashMap<>();
 
     // Post-build configuration
@@ -237,12 +237,11 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
     private void renderToggleState(GuiGraphics graphics, BoxWidget toggle, boolean state) {
         String label = state ? "V" : "X";
         int color = state ? 0xFF_55FF55 : 0xFF_FF5555;
-        graphics.drawCenteredString(this.font, label, toggle.getX() + 7, toggle.getY() + 2, color);
+        var font = Minecraft.getInstance().font;
+        graphics.drawCenteredString(font, label, toggle.getX() + 7, toggle.getY() + 2, color);
     }
 
     // -- Layout --
-
-    private int guiLeft, guiTop;
 
     private int getWindowHeight() {
         return 36 + fieldDefs.size() * ROW_H + 40;
@@ -250,16 +249,16 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
 
     @Override
     protected void init() {
+        setWindowSize(WIDTH, getWindowHeight());
+        super.init();
+
         textInputs.clear();
-        choiceButtons.clear();
         toggleWidgets.clear();
         labeledButtons.clear();
+        clickableButtons.clear();
         errorMessage = null;
 
         int wH = getWindowHeight();
-        guiLeft = (this.width - WIDTH) / 2;
-        guiTop = (this.height - wH) / 2;
-
         int fieldY = guiTop + 30;
 
         for (FieldDef def : fieldDefs) {
@@ -334,13 +333,10 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
                 }
             } else if (def instanceof ChoiceFieldDef cf) {
                 choiceSelections.putIfAbsent(cf.id, 0);
-                int sel = choiceSelections.get(cf.id);
-                String label = UIText.of(cf.optionLabelKeys.get(sel));
-                Button btn = Button.builder(Component.literal(label), b -> cycleChoice(cf))
-                    .bounds(fieldX, fieldY + 1, fieldW, FIELD_H + 2)
-                    .build();
-                addRenderableWidget(btn);
-                choiceButtons.put(cf.id, btn);
+                final ChoiceFieldDef choiceDef = cf;
+                clickableButtons.add(new ClickableButton(fieldX, fieldY + 1, fieldW, FIELD_H + 2,
+                    () -> UIText.of(choiceDef.optionLabelKeys.get(choiceSelections.getOrDefault(choiceDef.id, 0))),
+                    () -> cycleChoice(choiceDef)));
             } else if (def instanceof ToggleFieldDef tg) {
                 createToggleWidget(fieldX, fieldY, tg.id, tg.defaultValue);
             }
@@ -356,12 +352,12 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
 
         // Execute button
         int btnY = guiTop + wH - 32;
-        addRenderableWidget(Button.builder(Component.translatable("ponderer.ui.function_page.execute"), b -> doExecute())
-            .bounds(guiLeft + MARGIN, btnY, 70, 20).build());
+        clickableButtons.add(new ClickableButton(guiLeft + MARGIN, btnY, 70, 20,
+            () -> UIText.of("ponderer.ui.function_page.execute"), this::doExecute));
 
         // Back button
-        addRenderableWidget(Button.builder(Component.translatable("ponderer.ui.function_page.back"), b -> goBack())
-            .bounds(guiLeft + WIDTH - MARGIN - 70, btnY, 70, 20).build());
+        clickableButtons.add(new ClickableButton(guiLeft + WIDTH - MARGIN - 70, btnY, 70, 20,
+            () -> UIText.of("ponderer.ui.function_page.back"), this::goBack));
     }
 
     // -- Scene selector --
@@ -397,10 +393,6 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
         int sel = choiceSelections.getOrDefault(cf.id, 0);
         sel = (sel + 1) % cf.values.size();
         choiceSelections.put(cf.id, sel);
-        Button btn = choiceButtons.get(cf.id);
-        if (btn != null) {
-            btn.setMessage(Component.literal(UIText.of(cf.optionLabelKeys.get(sel))));
-        }
     }
 
     // -- Execute / Back --
@@ -429,15 +421,13 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
 
     private void goBack() {
         if (jeiActive) deactivateJei();
-        ScreenOpener.transitionTo(new FunctionScreen());
+        Minecraft.getInstance().setScreen(new FunctionScreen());
     }
 
     // -- Rendering --
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        this.renderBackground(graphics);
-
+    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         int wH = getWindowHeight();
 
         // Background panel
@@ -448,8 +438,10 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
             .withBounds(WIDTH, wH)
             .render(graphics);
 
+        var font = Minecraft.getInstance().font;
+
         // Title
-        graphics.drawCenteredString(this.font, this.title, guiLeft + WIDTH / 2, guiTop + 8, 0xFFFFFF);
+        graphics.drawCenteredString(font, this.title, guiLeft + WIDTH / 2, guiTop + 8, 0xFFFFFF);
         graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WIDTH - 5, guiTop + 21, 0x60_FFFFFF);
 
         // Field labels
@@ -460,20 +452,41 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
             else if (def instanceof ChoiceFieldDef cf) labelKey = cf.labelKey;
             else if (def instanceof ToggleFieldDef tg) labelKey = tg.labelKey;
             else labelKey = "";
-            graphics.drawString(this.font, UIText.of(labelKey), guiLeft + MARGIN, fieldY + 5, 0xCCCCCC);
+            graphics.drawString(font, UIText.of(labelKey), guiLeft + MARGIN, fieldY + 5, 0xCCCCCC);
             fieldY += ROW_H;
         }
 
         // Error message
         if (errorMessage != null) {
-            graphics.drawCenteredString(this.font, errorMessage, guiLeft + WIDTH / 2, guiTop + wH - 44, 0xFF6666);
+            graphics.drawCenteredString(font, errorMessage, guiLeft + WIDTH / 2, guiTop + wH - 44, 0xFF6666);
         }
 
-        super.render(graphics, mouseX, mouseY, partialTicks);
+        // Simi-style clickable buttons
+        for (ClickableButton btn : clickableButtons) {
+            boolean hovered = mouseX >= btn.x && mouseX < btn.x + btn.w
+                && mouseY >= btn.y && mouseY < btn.y + btn.h;
+            int bgColor = hovered ? 0x80_4466aa : 0x60_333366;
+            int borderColor = hovered ? 0xCC_6688cc : 0x60_555588;
+            graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h, bgColor);
+            graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + 1, borderColor);
+            graphics.fill(btn.x, btn.y + btn.h - 1, btn.x + btn.w, btn.y + btn.h, borderColor);
+            graphics.fill(btn.x, btn.y, btn.x + 1, btn.y + btn.h, borderColor);
+            graphics.fill(btn.x + btn.w - 1, btn.y, btn.x + btn.w, btn.y + btn.h, borderColor);
+            String label = btn.labelSupplier.get();
+            int textWidth = font.width(label);
+            int textX = btn.x + (btn.w - textWidth) / 2;
+            int textY = btn.y + (btn.h - font.lineHeight) / 2 + 1;
+            graphics.drawString(font, label, textX, textY, hovered ? 0xFFFFFF : 0xCCCCCC);
+        }
+    }
 
+    @Override
+    protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         // Foreground overlay (above widgets, z=500)
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 500);
+
+        var font = Minecraft.getInstance().font;
 
         // Unified toggle rendering
         for (var entry : toggleWidgets.entrySet()) {
@@ -484,7 +497,7 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
         // Unified action button label rendering
         for (LabeledButton lb : labeledButtons) {
             int color = lb.isActive.getAsBoolean() ? lb.activeColor : lb.inactiveColor;
-            graphics.drawCenteredString(this.font, lb.label,
+            graphics.drawCenteredString(font, lb.label,
                 lb.button.getX() + 7, lb.button.getY() + 2, color);
         }
 
@@ -494,13 +507,23 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
     // -- Input handling --
 
     @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            for (ClickableButton btn : clickableButtons) {
+                if (mouseX >= btn.x && mouseX < btn.x + btn.w
+                    && mouseY >= btn.y && mouseY < btn.y + btn.h) {
+                    btn.action.run();
+                    return true;
+                }
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
             doExecute();
-            return true;
-        }
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            goBack();
             return true;
         }
         if (getFocused() != null && getFocused().keyPressed(keyCode, scanCode, modifiers))
@@ -518,6 +541,11 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
     @Override
     public boolean isPauseScreen() {
         return true;
+    }
+
+    @Override
+    public void onClose() {
+        goBack();
     }
 
     @Override
@@ -564,7 +592,7 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
 
     // -- Scene Item Picker (inner screen) --
 
-    static class SceneItemPickerScreen extends Screen {
+    static class SceneItemPickerScreen extends AbstractSimiScreen {
         private static final int SEL_W = 256;
         private static final int COLS = 11;
         private static final int ROWS_PER_PAGE = 6;
@@ -638,51 +666,39 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
             this.totalPages = Math.max(1, (entries.size() + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE);
         }
 
-        private int getWindowHeight() {
+        private int getPickerWindowHeight() {
             return GRID_TOP + ROWS_PER_PAGE * CELL_SIZE + 40;
         }
 
         @Override
         protected void init() {
-            int wH = getWindowHeight();
-            int x = (this.width - SEL_W) / 2;
-            int y = (this.height - wH) / 2;
-
-            if (totalPages > 1) {
-                addRenderableWidget(Button.builder(Component.literal("<"), b -> {
-                    if (page > 0) { page--; rebuildWidgets(); }
-                }).bounds(x + 10, y + wH - 26, 20, 16).build());
-                addRenderableWidget(Button.builder(Component.literal(">"), b -> {
-                    if (page < totalPages - 1) { page++; rebuildWidgets(); }
-                }).bounds(x + SEL_W - 30, y + wH - 26, 20, 16).build());
-            }
+            setWindowSize(SEL_W, getPickerWindowHeight());
+            super.init();
         }
 
         @Override
-        public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-            this.renderBackground(graphics);
-            int wH = getWindowHeight();
-            int x = (this.width - SEL_W) / 2;
-            int y = (this.height - wH) / 2;
+        protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+            int wH = getPickerWindowHeight();
 
             new BoxElement()
                 .withBackground(new Color(0xdd_000000, true))
                 .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
-                .at(x, y, 0)
+                .at(guiLeft, guiTop, 0)
                 .withBounds(SEL_W, wH)
                 .render(graphics);
 
-            graphics.drawCenteredString(this.font, this.title, x + SEL_W / 2, y + 8, 0xFFFFFF);
-            graphics.fill(x + 5, y + 20, x + SEL_W - 5, y + 21, 0x60_FFFFFF);
+            var font = Minecraft.getInstance().font;
+
+            graphics.drawCenteredString(font, this.title, guiLeft + SEL_W / 2, guiTop + 8, 0xFFFFFF);
+            graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + SEL_W - 5, guiTop + 21, 0x60_FFFFFF);
 
             String subtitle = UIText.of("ponderer.ui.item_list.count", entries.size());
-            graphics.drawString(this.font, subtitle, x + 10, y + 25, 0x999999);
+            graphics.drawString(font, subtitle, guiLeft + 10, guiTop + 25, 0x999999);
 
             if (entries.isEmpty()) {
-                graphics.drawCenteredString(this.font,
+                graphics.drawCenteredString(font,
                     Component.translatable("ponderer.ui.function_page.no_scenes"),
-                    x + SEL_W / 2, y + GRID_TOP + 30, 0x999999);
-                super.render(graphics, mouseX, mouseY, partialTicks);
+                    guiLeft + SEL_W / 2, guiTop + GRID_TOP + 30, 0x999999);
                 return;
             }
 
@@ -692,8 +708,8 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
                 int localIdx = i - startIdx;
                 int col = localIdx % COLS;
                 int row = localIdx / COLS;
-                int ix = x + GRID_LEFT + col * CELL_SIZE;
-                int iy = y + GRID_TOP + row * CELL_SIZE;
+                int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
+                int iy = guiTop + GRID_TOP + row * CELL_SIZE;
 
                 PickerEntry entry = entries.get(i);
                 if (mouseX >= ix && mouseX < ix + CELL_SIZE && mouseY >= iy && mouseY < iy + CELL_SIZE) {
@@ -711,18 +727,44 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
 
             if (totalPages > 1) {
                 String pageText = UIText.of("ponderer.ui.item_list.page", page + 1, totalPages);
-                graphics.drawCenteredString(this.font, pageText, x + SEL_W / 2, y + wH - 22, 0xCCCCCC);
-            }
+                graphics.drawCenteredString(font, pageText, guiLeft + SEL_W / 2, guiTop + wH - 22, 0xCCCCCC);
 
-            super.render(graphics, mouseX, mouseY, partialTicks);
+                // Simi-style pagination buttons
+                int prevX = guiLeft + 10, prevY = guiTop + wH - 26, btnW = 20, btnH = 16;
+                int nextX = guiLeft + SEL_W - 30;
+                for (int bi = 0; bi < 2; bi++) {
+                    int bx = bi == 0 ? prevX : nextX;
+                    int by = prevY;
+                    String lbl = bi == 0 ? "<" : ">";
+                    boolean enabled = bi == 0 ? page > 0 : page < totalPages - 1;
+                    boolean hov = enabled && mouseX >= bx && mouseX < bx + btnW && mouseY >= by && mouseY < by + btnH;
+                    int bg = hov ? 0x80_4466aa : (enabled ? 0x60_333366 : 0x30_222244);
+                    int bdr = hov ? 0xCC_6688cc : 0x60_555588;
+                    graphics.fill(bx, by, bx + btnW, by + btnH, bg);
+                    graphics.fill(bx, by, bx + btnW, by + 1, bdr);
+                    graphics.fill(bx, by + btnH - 1, bx + btnW, by + btnH, bdr);
+                    graphics.fill(bx, by, bx + 1, by + btnH, bdr);
+                    graphics.fill(bx + btnW - 1, by, bx + btnW, by + btnH, bdr);
+                    int tc = enabled ? (hov ? 0xFFFFFF : 0xCCCCCC) : 0x666666;
+                    graphics.drawCenteredString(font, lbl, bx + btnW / 2, by + (btnH - font.lineHeight) / 2 + 1, tc);
+                }
+            }
+        }
+
+        @Override
+        protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+            if (entries.isEmpty()) return;
+
+            int startIdx = page * ITEMS_PER_PAGE;
+            int endIdx = Math.min(startIdx + ITEMS_PER_PAGE, entries.size());
 
             // Tooltip for hovered item
             for (int i = startIdx; i < endIdx; i++) {
                 int localIdx = i - startIdx;
                 int col = localIdx % COLS;
                 int row = localIdx / COLS;
-                int ix = x + GRID_LEFT + col * CELL_SIZE;
-                int iy = y + GRID_TOP + row * CELL_SIZE;
+                int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
+                int iy = guiTop + GRID_TOP + row * CELL_SIZE;
 
                 if (mouseX >= ix && mouseX < ix + CELL_SIZE && mouseY >= iy && mouseY < iy + CELL_SIZE) {
                     graphics.pose().pushPose();
@@ -752,7 +794,7 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
                         tooltip.add(Component.literal(entry.nbtFilter)
                             .withStyle(ChatFormatting.GRAY));
                     }
-                    graphics.renderComponentTooltip(this.font, tooltip, mouseX, mouseY);
+                    graphics.renderComponentTooltip(Minecraft.getInstance().font, tooltip, mouseX, mouseY);
                     graphics.pose().popPose();
                     break;
                 }
@@ -761,29 +803,44 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (button == 0 && !entries.isEmpty()) {
-                int wH = getWindowHeight();
-                int x = (this.width - SEL_W) / 2;
-                int y = (this.height - wH) / 2;
-                int startIdx = page * ITEMS_PER_PAGE;
-                int endIdx = Math.min(startIdx + ITEMS_PER_PAGE, entries.size());
-                for (int i = startIdx; i < endIdx; i++) {
-                    int localIdx = i - startIdx;
-                    int col = localIdx % COLS;
-                    int row = localIdx / COLS;
-                    int ix = x + GRID_LEFT + col * CELL_SIZE;
-                    int iy = y + GRID_TOP + row * CELL_SIZE;
-                    if (mouseX >= ix && mouseX < ix + CELL_SIZE
-                        && mouseY >= iy && mouseY < iy + CELL_SIZE) {
-                        PickerEntry entry = entries.get(i);
-                        if (entry.sceneIds.size() == 1) {
-                            onSelect.accept(entry.sceneIds.get(0));
-                        } else {
-                            Minecraft.getInstance().setScreen(new SceneIdListScreen(
-                                entry.sceneIds, onSelect,
-                                () -> Minecraft.getInstance().setScreen(SceneItemPickerScreen.this)));
-                        }
+            if (button == 0) {
+                // Pagination button handling
+                if (totalPages > 1) {
+                    int wH = getPickerWindowHeight();
+                    int prevX = guiLeft + 10, btnY = guiTop + wH - 26, btnW = 20, btnH = 16;
+                    int nextX = guiLeft + SEL_W - 30;
+                    if (page > 0 && mouseX >= prevX && mouseX < prevX + btnW && mouseY >= btnY && mouseY < btnY + btnH) {
+                        page--;
                         return true;
+                    }
+                    if (page < totalPages - 1 && mouseX >= nextX && mouseX < nextX + btnW && mouseY >= btnY && mouseY < btnY + btnH) {
+                        page++;
+                        return true;
+                    }
+                }
+
+                // Item grid click handling
+                if (!entries.isEmpty()) {
+                    int startIdx = page * ITEMS_PER_PAGE;
+                    int endIdx = Math.min(startIdx + ITEMS_PER_PAGE, entries.size());
+                    for (int i = startIdx; i < endIdx; i++) {
+                        int localIdx = i - startIdx;
+                        int col = localIdx % COLS;
+                        int row = localIdx / COLS;
+                        int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
+                        int iy = guiTop + GRID_TOP + row * CELL_SIZE;
+                        if (mouseX >= ix && mouseX < ix + CELL_SIZE
+                            && mouseY >= iy && mouseY < iy + CELL_SIZE) {
+                            PickerEntry entry = entries.get(i);
+                            if (entry.sceneIds.size() == 1) {
+                                onSelect.accept(entry.sceneIds.get(0));
+                            } else {
+                                Minecraft.getInstance().setScreen(new SceneIdListScreen(
+                                    entry.sceneIds, onSelect,
+                                    () -> Minecraft.getInstance().setScreen(SceneItemPickerScreen.this)));
+                            }
+                            return true;
+                        }
                     }
                 }
             }
@@ -791,21 +848,19 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
         }
 
         @Override
-        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-                onCancel.run();
-                return true;
-            }
-            return super.keyPressed(keyCode, scanCode, modifiers);
+        public void onClose() {
+            onCancel.run();
         }
 
         @Override
-        public boolean isPauseScreen() { return true; }
+        public boolean isPauseScreen() {
+            return true;
+        }
     }
 
     // -- Scene ID List (inner screen for multi-scene selection) --
 
-    static class SceneIdListScreen extends Screen {
+    static class SceneIdListScreen extends AbstractSimiScreen {
         private static final int LIST_W = 220;
         private static final int ROW_HEIGHT = 16;
         private static final int VISIBLE_ROWS = 10;
@@ -822,57 +877,57 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
             this.onCancel = onCancel;
         }
 
-        private int getWindowHeight() {
+        private int getListWindowHeight() {
             int rows = Math.min(sceneIds.size(), VISIBLE_ROWS);
             return 36 + rows * ROW_HEIGHT + 10;
         }
 
         @Override
-        public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-            this.renderBackground(graphics);
-            int wH = getWindowHeight();
-            int x = (this.width - LIST_W) / 2;
-            int y = (this.height - wH) / 2;
+        protected void init() {
+            setWindowSize(LIST_W, getListWindowHeight());
+            super.init();
+        }
+
+        @Override
+        protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+            int wH = getListWindowHeight();
 
             new BoxElement()
                 .withBackground(new Color(0xdd_000000, true))
                 .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
-                .at(x, y, 0)
+                .at(guiLeft, guiTop, 0)
                 .withBounds(LIST_W, wH)
                 .render(graphics);
 
-            graphics.drawCenteredString(this.font, this.title, x + LIST_W / 2, y + 8, 0xFFFFFF);
-            graphics.fill(x + 5, y + 20, x + LIST_W - 5, y + 21, 0x60_FFFFFF);
+            var font = Minecraft.getInstance().font;
+
+            graphics.drawCenteredString(font, this.title, guiLeft + LIST_W / 2, guiTop + 8, 0xFFFFFF);
+            graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + LIST_W - 5, guiTop + 21, 0x60_FFFFFF);
 
             int rows = Math.min(sceneIds.size(), VISIBLE_ROWS);
             for (int i = 0; i < rows; i++) {
                 int idx = scrollOffset + i;
                 if (idx >= sceneIds.size()) break;
-                int rowY = y + 26 + i * ROW_HEIGHT;
-                boolean hovered = mouseX >= x + 6 && mouseX < x + LIST_W - 6
+                int rowY = guiTop + 26 + i * ROW_HEIGHT;
+                boolean hovered = mouseX >= guiLeft + 6 && mouseX < guiLeft + LIST_W - 6
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
                 if (hovered) {
-                    graphics.fill(x + 6, rowY, x + LIST_W - 6, rowY + ROW_HEIGHT, 0x40_FFFFFF);
+                    graphics.fill(guiLeft + 6, rowY, guiLeft + LIST_W - 6, rowY + ROW_HEIGHT, 0x40_FFFFFF);
                 }
-                graphics.drawString(this.font, sceneIds.get(idx), x + 10, rowY + 4,
+                graphics.drawString(font, sceneIds.get(idx), guiLeft + 10, rowY + 4,
                     hovered ? 0x80FFFF : 0xCCCCCC);
             }
-
-            super.render(graphics, mouseX, mouseY, partialTicks);
         }
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (button == 0) {
-                int wH = getWindowHeight();
-                int x = (this.width - LIST_W) / 2;
-                int y = (this.height - wH) / 2;
                 int rows = Math.min(sceneIds.size(), VISIBLE_ROWS);
                 for (int i = 0; i < rows; i++) {
                     int idx = scrollOffset + i;
                     if (idx >= sceneIds.size()) break;
-                    int rowY = y + 26 + i * ROW_HEIGHT;
-                    if (mouseX >= x + 6 && mouseX < x + LIST_W - 6
+                    int rowY = guiTop + 26 + i * ROW_HEIGHT;
+                    if (mouseX >= guiLeft + 6 && mouseX < guiLeft + LIST_W - 6
                         && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                         onSelect.accept(sceneIds.get(idx));
                         return true;
@@ -890,15 +945,13 @@ public class CommandParamScreen extends Screen implements JeiAwareScreen {
         }
 
         @Override
-        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-                onCancel.run();
-                return true;
-            }
-            return super.keyPressed(keyCode, scanCode, modifiers);
+        public void onClose() {
+            onCancel.run();
         }
 
         @Override
-        public boolean isPauseScreen() { return true; }
+        public boolean isPauseScreen() {
+            return true;
+        }
     }
 }
