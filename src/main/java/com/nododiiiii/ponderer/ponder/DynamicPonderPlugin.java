@@ -331,39 +331,44 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private PonderStoryBoard createStoryBoard(DslScene scene, DslScene.SceneSegment sc, int index, int total) {
         return (builder, util) -> {
-            ResourceLocation baseId = ResourceLocation.tryParse(scene.id);
-            String basePath = baseId == null ? "scene" : baseId.getPath();
-            String scenePath = total > 1 ? basePath + "_" + sceneSuffix(sc, index) : basePath;
+            try {
+                ResourceLocation baseId = ResourceLocation.tryParse(scene.id);
+                String basePath = baseId == null ? "scene" : baseId.getPath();
+                String scenePath = total > 1 ? basePath + "_" + sceneSuffix(sc, index) : basePath;
 
-            String title = sc.title != null ? sc.title.resolve() : null;
-            if (title == null || title.isBlank()) {
-                String sceneTitle = scene.title != null ? scene.title.resolve() : null;
-                if (sceneTitle == null || sceneTitle.isBlank()) {
-                    title = scenePath;
-                } else {
-                    title = total > 1 ? sceneTitle + " #" + (index + 1) : sceneTitle;
+                String title = sc.title != null ? sc.title.resolve() : null;
+                if (title == null || title.isBlank()) {
+                    String sceneTitle = scene.title != null ? scene.title.resolve() : null;
+                    if (sceneTitle == null || sceneTitle.isBlank()) {
+                        title = scenePath;
+                    } else {
+                        title = total > 1 ? sceneTitle + " #" + (index + 1) : sceneTitle;
+                    }
                 }
-            }
-            builder.title(scenePath, title);
+                builder.title(scenePath, title);
 
-            if (sc.steps == null) {
-                return;
-            }
-
-            if (!hasShowStructure(sc)) {
-                applyShowStructure(builder, new DslScene.DslStep());
-            }
-
-            StepContext context = new StepContext();
-
-            for (DslScene.DslStep step : sc.steps) {
-                if (step == null || step.type == null) {
-                    continue;
+                if (sc.steps == null) {
+                    return;
                 }
-                if ("next_scene".equalsIgnoreCase(step.type)) {
-                    continue;
+
+                if (!firstStepIsShowStructure(sc)) {
+                    applyShowStructure(builder, new DslScene.DslStep());
+                    builder.idle(20);
                 }
-                applyStep(builder, util, scene, step, context);
+
+                StepContext context = new StepContext();
+
+                for (DslScene.DslStep step : sc.steps) {
+                    if (step == null || step.type == null) {
+                        continue;
+                    }
+                    if ("next_scene".equalsIgnoreCase(step.type)) {
+                        continue;
+                    }
+                    applyStep(builder, util, scene, step, context);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Error building ponder storyboard for scene {} segment {}: {}", scene.id, index, e.getMessage(), e);
             }
         };
     }
@@ -701,6 +706,20 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (selection == null) {
             return;
         }
+        // Safety: ensure the base world section has been initialized before hiding.
+        // If show_structure was somehow skipped, the base section's internal Selection is null,
+        // and hideSection's erase() would NPE. This pre-instruction prevents that.
+        scene.addInstruction(ps -> {
+            if (ps.getBaseWorldSection().isEmpty()) {
+                LOGGER.warn("hide_section executed before show_structure; auto-showing structure");
+                Selection all = ps.getSceneBuildingUtil().select().everywhere();
+                ps.getBaseWorldSection().set(all);
+                ps.getBaseWorldSection().setVisible(true);
+                ps.getBaseWorldSection().setFade(1);
+                ps.getBaseWorldSection().queueRedraw();
+            }
+        });
+        scene.idle(20);
         scene.world().hideSection(selection, parseDirection(step.direction));
     }
 
@@ -859,6 +878,10 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private List<DslScene.SceneSegment> normalizeScenes(DslScene scene) {
         if (scene.scenes != null && !scene.scenes.isEmpty()) {
+            // Ensure each segment starts with show_structure
+            for (DslScene.SceneSegment seg : scene.scenes) {
+                SceneStore.sanitizeScene(scene);
+            }
             return scene.scenes;
         }
         List<DslScene.SceneSegment> sceneList = new ArrayList<>();
@@ -898,7 +921,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         return String.valueOf(index + 1);
     }
 
-    private boolean hasShowStructure(DslScene.SceneSegment sc) {
+    private boolean firstStepIsShowStructure(DslScene.SceneSegment sc) {
         if (sc.steps == null) {
             return false;
         }
@@ -906,9 +929,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             if (step == null || step.type == null) {
                 continue;
             }
-            if ("show_structure".equalsIgnoreCase(step.type)) {
-                return true;
-            }
+            // Return whether the first meaningful step is show_structure
+            return "show_structure".equalsIgnoreCase(step.type);
         }
         return false;
     }

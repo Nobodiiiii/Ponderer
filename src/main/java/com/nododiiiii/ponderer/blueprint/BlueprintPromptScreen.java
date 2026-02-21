@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.blueprint;
 
+import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.createmod.catnip.gui.element.GuiGameElement;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -20,6 +21,7 @@ public class BlueprintPromptScreen extends Screen {
     private EditBox nameField;
     private Button confirm;
     private Button abort;
+    private boolean awaitingOverrideConfirm;
 
     public BlueprintPromptScreen() {
         super(Component.translatable("ponderer.ui.blueprint.prompt.title"));
@@ -37,6 +39,7 @@ public class BlueprintPromptScreen extends Screen {
         nameField.setBordered(true);
         nameField.setMaxLength(35);
         nameField.setFocused(true);
+        nameField.setResponder(s -> resetOverrideState());
         setFocused(nameField);
         addRenderableWidget(nameField);
 
@@ -64,7 +67,7 @@ public class BlueprintPromptScreen extends Screen {
 
         // Background panel - opaque dark fill
         graphics.fill(x, y, x + WIDTH, y + HEIGHT, 0xFF333333);
-        graphics.renderOutline(x, y, WIDTH, HEIGHT, 0xFF6886c5);
+        graphics.renderOutline(x, y, WIDTH, HEIGHT, awaitingOverrideConfirm ? 0xFFFF6666 : 0xFF6886c5);
 
         // Title with shadow for readability
         graphics.drawString(this.font, this.title, x + (WIDTH - this.font.width(this.title)) / 2, y + 6, 0xFFFFFF, true);
@@ -73,6 +76,13 @@ public class BlueprintPromptScreen extends Screen {
         GuiGameElement.of(BlueprintFeature.getCarrierStack())
                 .at(x + 8, y + 22, 0)
                 .render(graphics);
+
+        // Override warning
+        if (awaitingOverrideConfirm) {
+            Component warn = Component.translatable("ponderer.ui.blueprint.prompt.override_warn");
+            int warnWidth = this.font.width(warn);
+            graphics.drawString(this.font, warn, x + (WIDTH - warnWidth) / 2, y + HEIGHT - 34, 0xFF6666, true);
+        }
 
         super.render(graphics, mouseX, mouseY, partialTicks);
     }
@@ -91,8 +101,21 @@ public class BlueprintPromptScreen extends Screen {
     }
 
     private void doConfirm() {
+        String name = nameField.getValue().trim();
+        if (!awaitingOverrideConfirm && SceneStore.isBuiltinStructureName(name)) {
+            awaitingOverrideConfirm = true;
+            confirm.setMessage(Component.translatable("ponderer.ui.blueprint.prompt.confirm_override"));
+            return;
+        }
         BlueprintEvents.HANDLER.saveBlueprint(nameField.getValue());
         onClose();
+    }
+
+    private void resetOverrideState() {
+        if (awaitingOverrideConfirm) {
+            awaitingOverrideConfirm = false;
+            confirm.setMessage(Component.translatable("ponderer.ui.blueprint.prompt.save"));
+        }
     }
 
     @Override

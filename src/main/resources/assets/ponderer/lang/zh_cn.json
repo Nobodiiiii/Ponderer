@@ -10,6 +10,8 @@
   "ponderer.ui.blueprint.prompt.title": "保存蓝图",
   "ponderer.ui.blueprint.prompt.save": "保存",
   "ponderer.ui.blueprint.prompt.discard": "丢弃",
+  "ponderer.ui.blueprint.prompt.override_warn": "此名称将替换内置默认结构！",
+  "ponderer.ui.blueprint.prompt.confirm_override": "确认替换",
   "ponderer.guide.blueprint.title": "蓝图使用指南",
   "ponderer.guide.blueprint.step1": "将蓝图与笔持于主手，右键方块设置第一个角落。",
   "ponderer.guide.blueprint.step2": "再次右键设置选区的第二个角落。",

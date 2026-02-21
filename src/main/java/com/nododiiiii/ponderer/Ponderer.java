@@ -17,8 +17,8 @@ import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.registry.ModItems;
 import com.nododiiiii.ponderer.network.PondererNetwork;
-import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.enums.PonderConfig;
+import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
 
@@ -43,11 +43,13 @@ public class Ponderer {
 
     private void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
-            PonderConfig.Client().editingMode.set(true);
             SceneStore.extractDefaultsIfNeeded();
             SceneStore.reloadFromDisk();
             PonderIndex.addPlugin(new DynamicPonderPlugin());
             PonderIndex.reload();
+            // Ensure editing mode is off so Create's ponder text uses I18n (localized).
+            // Ponderer's own text is handled by PonderLocalizationMixin regardless.
+            PonderConfig.Client().editingMode.set(false);
         });
     }
 

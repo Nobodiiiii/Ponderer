@@ -19,8 +19,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.ArrayList;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class SceneStore {
@@ -200,6 +198,7 @@ public final class SceneStore {
 
         try {
             Files.createDirectories(filePath.getParent());
+            sanitizeScene(scene);
             String json = GSON_PRETTY.toJson(scene);
             Files.writeString(filePath, json);
             LOGGER.info("Saved scene {} to {}", scene.id, filePath);
@@ -257,7 +256,6 @@ public final class SceneStore {
     public static void extractDefaultsIfNeeded() {
         Path baseDir = FMLPaths.CONFIGDIR.get().resolve(BASE_DIR);
         Path marker = baseDir.resolve(".initialized");
-        if (Files.exists(marker)) return;
 
         Path scriptsDir = getSceneDir();
         Path structureDir = getStructureDir();
@@ -269,14 +267,14 @@ public final class SceneStore {
             return;
         }
 
+        if (Files.exists(marker)) return;
+
         extractResource("data/ponderer/default_scripts/ponderer_example.json",
             scriptsDir.resolve("ponderer_example.json"));
         extractResource("data/ponderer/default_structures/ponderer_example_1.nbt",
             structureDir.resolve("ponderer_example_1.nbt"));
         extractResource("data/ponderer/default_structures/ponderer_example_2.nbt",
             structureDir.resolve("ponderer_example_2.nbt"));
-        extractResource("data/ponderer/default_structures/basic.nbt",
-            structureDir.resolve("basic.nbt"));
 
         try {
             Files.writeString(marker, "initialized");
@@ -296,6 +294,31 @@ public final class SceneStore {
             LOGGER.info("Extracted default file: {}", target);
         } catch (IOException e) {
             LOGGER.warn("Failed to extract default file: {}", target, e);
+        }
+    }
+
+    /**
+     * Try to open a built-in structure from the jar as a fallback.
+     * Returns null if no built-in resource exists for the given path.
+     */
+    public static InputStream openBuiltinStructure(String path) {
+        String resourcePath = "data/ponderer/default_structures/" + path + ".nbt";
+        return SceneStore.class.getClassLoader().getResourceAsStream(resourcePath);
+    }
+
+    /**
+     * Check whether a structure name would shadow a built-in structure bundled in the jar.
+     */
+    public static boolean isBuiltinStructureName(String name) {
+        if (name == null || name.isBlank()) return false;
+        String cleaned = name.trim();
+        if (cleaned.toLowerCase(Locale.ROOT).endsWith(".nbt")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 4);
+        }
+        try (InputStream in = openBuiltinStructure(cleaned)) {
+            return in != null;
+        } catch (IOException ignored) {
+            return false;
         }
     }
 
@@ -321,6 +344,7 @@ public final class SceneStore {
                             LOGGER.warn("Skipping invalid scene file (missing id): {}", path);
                             return;
                         }
+                        sanitizeScene(scene);
                         loaded.add(scene);
                     } catch (Exception e) {
                         LOGGER.warn("Failed to read scene file: {}", path, e);
@@ -333,5 +357,79 @@ public final class SceneStore {
         SceneRuntime.setScenes(loaded);
         LOGGER.info("Loaded {} ponderer scene(s) from {}", loaded.size(), dir);
         return loaded.size();
+    }
+
+    /**
+     * Ensure every scene segment starts with a "show_structure" step.
+     * If the first meaningful step is not show_structure, prepend one.
+     * This prevents crashes when operations like hide_section come first.
+     */
+    public static void sanitizeScene(DslScene scene) {
+        if (scene.scenes != null) {
+            for (DslScene.SceneSegment seg : scene.scenes) {
+                ensureFirstStepIsShowStructure(seg);
+            }
+        }
+        // Also handle legacy flat steps list
+        if (scene.steps != null && !scene.steps.isEmpty()) {
+            ensureFirstStepIsShowStructureFlat(scene);
+        }
+    }
+
+    private static void ensureFirstStepIsShowStructure(DslScene.SceneSegment seg) {
+        if (seg.steps == null || seg.steps.isEmpty()) return;
+        for (DslScene.DslStep step : seg.steps) {
+            if (step == null || step.type == null) continue;
+            if ("show_structure".equalsIgnoreCase(step.type)) return; // already correct
+            break; // first meaningful step is not show_structure
+        }
+        // Prepend show_structure + idle(20t)
+        List<DslScene.DslStep> fixed = new ArrayList<>();
+        DslScene.DslStep showStep = new DslScene.DslStep();
+        showStep.type = "show_structure";
+        fixed.add(showStep);
+        DslScene.DslStep idleStep = new DslScene.DslStep();
+        idleStep.type = "idle";
+        idleStep.duration = 20;
+        fixed.add(idleStep);
+        fixed.addAll(seg.steps);
+        seg.steps = fixed;
+    }
+
+    /**
+     * Ensures every segment in flat steps mode starts with show_structure.
+     * Segments are delimited by next_scene steps.
+     */
+    private static void ensureFirstStepIsShowStructureFlat(DslScene scene) {
+        List<DslScene.DslStep> result = new ArrayList<>();
+        boolean needsShowStructure = true; // start of first segment
+
+        for (DslScene.DslStep step : scene.steps) {
+            if (step == null || step.type == null) {
+                result.add(step);
+                continue;
+            }
+            if ("next_scene".equalsIgnoreCase(step.type)) {
+                result.add(step);
+                needsShowStructure = true; // next segment starts
+                continue;
+            }
+            if (needsShowStructure) {
+                if (!"show_structure".equalsIgnoreCase(step.type)) {
+                    // Prepend show_structure + idle(20t) before this segment's first real step
+                    DslScene.DslStep showStep = new DslScene.DslStep();
+                    showStep.type = "show_structure";
+                    result.add(showStep);
+                    DslScene.DslStep idleStep = new DslScene.DslStep();
+                    idleStep.type = "idle";
+                    idleStep.duration = 20;
+                    result.add(idleStep);
+                }
+                needsShowStructure = false;
+            }
+            result.add(step);
+        }
+
+        scene.steps = result;
     }
 }

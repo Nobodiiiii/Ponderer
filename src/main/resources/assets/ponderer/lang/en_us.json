@@ -10,6 +10,8 @@
   "ponderer.ui.blueprint.prompt.title": "Save Blueprint",
   "ponderer.ui.blueprint.prompt.save": "Save",
   "ponderer.ui.blueprint.prompt.discard": "Discard",
+  "ponderer.ui.blueprint.prompt.override_warn": "This will override a built-in structure!",
+  "ponderer.ui.blueprint.prompt.confirm_override": "Confirm",
   "ponderer.guide.blueprint.title": "Blueprint Usage",
   "ponderer.guide.blueprint.step1": "Hold the Blueprint item in your main hand. Right-click a block to set the first corner.",
   "ponderer.guide.blueprint.step2": "Right-click again to set the second corner of the selection.",

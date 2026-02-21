@@ -369,23 +369,22 @@ public class SceneEditorScreen extends AbstractSimiScreen {
 
     private void drawSmallButton(GuiGraphics graphics, int x, int y, String label,
             int actionId, int rowIndex, int mouseX, int mouseY) {
-        boolean hovered = mouseX >= x && mouseX < x + SMALL_BTN
+        boolean disabled = isActionDisabled(actionId, rowIndex);
+        boolean hovered = !disabled && mouseX >= x && mouseX < x + SMALL_BTN
                 && mouseY >= y && mouseY < y + STEP_ROW_HEIGHT - 2;
         if (hovered) {
             hoveredRow = -1; // prevent text-area hover when on button
             hoveredAction = actionId;
-            // Store the row for action handling
             hoveredActionRow = rowIndex;
         }
-        int bg = hovered ? 0x60_FFFFFF : 0x30_FFFFFF;
+        int bg = disabled ? 0x10_FFFFFF : (hovered ? 0x60_FFFFFF : 0x30_FFFFFF);
         graphics.fill(x, y, x + SMALL_BTN, y + STEP_ROW_HEIGHT - 2, bg);
 
-        // In 1.20.1, use text labels instead of blitSprite (which is 1.20.2+)
-        {
-            var font = Minecraft.getInstance().font;
-            graphics.pose().pushPose();
-            graphics.pose().translate(0, 0, 500);
-            int textColor = switch (actionId) {
+        int iconColor;
+        if (disabled) {
+            iconColor = 0xFF_404040;
+        } else {
+            iconColor = switch (actionId) {
                 case 0 -> 0xFF_FFFFFF; // move up
                 case 1 -> 0xFF_FFFFFF; // move down
                 case 2 -> 0xFF_80FF80; // green for insert
@@ -394,9 +393,66 @@ public class SceneEditorScreen extends AbstractSimiScreen {
                 case 5 -> 0xFF_FF5555; // red for delete
                 default -> 0xFFFFFFFF;
             };
-            graphics.drawCenteredString(font, label, x + SMALL_BTN / 2, y + 4, textColor);
-            graphics.pose().popPose();
         }
+
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 500);
+
+        if (actionId == 0) {
+            // Up arrow triangle icon
+            int cx = x + SMALL_BTN / 2;
+            int cy = y + (STEP_ROW_HEIGHT - 2) / 2;
+            drawUpArrow(graphics, cx, cy, iconColor);
+        } else if (actionId == 1) {
+            // Down arrow triangle icon
+            int cx = x + SMALL_BTN / 2;
+            int cy = y + (STEP_ROW_HEIGHT - 2) / 2;
+            drawDownArrow(graphics, cx, cy, iconColor);
+        } else {
+            var font = Minecraft.getInstance().font;
+            graphics.drawCenteredString(font, label, x + SMALL_BTN / 2, y + 4, iconColor);
+        }
+
+        graphics.pose().popPose();
+    }
+
+    /** Draw a small upward-pointing triangle centered at (cx, cy). */
+    private void drawUpArrow(GuiGraphics graphics, int cx, int cy, int color) {
+        graphics.fill(cx - 1, cy - 2, cx + 1, cy - 1, color);
+        graphics.fill(cx - 2, cy - 1, cx + 2, cy,     color);
+        graphics.fill(cx - 3, cy,     cx + 3, cy + 1,  color);
+        graphics.fill(cx - 4, cy + 1, cx + 4, cy + 2,  color);
+    }
+
+    /** Draw a small downward-pointing triangle centered at (cx, cy). */
+    private void drawDownArrow(GuiGraphics graphics, int cx, int cy, int color) {
+        graphics.fill(cx - 4, cy - 2, cx + 4, cy - 1, color);
+        graphics.fill(cx - 3, cy - 1, cx + 3, cy,     color);
+        graphics.fill(cx - 2, cy,     cx + 2, cy + 1,  color);
+        graphics.fill(cx - 1, cy + 1, cx + 1, cy + 2,  color);
+    }
+
+    /**
+     * Returns true if the given action should be disabled for the step at rowIndex.
+     * Every scene segment's first show_structure cannot be deleted or moved.
+     * The second step's move-up is also disabled to prevent swapping with the protected first step.
+     */
+    private boolean isActionDisabled(int actionId, int rowIndex) {
+        List<DslScene.DslStep> steps = getSteps();
+        if (steps.isEmpty()) return false;
+
+        DslScene.DslStep first = steps.get(0);
+        if (first == null || !"show_structure".equalsIgnoreCase(first.type)) return false;
+
+        // First step: disable delete, move-up, move-down
+        if (rowIndex == 0 && (actionId == 5 || actionId == 0 || actionId == 1)) {
+            return true;
+        }
+        // Second step: disable move-up (prevents swapping above the protected first step)
+        if (rowIndex == 1 && actionId == 0) {
+            return true;
+        }
+        return false;
     }
 
     /* -------- Input -------- */
@@ -407,7 +463,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             // Check action buttons first
             if (hoveredAction >= 0 && hoveredActionRow >= 0) {
                 List<DslScene.DslStep> steps = getSteps();
-                if (hoveredActionRow < steps.size()) {
+                if (hoveredActionRow < steps.size() && !isActionDisabled(hoveredAction, hoveredActionRow)) {
                     switch (hoveredAction) {
                         case 0 -> moveStepUp(hoveredActionRow);
                         case 1 -> moveStepDown(hoveredActionRow);
@@ -740,6 +796,14 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             // scenes[] mode: create a new scene after the current one
             DslScene.SceneSegment newScene = new DslScene.SceneSegment();
             newScene.steps = new ArrayList<>();
+            // Auto-populate with show_structure + idle(20t)
+            DslScene.DslStep showStep = new DslScene.DslStep();
+            showStep.type = "show_structure";
+            newScene.steps.add(showStep);
+            DslScene.DslStep idleStep = new DslScene.DslStep();
+            idleStep.type = "idle";
+            idleStep.duration = 20;
+            newScene.steps.add(idleStep);
             newScene.id = "new_" + (scene.scenes.size() + 1);
             if (!(scene.scenes instanceof ArrayList)) {
                 scene.scenes = new ArrayList<>(scene.scenes);
@@ -747,10 +811,17 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             scene.scenes.add(sceneIndex + 1, newScene);
             newSceneIndex = sceneIndex + 1;
         } else {
-            // Flat steps mode: insert a next_scene marker
+            // Flat steps mode: insert a next_scene marker + show_structure + idle(20t)
             DslScene.DslStep ns = new DslScene.DslStep();
             ns.type = "next_scene";
             getMutableSteps().add(ns);
+            DslScene.DslStep showStep = new DslScene.DslStep();
+            showStep.type = "show_structure";
+            getMutableSteps().add(showStep);
+            DslScene.DslStep idleStep = new DslScene.DslStep();
+            idleStep.type = "idle";
+            idleStep.duration = 20;
+            getMutableSteps().add(idleStep);
         }
         saveToFile();
 

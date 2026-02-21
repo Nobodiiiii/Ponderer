@@ -32,17 +32,29 @@ public class PonderSceneRegistryMixin {
     private static void ponderer$loadLocalSchematic(ResourceManager resourceManager, ResourceLocation location,
                                                     CallbackInfoReturnable<StructureTemplate> cir) {
         if (Ponderer.MODID.equals(location.getNamespace())) {
+            // Priority 1: user's config/ponderer/structures/ folder
             Path path = SceneStore.getStructurePath(location.getPath());
-            if (!Files.exists(path)) {
-                LOGGER.warn("Ponderer schematic missing: {}", path);
+            if (Files.exists(path)) {
+                try (InputStream stream = Files.newInputStream(path)) {
+                    cir.setReturnValue(PonderSceneRegistry.loadSchematic(stream));
+                } catch (Exception e) {
+                    LOGGER.error("Failed to read ponderer schematic: {}", path, e);
+                }
                 return;
             }
 
-            try (InputStream stream = Files.newInputStream(path)) {
-                cir.setReturnValue(PonderSceneRegistry.loadSchematic(stream));
-            } catch (Exception e) {
-                LOGGER.error("Failed to read ponderer schematic: {}", path, e);
+            // Priority 2: built-in resources bundled in the jar
+            InputStream builtinStream = SceneStore.openBuiltinStructure(location.getPath());
+            if (builtinStream != null) {
+                try (builtinStream) {
+                    cir.setReturnValue(PonderSceneRegistry.loadSchematic(builtinStream));
+                } catch (Exception e) {
+                    LOGGER.error("Failed to read built-in ponderer schematic: {}", location, e);
+                }
+                return;
             }
+
+            LOGGER.warn("Ponderer schematic missing: {}", location);
             return;
         }
 
