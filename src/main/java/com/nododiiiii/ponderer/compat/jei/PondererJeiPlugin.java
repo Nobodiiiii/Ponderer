@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.compat.jei;
 
 import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
+import com.nododiiiii.ponderer.ui.AiGenerateScreen;
 import com.nododiiiii.ponderer.ui.CommandParamScreen;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
@@ -75,6 +76,16 @@ public class PondererJeiPlugin implements IModPlugin {
         });
         registration.addGhostIngredientHandler(
                 CommandParamScreen.class,
+                new JeiAwareGhostHandler<>()
+        );
+
+        // AiGenerateScreen
+        registration.addGuiScreenHandler(AiGenerateScreen.class, screen -> {
+            if (activeScreen != screen) return null;
+            return new JeiAwareGuiProperties(screen);
+        });
+        registration.addGhostIngredientHandler(
+                AiGenerateScreen.class,
                 new JeiAwareGhostHandler<>()
         );
     }

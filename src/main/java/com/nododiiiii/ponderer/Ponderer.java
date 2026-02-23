@@ -8,6 +8,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.fml.ModLoadingContext;
@@ -32,10 +33,12 @@ public class Ponderer {
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.SPEC);
 
         modEventBus.addListener(this::onCommonSetup);
-        modEventBus.addListener(this::onClientSetup);
         modEventBus.addListener(this::onBuildCreativeTab);
-        modEventBus.addListener(ModKeyBindings::register);
-        MinecraftForge.EVENT_BUS.addListener(this::onRegisterClientCommands);
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            modEventBus.addListener(this::onClientSetup);
+            modEventBus.addListener(ModKeyBindings::register);
+            MinecraftForge.EVENT_BUS.addListener(this::onRegisterClientCommands);
+        }
     }
 
     private void onCommonSetup(FMLCommonSetupEvent event) {

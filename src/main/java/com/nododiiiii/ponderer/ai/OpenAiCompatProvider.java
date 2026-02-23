@@ -88,9 +88,27 @@ public class OpenAiCompatProvider implements LlmProvider {
                 if (response.statusCode() != 200) {
                     throw new RuntimeException("OpenAI API error " + response.statusCode() + ": " + response.body());
                 }
-                JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-                return json.getAsJsonArray("choices").get(0).getAsJsonObject()
-                    .getAsJsonObject("message").get("content").getAsString();
+                try {
+                    JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+                    JsonArray choices = json.getAsJsonArray("choices");
+                    if (choices == null || choices.isEmpty()) {
+                        throw new RuntimeException("API returned no choices. Response: "
+                            + response.body().substring(0, Math.min(500, response.body().length())));
+                    }
+                    JsonObject message = choices.get(0).getAsJsonObject().getAsJsonObject("message");
+                    if (message == null || !message.has("content") || message.get("content").isJsonNull()) {
+                        // content can be null when the model refuses or hits a content filter
+                        String finishReason = choices.get(0).getAsJsonObject().has("finish_reason")
+                            ? choices.get(0).getAsJsonObject().get("finish_reason").getAsString() : "unknown";
+                        throw new RuntimeException("API returned empty content (finish_reason: " + finishReason + ")");
+                    }
+                    return message.get("content").getAsString();
+                } catch (RuntimeException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to parse API response: " + e.getMessage()
+                        + "\nResponse: " + response.body().substring(0, Math.min(500, response.body().length())), e);
+                }
             });
     }
 }

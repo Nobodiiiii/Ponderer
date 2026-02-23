@@ -43,7 +43,7 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
     private static String cachedCarrier = "";
     private static String cachedPrompt = "";
     private static final List<String> cachedUrlValues = new ArrayList<>();
-    @Nullable private static String cachedLastGeneratedJson = null;
+    // Adjustment mode removed for now — each generation is a fresh request
     @Nullable private static String cachedStatusMessage = null;
     private static int cachedStatusColor = 0xCCCCCC;
     private static boolean cachedGenerating = false;
@@ -296,9 +296,7 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
         syncToCache();
 
         if (cachedStructurePaths.isEmpty()) {
-            cachedStatusMessage = UIText.of("ponderer.ui.ai_generate.error.no_structure");
-            cachedStatusColor = 0xFF6666;
-            return;
+            cachedStatusMessage = null; // structures are optional, use built-in basic
         }
         String carrier = cachedCarrier.trim();
         if (carrier.isEmpty()) {
@@ -324,21 +322,22 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
         init(minecraft, width, height);
 
         AiSceneGenerator.generate(
-            new ArrayList<>(cachedStructurePaths), carrier, prompt, urls, cachedLastGeneratedJson,
+            new ArrayList<>(cachedStructurePaths), carrier, prompt, urls, null,
             filePath -> {
                 cachedGenerating = false;
                 cachedStatusMessage = UIText.of("ponderer.ui.ai_generate.status.success");
                 cachedStatusColor = 0x55FF55;
-                // Read back for adjustment mode
-                try {
-                    cachedLastGeneratedJson = Files.readString(Path.of(filePath));
-                } catch (Exception ignored) {}
                 init(minecraft, width, height);
             },
             error -> {
                 cachedGenerating = false;
                 cachedStatusMessage = error;
                 cachedStatusColor = 0xFF6666;
+                init(minecraft, width, height);
+            },
+            statusMsg -> {
+                cachedStatusMessage = statusMsg;
+                cachedStatusColor = 0xAAAAFF;
                 init(minecraft, width, height);
             }
         );
