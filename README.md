@@ -2,54 +2,66 @@
 
 ## 中文
 
-Ponderer 是一个 NeoForge 1.21.1 模组，提供数据驱动的 Ponder 场景编写、游戏内编辑、热重载以及客户端/服务端同步能力。
+Ponderer 是一个 Minecraft 模组，提供数据驱动的 Ponder 场景编写、游戏内可视化编辑、AI 辅助生成、热重载以及客户端/服务端同步能力。
+
+支持版本：
+- **Forge 1.20.1**（当前分支）
+- **NeoForge 1.21.1**
 
 ### 运行要求
-- Minecraft 1.21.1
-- NeoForge 21.1.219+
-- Ponder 1.0.60
-- Flywheel 1.0.4
-- Java 21
+
+| | Forge 1.20.1 | NeoForge 1.21.1 |
+|---|---|---|
+| Minecraft | 1.20.1 | 1.21.1 |
+| 模组加载器 | Forge 47.2.6+ | NeoForge 21.1.219+ |
+| Ponder | 1.0.91 | 1.0.60 |
+| Flywheel | 1.0.0-215 | 1.0.4 |
+| Java | 17 | 21 |
 
 ### 核心功能
-- 在 `config/ponderer/scripts/` 中使用 JSON DSL 定义场景
-- 游戏内场景编辑器（新增/编辑/删除/排序/复制粘贴步骤，支持在指定位置插入，Ctrl+Z/Y 撤销重做，所有坐标字段支持从场景中直接选点）
-- 从 `config/ponderer/structures/` 加载自定义结构
-- 默认蓝图载体物品为"纸"，并内置对应引导思索；手持"书与笔"可直接查看示例思索
-- 通过 `nbtFilter` 进行 NBT 场景过滤
-- PonderJS 双向转换（导入/导出）
-- 客户端与服务端拉取/推送（含冲突处理）
-- 场景包导入导出（ZIP 格式，方便分享）
-- 物品列表界面展示全部已注册思索物品
-- JEI 集成：所有 ID 输入框支持从 JEI 点击或拖放物品自动填入（可选依赖）
-- 方块状态属性：放置/替换方块时可指定 BlockState 属性（如 facing、half 等）
-- 扩展实体解析：船、矿车、盔甲架等物品类实体可通过 JEI 直接拖入实体字段
+- **JSON DSL 场景定义**：在 `config/ponderer/scripts/` 中使用 JSON 编写 Ponder 场景
+- **游戏内场景编辑器**：通过图形界面新增/编辑/删除/排序步骤，支持复制粘贴、撤销重做、坐标选点、丰富的步骤类型
+- **AI 场景生成（Beta）**：通过 LLM（Claude / ChatGPT 等）根据结构和自然语言描述自动生成场景，支持多种 API 提供商
+- **蓝图与结构**：使用蓝图工具选区保存结构，从 `config/ponderer/structures/` 加载自定义结构
+- **多人协作同步**：客户端与服务端拉取/推送场景（含冲突处理）
+- **PonderJS 双向转换**：支持与 PonderJS 格式互相导入/导出
+- **场景包导入导出**：将场景和结构打包为 ZIP 文件，方便分享
+- **模组配置面板**：通过图形界面管理所有设置，无需手动输入指令
+- **JEI 集成**：所有 ID 输入框支持从 JEI 点击或拖放自动填入（可选依赖）
+- **开箱即用**：内置引导思索，手持"书与笔"可直接查看示例
+
+### 项目结构
+```
+src/main/java/com/nododiiiii/ponderer/
+├── Ponderer.java              # 模组入口
+├── Config.java                # 模组配置
+├── ai/                        # AI 场景生成（LLM 调用、结构描述、注册表映射）
+├── blueprint/                 # 蓝图选区与结构保存
+├── compat/jei/                # JEI 集成（拖放填入、物品浏览）
+├── mixin/                     # Mixin（Ponder UI 扩展、NBT 过滤、本地化修复）
+├── network/                   # 客户端/服务端网络通信（同步、上传、下载）
+├── ponder/                    # 核心逻辑（场景解析、存储、PonderJS 转换、命令）
+├── registry/                  # 物品注册
+└── ui/                        # 所有编辑器界面（场景编辑器、步骤编辑器、AI 配置等）
+
+src/main/resources/
+├── assets/ponderer/lang/      # 语言文件（en_us、zh_cn）
+├── data/ponderer/             # 默认脚本与结构
+└── ponderer.mixins.json       # Mixin 配置
+```
 
 ### 命令
-- `/ponderer reload`：重载本地场景脚本并刷新思索索引。
-- `/ponderer pull`：从服务端拉取改动（冲突检查模式）。
-- `/ponderer pull force`：强制以服务端版本覆盖本地。
-- `/ponderer pull keep_local`：拉取时尽量保留本地版本。
-- `/ponderer push`：推送本地场景到服务端（冲突检查模式）。
-- `/ponderer push force`：强制覆盖服务端场景。
-- `/ponderer push <id>`：仅推送指定场景 ID。
-- `/ponderer push force <id>`：强制推送并覆盖指定场景 ID。
-- `/ponderer download <id>`：将指定结构导入到 Ponderer 的结构目录。
-- `/ponderer new hand`：以主手物品创建新场景。
-- `/ponderer new hand use_held_nbt`：以主手物品 + 当前物品 NBT 创建场景。
-- `/ponderer new hand <nbt>`：以主手物品 + 指定 NBT 创建场景。
-- `/ponderer new <item>`：以指定物品创建新场景。
-- `/ponderer new <item> <nbt>`：以指定物品 + 指定 NBT 创建新场景。
-- `/ponderer copy <id> <target_item>`：复制指定场景并改绑到目标物品。
-- `/ponderer delete <id>`：删除指定场景。
-- `/ponderer delete item <item_id>`：删除某个物品下的所有场景。
-- `/ponderer list`：打开思索物品列表界面。
-- `/ponderer convert to_ponderjs all`：将全部场景转换为 PonderJS。
-- `/ponderer convert to_ponderjs <id>`：将指定场景转换为 PonderJS。
-- `/ponderer convert from_ponderjs all`：将全部 PonderJS 场景导回 Ponderer。
-- `/ponderer convert from_ponderjs <id>`：将指定 PonderJS 场景导回 Ponderer。
-- `/ponderer export [filename]`：将所有脚本和结构导出为 ZIP 文件到 `config/ponderer/`。
-- `/ponderer import <filename>`：从 `config/ponderer/` 中的 ZIP 文件导入脚本和结构。
+- `/ponderer reload`：重载本地场景脚本并刷新思索索引
+- `/ponderer pull [force|keep_local]`：从服务端拉取场景
+- `/ponderer push [force] [<id>]`：推送场景到服务端
+- `/ponderer download <id>`：导入指定结构
+- `/ponderer new hand [use_held_nbt|<nbt>]`：以主手物品创建新场景
+- `/ponderer new <item> [<nbt>]`：以指定物品创建新场景
+- `/ponderer copy <id> <target_item>`：复制场景并改绑到目标物品
+- `/ponderer delete <id>` / `delete item <item_id>`：删除场景
+- `/ponderer list`：打开思索物品列表界面
+- `/ponderer convert to_ponderjs|from_ponderjs all|<id>`：PonderJS 格式转换
+- `/ponderer export [filename]` / `import <filename>`：场景包导入导出
 
 ### 构建
 ```bash
@@ -69,54 +81,66 @@ MIT
 
 ## English
 
-Ponderer is a NeoForge 1.21.1 mod that provides data-driven Ponder scene authoring, in-game editing, hot-reload, and client/server sync.
+Ponderer is a Minecraft mod that provides data-driven Ponder scene authoring, in-game visual editing, AI-assisted generation, hot-reload, and client/server sync.
+
+Supported versions:
+- **Forge 1.20.1** (current branch)
+- **NeoForge 1.21.1**
 
 ### Requirements
-- Minecraft 1.21.1
-- NeoForge 21.1.219+
-- Ponder 1.0.60
-- Flywheel 1.0.4
-- Java 21
+
+| | Forge 1.20.1 | NeoForge 1.21.1 |
+|---|---|---|
+| Minecraft | 1.20.1 | 1.21.1 |
+| Mod Loader | Forge 47.2.6+ | NeoForge 21.1.219+ |
+| Ponder | 1.0.91 | 1.0.60 |
+| Flywheel | 1.0.0-215 | 1.0.4 |
+| Java | 17 | 21 |
 
 ### Key Features
-- JSON DSL scene definition in `config/ponderer/scripts/`
-- In-game scene editor (add/edit/delete/reorder/copy-paste steps, insert at any position, Ctrl+Z/Y undo/redo, pick coordinates directly from the scene)
-- Custom structure loading from `config/ponderer/structures/`
-- The default blueprint carrier item is `paper`, with a built-in matching guide scene; hold a `writable_book` to view the demo scene directly
-- NBT-based scene filtering via `nbtFilter`
-- Bidirectional PonderJS conversion (import/export)
-- Client-server pull/push with conflict handling
-- Scene pack export/import (ZIP format for easy sharing)
-- Item list UI for all registered ponder items
-- JEI integration: click or drag-drop items from JEI to fill in ID fields (optional dependency)
-- Block state properties: specify BlockState properties (e.g. facing, half) when placing/replacing blocks
-- Extended entity resolution: boats, minecarts, armor stands can be dragged into entity fields via JEI
+- **JSON DSL scene definition**: Author Ponder scenes in JSON under `config/ponderer/scripts/`
+- **In-game scene editor**: GUI for adding/editing/deleting/reordering steps, with copy-paste, undo-redo, coordinate picking, and rich step types
+- **AI scene generation (Beta)**: Generate scenes from structures and natural language via LLMs (Claude / ChatGPT, etc.), with multi-provider support
+- **Blueprints & structures**: Select areas with the blueprint tool, load custom structures from `config/ponderer/structures/`
+- **Multiplayer sync**: Client-server pull/push with conflict handling
+- **Bidirectional PonderJS conversion**: Import/export between Ponderer and PonderJS formats
+- **Scene pack export/import**: Bundle scenes and structures as ZIP for sharing
+- **Mod config panel**: Manage all settings via GUI — no commands needed
+- **JEI integration**: Click or drag-drop from JEI to fill in ID fields (optional dependency)
+- **Works out of the box**: Built-in guide scene; hold a `writable_book` to view the demo
+
+### Project Structure
+```
+src/main/java/com/nododiiiii/ponderer/
+├── Ponderer.java              # Mod entry point
+├── Config.java                # Mod configuration
+├── ai/                        # AI scene generation (LLM calls, structure description, registry mapping)
+├── blueprint/                 # Blueprint selection & structure saving
+├── compat/jei/                # JEI integration (drag-drop, item browsing)
+├── mixin/                     # Mixins (Ponder UI extensions, NBT filtering, localization fixes)
+├── network/                   # Client/server networking (sync, upload, download)
+├── ponder/                    # Core logic (scene parsing, storage, PonderJS conversion, commands)
+├── registry/                  # Item registration
+└── ui/                        # All editor screens (scene editor, step editors, AI config, etc.)
+
+src/main/resources/
+├── assets/ponderer/lang/      # Language files (en_us, zh_cn)
+├── data/ponderer/             # Default scripts & structures
+└── ponderer.mixins.json       # Mixin config
+```
 
 ### Commands
-- `/ponderer reload`: Reload local scene files and refresh the ponder index.
-- `/ponderer pull`: Pull server changes in conflict-check mode.
-- `/ponderer pull force`: Force server version to overwrite local data.
-- `/ponderer pull keep_local`: Pull while preferring to keep local changes.
-- `/ponderer push`: Push local scenes to server in conflict-check mode.
-- `/ponderer push force`: Force overwrite scenes on the server.
-- `/ponderer push <id>`: Push only the specified scene ID.
-- `/ponderer push force <id>`: Force-push and overwrite only the specified scene ID.
-- `/ponderer download <id>`: Import the specified structure into Ponderer structures.
-- `/ponderer new hand`: Create a new scene from the main-hand item.
-- `/ponderer new hand use_held_nbt`: Create from main-hand item with current held NBT.
-- `/ponderer new hand <nbt>`: Create from main-hand item with explicit NBT.
-- `/ponderer new <item>`: Create a new scene for the specified item.
-- `/ponderer new <item> <nbt>`: Create a new scene for item + explicit NBT.
-- `/ponderer copy <id> <target_item>`: Copy a scene and retarget it to another item.
-- `/ponderer delete <id>`: Delete the specified scene.
-- `/ponderer delete item <item_id>`: Delete all scenes under one item.
-- `/ponderer list`: Open the ponder item list UI.
-- `/ponderer convert to_ponderjs all`: Convert all scenes to PonderJS.
-- `/ponderer convert to_ponderjs <id>`: Convert one scene to PonderJS.
-- `/ponderer convert from_ponderjs all`: Import all scenes back from PonderJS.
-- `/ponderer convert from_ponderjs <id>`: Import one scene back from PonderJS.
-- `/ponderer export [filename]`: Export all scripts and structures as a ZIP file to `config/ponderer/`.
-- `/ponderer import <filename>`: Import scripts and structures from a ZIP file in `config/ponderer/`.
+- `/ponderer reload`: Reload local scene files and refresh the ponder index
+- `/ponderer pull [force|keep_local]`: Pull scenes from server
+- `/ponderer push [force] [<id>]`: Push scenes to server
+- `/ponderer download <id>`: Import a specific structure
+- `/ponderer new hand [use_held_nbt|<nbt>]`: Create a new scene from main-hand item
+- `/ponderer new <item> [<nbt>]`: Create a new scene for the specified item
+- `/ponderer copy <id> <target_item>`: Copy a scene and retarget it
+- `/ponderer delete <id>` / `delete item <item_id>`: Delete scenes
+- `/ponderer list`: Open the ponder item list UI
+- `/ponderer convert to_ponderjs|from_ponderjs all|<id>`: PonderJS conversion
+- `/ponderer export [filename]` / `import <filename>`: Scene pack import/export
 
 ### Build
 ```bash

@@ -5,47 +5,33 @@ Create 制作组在 6.0 版本将 Ponder 拆分为独立模组，然而较高的
 Ponderer 是一个面向玩家与整合包作者的「游戏内思索（Ponder）制作工具」。
 你不需要离开游戏，也不需要先写脚本，就可以直接在世界里搭建、录制和调整思索教学流程。
 
+支持 **Forge 1.20.1** 和 **NeoForge 1.21.1** 双版本。
+
 ## 你可以用它做什么
 
-- **在游戏内新建思索**：从手持物品或指定物品快速生成新的思索条目（支持不同nbt分别思索，如不同署名的成书）。
-- **可视化编辑步骤**：点击本模组创建的思索左下角编辑图标，即可通过图形界面编辑文本、镜头、方块变化、实体生成、音效等 Ponder 步骤。所有坐标字段均支持从场景中直接选点（左键选取方块坐标，右键选取相邻方块坐标）。
-- **复制粘贴与撤销重做**：支持步骤复制/粘贴、在指定位置插入、Ctrl+Z 撤销 / Ctrl+Y 重做。
-- **蓝图选区与结构保存**：使用蓝图工具（默认为纸）选择区域并保存结构，便于复用和迭代演示内容。
-- **开箱即用**：内置了对应引导思索；手持**书与笔**即可直接查看示例思索。
-- **本地热重载**：编辑后可直接重载，快速查看效果，减少反复重启。
-- **多人协作同步**：支持从服务器拉取与向服务器推送思索内容，方便团队协作维护教程或快速获取其他玩家创建的思索。
-- **格式互转**：支持与 PonderJS 格式互相转换，兼容不同工作流。
-- **场景包导入导出**：支持将所有场景和结构打包为 ZIP 文件，方便在社区分享或备份。
-- **JEI 集成**：所有 ID 输入框支持从 JEI 物品列表中点击或拖放自动填入（需安装 JEI），方块、物品、实体三种模式自动过滤不兼容类型。
-- **方块状态属性**：放置或替换方块时可指定朝向、半边等 BlockState 属性，编辑器中以动态列表形式输入。
-- **扩展实体解析**：船、矿车、盔甲架等物品类实体也可通过 JEI 直接拖入实体 ID 字段。
+- **在游戏内新建思索**：从手持物品或指定物品快速生成新的思索条目（支持不同 NBT 分别思索，如不同署名的成书）。
+- **可视化编辑步骤**：通过图形界面编辑文本、镜头、方块变化、实体生成、操作提示、音效等 Ponder 步骤，支持复制粘贴、撤销重做、坐标选点。
+- **AI 场景生成（Beta）**：通过 LLM（Claude / ChatGPT 等）根据结构和自然语言描述自动生成完整场景，支持多种 API 提供商。
+- **蓝图选区与结构保存**：使用蓝图工具选择区域并保存结构，便于复用和迭代演示内容。
+- **多人协作同步**：从服务器拉取与向服务器推送思索内容，方便团队协作或快速获取其他玩家创建的思索。
+- **格式互转与场景包**：支持与 PonderJS 格式互相转换；支持将场景和结构打包为 ZIP 文件分享。
+- **模组配置面板**：通过图形界面管理所有设置，无需手动输入指令。
+- **JEI 集成**：所有 ID 输入框支持从 JEI 点击或拖放自动填入（可选依赖）。
+- **开箱即用**：内置引导思索；手持**书与笔**即可查看示例。
 
 ## 指令总览（用途 + 用法）
 
 - `/ponderer reload`：重载本地场景脚本并刷新思索索引。
-- `/ponderer pull`：从服务端拉取改动（冲突检查模式）。
-- `/ponderer pull force`：强制以服务端版本覆盖本地。
-- `/ponderer pull keep_local`：拉取时尽量保留本地版本。
-- `/ponderer push`：推送本地场景到服务端（冲突检查模式）。
-- `/ponderer push force`：强制覆盖服务端场景。
-- `/ponderer push <id>`：仅推送指定场景 ID。
-- `/ponderer push force <id>`：强制推送并覆盖指定场景 ID。
-- `/ponderer download <id>`：将指定结构导入到 Ponderer 的结构目录。
-- `/ponderer new hand`：以主手物品创建新场景。
-- `/ponderer new hand use_held_nbt`：以主手物品 + 当前物品 NBT 创建场景。
-- `/ponderer new hand <nbt>`：以主手物品 + 指定 NBT 创建场景。
-- `/ponderer new <item>`：以指定物品创建新场景。
-- `/ponderer new <item> <nbt>`：以指定物品 + 指定 NBT 创建新场景。
-- `/ponderer copy <id> <target_item>`：复制指定场景并改绑到目标物品。
-- `/ponderer delete <id>`：删除指定场景。
-- `/ponderer delete item <item_id>`：删除某个物品下的所有场景。
+- `/ponderer pull [force|keep_local]`：从服务端拉取场景。
+- `/ponderer push [force] [<id>]`：推送场景到服务端。
+- `/ponderer download <id>`：导入指定结构。
+- `/ponderer new hand [use_held_nbt|<nbt>]`：以主手物品创建新场景。
+- `/ponderer new <item> [<nbt>]`：以指定物品创建新场景。
+- `/ponderer copy <id> <target_item>`：复制场景并改绑到目标物品。
+- `/ponderer delete <id>` / `delete item <item_id>`：删除场景。
 - `/ponderer list`：打开思索物品列表界面。
-- `/ponderer convert to_ponderjs all`：将全部场景转换为 PonderJS。
-- `/ponderer convert to_ponderjs <id>`：将指定场景转换为 PonderJS。
-- `/ponderer convert from_ponderjs all`：将全部 PonderJS 场景导回 Ponderer。
-- `/ponderer convert from_ponderjs <id>`：将指定 PonderJS 场景导回 Ponderer。
-- `/ponderer export [filename]`：将所有脚本和结构导出为 ZIP 文件到 `config/ponderer/`。
-- `/ponderer import <filename>`：从 `config/ponderer/` 中的 ZIP 文件导入脚本和结构。
+- `/ponderer convert to_ponderjs|from_ponderjs all|<id>`：PonderJS 格式转换。
+- `/ponderer export [filename]` / `import <filename>`：场景包导入导出。
 
 ## 适合哪些人
 
@@ -56,7 +42,7 @@ Ponderer 是一个面向玩家与整合包作者的「游戏内思索（Ponder�
 ## 核心体验
 
 Ponderer 的目标是：
-**把“写教程”变成“在游戏里直接搭教程”**。
+**把"写教程"变成"在游戏里直接搭教程"**。
 
 从创建、编辑、预览到同步，整个流程尽量保持在 Minecraft 内完成，让思索内容的制作更快、更直观。
 
@@ -68,54 +54,40 @@ Ponderer 采用更安全的数据传输方式，并提供与 PonderJS 的双向�
 
 ---
 
-# Ponderer Mod Introduction 
+# Ponderer Mod Introduction
 
 The Create team spun Ponder off into a standalone module in version 6.0. Unfortunately, its steep learning curve has kept this brilliant feature hidden from much of the community — and that's exactly the problem Ponderer aims to solve.
 
 Ponderer is an in-game Ponder authoring tool for players and modpack creators.
 You can build, edit, and iterate tutorial scenes directly in Minecraft without leaving the game or writing scripts first.
 
+Supports both **Forge 1.20.1** and **NeoForge 1.21.1**.
+
 ## What you can do with it
 
 - **Create scenes in-game**: Quickly create Ponder entries from your held item or a specified item (supports different NBT for separate scenes, e.g. signed books with different authors).
-- **Edit steps visually**: Click the edit icon at the bottom-left of scenes created by this mod to open the GUI editor for text, camera, block changes, entity spawning, sounds, and more. All coordinate fields support picking directly from the scene (left-click to select block coordinates, right-click to select adjacent block coordinates).
-- **Copy/paste and undo/redo**: Copy/paste steps, insert at any position, undo with Ctrl+Z and redo with Ctrl+Y.
-- **Blueprint selection and structure saving**: Use the blueprint tool (default: paper) to select areas and save structures for reuse and iterating demo content.
-- **Works out of the box**: Comes with a built-in guide scene; hold a **writable_book** to view the demo scene directly.
-- **Local hot reload**: Reload changes instantly to see results quickly, without repeated restarts.
-- **Multiplayer collaboration sync**: Pull from and push to server-side scene data, making it easy for teams to collaboratively maintain tutorials or for players to quickly access scenes created by others.
-- **Format conversion**: Convert to and from PonderJS for cross-workflow compatibility.
-- **Scene pack export/import**: Export all scenes and structures as a ZIP file for easy community sharing or backup.
-- **JEI integration**: All ID input fields support click or drag-drop from JEI item list (requires JEI installed). Supports block, item, and entity modes with automatic type filtering.
-- **Block state properties**: Specify BlockState properties (facing, half, etc.) when placing or replacing blocks, using a dynamic key=value list editor.
-- **Extended entity resolution**: Boats, minecarts, armor stands, and other item-based entities can be dragged into entity ID fields via JEI.
+- **Edit steps visually**: GUI editor for text, camera, block changes, entity spawning, control hints, sounds, and more, with copy-paste, undo-redo, and coordinate picking.
+- **AI scene generation (Beta)**: Automatically generate complete scenes from structures and natural language descriptions via LLMs (Claude / ChatGPT, etc.), with multi-provider support.
+- **Blueprint selection and structure saving**: Use the blueprint tool to select areas and save structures for reuse and iterating demo content.
+- **Multiplayer collaboration sync**: Pull from and push to server-side scene data, making it easy for teams to collaboratively maintain tutorials.
+- **Format conversion & scene packs**: Convert to/from PonderJS; bundle scenes and structures as ZIP for sharing.
+- **Mod config panel**: Manage all settings via a GUI — no commands needed.
+- **JEI integration**: Click or drag-drop from JEI to fill in ID fields (optional dependency).
+- **Works out of the box**: Built-in guide scene; hold a **writable_book** to view the demo.
 
 ## Command Reference (Purpose + Usage)
 
 - `/ponderer reload`: Reload local scene files and refresh the ponder index.
-- `/ponderer pull`: Pull server changes in conflict-check mode.
-- `/ponderer pull force`: Force server version to overwrite local data.
-- `/ponderer pull keep_local`: Pull while preferring to keep local changes.
-- `/ponderer push`: Push local scenes to server in conflict-check mode.
-- `/ponderer push force`: Force overwrite scenes on the server.
-- `/ponderer push <id>`: Push only the specified scene ID.
-- `/ponderer push force <id>`: Force-push and overwrite only the specified scene ID.
-- `/ponderer download <id>`: Import the specified structure into Ponderer structures.
-- `/ponderer new hand`: Create a new scene from the main-hand item.
-- `/ponderer new hand use_held_nbt`: Create from main-hand item with current held NBT.
-- `/ponderer new hand <nbt>`: Create from main-hand item with explicit NBT.
-- `/ponderer new <item>`: Create a new scene for the specified item.
-- `/ponderer new <item> <nbt>`: Create a new scene for item + explicit NBT.
-- `/ponderer copy <id> <target_item>`: Copy a scene and retarget it to another item.
-- `/ponderer delete <id>`: Delete the specified scene.
-- `/ponderer delete item <item_id>`: Delete all scenes under one item.
+- `/ponderer pull [force|keep_local]`: Pull scenes from server.
+- `/ponderer push [force] [<id>]`: Push scenes to server.
+- `/ponderer download <id>`: Import a specific structure.
+- `/ponderer new hand [use_held_nbt|<nbt>]`: Create a new scene from main-hand item.
+- `/ponderer new <item> [<nbt>]`: Create a new scene for the specified item.
+- `/ponderer copy <id> <target_item>`: Copy a scene and retarget it.
+- `/ponderer delete <id>` / `delete item <item_id>`: Delete scenes.
 - `/ponderer list`: Open the ponder item list UI.
-- `/ponderer convert to_ponderjs all`: Convert all scenes to PonderJS.
-- `/ponderer convert to_ponderjs <id>`: Convert one scene to PonderJS.
-- `/ponderer convert from_ponderjs all`: Import all scenes back from PonderJS.
-- `/ponderer convert from_ponderjs <id>`: Import one scene back from PonderJS.
-- `/ponderer export [filename]`: Export all scripts and structures as a ZIP file to `config/ponderer/`.
-- `/ponderer import <filename>`: Import scripts and structures from a ZIP file in `config/ponderer/`.
+- `/ponderer convert to_ponderjs|from_ponderjs all|<id>`: PonderJS conversion.
+- `/ponderer export [filename]` / `import <filename>`: Scene pack import/export.
 
 ## Who this is for
 

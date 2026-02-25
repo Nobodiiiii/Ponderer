@@ -1,5 +1,151 @@
 # Changelog
 
+## 1.4.5
+
+### 改进 / Improvements
+
+- 版本更新至 1.4.5。
+  Version bump to 1.4.5.
+
+---
+
+## 1.4.4
+
+### 改进 / Improvements
+
+- **优化 AI 生成**：改进了 AI 场景生成的质量与稳定性。
+  Improved AI scene generation quality and stability.
+
+- **扩展显示结构**：`show_structure` 步骤新增高度（height）、缩放（scale）字段，支持通过文件浏览器选择结构文件。
+  Extended `show_structure` step with height, scale fields and file browser for structure selection.
+
+---
+
+## 1.4.3
+
+### 新增功能 / New Features
+
+- **显示操作提示步骤**：新增 `show_controls` 步骤类型，可在场景中展示玩家操作提示，支持方向、鼠标动作、手持物品、潜行/Ctrl 状态等配置。
+  New `show_controls` step type to display player control hints in the scene, with direction, mouse action, held item, sneaking/CTRL state options.
+
+### 改进 / Improvements
+
+- **更新 AI**：优化了 AI 场景生成流程。
+  Updated AI scene generation pipeline.
+
+---
+
+## 1.4.2
+
+### 新增功能 / New Features
+
+- **清除实体/掉落物步骤**：新增 `clear_entities` 和 `clear_item_entities` 步骤类型，支持按实体/物品类型和坐标范围清除，也可清除整个场景。
+  New `clear_entities` and `clear_item_entities` step types. Supports filtering by entity/item type and position range, or clearing the full scene.
+
+---
+
+## 1.4.1
+
+### 改进 / Improvements
+
+- **优化 AI 生成**：改进了 AI 场景生成的提示词与输出质量。
+  Improved AI scene generation prompts and output quality.
+
+---
+
+## 1.4.0
+
+### 新增功能 / New Features
+
+- **AI 场景生成（Beta）**：通过 LLM（Claude / ChatGPT 等）根据结构和自然语言描述自动生成完整的思索场景 JSON。支持 Anthropic 和 OpenAI 兼容 API（OpenAI、DeepSeek、Groq、Ollama、LM Studio 等），可配置代理、模型参数和最大 token 数。
+  AI scene generation (Beta): automatically generate complete Ponder scene JSON from structures and natural language descriptions using LLMs (Claude / ChatGPT, etc.). Supports Anthropic and OpenAI-compatible APIs (OpenAI, DeepSeek, Groq, Ollama, LM Studio), with configurable proxy, model parameters, and max tokens.
+
+---
+
+## 1.3.0.1
+
+### 改进 / Improvements
+
+- **界面优化**：改进了编辑器界面的布局与交互体验。
+  UI improvements for better editor layout and interaction.
+
+---
+
+## 1.3.0
+
+### 新增功能 / New Features
+
+- **模组功能配置面板**：新增图形化配置界面，可在游戏内直接管理所有模组设置（LLM 提供商、API 密钥、模型、代理、蓝图载体物品等），无需手动输入指令。
+  Mod config panel: a new GUI for managing all mod settings in-game (LLM provider, API key, model, proxy, blueprint carrier item, etc.) — no commands needed.
+
+---
+
+## 1.2.5.2
+
+### 修复 / Fixes
+
+- 修复了 NBT 不兼容中文字符的问题。
+  Fixed NBT not supporting Chinese characters.
+
+---
+
+## 1.2.5.1
+
+### 修复 / Fixes
+
+- 修复了可能的不兼容机械动力（Create）的问题。
+  Fixed possible incompatibility with the Create mod.
+
+---
+
+## 1.2.5
+
+### 修复 / Fixes
+
+- 修复了在"显示结构"前"隐藏区段"会导致崩溃的问题。
+  Fixed crash when "hide section" is used before "show structure".
+
+- 修复了和机械动力一起加载会导致原版思索丢失本地化文本的问题。
+  Fixed Create mod causing vanilla Ponder scenes to lose localized text.
+
+---
+
+## 1.2.4
+
+### 改进 / Improvements
+
+- 版本更新与内部优化。
+  Version bump and internal improvements.
+
+---
+
+## 1.2.3
+
+### 改进 / Improvements
+
+- 优化 jarJar 配置以支持 Ponder 和 Flywheel 的打包。
+  Optimized jarJar configuration to support Ponder and Flywheel bundling.
+
+---
+
+## 1.2.2
+
+### 改进 / Improvements
+
+- 优化场景编辑器功能，调整示例，修复 mixin 问题。
+  Improved scene editor functionality, adjusted examples, fixed mixin issues.
+
+---
+
+## 1.2.1
+
+### 新增功能 / New Features
+
+- **移植到 Forge**：将模组从 NeoForge 1.21.1 移植到 Forge 1.20.1，并进行了一些优化。
+  Ported the mod from NeoForge 1.21.1 to Forge 1.20.1 with minor optimizations.
+
+---
+
 ## 1.2.0
 
 ### 新增功能 / New Features
