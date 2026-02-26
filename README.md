@@ -1,6 +1,6 @@
 # Ponderer
 
-中文|[英语](README-English.md)
+中文|[English](README-English.md)
 
 Ponderer 是一个 NeoForge 1.21.1 模组，提供数据驱动的 Ponder 场景编写、游戏内编辑、热重载以及客户端/服务端同步能力。
 
