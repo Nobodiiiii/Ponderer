@@ -48,6 +48,8 @@ public class Ponderer {
     private void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             SceneStore.extractDefaultsIfNeeded();
+            // Auto-load Ponderer packs from resourcepacks directory
+            SceneStore.autoLoadPonderPacks();
             SceneStore.reloadFromDisk();
             PonderIndex.addPlugin(new DynamicPonderPlugin());
             PonderIndex.reload();

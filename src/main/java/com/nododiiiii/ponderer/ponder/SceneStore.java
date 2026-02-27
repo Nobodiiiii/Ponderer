@@ -16,11 +16,19 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 public final class SceneStore {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -432,5 +440,379 @@ public final class SceneStore {
         }
 
         scene.steps = result;
+    }
+
+    // ===== Pack Export/Import Methods =====
+
+    /**
+     * Pack all scenes and structures into a Ponderer resource pack (zip).
+     * File will be created at: resourcepacks/[Ponderer] {name}.zip
+     */
+    public static boolean packScenesAndStructures(String name, String version, String author) {
+        try {
+            // Prepare output directory
+            Path gameDir = net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get();
+            Path resourcepacksDir = gameDir.resolve("resourcepacks");
+            Files.createDirectories(resourcepacksDir);
+
+            String filename = "[Ponderer] " + name + ".zip";
+            Path outputPath = resourcepacksDir.resolve(filename);
+
+            // Create pack.json metadata
+            String packJson = createPackMetadata(name, version, author);
+
+            try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath))) {
+                // Write pack.mcmeta
+                writeZipEntry(zos, "pack.mcmeta", "{\"pack\": {\"pack_format\": 15, \"description\": \"Ponderer scene collection\"}}");
+
+                // Write pack.json (Ponderer metadata)
+                writeZipEntry(zos, "pack.json", packJson);
+
+                // Write scripts
+                int count = 0;
+                Path scriptsDir = getSceneDir();
+                if (Files.exists(scriptsDir)) {
+                    try (Stream<Path> paths = Files.walk(scriptsDir)) {
+                        for (Path p : paths.filter(Files::isRegularFile).toList()) {
+                            String entryName = "data/ponderer/scripts/" + scriptsDir.relativize(p).toString().replace("\\", "/");
+                            zos.putNextEntry(new ZipEntry(entryName));
+                            Files.copy(p, zos);
+                            zos.closeEntry();
+                            count++;
+                        }
+                    }
+                }
+
+                // Write structures
+                Path structuresDir = getStructureDir();
+                if (Files.exists(structuresDir)) {
+                    try (Stream<Path> paths = Files.walk(structuresDir)) {
+                        for (Path p : paths.filter(Files::isRegularFile).toList()) {
+                            String entryName = "data/ponderer/structures/" + structuresDir.relativize(p).toString().replace("\\", "/");
+                            zos.putNextEntry(new ZipEntry(entryName));
+                            Files.copy(p, zos);
+                            zos.closeEntry();
+                            count++;
+                        }
+                    }
+                }
+
+                LOGGER.info("Packed {} files into {}", count, filename);
+            }
+
+            return true;
+        } catch (IOException e) {
+            LOGGER.error("Failed to pack Ponderer scenes and structures", e);
+            return false;
+        }
+    }
+
+    /**
+     * Pack selected scenes and their structures into a Ponderer resource pack (zip).
+     * Only includes scenes whose IDs are in the selectedSceneIds set.
+     * File will be created at: resourcepacks/[Ponderer] {name}.zip
+     */
+    public static boolean packSelectedScenesAndStructures(String name, String version, String author, Set<String> selectedSceneIds) {
+        if (selectedSceneIds == null || selectedSceneIds.isEmpty()) {
+            return packScenesAndStructures(name, version, author);
+        }
+
+        try {
+            // Prepare output directory
+            Path gameDir = net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get();
+            Path resourcepacksDir = gameDir.resolve("resourcepacks");
+            Files.createDirectories(resourcepacksDir);
+
+            String filename = "[Ponderer] " + name + ".zip";
+            Path outputPath = resourcepacksDir.resolve(filename);
+
+            // Create pack.json metadata
+            String packJson = createPackMetadata(name, version, author);
+
+            Set<String> requiredStructures = new java.util.HashSet<>();
+
+            try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath))) {
+                // Write pack.mcmeta
+                writeZipEntry(zos, "pack.mcmeta", "{\"pack\": {\"pack_format\": 15, \"description\": \"Ponderer scene collection\"}}");
+
+                // Write pack.json (Ponderer metadata)
+                writeZipEntry(zos, "pack.json", packJson);
+
+                // Write selected scripts and collect referenced structures
+                int count = 0;
+                Path scriptsDir = getSceneDir();
+                if (Files.exists(scriptsDir)) {
+                    try (Stream<Path> paths = Files.walk(scriptsDir)) {
+                        for (Path p : paths.filter(Files::isRegularFile).toList()) {
+                            String fileName = p.getFileName().toString();
+                            // Extract scene ID from filename (remove .json extension)
+                            String sceneIdFromFile = fileName.endsWith(".json") ? fileName.substring(0, fileName.length() - 5) : fileName;
+
+                            // Check if this scene is in the selected set
+                            boolean isSelected = selectedSceneIds.stream()
+                                .anyMatch(id -> id.equals(sceneIdFromFile) || id.endsWith(":" + sceneIdFromFile));
+
+                            if (isSelected) {
+                                // Read the scene file and extract structure references
+                                try {
+                                    String sceneJson = Files.readString(p, StandardCharsets.UTF_8);
+                                    collectStructureReferences(sceneJson, requiredStructures);
+                                } catch (Exception ignored) {}
+
+                                String entryName = "data/ponderer/scripts/" + scriptsDir.relativize(p).toString().replace("\\", "/");
+                                zos.putNextEntry(new ZipEntry(entryName));
+                                Files.copy(p, zos);
+                                zos.closeEntry();
+                                count++;
+                            }
+                        }
+                    }
+                }
+
+                // Write only referenced structures
+                Path structuresDir = getStructureDir();
+                if (Files.exists(structuresDir)) {
+                    try (Stream<Path> paths = Files.walk(structuresDir)) {
+                        for (Path p : paths.filter(Files::isRegularFile).toList()) {
+                            String fileName = p.getFileName().toString();
+                            // Check if this structure is referenced
+                            boolean isReferenced = requiredStructures.stream()
+                                .anyMatch(ref -> {
+                                    String cleanRef = ref.replace(".nbt", "");
+                                    String cleanFileName = fileName.endsWith(".nbt") ? fileName.substring(0, fileName.length() - 4) : fileName;
+                                    return cleanRef.equals(cleanFileName) || cleanRef.endsWith(":" + cleanFileName);
+                                });
+
+                            if (isReferenced) {
+                                String entryName = "data/ponderer/structures/" + structuresDir.relativize(p).toString().replace("\\", "/");
+                                zos.putNextEntry(new ZipEntry(entryName));
+                                Files.copy(p, zos);
+                                zos.closeEntry();
+                                count++;
+                            }
+                        }
+                    }
+                }
+
+                LOGGER.info("Packed {} files into {} (selected {} scenes)", count, filename, selectedSceneIds.size());
+            }
+
+            return true;
+        } catch (IOException e) {
+            LOGGER.error("Failed to pack selected Ponderer scenes and structures", e);
+            return false;
+        }
+    }
+
+    private static void collectStructureReferences(String sceneJson, Set<String> structures) {
+        try {
+            // Simple JSON parsing to find structure references
+            // Look for "structure": "xxx" patterns
+            int idx = 0;
+            String searchFor = "\"structure\"";
+            while ((idx = sceneJson.indexOf(searchFor, idx)) != -1) {
+                idx += searchFor.length();
+                // Find the colon
+                int colonIdx = sceneJson.indexOf(":", idx);
+                if (colonIdx != -1) {
+                    // Find the quoted value
+                    int quoteStart = sceneJson.indexOf("\"", colonIdx);
+                    if (quoteStart != -1) {
+                        int quoteEnd = sceneJson.indexOf("\"", quoteStart + 1);
+                        if (quoteEnd != -1) {
+                            String structRef = sceneJson.substring(quoteStart + 1, quoteEnd);
+                            if (!structRef.isEmpty() && !structRef.matches("\\d+")) {
+                                structures.add(structRef);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to collect structure references from scene", e);
+        }
+    }
+
+    private static String createPackMetadata(String name, String version, String author) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\n");
+        sb.append("  \"pack\": {\n");
+        sb.append("    \"pack_format\": 15,\n");
+        sb.append("    \"description\": \"Ponderer scene collection\"\n");
+        sb.append("  },\n");
+        sb.append("  \"ponderer\": {\n");
+        sb.append("    \"name\": \"").append(escapeJson(name)).append("\",\n");
+        sb.append("    \"version\": \"").append(escapeJson(version)).append("\",\n");
+        sb.append("    \"author\": \"").append(escapeJson(author)).append("\",\n");
+        sb.append("    \"description\": \"Ponderer scene pack\"\n");
+        sb.append("  }\n");
+        sb.append("}\n");
+        return sb.toString();
+    }
+
+    private static String escapeJson(String str) {
+        if (str == null) return "";
+        return str.replace("\\", "\\\\")
+                  .replace("\"", "\\\"")
+                  .replace("\n", "\\n")
+                  .replace("\r", "\\r")
+                  .replace("\t", "\\t");
+    }
+
+    private static void writeZipEntry(ZipOutputStream zos, String name, String content) throws IOException {
+        zos.putNextEntry(new ZipEntry(name));
+        zos.write(content.getBytes(StandardCharsets.UTF_8));
+        zos.closeEntry();
+    }
+
+    /**
+     * Load a Ponderer pack from resourcepacks directory.
+     * Extracts scenes and structures with [PackName] prefix.
+     * Only loads if version is newer or not yet loaded.
+     */
+    public static int loadPonderPackFromResourcePack(Path zipPath, boolean forceOverwrite) throws IOException {
+        if (!Files.exists(zipPath)) {
+            LOGGER.warn("Pack file not found: {}", zipPath);
+            return 0;
+        }
+
+        // Load registry
+        PonderPackRegistry.load();
+
+        // Read pack info
+        PonderPackInfo info = PonderPackInfo.fromZip(zipPath);
+        if (info == null) {
+            LOGGER.warn("Invalid Ponderer pack: {}", zipPath);
+            return 0;
+        }
+
+        String displayName = PonderPackRegistry.getDisplayName(info.name);
+
+        // Check version
+        if (!forceOverwrite) {
+            PonderPackRegistry.PackEntry existing = PonderPackRegistry.getPack(displayName);
+            if (existing != null) {
+                // Compare versions
+                int cmp = compareVersions(existing.version, info.version);
+                if (cmp >= 0) {
+                    LOGGER.info("Pack {} already loaded (v{}), skipping", info.name, existing.version);
+                    return 0;
+                }
+            }
+        }
+
+        // Extract pack
+        int count = extractPonderPack(zipPath, info);
+
+        // Update registry
+        String fileHash = computeSha256(zipPath);
+        PonderPackRegistry.addOrUpdatePack(displayName, info, fileHash);
+
+        LOGGER.info("Loaded Ponderer pack: {} ({})", info.name, count + " files");
+        return count;
+    }
+
+    private static int extractPonderPack(Path zipPath, PonderPackInfo info) throws IOException {
+        int count = 0;
+        Path scriptsDir = getSceneDir();
+        Path structuresDir = getStructureDir();
+
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipPath))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                String name = entry.getName();
+
+                if (name.startsWith("data/ponderer/scripts/")) {
+                    // Extract scripts with pack prefix
+                    String fileName = name.substring("data/ponderer/scripts/".length());
+                    String prefixedName = info.packPrefix + " " + fileName;
+                    Path targetPath = scriptsDir.resolve(prefixedName);
+
+                    Files.createDirectories(targetPath.getParent());
+                    Files.copy(zis, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                    count++;
+                } else if (name.startsWith("data/ponderer/structures/")) {
+                    // Extract structures with pack prefix
+                    String fileName = name.substring("data/ponderer/structures/".length());
+                    String prefixedName = info.packPrefix + " " + fileName;
+                    Path targetPath = structuresDir.resolve(prefixedName);
+
+                    Files.createDirectories(targetPath.getParent());
+                    Files.copy(zis, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    private static int compareVersions(String v1, String v2) {
+        // Simple semantic version comparison
+        // Format: major.minor.patch
+        String[] parts1 = v1.split("\\.");
+        String[] parts2 = v2.split("\\.");
+
+        for (int i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+            int num1 = i < parts1.length ? parseInt(parts1[i]) : 0;
+            int num2 = i < parts2.length ? parseInt(parts2[i]) : 0;
+
+            if (num1 != num2) {
+                return Integer.compare(num1, num2);
+            }
+        }
+        return 0;
+    }
+
+    private static int parseInt(String str) {
+        try {
+            return Integer.parseInt(str);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static String computeSha256(Path file) {
+        try {
+            byte[] data = Files.readAllBytes(file);
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data);
+
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            LOGGER.warn("Failed to compute SHA-256 for {}", file, e);
+            return "";
+        }
+    }
+
+    /**
+     * Auto-load Ponderer packs from resourcepacks directory.
+     * Called during client setup to load packs on first launch or when new packs are added.
+     */
+    public static void autoLoadPonderPacks() {
+        PonderPackRegistry.load();
+
+        Path gameDir = net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get();
+        Path resourcepacksDir = gameDir.resolve("resourcepacks");
+
+        if (!Files.exists(resourcepacksDir)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.list(resourcepacksDir)) {
+            for (Path p : paths.filter(path -> path.toString().toLowerCase().endsWith(".zip")).toList()) {
+                try {
+                    loadPonderPackFromResourcePack(p, false);
+                } catch (Exception e) {
+                    LOGGER.warn("Failed to load pack: {}", p, e);
+                }
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Failed to scan resourcepacks directory", e);
+        }
     }
 }

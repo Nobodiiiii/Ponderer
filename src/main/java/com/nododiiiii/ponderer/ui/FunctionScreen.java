@@ -78,10 +78,10 @@ public class FunctionScreen extends NavigatableSimiScreen {
         // -- Import / Export --
         sections.add(new Section("ponderer.ui.function_page.import_export", List.of(
             new ButtonDef("ponderer.ui.function_page.export", () -> {
-                Minecraft.getInstance().setScreen(buildExportPage());
+                Minecraft.getInstance().setScreen(new ExportPackScreen());
             }, "ponderer.ui.function_page.export.tooltip"),
             new ButtonDef("ponderer.ui.function_page.import", () -> {
-                Minecraft.getInstance().setScreen(buildImportPage());
+                Minecraft.getInstance().setScreen(new ImportPackScreen());
             }, "ponderer.ui.function_page.import.tooltip"),
             new ButtonDef("ponderer.ui.function_page.download", () -> {
                 Minecraft.getInstance().setScreen(buildDownloadPage());
@@ -126,16 +126,20 @@ public class FunctionScreen extends NavigatableSimiScreen {
                 List.of("ponderer.ui.function_page.mode.check", "ponderer.ui.function_page.mode.force"),
                 List.of("check", "force"))
             .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
-                "ponderer.ui.function_page.param.scene_id.hint", false)
+                "ponderer.ui.function_page.param.scene_id.hint", false, true)
             .onExecute(values -> {
                 String mode = values.get("mode");
                 String sceneId = values.get("scene_id");
                 if (sceneId != null && !sceneId.isEmpty()) {
-                    ResourceLocation rl = ResourceLocation.tryParse(sceneId);
-                    if (rl != null) {
-                        PondererClientCommands.push(rl, mode);
-                        return;
+                    for (String part : sceneId.split(",")) {
+                        String trimmed = part.trim();
+                        if (trimmed.isEmpty()) continue;
+                        ResourceLocation rl = ResourceLocation.tryParse(trimmed);
+                        if (rl != null) {
+                            PondererClientCommands.push(rl, mode);
+                        }
                     }
+                    return;
                 }
                 PondererClientCommands.pushAll(mode);
             })
@@ -256,7 +260,7 @@ public class FunctionScreen extends NavigatableSimiScreen {
                 List.of("ponderer.ui.function_page.delete.by_scene", "ponderer.ui.function_page.delete.by_item"),
                 List.of("by_scene", "by_item"))
             .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
-                "ponderer.ui.function_page.param.scene_id.hint", false)
+                "ponderer.ui.function_page.param.scene_id.hint", false, true)
             .itemField("item_id", "ponderer.ui.function_page.param.item_id",
                 "ponderer.ui.function_page.param.item_id.hint", false)
             .onExecute(values -> {
@@ -264,8 +268,12 @@ public class FunctionScreen extends NavigatableSimiScreen {
                 if ("by_scene".equals(mode)) {
                     String sceneId = values.get("scene_id");
                     if (sceneId != null && !sceneId.isEmpty()) {
-                        ResourceLocation rl = ResourceLocation.tryParse(sceneId);
-                        if (rl != null) PondererClientCommands.deleteScene(rl);
+                        for (String part : sceneId.split(",")) {
+                            String trimmed = part.trim();
+                            if (trimmed.isEmpty()) continue;
+                            ResourceLocation rl = ResourceLocation.tryParse(trimmed);
+                            if (rl != null) PondererClientCommands.deleteScene(rl);
+                        }
                     }
                 } else {
                     String itemId = values.get("item_id");
@@ -275,25 +283,6 @@ public class FunctionScreen extends NavigatableSimiScreen {
                     }
                 }
             })
-            .build();
-    }
-
-    private static CommandParamScreen buildExportPage() {
-        return CommandParamScreen.builder("ponderer.ui.function_page.export.title")
-            .textField("filename", "ponderer.ui.function_page.param.filename",
-                "ponderer.ui.function_page.param.filename.hint", false)
-            .onExecute(values -> {
-                String fn = values.get("filename");
-                PondererClientCommands.exportPack(fn.isEmpty() ? null : fn);
-            })
-            .build();
-    }
-
-    private static CommandParamScreen buildImportPage() {
-        return CommandParamScreen.builder("ponderer.ui.function_page.import.title")
-            .textField("filename", "ponderer.ui.function_page.param.filename",
-                "ponderer.ui.function_page.param.filename.hint", true)
-            .onExecute(values -> PondererClientCommands.importPack(values.get("filename")))
             .build();
     }
 

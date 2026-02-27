@@ -18,7 +18,6 @@
   "ponderer.guide.blueprint.step3_resize": "Hold Ctrl and scroll to resize the selection on the highlighted face.",
   "ponderer.guide.blueprint.step4_save": "Right-click a third time to open the save prompt.",
   "ponderer.guide.blueprint.step5_discard": "Shift+Right-click at any time to discard the selection.",
-
   "ponderer.ui.scene_editor": "Ponder Editor",
   "ponderer.ui.scene_editor.title": "Ponder Editor - %s",
   "ponderer.ui.scene_editor.no_steps": "(no steps - click '+ Add' to begin)",
@@ -32,13 +31,11 @@
   "ponderer.ui.scene_editor.delete_scene_msg": "Are you sure you want to delete scene '%s'?",
   "ponderer.ui.scene_editor.delete_ponder_title": "Delete Ponder",
   "ponderer.ui.scene_editor.delete_ponder_msg": "This is the only scene. Deleting it will remove the entire ponder '%s'. This cannot be undone.",
-
   "ponderer.ui.scene_desc": "Description",
   "ponderer.ui.scene_desc.ponder_title": "Ponder Title",
   "ponderer.ui.scene_desc.scene_title": "Scene Title",
   "ponderer.ui.scene_desc.hint.ponder_title": "Ponder title...",
   "ponderer.ui.scene_desc.hint.scene_title": "Scene title...",
-
   "ponderer.ui.step_selector": "Add Step",
   "ponderer.ui.step_selector.title": "Select Step Type",
   "ponderer.ui.step.page.story": "Story & Overlay",
@@ -76,7 +73,6 @@
   "ponderer.ui.step.summary.show_controls_item": "%s %s",
   "ponderer.ui.step.summary.show_controls_action_item": "%s %s %s",
   "ponderer.ui.step.summary.next_scene": "--- Next Scene ---",
-
   "ponderer.ui.save": "Save",
   "ponderer.ui.confirm": "Confirm",
   "ponderer.ui.cancel": "Cancel",
@@ -84,24 +80,19 @@
   "ponderer.ui.invalid": "(invalid)",
   "ponderer.ui.none": "(none)",
   "ponderer.ui.ticks": "ticks",
-
   "ponderer.ui.error.invalid_number": "%s: invalid number",
   "ponderer.ui.error.invalid_integer": "%s: invalid integer",
   "ponderer.ui.error.required_field": "%s is required",
-
   "ponderer.ui.text": "Text",
   "ponderer.ui.text.hint": "Enter text...",
   "ponderer.ui.text.tooltip": "The text content shown in the ponder scene",
   "ponderer.ui.text.error.required": "Text is required",
-
   "ponderer.ui.point": "Point",
   "ponderer.ui.point.tooltip": "Position where the text bubble appears (X Y Z)",
-
   "ponderer.ui.duration": "Duration",
   "ponderer.ui.duration.tooltip.text": "How long the text stays visible in ticks",
   "ponderer.ui.duration.tooltip.idle": "Pause duration in ticks (20 ticks = 1 second)",
   "ponderer.ui.duration.tooltip.controls": "How long the control hint shows in ticks",
-
   "ponderer.ui.color": "Color",
   "ponderer.ui.color.tooltip": "Text highlight color (input/output/slow/fast etc.)",
   "ponderer.ui.color.option.white": "White",
@@ -114,16 +105,12 @@
   "ponderer.ui.color.option.slow": "Slow",
   "ponderer.ui.color.option.medium": "Medium",
   "ponderer.ui.color.option.fast": "Fast",
-
   "ponderer.ui.place_near": "placeNear",
   "ponderer.ui.place_near.tooltip": "Place text near the target point instead of floating",
-
   "ponderer.ui.key_frame": "keyFrame",
   "ponderer.ui.key_frame.tooltip": "Attach a key frame marker at this step",
-
   "ponderer.ui.idle": "Idle",
   "ponderer.ui.idle.error.duration": "Duration must be >= 0",
-
   "ponderer.ui.show_structure": "Show Structure",
   "ponderer.ui.show_structure.height": "Height",
   "ponderer.ui.show_structure.height.hint": "auto",
@@ -138,7 +125,6 @@
   "ponderer.ui.show_structure.structure.error.wait_download": "Downloading structure... will auto-save when finished",
   "ponderer.ui.show_structure.structure.error.not_found": "Structure not found on server/world: %s",
   "ponderer.ui.show_structure.structure.error.copy_failed": "Failed to prepare structure locally",
-
   "ponderer.ui.create_entity": "Entity",
   "ponderer.ui.create_entity.add": "Add Entity",
   "ponderer.ui.create_entity.edit": "Edit Entity",
@@ -154,7 +140,6 @@
   "ponderer.ui.create_entity.error.required": "Entity type required",
   "ponderer.ui.create_entity.error.invalid_id": "Invalid entity ID",
   "ponderer.ui.create_entity.error.unknown": "Unknown entity: %s",
-
   "ponderer.ui.create_item_entity": "Item Entity",
   "ponderer.ui.create_item_entity.add": "Add Item Entity",
   "ponderer.ui.create_item_entity.edit": "Edit Item Entity",
@@ -170,20 +155,17 @@
   "ponderer.ui.create_item_entity.error.required": "Item id is required",
   "ponderer.ui.create_item_entity.error.invalid_id": "Invalid item id",
   "ponderer.ui.create_item_entity.error.unknown": "Unknown item: %s",
-
   "ponderer.ui.rotate_camera": "Rotate Camera",
   "ponderer.ui.rotate_camera.add": "Add Camera Rotation",
   "ponderer.ui.rotate_camera.edit": "Edit Camera Rotation",
   "ponderer.ui.rotate_camera.degrees": "Degrees",
   "ponderer.ui.rotate_camera.degrees.unit": "deg",
   "ponderer.ui.rotate_camera.degrees.tooltip": "Rotate scene camera around Y axis by this angle",
-
   "ponderer.ui.shared_text": "Shared Text",
   "ponderer.ui.shared_text.key": "Key",
   "ponderer.ui.shared_text.key.hint": "ponderer:my_key",
   "ponderer.ui.shared_text.key.tooltip": "Translation key referencing shared lang text",
   "ponderer.ui.shared_text.error.required": "Key is required",
-
   "ponderer.ui.show_controls": "Show Controls",
   "ponderer.ui.show_controls.point.tooltip": "Position where the control hint appears",
   "ponderer.ui.show_controls.direction": "Direction",
@@ -208,7 +190,6 @@
   "ponderer.ui.show_controls.sneaking.tooltip": "Show this control only while sneaking",
   "ponderer.ui.show_controls.ctrl": "CTRL",
   "ponderer.ui.show_controls.ctrl.tooltip": "Show this control only while holding CTRL",
-
   "ponderer.ui.play_sound": "Play Sound",
   "ponderer.ui.play_sound.sound": "Sound",
   "ponderer.ui.play_sound.sound.hint": "minecraft:entity.experience_orb.pickup",
@@ -230,11 +211,9 @@
   "ponderer.ui.play_sound.source.ambient": "Ambient",
   "ponderer.ui.play_sound.source.voice": "Voice",
   "ponderer.ui.play_sound.error.required": "Sound ID is required",
-
   "ponderer.ui.encapsulate_bounds": "Encapsulate Bounds",
   "ponderer.ui.encapsulate_bounds.bounds": "Bounds",
   "ponderer.ui.encapsulate_bounds.bounds.tooltip": "Bounding box size X Y Z for the scene camera",
-
   "ponderer.ui.set_block": "Set Block",
   "ponderer.ui.set_block.add": "Add Set Block",
   "ponderer.ui.set_block.edit": "Edit Set Block",
@@ -250,7 +229,6 @@
   "ponderer.ui.set_block.error.invalid_id": "Invalid block ID",
   "ponderer.ui.set_block.error.unknown": "Unknown block: %s",
   "ponderer.ui.set_block.error.partial_to": "Fill end position must include X, Y and Z",
-
   "ponderer.ui.destroy_block": "Destroy Block",
   "ponderer.ui.destroy_block.add": "Add Destroy Block",
   "ponderer.ui.destroy_block.edit": "Edit Destroy Block",
@@ -258,7 +236,6 @@
   "ponderer.ui.destroy_block.pos.tooltip": "Target block position X Y Z",
   "ponderer.ui.destroy_block.particles": "Particles",
   "ponderer.ui.destroy_block.particles.tooltip": "Show break particles when destroying",
-
   "ponderer.ui.replace_blocks": "Replace Blocks",
   "ponderer.ui.replace_blocks.add": "Add Replace Blocks",
   "ponderer.ui.replace_blocks.edit": "Edit Replace Blocks",
@@ -274,7 +251,6 @@
   "ponderer.ui.replace_blocks.error.invalid_id": "Invalid block ID",
   "ponderer.ui.replace_blocks.error.unknown": "Unknown block: %s",
   "ponderer.ui.replace_blocks.error.partial_to": "Replace end position must include X, Y and Z",
-
   "ponderer.ui.hide_section": "Hide Section",
   "ponderer.ui.hide_section.add": "Add Hide Section",
   "ponderer.ui.hide_section.edit": "Edit Hide Section",
@@ -285,7 +261,6 @@
   "ponderer.ui.hide_section.direction": "Direction",
   "ponderer.ui.hide_section.direction.tooltip": "Fade direction: down/up/north/south/west/east",
   "ponderer.ui.hide_section.error.partial_to": "End position must include X, Y and Z",
-
   "ponderer.ui.show_section_and_merge": "Show Section & Merge",
   "ponderer.ui.show_section_and_merge.add": "Add Show Section & Merge",
   "ponderer.ui.show_section_and_merge.edit": "Edit Show Section & Merge",
@@ -298,7 +273,6 @@
   "ponderer.ui.show_section_and_merge.link": "Link",
   "ponderer.ui.show_section_and_merge.link.tooltip": "Section link id. Same id means operating on the same independent section chain.",
   "ponderer.ui.show_section_and_merge.error.partial_to": "End position must include X, Y and Z",
-
   "ponderer.ui.toggle_redstone_power": "Toggle Redstone Power",
   "ponderer.ui.toggle_redstone_power.add": "Add Toggle Redstone",
   "ponderer.ui.toggle_redstone_power.edit": "Edit Toggle Redstone",
@@ -307,7 +281,6 @@
   "ponderer.ui.toggle_redstone_power.pos_to": "To",
   "ponderer.ui.toggle_redstone_power.pos_to.tooltip": "Optional selection end X Y Z",
   "ponderer.ui.toggle_redstone_power.error.partial_to": "End position must include X, Y and Z",
-
   "ponderer.ui.rotate_section": "Rotate Section",
   "ponderer.ui.rotate_section.add": "Add Rotate Section",
   "ponderer.ui.rotate_section.edit": "Edit Rotate Section",
@@ -315,7 +288,6 @@
   "ponderer.ui.rotate_section.link.tooltip": "Target section link id. Must match the link created/merged before.",
   "ponderer.ui.rotate_section.xyz": "Rot XYZ",
   "ponderer.ui.rotate_section.xyz.tooltip": "Rotation in degrees around X/Y/Z",
-
   "ponderer.ui.move_section": "Move Section",
   "ponderer.ui.move_section.add": "Add Move Section",
   "ponderer.ui.move_section.edit": "Edit Move Section",
@@ -323,7 +295,6 @@
   "ponderer.ui.move_section.link.tooltip": "Target section link id. Must match the link created/merged before.",
   "ponderer.ui.move_section.xyz": "Offset XYZ",
   "ponderer.ui.move_section.xyz.tooltip": "Move offset X/Y/Z",
-
   "ponderer.ui.modify_block_entity_nbt": "Modify BlockEntity NBT",
   "ponderer.ui.modify_block_entity_nbt.add": "Add Modify BE NBT",
   "ponderer.ui.modify_block_entity_nbt.edit": "Edit Modify BE NBT",
@@ -338,19 +309,16 @@
   "ponderer.ui.modify_block_entity_nbt.error.required": "NBT is required",
   "ponderer.ui.modify_block_entity_nbt.error.invalid": "Invalid NBT",
   "ponderer.ui.modify_block_entity_nbt.error.partial_to": "End position must include X, Y and Z",
-
   "ponderer.ui.indicate_redstone": "Indicate Redstone",
   "ponderer.ui.indicate_redstone.add": "Add Redstone Indicator",
   "ponderer.ui.indicate_redstone.edit": "Edit Redstone Indicator",
   "ponderer.ui.indicate_redstone.pos": "Pos",
   "ponderer.ui.indicate_redstone.pos.tooltip": "Indicator position X Y Z",
-
   "ponderer.ui.indicate_success": "Indicate Success",
   "ponderer.ui.indicate_success.add": "Add Success Indicator",
   "ponderer.ui.indicate_success.edit": "Edit Success Indicator",
   "ponderer.ui.indicate_success.pos": "Pos",
   "ponderer.ui.indicate_success.pos.tooltip": "Indicator position X Y Z",
-
   "ponderer.ui.step.type.clear_entities": "Clear Entities",
   "ponderer.ui.clear_entities": "Clear Entities",
   "ponderer.ui.clear_entities.add": "Add Clear Entities",
@@ -365,7 +333,6 @@
   "ponderer.ui.clear_entities.full_scene": "Full Scene",
   "ponderer.ui.clear_entities.full_scene.tooltip": "Clear all matching entities in the entire scene, ignoring coordinates",
   "ponderer.ui.clear_entities.error.partial_to": "End position must include X, Y and Z",
-
   "ponderer.ui.step.type.clear_item_entities": "Clear Item Entities",
   "ponderer.ui.clear_item_entities": "Clear Item Entities",
   "ponderer.ui.clear_item_entities.add": "Add Clear Item Entities",
@@ -380,7 +347,6 @@
   "ponderer.ui.clear_item_entities.full_scene": "Full Scene",
   "ponderer.ui.clear_item_entities.full_scene.tooltip": "Clear all matching dropped items in the entire scene, ignoring coordinates",
   "ponderer.ui.clear_item_entities.error.partial_to": "End position must include X, Y and Z",
-
   "ponderer.cmd.scene_not_found": "Ponderer: scene not found: %s",
   "ponderer.cmd.pull.requesting": "Ponderer: requesting sync from server (mode: %s)...",
   "ponderer.cmd.pull.done": "Ponderer: sync complete (%s written, %s skipped, %s conflicts)",
@@ -413,7 +379,6 @@
   "ponderer.cmd.convert.scan_failed": "Ponderer: failed to scan kubejs/client_scripts/ponder/",
   "ponderer.cmd.convert.from_done": "Ponderer: imported %s scene(s) from PonderJS for %s",
   "ponderer.cmd.convert.from_all_done": "Ponderer: imported %s scene(s) from PonderJS",
-
   "ponderer.cmd.push.no_permission": "Ponderer: no permission to upload",
   "ponderer.cmd.push.server_conflict": "Ponderer: CONFLICT - server version of %s has been modified. Use /ponderer push force to overwrite, or /ponderer pull to get server version.",
   "ponderer.cmd.push.upload_ok": "Ponderer: upload complete: %s",
@@ -424,42 +389,49 @@
   "ponderer.cmd.download.import_failed": "Ponderer: failed to import structure: %s",
   "ponderer.cmd.download.done": "Ponderer: imported %s -> %s and synced to client",
   "ponderer.cmd.download.read_failed": "Ponderer: failed to read source structure: %s",
-
+  "ponderer.ui.confirm": "Confirm",
+  "ponderer.ui.cancel": "Cancel",
   "ponderer.ui.item_list": "Ponder Index",
   "ponderer.ui.item_list.title": "All Items with Ponder Scenes",
   "ponderer.ui.item_list.count": "%s items",
   "ponderer.ui.item_list.empty": "No ponder scenes registered",
   "ponderer.ui.item_list.nbt_filter": "NBT Filter:",
   "ponderer.ui.item_list.page": "Page %s / %s",
+  "ponderer.ui.item_grid.title": "All Items with Ponder Scenes",
+  "ponderer.ui.item_grid.select_scene": "Select Scene",
+  "ponderer.ui.item_grid.select_scenes": "Select Scenes",
+  "ponderer.ui.item_grid.total_scenes": "%s items (%s scenes)",
+  "ponderer.ui.item_grid.selected_count": "Selected %s / %s scenes",
+  "ponderer.ui.item_grid.press_w_hint": "[W] Preview",
+  "ponderer.ui.item_grid.select_all": "All",
+  "ponderer.ui.item_grid.deselect_all": "None",
+  "ponderer.ui.item_grid.scenes_count": "%s scenes",
+  "ponderer.ui.item_grid.scene_label": "Scene: %s",
+  "ponderer.ui.item_grid.empty": "No ponder scenes registered",
+  "ponderer.ui.item_grid.select_scene_id": "Select Scene ID",
+  "ponderer.ui.item_grid.sub_selected": "Selected: %s / %s",
   "ponderer.ui.show_structure.browse": "Browse...",
   "ponderer.ui.show_structure.browse.tooltip": "Open file explorer to select a .nbt structure file",
-
   "ponderer.ui.scene_editor.paste": "Paste Step",
   "ponderer.ui.scene_editor.hint_undo": "Ctrl+Z undo | Ctrl+Y redo | Click = edit",
-
   "ponderer.ui.scene_editor.btn.move_up": "Move Up",
   "ponderer.ui.scene_editor.btn.move_down": "Move Down",
   "ponderer.ui.scene_editor.btn.insert": "Insert After",
   "ponderer.ui.scene_editor.btn.copy": "Copy",
   "ponderer.ui.scene_editor.btn.paste_after": "Paste After",
   "ponderer.ui.scene_editor.btn.delete": "Delete",
-
   "ponderer.ui.pick.tooltip": "Pick",
-
   "ponderer.cmd.export.done": "Ponderer: exported %s files to %s",
   "ponderer.cmd.export.failed": "Ponderer: export failed: %s",
   "ponderer.cmd.import.done": "Ponderer: imported %s files from %s",
   "ponderer.cmd.import.failed": "Ponderer: import failed: %s",
   "ponderer.cmd.import.not_found": "Ponderer: zip file not found: %s",
-
   "ponderer.ui.jei_browse.tooltip": "Browse with JEI (click to toggle)",
   "ponderer.ui.jei.error.not_block": "This item has no block form",
   "ponderer.ui.jei.error.not_spawn_egg": "No matching entity type found",
-
   "ponderer.ui.block_properties": "Properties",
   "ponderer.ui.block_properties.hint": "facing=north,half=upper",
   "ponderer.ui.block_properties.tooltip": "Block state properties in key=value format, comma-separated",
-
   "key.ponderer.open_function_page": "Open Function Page",
   "key.categories.ponderer": "Ponderer",
   "ponderer.ui.function_page.title": "Ponderer Function Page",
@@ -474,8 +446,8 @@
   "ponderer.ui.function_page.reload": "Reload",
   "ponderer.ui.function_page.push": "Push...",
   "ponderer.ui.function_page.pull": "Pull...",
-  "ponderer.ui.function_page.export": "Export...",
-  "ponderer.ui.function_page.import": "Import...",
+  "ponderer.ui.function_page.export": "Export Pack...",
+  "ponderer.ui.function_page.import": "Import Pack...",
   "ponderer.ui.function_page.download": "Download...",
   "ponderer.ui.function_page.to_ponderjs": "To PonderJS",
   "ponderer.ui.function_page.from_ponderjs": "From PonderJS",
@@ -533,7 +505,6 @@
   "ponderer.ui.function_page.blueprint_item.set": "Blueprint carrier item set to %s",
   "ponderer.ui.function_page.blueprint_item.use_builtin": "Use Built-in Blueprint",
   "ponderer.ui.function_page.keybindings": "Keybindings",
-
   "ponderer.ui.function_page.new_scene.tooltip": "Create a new ponder scene for an item",
   "ponderer.ui.function_page.copy_scene.tooltip": "Copy an existing scene to another item",
   "ponderer.ui.function_page.delete_scene.tooltip": "Delete scenes by scene ID or item ID",
@@ -541,20 +512,18 @@
   "ponderer.ui.function_page.reload.tooltip": "Reload all local ponder scripts",
   "ponderer.ui.function_page.push.tooltip": "Upload scenes to the server",
   "ponderer.ui.function_page.pull.tooltip": "Download scenes from the server",
-  "ponderer.ui.function_page.export.tooltip": "Export scenes to a zip file",
-  "ponderer.ui.function_page.import.tooltip": "Import scenes from a zip file",
+  "ponderer.ui.function_page.export.tooltip": "Export all scenes and structures as a resource pack",
+  "ponderer.ui.function_page.import.tooltip": "Import scenes from a Ponderer resource pack",
   "ponderer.ui.function_page.download.tooltip": "Download a structure file from the server",
   "ponderer.ui.function_page.to_ponderjs.tooltip": "Convert all scenes to PonderJS bridge format",
   "ponderer.ui.function_page.from_ponderjs.tooltip": "Import scenes from PonderJS scripts",
   "ponderer.ui.function_page.permissions.tooltip": "Manage upload permission allowlist",
   "ponderer.ui.function_page.blueprint_item.tooltip": "Configure the blueprint carrier item",
   "ponderer.ui.function_page.keybindings.tooltip": "Open Minecraft key binding settings",
-
   "ponderer.ui.function_page.ai_generate": "AI Generate (Beta)",
   "ponderer.ui.function_page.ai_generate.tooltip": "Generate a ponder scene using AI from an NBT structure and prompt",
   "ponderer.ui.function_page.ai_config": "AI Config",
   "ponderer.ui.function_page.ai_config.tooltip": "Configure AI provider, API key and model",
-
   "ponderer.ui.ai_config.title": "AI Configuration",
   "ponderer.ui.ai_config.provider": "Provider",
   "ponderer.ui.ai_config.provider.hint": "anthropic / openai",
@@ -571,7 +540,6 @@
   "ponderer.ui.ai_config.web_use_proxy": "Web Proxy",
   "ponderer.ui.ai_config.max_tokens": "Max Tokens",
   "ponderer.ui.ai_config.max_tokens.hint": "Default 16384",
-
   "ponderer.ui.ai_generate.title": "AI Scene Generator (Beta)",
   "ponderer.ui.ai_generate.add": "Add",
   "ponderer.ui.ai_generate.delete": "Delete",
@@ -597,7 +565,6 @@
   "ponderer.ui.ai_generate.status.json": "Generating JSON (3/3)...",
   "ponderer.ui.ai_generate.status.retry": "JSON parse failed, retrying (3/3)...",
   "ponderer.ui.ai_generate.status.success": "Scene generated and saved!",
-
   "ponderer.ui.ai_generate.add.tooltip": "Select an NBT structure file",
   "ponderer.ui.ai_generate.delete.tooltip": "Remove the selected structure",
   "ponderer.ui.ai_generate.prev.tooltip": "Previous structure",
@@ -605,5 +572,23 @@
   "ponderer.ui.ai_generate.add_url.tooltip": "Add a reference URL for AI to fetch as context",
   "ponderer.ui.ai_generate.build_tutorial.tooltip": "First scene will be a layer-by-layer build tutorial",
   "ponderer.ui.ai_generate.include_images.tooltip": "Send screenshots from reference pages to the AI",
-  "ponderer.ui.ai_generate.generate.tooltip": "Start generating the ponder scene (requires AI config)"
+  "ponderer.ui.ai_generate.generate.tooltip": "Start generating the ponder scene (requires AI config)",
+  "ponderer.ui.export": "Export Pack",
+  "ponderer.ui.export.name": "Name",
+  "ponderer.ui.export.version": "Version",
+  "ponderer.ui.export.author": "Author",
+  "ponderer.ui.export.success": "Pack exported: [Ponderer] %s.zip",
+  "ponderer.ui.export.failed": "Export failed",
+  "ponderer.ui.export.name_empty": "Package name cannot be empty",
+  "ponderer.ui.export.name_invalid": "Name: only letters, numbers, dash, underscore",
+  "ponderer.ui.export.version_empty": "Version cannot be empty",
+  "ponderer.ui.export.all_scenes": "All Scenes",
+  "ponderer.ui.export.selected_scenes": "Selected: %s scene(s)",
+  "ponderer.ui.import": "Import Pack",
+  "ponderer.ui.import.available": "Available Packs:",
+  "ponderer.ui.import.none": "No Ponderer packs found in resourcepacks/",
+  "ponderer.ui.import.select": "Please select a pack",
+  "ponderer.ui.import.success": "Loaded %s files from %s",
+  "ponderer.ui.import.failed": "Failed to load pack: %s",
+  "ponderer.ui.load": "Load"
 }
