@@ -64,6 +64,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
     @Override
     public void registerScenes(PonderSceneRegistrationHelper<ResourceLocation> helper) {
         NbtSceneFilter.clear();
+        SceneRuntime.clearPonderIdMapping();
         for (DslScene scene : SceneRuntime.getScenes()) {
             registerScene(helper, scene);
         }
@@ -212,6 +213,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
                     NbtSceneFilter.registerFilter(fullSceneId, nbt);
                 }
             }
+
+            // Register mapping from PonderScene ID to DslScene sceneKey for pack disambiguation
+            SceneRuntime.registerPonderIdMapping(fullSceneId, scene.sceneKey(), i);
         }
     }
 

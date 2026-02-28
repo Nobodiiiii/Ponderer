@@ -928,17 +928,45 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         }
         final ResourceLocation reopenId = itemId;
         final String targetSceneId = computeCurrentSceneId();
+        final String nbtFilter = scene.nbtFilter;
 
         mc.execute(() -> {
             PonderIndex.reload();
             if (reopenId != null && PonderIndex.getSceneAccess().doScenesExistForId(reopenId)) {
-                PonderUI ui = PonderUI.of(reopenId);
+                PonderUI ui;
+                // When scene has an NBT filter, use PonderUI.of(ItemStack) so that
+                // the NBT capture mixin sets the filter context for scene compilation
+                if (nbtFilter != null && !nbtFilter.isBlank()) {
+                    net.minecraft.world.item.ItemStack stack = buildFilteredStack(reopenId, nbtFilter);
+                    ui = PonderUI.of(stack);
+                } else {
+                    ui = PonderUI.of(reopenId);
+                }
                 if (targetSceneId != null) {
                     navigateToScene(ui, targetSceneId);
                 }
                 mc.setScreen(ui);
             }
         });
+    }
+
+    /**
+     * Build an ItemStack with NBT matching the given filter, so PonderUI.of(ItemStack)
+     * correctly triggers the NBT scene filter.
+     */
+    private static net.minecraft.world.item.ItemStack buildFilteredStack(ResourceLocation itemId, String nbtFilter) {
+        net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
+        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item);
+        try {
+            net.minecraft.nbt.CompoundTag filterTag = net.minecraft.nbt.TagParser.parseTag(nbtFilter);
+            net.minecraft.nbt.CompoundTag fullTag = new net.minecraft.nbt.CompoundTag();
+            fullTag.putString("id", itemId.toString());
+            fullTag.putByte("Count", (byte) 1);
+            fullTag.put("tag", filterTag);
+            net.minecraft.world.item.ItemStack parsed = net.minecraft.world.item.ItemStack.of(fullTag);
+            if (!parsed.isEmpty()) stack = parsed;
+        } catch (Exception ignored) {}
+        return stack;
     }
 
     /**

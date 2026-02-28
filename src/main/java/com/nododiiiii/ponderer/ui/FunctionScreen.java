@@ -134,10 +134,7 @@ public class FunctionScreen extends NavigatableSimiScreen {
                     for (String part : sceneId.split(",")) {
                         String trimmed = part.trim();
                         if (trimmed.isEmpty()) continue;
-                        ResourceLocation rl = ResourceLocation.tryParse(trimmed);
-                        if (rl != null) {
-                            PondererClientCommands.push(rl, mode);
-                        }
+                        PondererClientCommands.pushByKey(trimmed, mode);
                     }
                     return;
                 }
@@ -245,10 +242,10 @@ public class FunctionScreen extends NavigatableSimiScreen {
             .itemField("target_item", "ponderer.ui.function_page.param.target_item",
                 "ponderer.ui.function_page.param.target_item.hint", true)
             .onExecute(values -> {
-                ResourceLocation sceneId = ResourceLocation.tryParse(values.get("scene_id"));
+                String sceneKey = values.get("scene_id");
                 ResourceLocation targetItem = ResourceLocation.tryParse(values.get("target_item"));
-                if (sceneId != null && targetItem != null) {
-                    PondererClientCommands.copyScene(sceneId, targetItem);
+                if (sceneKey != null && !sceneKey.isEmpty() && targetItem != null) {
+                    PondererClientCommands.copySceneByKey(sceneKey, targetItem);
                 }
             })
             .build();
@@ -271,8 +268,7 @@ public class FunctionScreen extends NavigatableSimiScreen {
                         for (String part : sceneId.split(",")) {
                             String trimmed = part.trim();
                             if (trimmed.isEmpty()) continue;
-                            ResourceLocation rl = ResourceLocation.tryParse(trimmed);
-                            if (rl != null) PondererClientCommands.deleteScene(rl);
+                            PondererClientCommands.deleteSceneByKey(trimmed);
                         }
                     }
                 } else {

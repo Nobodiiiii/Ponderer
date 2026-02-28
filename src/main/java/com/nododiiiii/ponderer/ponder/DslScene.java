@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,40 @@ public class DslScene {
      * Example: "{CustomModelData:1}" or "{display:{Name:'\"Special\"'}}"
      */
     public String nbtFilter;
+
+    /**
+     * Transient field set by SceneStore.reloadFromDisk().
+     * Stores the source filename (e.g. "example.json" or "[my_pack] example.json").
+     * Not serialized by GSON.
+     */
+    public transient String sourceFile;
+
+    /**
+     * Extract pack prefix from a source filename.
+     * "[my_pack] example.json" → "[my_pack]"
+     * "example.json" → null
+     */
+    @Nullable
+    public static String extractPackPrefix(@Nullable String sourceFile) {
+        if (sourceFile == null) return null;
+        if (sourceFile.startsWith("[")) {
+            int close = sourceFile.indexOf(']');
+            if (close > 0) {
+                return sourceFile.substring(0, close + 1);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Generate a unique scene key.
+     * Local scene: "ponderer:example"
+     * Pack scene: "[my_pack] ponderer:example"
+     */
+    public String sceneKey() {
+        String prefix = extractPackPrefix(sourceFile);
+        return prefix == null ? id : prefix + " " + id;
+    }
 
     public static class SceneSegment {
         public String id;

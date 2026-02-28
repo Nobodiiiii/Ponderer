@@ -27,15 +27,13 @@ import java.util.*;
 import java.util.function.Consumer;
 
 /**
- * Unified item grid screen that replaces PonderItemListScreen,
- * SceneItemPickerScreen (single-select) and SceneItemPickerScreen
- * (multi-select).
+ * Unified item grid screen with smooth scrolling and pack-based grouping.
  * <p>
  * Three modes:
  * <ul>
  * <li>LIST – browse all items with ponder scenes; click opens PonderUI</li>
- * <li>SINGLE_SELECT – pick one scene ID via callback</li>
- * <li>MULTI_SELECT – pick multiple scene IDs with confirm/cancel</li>
+ * <li>SINGLE_SELECT – pick one scene key via callback</li>
+ * <li>MULTI_SELECT – pick multiple scene keys with confirm/cancel</li>
  * </ul>
  * All modes support pressing [W] to preview ponder for the hovered item.
  */
@@ -48,27 +46,38 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
     // -- Layout constants --
     private static final int WINDOW_W = 256;
     private static final int COLS = 11;
-    private static final int ROWS_PER_PAGE = 6;
-    private static final int ITEMS_PER_PAGE = COLS * ROWS_PER_PAGE;
     private static final int CELL_SIZE = 20;
     private static final int GRID_LEFT = 14;
     private static final int GRID_TOP = 42;
+    private static final int VISIBLE_ROWS = 6;
+    private static final int VISIBLE_H = VISIBLE_ROWS * CELL_SIZE;
+    private static final int SECTION_HEADER_H = 16;
+    private static final int SCROLL_SPEED = 20;
 
     // -- Data model --
-    record ItemEntry(ItemStack stack, @Nullable String nbtFilter, List<String> sceneIds) {
+    record ItemEntry(ItemStack stack, @Nullable String nbtFilter, List<String> sceneKeys) {
+    }
+
+    record PackSection(@Nullable String packPrefix, String displayName, List<ItemEntry> entries) {
+    }
+
+    enum GroupMode {
+        BY_PACK, BY_ITEM
     }
 
     // -- State --
     private final Mode mode;
-    private final List<ItemEntry> entries;
+    private List<PackSection> sections;
     private final @Nullable Consumer<String> onSelectSingle;
     private final @Nullable Consumer<Set<String>> onSelectMulti;
     private final @Nullable Runnable onCancel;
-    private final Set<String> selectedSceneIds = new HashSet<>();
-    private int page = 0;
-    private int totalPages;
+    private final Set<String> selectedSceneKeys = new HashSet<>();
+    private double scrollY = 0;
+    private double maxScrollY = 0;
     private int totalSceneCount;
+    private int totalItemCount;
     private int lastMouseX, lastMouseY;
+    private GroupMode groupMode = GroupMode.BY_PACK;
 
     /** When non-null, PonderUI close will return to this screen (via Mixin). */
     @Nullable
@@ -81,12 +90,12 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         this(Mode.LIST, null, null, null);
     }
 
-    /** SINGLE_SELECT mode – pick one scene ID */
+    /** SINGLE_SELECT mode – pick one scene key */
     public PonderItemGridScreen(Consumer<String> onSelect, Runnable onCancel) {
         this(Mode.SINGLE_SELECT, onSelect, null, onCancel);
     }
 
-    /** MULTI_SELECT mode – pick multiple scene IDs */
+    /** MULTI_SELECT mode – pick multiple scene keys */
     public PonderItemGridScreen(Consumer<Set<String>> onSelectMulti, Runnable onCancel, boolean multi) {
         this(Mode.MULTI_SELECT, null, onSelectMulti, onCancel);
     }
@@ -95,7 +104,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
             @Nullable Consumer<Set<String>> onSelectMulti,
             @Nullable Runnable onCancel) {
         super(Component.translatable(switch (mode) {
-            case LIST -> "ponderer.ui.item_grid.title";
+            case LIST -> "ponderer.ui.item_grid.select_scene";
             case SINGLE_SELECT -> "ponderer.ui.item_grid.select_scene";
             case MULTI_SELECT -> "ponderer.ui.item_grid.select_scenes";
         }));
@@ -103,48 +112,146 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         this.onSelectSingle = onSelectSingle;
         this.onSelectMulti = onSelectMulti;
         this.onCancel = onCancel;
-        this.entries = collectEntries();
-        this.totalPages = Math.max(1, (entries.size() + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE);
-        this.totalSceneCount = (int) entries.stream()
-                .flatMap(e -> e.sceneIds.stream()).distinct().count();
+        this.sections = collectGroupedSections();
+        recomputeCounts();
     }
 
-    /** Collect all item entries with their associated scene IDs. */
-    private static List<ItemEntry> collectEntries() {
-        LinkedHashMap<String, List<String>> itemFilters = new LinkedHashMap<>();
-        Map<String, List<String>> allSceneIds = new LinkedHashMap<>();
+    private void recomputeCounts() {
+        int items = 0;
+        Set<String> allKeys = new HashSet<>();
+        for (PackSection sec : sections) {
+            items += sec.entries.size();
+            for (ItemEntry entry : sec.entries) {
+                allKeys.addAll(entry.sceneKeys);
+            }
+        }
+        this.totalItemCount = items;
+        this.totalSceneCount = allKeys.size();
+    }
+
+    /** Collect entries grouped by pack prefix. Local first, then sorted by pack name. */
+    private static List<PackSection> collectGroupedSections() {
+        // Group scenes by pack prefix
+        Map<String, Map<String, List<String>>> packGroups = new LinkedHashMap<>();
+        // packPrefix -> (itemKey -> list of sceneKeys)
+        Map<String, Map<String, List<String>>> packItemFilters = new LinkedHashMap<>();
 
         for (DslScene scene : SceneRuntime.getScenes()) {
-            if (scene.items == null || scene.id == null)
-                continue;
+            if (scene.items == null || scene.id == null) continue;
+            String packPrefix = DslScene.extractPackPrefix(scene.sourceFile);
+            String packKey = packPrefix != null ? packPrefix : "";
+            String sceneKey = scene.sceneKey();
+
             for (String itemId : scene.items) {
                 String nf = scene.nbtFilter;
-                String key = itemId + "|" + (nf != null ? nf : "");
-                allSceneIds.computeIfAbsent(key, k -> new ArrayList<>());
-                List<String> ids = allSceneIds.get(key);
-                if (!ids.contains(scene.id))
-                    ids.add(scene.id);
-                itemFilters.computeIfAbsent(itemId, k -> new ArrayList<>());
-                List<String> filters = itemFilters.get(itemId);
+                String entryKey = itemId + "|" + (nf != null ? nf : "");
+
+                packGroups.computeIfAbsent(packKey, k -> new LinkedHashMap<>())
+                        .computeIfAbsent(entryKey, k -> new ArrayList<>());
+                List<String> keys = packGroups.get(packKey).get(entryKey);
+                if (!keys.contains(sceneKey)) keys.add(sceneKey);
+
+                packItemFilters.computeIfAbsent(packKey, k -> new LinkedHashMap<>())
+                        .computeIfAbsent(itemId, k -> new ArrayList<>());
+                List<String> filters = packItemFilters.get(packKey).get(itemId);
                 if (nf != null && !nf.isBlank()) {
-                    if (!filters.contains(nf))
-                        filters.add(nf);
+                    if (!filters.contains(nf)) filters.add(nf);
                 } else {
-                    if (!filters.contains(null))
-                        filters.add(0, null);
+                    if (!filters.contains(null)) filters.add(0, null);
                 }
             }
         }
 
-        List<ItemEntry> stacks = new ArrayList<>();
-        for (var entry : itemFilters.entrySet()) {
-            ResourceLocation rl = ResourceLocation.tryParse(entry.getKey());
-            if (rl == null)
-                continue;
+        // Build sections: local first, then packs sorted alphabetically
+        List<PackSection> result = new ArrayList<>();
+        List<String> packKeys = new ArrayList<>(packGroups.keySet());
+        packKeys.sort((a, b) -> {
+            if (a.isEmpty() && !b.isEmpty()) return -1;
+            if (!a.isEmpty() && b.isEmpty()) return 1;
+            return a.compareToIgnoreCase(b);
+        });
+
+        for (String packKey : packKeys) {
+            Map<String, List<String>> entryMap = packGroups.get(packKey);
+            Map<String, List<String>> filterMap = packItemFilters.getOrDefault(packKey, Map.of());
+            List<ItemEntry> entries = new ArrayList<>();
+
+            for (var itemEntry : filterMap.entrySet()) {
+                String itemId = itemEntry.getKey();
+                ResourceLocation rl = ResourceLocation.tryParse(itemId);
+                if (rl == null) continue;
+                Item item = BuiltInRegistries.ITEM.get(rl);
+                if (item == null || item == Items.AIR) continue;
+
+                for (String nf : itemEntry.getValue()) {
+                    ItemStack stack = new ItemStack(item);
+                    if (nf != null) {
+                        try {
+                            CompoundTag filterTag = TagParser.parseTag(nf);
+                            CompoundTag fullTag = new CompoundTag();
+                            fullTag.putString("id", rl.toString());
+                            fullTag.putByte("Count", (byte) 1);
+                            fullTag.put("tag", filterTag);
+                            ItemStack parsed = ItemStack.of(fullTag);
+                            if (!parsed.isEmpty()) stack = parsed;
+                        } catch (Exception ignored) {
+                        }
+                    }
+                    String key = itemId + "|" + (nf != null ? nf : "");
+                    List<String> sceneKeys = entryMap.getOrDefault(key, List.of());
+                    if (!sceneKeys.isEmpty()) {
+                        entries.add(new ItemEntry(stack, nf, sceneKeys));
+                    }
+                }
+            }
+
+            if (!entries.isEmpty()) {
+                String prefix = packKey.isEmpty() ? null : packKey;
+                String displayName = packKey.isEmpty()
+                        ? UIText.of("ponderer.ui.item_grid.section_local")
+                        : packKey;
+                result.add(new PackSection(prefix, displayName, entries));
+            }
+        }
+        return result;
+    }
+
+    /** Collect all entries into a single flat list (grouped by item, no pack separation). */
+    private static List<PackSection> collectFlatSections() {
+        Map<String, List<String>> entryMap = new LinkedHashMap<>();
+        Map<String, List<String>> itemFilters = new LinkedHashMap<>();
+
+        for (DslScene scene : SceneRuntime.getScenes()) {
+            if (scene.items == null || scene.id == null) continue;
+            String sceneKey = scene.sceneKey();
+
+            for (String itemId : scene.items) {
+                String nf = scene.nbtFilter;
+                String key = itemId + "|" + (nf != null ? nf : "");
+
+                entryMap.computeIfAbsent(key, k -> new ArrayList<>());
+                List<String> keys = entryMap.get(key);
+                if (!keys.contains(sceneKey)) keys.add(sceneKey);
+
+                itemFilters.computeIfAbsent(itemId, k -> new ArrayList<>());
+                List<String> filters = itemFilters.get(itemId);
+                if (nf != null && !nf.isBlank()) {
+                    if (!filters.contains(nf)) filters.add(nf);
+                } else {
+                    if (!filters.contains(null)) filters.add(0, null);
+                }
+            }
+        }
+
+        List<ItemEntry> entries = new ArrayList<>();
+        for (var itemEntry : itemFilters.entrySet()) {
+            String itemId = itemEntry.getKey();
+            ResourceLocation rl = ResourceLocation.tryParse(itemId);
+            if (rl == null) continue;
             Item item = BuiltInRegistries.ITEM.get(rl);
-            if (item == null || item == Items.AIR)
-                continue;
-            for (String nf : entry.getValue()) {
+            if (item == null || item == Items.AIR) continue;
+
+            for (String nf : itemEntry.getValue()) {
                 ItemStack stack = new ItemStack(item);
                 if (nf != null) {
                     try {
@@ -154,51 +261,68 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                         fullTag.putByte("Count", (byte) 1);
                         fullTag.put("tag", filterTag);
                         ItemStack parsed = ItemStack.of(fullTag);
-                        if (!parsed.isEmpty())
-                            stack = parsed;
+                        if (!parsed.isEmpty()) stack = parsed;
                     } catch (Exception ignored) {
                     }
                 }
-                String key = entry.getKey() + "|" + (nf != null ? nf : "");
-                List<String> sceneIds = allSceneIds.getOrDefault(key, List.of());
-                if (!sceneIds.isEmpty()) {
-                    stacks.add(new ItemEntry(stack, nf, sceneIds));
+                String key = itemId + "|" + (nf != null ? nf : "");
+                List<String> sceneKeys = entryMap.getOrDefault(key, List.of());
+                if (!sceneKeys.isEmpty()) {
+                    entries.add(new ItemEntry(stack, nf, sceneKeys));
                 }
             }
         }
-        return stacks;
+
+        if (entries.isEmpty()) return List.of();
+        return List.of(new PackSection(null,
+                UIText.of("ponderer.ui.item_grid.section_all"), entries));
+    }
+
+    private void toggleGroupMode() {
+        groupMode = (groupMode == GroupMode.BY_PACK) ? GroupMode.BY_ITEM : GroupMode.BY_PACK;
+        sections = (groupMode == GroupMode.BY_PACK) ? collectGroupedSections() : collectFlatSections();
+        recomputeCounts();
+        scrollY = 0;
+        maxScrollY = Math.max(0, computeTotalContentHeight() - VISIBLE_H);
     }
 
     /** For ExportPackScreen to read current selection state. */
     public Set<String> getSelectedSceneIds() {
-        return selectedSceneIds;
+        return selectedSceneKeys;
     }
 
     private int getWindowHeight() {
-        return GRID_TOP + ROWS_PER_PAGE * CELL_SIZE + (mode == Mode.MULTI_SELECT ? 70 : 40);
+        return GRID_TOP + VISIBLE_H + (mode == Mode.MULTI_SELECT ? 70 : 40);
+    }
+
+    private double computeTotalContentHeight() {
+        double h = 0;
+        for (PackSection section : sections) {
+            h += SECTION_HEADER_H;
+            int rows = (section.entries.size() + COLS - 1) / COLS;
+            h += rows * CELL_SIZE;
+        }
+        return h;
     }
 
     @Override
     protected void init() {
         setWindowSize(WINDOW_W, getWindowHeight());
         super.init();
+        maxScrollY = Math.max(0, computeTotalContentHeight() - VISIBLE_H);
+        scrollY = Math.min(scrollY, maxScrollY);
     }
 
     /** 0=none, 1=partial, 2=full */
     private int getSelectionState(ItemEntry entry) {
-        if (mode != Mode.MULTI_SELECT)
-            return 0;
+        if (mode != Mode.MULTI_SELECT) return 0;
         boolean any = false, all = true;
-        for (String sid : entry.sceneIds) {
-            if (selectedSceneIds.contains(sid))
-                any = true;
-            else
-                all = false;
+        for (String key : entry.sceneKeys) {
+            if (selectedSceneKeys.contains(key)) any = true;
+            else all = false;
         }
-        if (all)
-            return 2;
-        if (any)
-            return 1;
+        if (all) return 2;
+        if (any) return 1;
         return 0;
     }
 
@@ -228,101 +352,122 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         String subtitle;
         if (mode == Mode.MULTI_SELECT) {
             subtitle = UIText.of("ponderer.ui.item_grid.selected_count",
-                    selectedSceneIds.size(), totalSceneCount);
+                    selectedSceneKeys.size(), totalSceneCount);
         } else {
             subtitle = UIText.of("ponderer.ui.item_grid.total_scenes",
-                    entries.size(), totalSceneCount);
+                    totalItemCount, totalSceneCount);
         }
         graphics.drawString(font, subtitle, guiLeft + 10, guiTop + 25, 0x999999);
 
-        // [W] hint (right-aligned on subtitle line)
+        // [W] hint
         String wHint = UIText.of("ponderer.ui.item_grid.press_w_hint");
         int wHintW = font.width(wHint);
         graphics.drawString(font, wHint, guiLeft + WINDOW_W - 10 - wHintW, guiTop + 25, 0x555555);
 
+        // Group mode toggle button
+        String groupLabel = groupMode == GroupMode.BY_PACK
+                ? UIText.of("ponderer.ui.item_grid.group_by_pack")
+                : UIText.of("ponderer.ui.item_grid.group_by_item");
+        int groupBtnW = font.width(groupLabel) + 8;
+        int groupBtnX = guiLeft + WINDOW_W - 10 - wHintW - groupBtnW - 6;
+        int groupBtnY = guiTop + 22;
+        int groupBtnH = 12;
+        boolean groupHovered = mouseX >= groupBtnX && mouseX < groupBtnX + groupBtnW
+                && mouseY >= groupBtnY && mouseY < groupBtnY + groupBtnH;
+        int gbg = groupHovered ? 0x80_4466aa : 0x60_333366;
+        int gbdr = groupHovered ? 0xCC_6688cc : 0x60_555588;
+        graphics.fill(groupBtnX, groupBtnY, groupBtnX + groupBtnW, groupBtnY + groupBtnH, gbg);
+        graphics.fill(groupBtnX, groupBtnY, groupBtnX + groupBtnW, groupBtnY + 1, gbdr);
+        graphics.fill(groupBtnX, groupBtnY + groupBtnH - 1, groupBtnX + groupBtnW, groupBtnY + groupBtnH, gbdr);
+        graphics.fill(groupBtnX, groupBtnY, groupBtnX + 1, groupBtnY + groupBtnH, gbdr);
+        graphics.fill(groupBtnX + groupBtnW - 1, groupBtnY, groupBtnX + groupBtnW, groupBtnY + groupBtnH, gbdr);
+        graphics.drawString(font, groupLabel, groupBtnX + 4, groupBtnY + 2, groupHovered ? 0xFFFFFF : 0xAAAAAA);
+
         // Empty state
-        if (entries.isEmpty()) {
+        if (sections.isEmpty()) {
             graphics.drawCenteredString(font,
                     Component.translatable("ponderer.ui.item_grid.empty"),
                     guiLeft + WINDOW_W / 2, guiTop + GRID_TOP + 30, 0x999999);
             return;
         }
 
-        // -- Item grid --
-        int startIdx = page * ITEMS_PER_PAGE;
-        int endIdx = Math.min(startIdx + ITEMS_PER_PAGE, entries.size());
-        for (int i = startIdx; i < endIdx; i++) {
-            int li = i - startIdx;
-            int col = li % COLS;
-            int row = li / COLS;
-            int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
-            int iy = guiTop + GRID_TOP + row * CELL_SIZE;
+        // -- Scrollable grid with scissor clipping --
+        int clipLeft = guiLeft + GRID_LEFT - 2;
+        int clipTop = guiTop + GRID_TOP;
+        int clipRight = guiLeft + GRID_LEFT + COLS * CELL_SIZE + 2;
+        int clipBottom = clipTop + VISIBLE_H;
+        graphics.enableScissor(clipLeft, clipTop, clipRight, clipBottom);
 
-            ItemEntry entry = entries.get(i);
-            boolean hovered = mouseX >= ix && mouseX < ix + CELL_SIZE
-                    && mouseY >= iy && mouseY < iy + CELL_SIZE;
-            int selState = getSelectionState(entry);
-
-            // Selection highlight
-            if (selState == 2) {
-                graphics.fill(ix, iy, ix + CELL_SIZE, iy + CELL_SIZE, 0x60_4080FF);
-            } else if (selState == 1) {
-                // Partially selected: striped/dimmer highlight
-                graphics.fill(ix, iy, ix + CELL_SIZE, iy + CELL_SIZE, 0x30_FFAA00);
+        double currentY = 0;
+        for (PackSection section : sections) {
+            // Section header
+            int headerScreenY = (int) (clipTop + currentY - scrollY);
+            if (headerScreenY + SECTION_HEADER_H > clipTop && headerScreenY < clipBottom) {
+                graphics.drawString(font, section.displayName,
+                        guiLeft + GRID_LEFT + 2, headerScreenY + 3, 0xCCCC00);
+                graphics.fill(guiLeft + GRID_LEFT, headerScreenY + SECTION_HEADER_H - 1,
+                        guiLeft + GRID_LEFT + COLS * CELL_SIZE,
+                        headerScreenY + SECTION_HEADER_H, 0x40_FFFFFF);
             }
+            currentY += SECTION_HEADER_H;
 
-            // Hover highlight
-            if (hovered) {
-                graphics.fill(ix, iy, ix + CELL_SIZE, iy + CELL_SIZE, 0x40_FFFFFF);
-            }
+            // Items
+            int rows = (section.entries.size() + COLS - 1) / COLS;
+            for (int i = 0; i < section.entries.size(); i++) {
+                int col = i % COLS;
+                int row = i / COLS;
+                int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
+                int iy = (int) (clipTop + currentY + row * CELL_SIZE - scrollY);
 
-            graphics.renderItem(entry.stack, ix + 2, iy + 2);
+                if (iy + CELL_SIZE <= clipTop || iy >= clipBottom) continue;
 
-            // NBT indicator (orange dot, top-right corner)
-            if (entry.nbtFilter != null) {
-                graphics.fill(ix + CELL_SIZE - 5, iy + 1, ix + CELL_SIZE - 1, iy + 5, 0xFF_FFAA00);
+                ItemEntry entry = section.entries.get(i);
+                boolean hovered = mouseX >= ix && mouseX < ix + CELL_SIZE
+                        && mouseY >= iy && mouseY < iy + CELL_SIZE;
+                int selState = getSelectionState(entry);
+
+                // Selection highlight
+                if (selState == 2) {
+                    graphics.fill(ix, iy, ix + CELL_SIZE, iy + CELL_SIZE, 0x60_4080FF);
+                } else if (selState == 1) {
+                    graphics.fill(ix, iy, ix + CELL_SIZE, iy + CELL_SIZE, 0x30_FFAA00);
+                }
+
+                // Hover highlight
+                if (hovered) {
+                    graphics.fill(ix, iy, ix + CELL_SIZE, iy + CELL_SIZE, 0x40_FFFFFF);
+                }
+
+                graphics.renderItem(entry.stack, ix + 2, iy + 2);
+
+                // NBT indicator
+                if (entry.nbtFilter != null) {
+                    graphics.fill(ix + CELL_SIZE - 5, iy + 1, ix + CELL_SIZE - 1, iy + 5, 0xFF_FFAA00);
+                }
+                // Multi-scene indicator
+                if (entry.sceneKeys.size() > 1) {
+                    graphics.fill(ix + 1, iy + 1, ix + 5, iy + 5, 0xFF_55AAFF);
+                }
             }
-            // Multi-scene indicator (blue dot, top-left corner)
-            if (entry.sceneIds.size() > 1) {
-                graphics.fill(ix + 1, iy + 1, ix + 5, iy + 5, 0xFF_55AAFF);
-            }
+            currentY += rows * CELL_SIZE;
         }
 
-        // -- Pagination --
-        if (totalPages > 1) {
-            renderPagination(graphics, font, mouseX, mouseY, wH);
-        } else {
-            String pageText = UIText.of("ponderer.ui.item_list.page", 1, 1);
-            graphics.drawCenteredString(font, pageText, guiLeft + WINDOW_W / 2, guiTop + wH - 22, 0xCCCCCC);
+        graphics.disableScissor();
+
+        // Scrollbar
+        if (maxScrollY > 0) {
+            int barX = guiLeft + GRID_LEFT + COLS * CELL_SIZE + 2;
+            int barH = VISIBLE_H;
+            double ratio = scrollY / maxScrollY;
+            int thumbH = Math.max(10, (int) (barH * (double) barH / (maxScrollY + barH)));
+            int thumbY = clipTop + (int) ((barH - thumbH) * ratio);
+            graphics.fill(barX, clipTop, barX + 3, clipTop + barH, 0x30_FFFFFF);
+            graphics.fill(barX, thumbY, barX + 3, thumbY + thumbH, 0x80_AAAAAA);
         }
 
-        // -- MULTI_SELECT action buttons --
+        // MULTI_SELECT action buttons
         if (mode == Mode.MULTI_SELECT) {
             renderMultiSelectButtons(graphics, font, mouseX, mouseY, wH);
-        }
-    }
-
-    private void renderPagination(GuiGraphics graphics, net.minecraft.client.gui.Font font,
-            int mouseX, int mouseY, int wH) {
-        String pageText = UIText.of("ponderer.ui.item_list.page", page + 1, totalPages);
-        int pageY = guiTop + wH - 22;
-        graphics.drawCenteredString(font, pageText, guiLeft + WINDOW_W / 2, pageY, 0xCCCCCC);
-
-        int btnW = 20, btnH = 16;
-        int prevX = guiLeft + 10, nextX = guiLeft + WINDOW_W - 30;
-        int by = pageY - 4;
-        for (int bi = 0; bi < 2; bi++) {
-            int bx = bi == 0 ? prevX : nextX;
-            String lbl = bi == 0 ? "<" : ">";
-            boolean enabled = bi == 0 ? page > 0 : page < totalPages - 1;
-            boolean hov = enabled && mouseX >= bx && mouseX < bx + btnW
-                    && mouseY >= by && mouseY < by + btnH;
-            int bg = hov ? 0x80_4466aa : (enabled ? 0x60_333366 : 0x30_222244);
-            int bdr = hov ? 0xCC_6688cc : 0x60_555588;
-            renderBoxButton(graphics, bx, by, btnW, btnH, bg, bdr);
-            int tc = enabled ? (hov ? 0xFFFFFF : 0xCCCCCC) : 0x666666;
-            graphics.drawCenteredString(font, lbl, bx + btnW / 2,
-                    by + (btnH - font.lineHeight) / 2 + 1, tc);
         }
     }
 
@@ -330,7 +475,6 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
             int mouseX, int mouseY, int wH) {
         int btnW = 50, btnH = 16;
         int btnY = guiTop + wH - 44;
-        // [All] [None] [OK] [Cancel]
         int allX = guiLeft + 10;
         int noneX = allX + btnW + 6;
         int cancelX = guiLeft + WINDOW_W - 10 - btnW;
@@ -369,64 +513,81 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
 
     @Override
     protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        if (entries.isEmpty())
-            return;
+        if (sections.isEmpty()) return;
 
-        int startIdx = page * ITEMS_PER_PAGE;
-        int endIdx = Math.min(startIdx + ITEMS_PER_PAGE, entries.size());
+        HitResult hit = hitTest(mouseX, mouseY);
+        if (hit == null) return;
 
-        for (int i = startIdx; i < endIdx; i++) {
-            int li = i - startIdx;
-            int col = li % COLS;
-            int row = li / COLS;
-            int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
-            int iy = guiTop + GRID_TOP + row * CELL_SIZE;
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 600);
 
-            if (mouseX >= ix && mouseX < ix + CELL_SIZE && mouseY >= iy && mouseY < iy + CELL_SIZE) {
-                graphics.pose().pushPose();
-                graphics.pose().translate(0, 0, 600);
-                ItemEntry entry = entries.get(i);
-                List<Component> tooltip = new ArrayList<>(
-                        entry.stack.getTooltipLines(Minecraft.getInstance().player, TooltipFlag.NORMAL));
-                tooltip.add(Component.literal(""));
+        ItemEntry entry = hit.entry;
+        List<Component> tooltip = new ArrayList<>(
+                entry.stack.getTooltipLines(Minecraft.getInstance().player, TooltipFlag.NORMAL));
+        tooltip.add(Component.literal(""));
 
-                // Scene IDs
-                if (entry.sceneIds.size() == 1) {
-                    String sid = entry.sceneIds.get(0);
-                    String prefix = mode == Mode.MULTI_SELECT && selectedSceneIds.contains(sid) ? "\u2713 " : "";
-                    tooltip.add(Component.literal(prefix)
-                            .append(Component.translatable("ponderer.ui.item_grid.scene_label", sid))
-                            .withStyle(ChatFormatting.AQUA));
-                } else {
-                    tooltip.add(Component.translatable("ponderer.ui.item_grid.scenes_count", entry.sceneIds.size())
-                            .withStyle(ChatFormatting.AQUA));
-                    for (int j = 0; j < Math.min(entry.sceneIds.size(), 8); j++) {
-                        String sid = entry.sceneIds.get(j);
-                        String prefix = mode == Mode.MULTI_SELECT && selectedSceneIds.contains(sid)
-                                ? "\u2713 "
-                                : "  ";
-                        tooltip.add(Component.literal(prefix + sid)
-                                .withStyle(ChatFormatting.DARK_AQUA));
-                    }
-                    if (entry.sceneIds.size() > 8) {
-                        tooltip.add(Component.literal("  ...")
-                                .withStyle(ChatFormatting.GRAY));
-                    }
-                }
-
-                // NBT filter
-                if (entry.nbtFilter != null) {
-                    tooltip.add(Component.translatable("ponderer.ui.item_list.nbt_filter")
-                            .withStyle(ChatFormatting.GOLD));
-                    tooltip.add(Component.literal(entry.nbtFilter)
-                            .withStyle(ChatFormatting.GRAY));
-                }
-
-                graphics.renderComponentTooltip(Minecraft.getInstance().font, tooltip, mouseX, mouseY);
-                graphics.pose().popPose();
-                break;
+        // Scene keys
+        if (entry.sceneKeys.size() == 1) {
+            String key = entry.sceneKeys.get(0);
+            String prefix = mode == Mode.MULTI_SELECT && selectedSceneKeys.contains(key) ? "\u2713 " : "";
+            tooltip.add(Component.literal(prefix)
+                    .append(Component.translatable("ponderer.ui.item_grid.scene_label", key))
+                    .withStyle(ChatFormatting.AQUA));
+        } else {
+            tooltip.add(Component.translatable("ponderer.ui.item_grid.scenes_count", entry.sceneKeys.size())
+                    .withStyle(ChatFormatting.AQUA));
+            for (int j = 0; j < Math.min(entry.sceneKeys.size(), 8); j++) {
+                String key = entry.sceneKeys.get(j);
+                String prefix = mode == Mode.MULTI_SELECT && selectedSceneKeys.contains(key) ? "\u2713 " : "  ";
+                tooltip.add(Component.literal(prefix + key)
+                        .withStyle(ChatFormatting.DARK_AQUA));
+            }
+            if (entry.sceneKeys.size() > 8) {
+                tooltip.add(Component.literal("  ...")
+                        .withStyle(ChatFormatting.GRAY));
             }
         }
+
+        // NBT filter
+        if (entry.nbtFilter != null) {
+            tooltip.add(Component.translatable("ponderer.ui.item_list.nbt_filter")
+                    .withStyle(ChatFormatting.GOLD));
+            tooltip.add(Component.literal(entry.nbtFilter)
+                    .withStyle(ChatFormatting.GRAY));
+        }
+
+        graphics.renderComponentTooltip(Minecraft.getInstance().font, tooltip, mouseX, mouseY);
+        graphics.pose().popPose();
+    }
+
+    // -- Hit testing --
+
+    private record HitResult(PackSection section, ItemEntry entry) {
+    }
+
+    @Nullable
+    private HitResult hitTest(double mx, double my) {
+        int clipTop = guiTop + GRID_TOP;
+        int clipBottom = clipTop + VISIBLE_H;
+        if (my < clipTop || my >= clipBottom) return null;
+
+        double currentY = 0;
+        for (PackSection section : sections) {
+            currentY += SECTION_HEADER_H;
+            for (int i = 0; i < section.entries.size(); i++) {
+                int col = i % COLS;
+                int row = i / COLS;
+                int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
+                int iy = (int) (clipTop + currentY + row * CELL_SIZE - scrollY);
+                if (mx >= ix && mx < ix + CELL_SIZE && my >= iy && my < iy + CELL_SIZE
+                        && iy >= clipTop && iy + CELL_SIZE <= clipBottom) {
+                    return new HitResult(section, section.entries.get(i));
+                }
+            }
+            int rows = (section.entries.size() + COLS - 1) / COLS;
+            currentY += rows * CELL_SIZE;
+        }
+        return null;
     }
 
     // -- Input handling --
@@ -435,6 +596,22 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0)
             return super.mouseClicked(mouseX, mouseY, button);
+
+        // Group mode toggle button
+        var font = Minecraft.getInstance().font;
+        String wHint = UIText.of("ponderer.ui.item_grid.press_w_hint");
+        int wHintW = font.width(wHint);
+        String groupLabel = groupMode == GroupMode.BY_PACK
+                ? UIText.of("ponderer.ui.item_grid.group_by_pack")
+                : UIText.of("ponderer.ui.item_grid.group_by_item");
+        int groupBtnW = font.width(groupLabel) + 8;
+        int groupBtnX = guiLeft + WINDOW_W - 10 - wHintW - groupBtnW - 6;
+        int groupBtnY = guiTop + 22;
+        int groupBtnH = 12;
+        if (isInBox(mouseX, mouseY, groupBtnX, groupBtnY, groupBtnW, groupBtnH)) {
+            toggleGroupMode();
+            return true;
+        }
 
         int wH = getWindowHeight();
 
@@ -457,7 +634,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
             }
             if (isInBox(mouseX, mouseY, okX, btnY, btnW, btnH)) {
                 if (onSelectMulti != null)
-                    onSelectMulti.accept(selectedSceneIds);
+                    onSelectMulti.accept(selectedSceneKeys);
                 return true;
             }
             if (isInBox(mouseX, mouseY, cancelX, btnY, btnW, btnH)) {
@@ -467,37 +644,11 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
             }
         }
 
-        // Pagination
-        if (totalPages > 1) {
-            int pageY = guiTop + wH - 22 - 4;
-            int btnW = 20, btnH = 16;
-            int prevX = guiLeft + 10, nextX = guiLeft + WINDOW_W - 30;
-            if (page > 0 && isInBox(mouseX, mouseY, prevX, pageY, btnW, btnH)) {
-                page--;
-                return true;
-            }
-            if (page < totalPages - 1 && isInBox(mouseX, mouseY, nextX, pageY, btnW, btnH)) {
-                page++;
-                return true;
-            }
-        }
-
         // Item grid click
-        if (!entries.isEmpty()) {
-            int startIdx = page * ITEMS_PER_PAGE;
-            int endIdx = Math.min(startIdx + ITEMS_PER_PAGE, entries.size());
-            for (int i = startIdx; i < endIdx; i++) {
-                int li = i - startIdx;
-                int col = li % COLS;
-                int row = li / COLS;
-                int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
-                int iy = guiTop + GRID_TOP + row * CELL_SIZE;
-                if (mouseX >= ix && mouseX < ix + CELL_SIZE
-                        && mouseY >= iy && mouseY < iy + CELL_SIZE) {
-                    handleItemClick(entries.get(i));
-                    return true;
-                }
-            }
+        HitResult hit = hitTest(mouseX, mouseY);
+        if (hit != null) {
+            handleItemClick(hit.entry);
+            return true;
         }
 
         return super.mouseClicked(mouseX, mouseY, button);
@@ -506,42 +657,42 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
     private void handleItemClick(ItemEntry entry) {
         switch (mode) {
             case LIST -> {
-                returnScreen = new PonderItemGridScreen();
-                returnScreen.page = this.page;
-                ScreenOpener.transitionTo(PonderUI.of(entry.stack));
+                PonderItemGridScreen returning = new PonderItemGridScreen();
+                returning.scrollY = this.scrollY;
+                returnScreen = returning;
+                openFilteredPonderUI(entry);
             }
             case SINGLE_SELECT -> {
-                if (entry.sceneIds.size() == 1) {
+                if (entry.sceneKeys.size() == 1) {
                     if (onSelectSingle != null)
-                        onSelectSingle.accept(entry.sceneIds.get(0));
+                        onSelectSingle.accept(entry.sceneKeys.get(0));
                 } else {
                     Minecraft.getInstance().setScreen(new SceneIdListScreen(
-                            entry.sceneIds, SceneIdListScreen.SelectMode.SINGLE,
+                            entry.sceneKeys, SceneIdListScreen.SelectMode.SINGLE,
                             onSelectSingle, null, null,
                             () -> Minecraft.getInstance().setScreen(this)));
                 }
             }
             case MULTI_SELECT -> {
-                if (entry.sceneIds.size() == 1) {
-                    String sid = entry.sceneIds.get(0);
-                    if (selectedSceneIds.contains(sid))
-                        selectedSceneIds.remove(sid);
+                if (entry.sceneKeys.size() == 1) {
+                    String key = entry.sceneKeys.get(0);
+                    if (selectedSceneKeys.contains(key))
+                        selectedSceneKeys.remove(key);
                     else
-                        selectedSceneIds.add(sid);
+                        selectedSceneKeys.add(key);
                 } else {
-                    // Pre-select currently selected scenes for this item
                     Set<String> pre = new HashSet<>();
-                    for (String sid : entry.sceneIds) {
-                        if (selectedSceneIds.contains(sid))
-                            pre.add(sid);
+                    for (String key : entry.sceneKeys) {
+                        if (selectedSceneKeys.contains(key))
+                            pre.add(key);
                     }
                     PonderItemGridScreen self = this;
                     Minecraft.getInstance().setScreen(new SceneIdListScreen(
-                            entry.sceneIds, SceneIdListScreen.SelectMode.MULTI,
+                            entry.sceneKeys, SceneIdListScreen.SelectMode.MULTI,
                             null,
-                            returnedIds -> {
-                                entry.sceneIds.forEach(selectedSceneIds::remove);
-                                selectedSceneIds.addAll(returnedIds);
+                            returnedKeys -> {
+                                entry.sceneKeys.forEach(selectedSceneKeys::remove);
+                                selectedSceneKeys.addAll(returnedKeys);
                                 Minecraft.getInstance().setScreen(self);
                             },
                             pre,
@@ -551,24 +702,70 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         }
     }
 
+    /**
+     * Open PonderUI filtered to only show scenes matching the entry's sceneKeys.
+     * This ensures that clicking an item in a specific pack/NBT group only shows
+     * the relevant scenes, not all scenes for that item across all packs.
+     */
+    private static void openFilteredPonderUI(ItemEntry entry) {
+        PonderUI ui = PonderUI.of(entry.stack);
+        var accessor = (com.nododiiiii.ponderer.mixin.PonderUIAccessor) (Object) ui;
+        List<net.createmod.ponder.foundation.PonderScene> allScenes = accessor.ponderer$getScenes();
+
+        // Resolve which PonderScene IDs + occurrence indices belong to this entry's sceneKeys
+        Set<com.nododiiiii.ponderer.ponder.SceneRuntime.PonderSceneRef> refs =
+                com.nododiiiii.ponderer.ponder.SceneRuntime.resolvePonderSceneRefs(entry.sceneKeys);
+
+        if (!refs.isEmpty()) {
+            // Build a set of (sceneId, occurrenceIndex) to keep
+            // Count occurrences as we iterate to match the correct one
+            Map<String, int[]> idCounters = new java.util.HashMap<>();
+            List<net.createmod.ponder.foundation.PonderScene> filtered = new java.util.ArrayList<>();
+            for (net.createmod.ponder.foundation.PonderScene ps : allScenes) {
+                String psId = ps.getId().toString();
+                int[] counter = idCounters.computeIfAbsent(psId, k -> new int[]{0});
+                int occ = counter[0]++;
+                if (refs.contains(new com.nododiiiii.ponderer.ponder.SceneRuntime.PonderSceneRef(psId, occ))) {
+                    filtered.add(ps);
+                }
+            }
+            if (!filtered.isEmpty() && filtered.size() < allScenes.size()) {
+                allScenes.clear();
+                allScenes.addAll(filtered);
+            }
+        }
+
+        ScreenOpener.transitionTo(ui);
+    }
+
     private void handleSelectAll() {
-        for (ItemEntry entry : entries) {
-            selectedSceneIds.addAll(entry.sceneIds);
+        for (PackSection section : sections) {
+            for (ItemEntry entry : section.entries) {
+                selectedSceneKeys.addAll(entry.sceneKeys);
+            }
         }
     }
 
     private void handleDeselectAll() {
-        selectedSceneIds.clear();
+        selectedSceneKeys.clear();
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        scrollY = Math.max(0, Math.min(maxScrollY, scrollY - delta * SCROLL_SPEED));
+        return true;
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         // W key – preview ponder for hovered item
         if (keyCode == GLFW.GLFW_KEY_W) {
-            ItemEntry hovered = getHoveredEntry(lastMouseX, lastMouseY);
-            if (hovered != null) {
-                returnScreen = this;
-                ScreenOpener.transitionTo(PonderUI.of(hovered.stack));
+            HitResult hit = hitTest(lastMouseX, lastMouseY);
+            if (hit != null) {
+                PonderItemGridScreen returning = new PonderItemGridScreen();
+                returning.scrollY = this.scrollY;
+                returnScreen = returning;
+                openFilteredPonderUI(hit.entry);
                 return true;
             }
         }
@@ -576,25 +773,6 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    @Nullable
-    private ItemEntry getHoveredEntry(int mx, int my) {
-        if (entries.isEmpty())
-            return null;
-        int startIdx = page * ITEMS_PER_PAGE;
-        int endIdx = Math.min(startIdx + ITEMS_PER_PAGE, entries.size());
-        for (int i = startIdx; i < endIdx; i++) {
-            int li = i - startIdx;
-            int col = li % COLS;
-            int row = li / COLS;
-            int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
-            int iy = guiTop + GRID_TOP + row * CELL_SIZE;
-            if (mx >= ix && mx < ix + CELL_SIZE && my >= iy && my < iy + CELL_SIZE) {
-                return entries.get(i);
-            }
-        }
-        return null;
     }
 
     private static boolean isInBox(double mx, double my, int x, int y, int w, int h) {
@@ -620,7 +798,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
     // =========================================================================
 
     /**
-     * List screen for selecting one or more scene IDs from a single item
+     * List screen for selecting one or more scene keys from a single item
      * that is associated with multiple scenes.
      */
     static class SceneIdListScreen extends AbstractSimiScreen {
@@ -632,7 +810,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         private static final int ROW_HEIGHT = 16;
         private static final int VISIBLE_ROWS = 10;
 
-        private final List<String> sceneIds;
+        private final List<String> sceneKeys;
         private final SelectMode selectMode;
         private final @Nullable Consumer<String> onSelectSingle;
         private final @Nullable Consumer<Set<String>> onSelectMulti;
@@ -642,17 +820,17 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         private PonderButton confirmButton;
         private PonderButton cancelButton;
 
-        SceneIdListScreen(List<String> sceneIds, Consumer<String> onSelect, Runnable onCancel) {
-            this(sceneIds, SelectMode.SINGLE, onSelect, null, null, onCancel);
+        SceneIdListScreen(List<String> sceneKeys, Consumer<String> onSelect, Runnable onCancel) {
+            this(sceneKeys, SelectMode.SINGLE, onSelect, null, null, onCancel);
         }
 
-        SceneIdListScreen(List<String> sceneIds, SelectMode selectMode,
+        SceneIdListScreen(List<String> sceneKeys, SelectMode selectMode,
                 @Nullable Consumer<String> onSelectSingle,
                 @Nullable Consumer<Set<String>> onSelectMulti,
                 @Nullable Set<String> preSelected,
                 Runnable onCancel) {
             super(Component.translatable("ponderer.ui.item_grid.select_scene_id"));
-            this.sceneIds = sceneIds;
+            this.sceneKeys = sceneKeys;
             this.selectMode = selectMode;
             this.onSelectSingle = onSelectSingle;
             this.onSelectMulti = onSelectMulti;
@@ -663,7 +841,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         }
 
         private int getListWindowHeight() {
-            int rows = Math.min(sceneIds.size(), VISIBLE_ROWS);
+            int rows = Math.min(sceneKeys.size(), VISIBLE_ROWS);
             int h = 36 + rows * ROW_HEIGHT + 10;
             if (selectMode == SelectMode.MULTI)
                 h += 30;
@@ -704,20 +882,20 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
 
             if (selectMode == SelectMode.MULTI) {
                 String countText = UIText.of("ponderer.ui.item_grid.sub_selected",
-                        selectedItems.size(), sceneIds.size());
+                        selectedItems.size(), sceneKeys.size());
                 graphics.drawString(font, countText, guiLeft + 10, guiTop + 23, 0x999999);
             }
 
-            int rows = Math.min(sceneIds.size(), VISIBLE_ROWS);
+            int rows = Math.min(sceneKeys.size(), VISIBLE_ROWS);
             for (int i = 0; i < rows; i++) {
                 int idx = scrollOffset + i;
-                if (idx >= sceneIds.size())
+                if (idx >= sceneKeys.size())
                     break;
                 int rowY = guiTop + 26 + i * ROW_HEIGHT;
                 boolean hovered = mouseX >= guiLeft + 6 && mouseX < guiLeft + LIST_W - 6
                         && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-                String sceneId = sceneIds.get(idx);
-                boolean isSelected = selectedItems.contains(sceneId);
+                String sceneKey = sceneKeys.get(idx);
+                boolean isSelected = selectedItems.contains(sceneKey);
 
                 if (hovered || isSelected) {
                     int color = hovered ? 0x60_FFFFFF : 0x40_4080FF;
@@ -725,10 +903,10 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                 }
                 if (selectMode == SelectMode.MULTI) {
                     String prefix = isSelected ? "\u2713 " : "  ";
-                    graphics.drawString(font, prefix + sceneId, guiLeft + 10, rowY + 4,
+                    graphics.drawString(font, prefix + sceneKey, guiLeft + 10, rowY + 4,
                             hovered ? 0x80FFFF : 0xCCCCCC);
                 } else {
-                    graphics.drawString(font, sceneId, guiLeft + 10, rowY + 4,
+                    graphics.drawString(font, sceneKey, guiLeft + 10, rowY + 4,
                             hovered ? 0x80FFFF : 0xCCCCCC);
                 }
             }
@@ -751,23 +929,23 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (button == 0) {
-                int rows = Math.min(sceneIds.size(), VISIBLE_ROWS);
+                int rows = Math.min(sceneKeys.size(), VISIBLE_ROWS);
                 for (int i = 0; i < rows; i++) {
                     int idx = scrollOffset + i;
-                    if (idx >= sceneIds.size())
+                    if (idx >= sceneKeys.size())
                         break;
                     int rowY = guiTop + 26 + i * ROW_HEIGHT;
                     if (mouseX >= guiLeft + 6 && mouseX < guiLeft + LIST_W - 6
                             && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
-                        String sceneId = sceneIds.get(idx);
+                        String sceneKey = sceneKeys.get(idx);
                         if (selectMode == SelectMode.SINGLE) {
                             if (onSelectSingle != null)
-                                onSelectSingle.accept(sceneId);
+                                onSelectSingle.accept(sceneKey);
                         } else {
-                            if (selectedItems.contains(sceneId))
-                                selectedItems.remove(sceneId);
+                            if (selectedItems.contains(sceneKey))
+                                selectedItems.remove(sceneKey);
                             else
-                                selectedItems.add(sceneId);
+                                selectedItems.add(sceneKey);
                         }
                         return true;
                     }
@@ -778,7 +956,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
 
         @Override
         public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-            int maxScroll = Math.max(0, sceneIds.size() - VISIBLE_ROWS);
+            int maxScroll = Math.max(0, sceneKeys.size() - VISIBLE_ROWS);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - (int) delta));
             return true;
         }

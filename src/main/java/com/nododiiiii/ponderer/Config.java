@@ -63,6 +63,14 @@ public class Config {
                  "Default: 16384. Range: 1024-65536. Adjust based on your model limits.")
         .defineInRange("ai.maxTokens", 16384, 1024, 65536);
 
+    // -- Pack Management --
+
+    public static final ForgeConfigSpec.BooleanValue PACK_ORPHAN_PROMPT = BUILDER
+        .comment("Show a chat prompt when a registered pack's scripts have all been deleted.",
+                 "The prompt offers to unregister the pack from the registry.",
+                 "Set to false to suppress these prompts.")
+        .define("pack.orphanPrompt", true);
+
     /** Resolve the effective base URL (use default if config is empty). */
     public static String getEffectiveBaseUrl() {
         String url = AI_API_BASE_URL.get().trim();

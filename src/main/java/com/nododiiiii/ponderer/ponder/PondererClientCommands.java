@@ -109,7 +109,11 @@ public final class PondererClientCommands {
                         .then(Commands.literal("export")
                                 .executes(ctx -> openExportScreen()))
                         .then(Commands.literal("import")
-                                .executes(ctx -> openImportScreen())));
+                                .executes(ctx -> openImportScreen()))
+                        .then(Commands.literal("unregister_pack")
+                                .then(Commands.argument("pack_name", StringArgumentType.greedyString())
+                                        .executes(ctx -> unregisterPack(
+                                                StringArgumentType.getString(ctx, "pack_name"))))));
     }
 
     private static int convertToPonderJs(ResourceLocation id) {
@@ -173,19 +177,36 @@ public final class PondererClientCommands {
             return 0;
         }
 
+        return pushScene(scene.get(), mode);
+    }
+
+    /**
+     * Push a scene identified by its scene key.
+     * Key format: "ponderer:example" or "[my_pack] ponderer:example"
+     */
+    public static int pushByKey(String sceneKey, String mode) {
+        DslScene scene = SceneRuntime.findByKey(sceneKey);
+        if (scene == null) {
+            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey));
+            return 0;
+        }
+        return pushScene(scene, mode);
+    }
+
+    private static int pushScene(DslScene scene, String mode) {
         List<UploadScenePayload.StructureEntry> structures = new ArrayList<>();
-        DslScene uploadScene = GSON.fromJson(GSON.toJson(scene.get()), DslScene.class);
+        DslScene uploadScene = GSON.fromJson(GSON.toJson(scene), DslScene.class);
         remapStructuresForUpload(uploadScene, structures);
         String json = GSON.toJson(uploadScene);
 
         // Compute lastSyncHash for conflict detection
-        String metaKey = "scripts/" + id;
+        String metaKey = "scripts/" + scene.id;
         Map<String, String> meta = SyncMeta.load();
         String lastSyncHash = meta.getOrDefault(metaKey, "");
 
         PondererNetwork.CHANNEL
-                .sendToServer(new UploadScenePayload(id.toString(), json, structures, mode, lastSyncHash));
-        notifyClient(Component.translatable("ponderer.cmd.push.uploading", id.toString(), mode));
+                .sendToServer(new UploadScenePayload(scene.id, json, structures, mode, lastSyncHash));
+        notifyClient(Component.translatable("ponderer.cmd.push.uploading", scene.id, mode));
         return 1;
     }
 
@@ -313,10 +334,7 @@ public final class PondererClientCommands {
         for (DslScene scene : scenes) {
             if (scene == null || scene.id == null || scene.id.isBlank())
                 continue;
-            ResourceLocation id = ResourceLocation.tryParse(scene.id);
-            if (id == null)
-                continue;
-            push(id, mode);
+            pushScene(scene, mode);
             count++;
         }
         notifyClient(Component.translatable("ponderer.cmd.push.done", count, mode));
@@ -427,8 +445,22 @@ public final class PondererClientCommands {
             notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneId.toString()));
             return 0;
         }
+        return doCopyScene(source.get(), targetItem);
+    }
 
-        DslScene original = source.get();
+    /**
+     * Copy a scene identified by its scene key to a new target item.
+     */
+    public static int copySceneByKey(String sceneKey, ResourceLocation targetItem) {
+        DslScene source = SceneRuntime.findByKey(sceneKey);
+        if (source == null) {
+            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey));
+            return 0;
+        }
+        return doCopyScene(source, targetItem);
+    }
+
+    private static int doCopyScene(DslScene original, ResourceLocation targetItem) {
         String json = GSON.toJson(original);
         DslScene copy = GSON.fromJson(json, DslScene.class);
 
@@ -448,7 +480,7 @@ public final class PondererClientCommands {
             SceneStore.reloadFromDisk();
             Minecraft.getInstance().execute(PonderIndex::reload);
             notifyClient(
-                    Component.translatable("ponderer.cmd.copy.done", sceneId.toString(), newId, targetItem.toString()));
+                    Component.translatable("ponderer.cmd.copy.done", original.id, newId, targetItem.toString()));
             return 1;
         } else {
             notifyClient(Component.translatable("ponderer.cmd.copy.failed"));
@@ -475,6 +507,28 @@ public final class PondererClientCommands {
             return 1;
         } else {
             notifyClient(Component.translatable("ponderer.cmd.delete.failed", id));
+            return 0;
+        }
+    }
+
+    /**
+     * Delete a scene identified by its scene key.
+     * Key format: "ponderer:example" or "[my_pack] ponderer:example"
+     */
+    public static int deleteSceneByKey(String sceneKey) {
+        DslScene target = SceneRuntime.findByKey(sceneKey);
+        if (target == null) {
+            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey));
+            return 0;
+        }
+
+        if (SceneStore.deleteSceneByKey(sceneKey)) {
+            SceneStore.reloadFromDisk();
+            Minecraft.getInstance().execute(PonderIndex::reload);
+            notifyClient(Component.translatable("ponderer.cmd.delete.done", sceneKey));
+            return 1;
+        } else {
+            notifyClient(Component.translatable("ponderer.cmd.delete.failed", sceneKey));
             return 0;
         }
     }
@@ -522,5 +576,56 @@ public final class PondererClientCommands {
     private static int openImportScreen() {
         Minecraft.getInstance().setScreen(new com.nododiiiii.ponderer.ui.ImportPackScreen());
         return 1;
+    }
+
+    private static int unregisterPack(String packName) {
+        var player = Minecraft.getInstance().player;
+        if (player == null) return 0;
+
+        PonderPackRegistry.PackEntry entry = PonderPackRegistry.getPack(packName);
+        if (entry == null) {
+            player.displayClientMessage(Component.translatable("ponderer.pack.unregister.not_found", packName), false);
+            return 0;
+        }
+
+        // Delete the zip file from resourcepacks/
+        if (entry.sourceFile != null && !entry.sourceFile.isEmpty()) {
+            Path zipPath = net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get()
+                    .resolve("resourcepacks").resolve(entry.sourceFile);
+            try {
+                java.nio.file.Files.deleteIfExists(zipPath);
+            } catch (Exception e) {
+                // Non-fatal: log but continue with registry removal
+            }
+        }
+
+        // Delete extracted script and structure files with this pack prefix
+        if (entry.packPrefix != null && !entry.packPrefix.isEmpty()) {
+            deleteFilesWithPrefix(SceneStore.getSceneDir(), entry.packPrefix + " ");
+            deleteFilesWithPrefix(SceneStore.getStructureDir(), entry.packPrefix + " ");
+        }
+
+        // Remove from registry
+        PonderPackRegistry.removePack(packName);
+
+        // Reload
+        SceneStore.reloadFromDisk();
+        Minecraft.getInstance().execute(PonderIndex::reload);
+
+        player.displayClientMessage(Component.translatable("ponderer.pack.unregister.done", packName), false);
+        return 1;
+    }
+
+    private static void deleteFilesWithPrefix(Path dir, String prefix) {
+        if (!java.nio.file.Files.exists(dir)) return;
+        try (var paths = java.nio.file.Files.list(dir)) {
+            for (Path p : paths.filter(p -> p.getFileName().toString().startsWith(prefix)).toList()) {
+                try {
+                    java.nio.file.Files.deleteIfExists(p);
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 }

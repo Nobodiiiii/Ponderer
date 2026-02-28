@@ -33,9 +33,11 @@ import java.util.zip.ZipOutputStream;
 public final class SceneStore {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setLenient()
+        .disableHtmlEscaping()
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
         .create();
     private static final Gson GSON_PRETTY = new GsonBuilder().setPrettyPrinting()
+        .disableHtmlEscaping()
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
         .create();
     private static final String BASE_DIR = "ponderer";
@@ -262,6 +264,71 @@ public final class SceneStore {
         }
     }
 
+    /**
+     * Find the JSON file for a scene identified by its scene key.
+     * Scene key formats:
+     * - Local: "ponderer:example" (no pack prefix)
+     * - Pack: "[my_pack] ponderer:example"
+     */
+    @javax.annotation.Nullable
+    private static Path findExistingFileByKey(Path dir, String sceneKey) {
+        if (!Files.exists(dir)) return null;
+        String packPrefix = DslScene.extractPackPrefix(sceneKey);
+        String sceneId;
+        if (packPrefix != null) {
+            // "[my_pack] ponderer:example" → sceneId = "ponderer:example"
+            sceneId = sceneKey.substring(packPrefix.length()).trim();
+        } else {
+            sceneId = sceneKey;
+        }
+
+        try (Stream<Path> paths = Files.list(dir)) {
+            Path fallback = null;
+            for (Path path : paths.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json")).toList()) {
+                try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+                    DslScene existing = GSON.fromJson(reader, DslScene.class);
+                    if (existing == null || !sceneId.equals(existing.id)) continue;
+                    String filePrefix = DslScene.extractPackPrefix(path.getFileName().toString());
+                    if (packPrefix == null && filePrefix == null) {
+                        return path; // local scene matches local file
+                    }
+                    if (packPrefix != null && packPrefix.equals(filePrefix)) {
+                        return path; // pack prefix matches
+                    }
+                    if (fallback == null) {
+                        fallback = path; // keep first match as fallback
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            return fallback;
+        } catch (IOException ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * Delete a scene's local JSON file by its scene key.
+     * Scene key formats: "ponderer:example" or "[my_pack] ponderer:example"
+     */
+    public static boolean deleteSceneByKey(String sceneKey) {
+        if (sceneKey == null || sceneKey.isBlank()) return false;
+        Path dir = getSceneDir();
+        Path existing = findExistingFileByKey(dir, sceneKey);
+        if (existing == null) {
+            LOGGER.warn("No local file found for scene key: {}", sceneKey);
+            return false;
+        }
+        try {
+            Files.deleteIfExists(existing);
+            LOGGER.info("Deleted scene file: {}", existing);
+            return true;
+        } catch (IOException e) {
+            LOGGER.error("Failed to delete scene file: {}", existing, e);
+            return false;
+        }
+    }
+
     public static void extractDefaultsIfNeeded() {
         Path baseDir = FMLPaths.CONFIGDIR.get().resolve(BASE_DIR);
         Path marker = baseDir.resolve(".initialized");
@@ -354,6 +421,7 @@ public final class SceneStore {
                             return;
                         }
                         sanitizeScene(scene);
+                        scene.sourceFile = path.getFileName().toString();
                         loaded.add(scene);
                     } catch (Exception e) {
                         LOGGER.warn("Failed to read scene file: {}", path, e);
@@ -461,7 +529,7 @@ public final class SceneStore {
             // Create pack.json metadata
             String packJson = createPackMetadata(name, version, author);
 
-            try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath))) {
+            try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath), StandardCharsets.UTF_8)) {
                 // Write pack.mcmeta
                 writeZipEntry(zos, "pack.mcmeta", "{\"pack\": {\"pack_format\": 15, \"description\": \"Ponderer scene collection\"}}");
 
@@ -500,6 +568,9 @@ public final class SceneStore {
                 LOGGER.info("Packed {} files into {}", count, filename);
             }
 
+            // Auto-update registry on export
+            updateRegistryAfterExport(outputPath, name, version, author);
+
             return true;
         } catch (IOException e) {
             LOGGER.error("Failed to pack Ponderer scenes and structures", e);
@@ -531,7 +602,7 @@ public final class SceneStore {
 
             Set<String> requiredStructures = new java.util.HashSet<>();
 
-            try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath))) {
+            try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath), StandardCharsets.UTF_8)) {
                 // Write pack.mcmeta
                 writeZipEntry(zos, "pack.mcmeta", "{\"pack\": {\"pack_format\": 15, \"description\": \"Ponderer scene collection\"}}");
 
@@ -597,6 +668,9 @@ public final class SceneStore {
                 LOGGER.info("Packed {} files into {} (selected {} scenes)", count, filename, selectedSceneIds.size());
             }
 
+            // Auto-update registry on export
+            updateRegistryAfterExport(outputPath, name, version, author);
+
             return true;
         } catch (IOException e) {
             LOGGER.error("Failed to pack selected Ponderer scenes and structures", e);
@@ -650,6 +724,23 @@ public final class SceneStore {
         return sb.toString();
     }
 
+    /**
+     * After exporting a pack, update the registry so that the version and hash are tracked.
+     * This prevents re-importing the same pack on next startup.
+     */
+    private static void updateRegistryAfterExport(Path zipPath, String name, String version, String author) {
+        try {
+            PonderPackInfo info = PonderPackInfo.fromZip(zipPath);
+            if (info == null) return;
+            String displayName = PonderPackRegistry.getDisplayName(name);
+            String fileHash = computeSha256(zipPath);
+            PonderPackRegistry.addOrUpdatePack(displayName, info, fileHash);
+            LOGGER.info("Updated registry after export: {} v{}", displayName, version);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to update registry after export", e);
+        }
+    }
+
     private static String escapeJson(String str) {
         if (str == null) return "";
         return str.replace("\\", "\\\\")
@@ -668,16 +759,17 @@ public final class SceneStore {
     /**
      * Load a Ponderer pack from resourcepacks directory.
      * Extracts scenes and structures with [PackName] prefix.
-     * Only loads if version is newer or not yet loaded.
+     *
+     * Logic:
+     * - Same version → skip (already loaded)
+     * - Different version (higher or lower) → backup modified local files as .bak, then overwrite
+     * - forceOverwrite → always extract (no version check)
      */
     public static int loadPonderPackFromResourcePack(Path zipPath, boolean forceOverwrite) throws IOException {
         if (!Files.exists(zipPath)) {
             LOGGER.warn("Pack file not found: {}", zipPath);
             return 0;
         }
-
-        // Load registry
-        PonderPackRegistry.load();
 
         // Read pack info
         PonderPackInfo info = PonderPackInfo.fromZip(zipPath);
@@ -687,57 +779,60 @@ public final class SceneStore {
         }
 
         String displayName = PonderPackRegistry.getDisplayName(info.name);
+        String newFileHash = computeSha256(zipPath);
 
-        // Check version
         if (!forceOverwrite) {
             PonderPackRegistry.PackEntry existing = PonderPackRegistry.getPack(displayName);
             if (existing != null) {
-                // Compare versions
-                int cmp = compareVersions(existing.version, info.version);
-                if (cmp >= 0) {
+                if (existing.version.equals(info.version)) {
+                    // Same version → skip
                     LOGGER.info("Pack {} already loaded (v{}), skipping", info.name, existing.version);
                     return 0;
                 }
+                // Version differs → extract with backup
+                LOGGER.info("Pack {} updating: v{} -> v{}", info.name, existing.version, info.version);
             }
         }
 
-        // Extract pack
-        int count = extractPonderPack(zipPath, info);
+        // Extract pack (with backup for modified local files)
+        int count = extractPonderPackWithBackup(zipPath, info);
 
         // Update registry
-        String fileHash = computeSha256(zipPath);
-        PonderPackRegistry.addOrUpdatePack(displayName, info, fileHash);
+        PonderPackRegistry.addOrUpdatePack(displayName, info, newFileHash);
 
         LOGGER.info("Loaded Ponderer pack: {} ({})", info.name, count + " files");
         return count;
     }
 
-    private static int extractPonderPack(Path zipPath, PonderPackInfo info) throws IOException {
+    /**
+     * Extract pack contents, backing up any locally modified files as .bak before overwriting.
+     */
+    private static int extractPonderPackWithBackup(Path zipPath, PonderPackInfo info) throws IOException {
         int count = 0;
         Path scriptsDir = getSceneDir();
         Path structuresDir = getStructureDir();
 
-        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipPath))) {
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipPath), StandardCharsets.UTF_8)) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 String name = entry.getName();
 
                 if (name.startsWith("data/ponderer/scripts/")) {
-                    // Extract scripts with pack prefix
                     String fileName = name.substring("data/ponderer/scripts/".length());
                     String prefixedName = info.packPrefix + " " + fileName;
                     Path targetPath = scriptsDir.resolve(prefixedName);
 
                     Files.createDirectories(targetPath.getParent());
+                    backupIfModified(targetPath);
                     Files.copy(zis, targetPath, StandardCopyOption.REPLACE_EXISTING);
                     count++;
                 } else if (name.startsWith("data/ponderer/structures/")) {
-                    // Extract structures with pack prefix
                     String fileName = name.substring("data/ponderer/structures/".length());
                     String prefixedName = info.packPrefix + " " + fileName;
                     Path targetPath = structuresDir.resolve(prefixedName);
 
                     Files.createDirectories(targetPath.getParent());
+                    backupIfModified(targetPath);
                     Files.copy(zis, targetPath, StandardCopyOption.REPLACE_EXISTING);
                     count++;
                 }
@@ -747,28 +842,30 @@ public final class SceneStore {
         return count;
     }
 
-    private static int compareVersions(String v1, String v2) {
-        // Simple semantic version comparison
-        // Format: major.minor.patch
-        String[] parts1 = v1.split("\\.");
-        String[] parts2 = v2.split("\\.");
-
-        for (int i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-            int num1 = i < parts1.length ? parseInt(parts1[i]) : 0;
-            int num2 = i < parts2.length ? parseInt(parts2[i]) : 0;
-
-            if (num1 != num2) {
-                return Integer.compare(num1, num2);
-            }
+    /**
+     * If the target file exists, back it up as .bak before it gets overwritten.
+     */
+    private static void backupIfModified(Path targetPath) {
+        if (!Files.exists(targetPath)) return;
+        Path bakPath = targetPath.resolveSibling(targetPath.getFileName().toString() + ".bak");
+        try {
+            Files.copy(targetPath, bakPath, StandardCopyOption.REPLACE_EXISTING);
+            LOGGER.info("Backed up modified file: {} -> {}", targetPath.getFileName(), bakPath.getFileName());
+        } catch (IOException e) {
+            LOGGER.warn("Failed to backup file: {}", targetPath, e);
         }
-        return 0;
     }
 
-    private static int parseInt(String str) {
-        try {
-            return Integer.parseInt(str);
-        } catch (NumberFormatException e) {
-            return 0;
+    /**
+     * Check if at least one extracted script file from a pack prefix still exists on disk.
+     */
+    private static boolean packScriptFilesExist(String packPrefix) {
+        Path scriptsDir = getSceneDir();
+        String prefix = packPrefix + " ";
+        try (Stream<Path> paths = Files.list(scriptsDir)) {
+            return paths.anyMatch(p -> p.getFileName().toString().startsWith(prefix));
+        } catch (IOException e) {
+            return false;
         }
     }
 
@@ -792,27 +889,49 @@ public final class SceneStore {
     /**
      * Auto-load Ponderer packs from resourcepacks directory.
      * Called during client setup to load packs on first launch or when new packs are added.
+     *
+     * @return list of orphaned pack display names (registered but all scripts deleted)
      */
-    public static void autoLoadPonderPacks() {
+    public static List<String> autoLoadPonderPacks() {
         PonderPackRegistry.load();
 
         Path gameDir = net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get();
         Path resourcepacksDir = gameDir.resolve("resourcepacks");
 
-        if (!Files.exists(resourcepacksDir)) {
-            return;
+        if (Files.exists(resourcepacksDir)) {
+            try (Stream<Path> paths = Files.list(resourcepacksDir)) {
+                for (Path p : paths.filter(path -> path.toString().toLowerCase().endsWith(".zip")).toList()) {
+                    try {
+                        loadPonderPackFromResourcePack(p, false);
+                    } catch (Exception e) {
+                        LOGGER.warn("Failed to load pack: {}", p, e);
+                    }
+                }
+            } catch (IOException e) {
+                LOGGER.warn("Failed to scan resourcepacks directory", e);
+            }
         }
 
-        try (Stream<Path> paths = Files.list(resourcepacksDir)) {
-            for (Path p : paths.filter(path -> path.toString().toLowerCase().endsWith(".zip")).toList()) {
-                try {
-                    loadPonderPackFromResourcePack(p, false);
-                } catch (Exception e) {
-                    LOGGER.warn("Failed to load pack: {}", p, e);
-                }
+        // Detect orphaned packs: registered in registry but all scripts deleted
+        List<String> orphaned = new ArrayList<>();
+        for (var entry : PonderPackRegistry.getAllPacks().entrySet()) {
+            String displayName = entry.getKey();
+            PonderPackRegistry.PackEntry pack = entry.getValue();
+            if (pack.packPrefix != null && !packScriptFilesExist(pack.packPrefix)) {
+                orphaned.add(displayName);
+                LOGGER.info("Orphaned pack detected: {} (no script files found for prefix {})", displayName, pack.packPrefix);
             }
-        } catch (IOException e) {
-            LOGGER.warn("Failed to scan resourcepacks directory", e);
+        }
+        return orphaned;
+    }
+
+    /**
+     * Remove orphaned packs from registry (unregister without deleting zip).
+     */
+    public static void removeOrphanedPacks(List<String> displayNames) {
+        for (String name : displayNames) {
+            PonderPackRegistry.removePack(name);
+            LOGGER.info("Removed orphaned pack from registry: {}", name);
         }
     }
 }

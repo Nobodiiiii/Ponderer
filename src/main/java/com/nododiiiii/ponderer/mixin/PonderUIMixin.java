@@ -21,6 +21,8 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
+
+import java.util.List;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -44,7 +46,8 @@ public abstract class PonderUIMixin extends Screen {
         }
 
         // Check if this scene has a matching DslScene
-        var match = SceneRuntime.findBySceneId(active.getId());
+        int occurrence = ponderer$computeOccurrenceIndex(self, active);
+        var match = SceneRuntime.findBySceneId(active.getId(), occurrence);
         if (match == null) {
             return;
         }
@@ -59,8 +62,10 @@ public abstract class PonderUIMixin extends Screen {
                 .showing(new ItemStack(Items.WRITABLE_BOOK))
                 .enableFade(0, 5);
         editButton.withCallback(() -> {
-            PonderScene current = ((PonderUI) (Object) this).getActiveScene();
-            var result = SceneRuntime.findBySceneId(current.getId());
+            PonderUI current = (PonderUI) (Object) this;
+            PonderScene currentScene = current.getActiveScene();
+            int occ = ponderer$computeOccurrenceIndex(current, currentScene);
+            var result = SceneRuntime.findBySceneId(currentScene.getId(), occ);
             if (result != null) {
                 Minecraft.getInstance().setScreen(new SceneEditorScreen(result.scene(), result.sceneIndex()));
             }
@@ -79,6 +84,23 @@ public abstract class PonderUIMixin extends Screen {
                 return true;
         }
         return false;
+    }
+
+    /**
+     * Compute the 0-based occurrence index of the given PonderScene among all scenes
+     * with the same ID in the PonderUI's scene list.
+     * This is used to disambiguate when multiple packs register scenes with the same ID.
+     */
+    private static int ponderer$computeOccurrenceIndex(PonderUI ui, PonderScene target) {
+        PonderUIAccessor accessor = (PonderUIAccessor) (Object) ui;
+        List<PonderScene> allScenes = accessor.ponderer$getScenes();
+        net.minecraft.resources.ResourceLocation targetId = target.getId();
+        int occurrence = 0;
+        for (PonderScene s : allScenes) {
+            if (s == target) return occurrence;
+            if (s.getId().equals(targetId)) occurrence++;
+        }
+        return 0;
     }
 
     // ---- Pick mode integration ----

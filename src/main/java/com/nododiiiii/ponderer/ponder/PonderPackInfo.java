@@ -55,7 +55,7 @@ public class PonderPackInfo {
             return null;
         }
 
-        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipPath))) {
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipPath), StandardCharsets.UTF_8)) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 if ("pack.json".equals(entry.getName())) {

@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.theme.Color;
+import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -34,7 +35,7 @@ public class ImportPackScreen extends AbstractSimiScreen {
     private int scrollOffset = 0;
 
     public ImportPackScreen() {
-        super(Component.literal("Import Ponderer Pack"));
+        super(Component.literal("Reload Resource Packs"));
         this.availablePacks = new ArrayList<>();
     }
 
@@ -88,6 +89,8 @@ public class ImportPackScreen extends AbstractSimiScreen {
         PonderPackInfo pack = availablePacks.get(selectedIndex);
         try {
             int count = SceneStore.loadPonderPackFromResourcePack(pack.sourcePath, true);
+            SceneStore.reloadFromDisk();
+            Minecraft.getInstance().execute(PonderIndex::reload);
             notifyUser(UIText.of("ponderer.ui.import.success", count, pack.name));
             Minecraft.getInstance().execute(this::onClose);
         } catch (Exception e) {
@@ -153,7 +156,7 @@ public class ImportPackScreen extends AbstractSimiScreen {
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 500);
 
-        graphics.drawCenteredString(font, UIText.of("ponderer.ui.load"),
+        graphics.drawCenteredString(font, UIText.of("ponderer.ui.reload"),
                 loadButton.getX() + 40, loadButton.getY() + 4, 0xFFFFFF);
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.cancel"),
                 cancelButton.getX() + 40, cancelButton.getY() + 4, 0xFFFFFF);

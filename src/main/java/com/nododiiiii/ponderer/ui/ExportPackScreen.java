@@ -34,8 +34,13 @@ public class ExportPackScreen extends AbstractSimiScreen {
     private Set<String> selectedSceneIds = new HashSet<>();
     private String scenesLabel = UIText.of("ponderer.ui.export.all_scenes");
 
+    // Preserved field values across screen transitions
+    private String savedName = "";
+    private String savedVersion = "1.0.0";
+    private String savedAuthor = "";
+
     public ExportPackScreen() {
-        super(Component.literal("Export Ponderer Pack"));
+        super(Component.literal("Export as Resource Pack"));
     }
 
     @Override
@@ -52,18 +57,20 @@ public class ExportPackScreen extends AbstractSimiScreen {
         nameField = new SoftHintTextFieldWidget(font, x, y, fieldW, 18);
         nameField.setHint(UIText.of("ponderer.ui.export.name"));
         nameField.setMaxLength(64);
+        nameField.setValue(savedName);
         addRenderableWidget(nameField);
 
         // Version field
         versionField = new SoftHintTextFieldWidget(font, x, y + 30, fieldW, 18);
         versionField.setHint(UIText.of("ponderer.ui.export.version"));
-        versionField.setValue("1.0.0");
+        versionField.setValue(savedVersion);
         versionField.setMaxLength(32);
         addRenderableWidget(versionField);
 
         // Author field
         authorField = new SoftHintTextFieldWidget(font, x, y + 60, fieldW, 18);
         authorField.setHint(UIText.of("ponderer.ui.export.author"));
+        authorField.setValue(savedAuthor);
         authorField.setMaxLength(64);
         addRenderableWidget(authorField);
 
@@ -83,7 +90,14 @@ public class ExportPackScreen extends AbstractSimiScreen {
         addRenderableWidget(cancelButton);
     }
 
+    private void saveFieldValues() {
+        if (nameField != null) savedName = nameField.getValue();
+        if (versionField != null) savedVersion = versionField.getValue();
+        if (authorField != null) savedAuthor = authorField.getValue();
+    }
+
     private void onSelectScenesClicked() {
+        saveFieldValues();
         Minecraft.getInstance().setScreen(new PonderItemGridScreen(
                 selectedIds -> {
                     this.selectedSceneIds = selectedIds;
