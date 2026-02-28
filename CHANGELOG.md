@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.0
+
+### 改进 / Improvements
+
+- **场景包升级为资源包格式**：导入导出功能现使用标准资源包（Resource Pack）格式，支持语义版本控制与自动加载——游戏启动时自动检测 `resourcepacks/` 中的 Ponderer 包，仅在首次或版本升级时解包。脚本自动添加包名前缀以避免冲突。可直接上传至 Modrinth / CurseForge 分享。
+  Scene pack export/import now uses the standard Resource Pack format with semantic versioning and auto-loading — packs in `resourcepacks/` are detected on game start and only unpacked on first load or version upgrade. Scripts are automatically prefixed with the pack name to avoid conflicts. Packs can be uploaded to Modrinth / CurseForge for sharing.
+
+- **移除历史遗留 `steps` 字段**：场景 JSON 不再包含已弃用的 `steps` 字段。
+  Removed deprecated legacy `steps` field from scene JSON.
+
+---
+
 ## 1.4.5
 
 ### 改进 / Improvements

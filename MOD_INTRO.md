@@ -11,11 +11,11 @@ Ponderer 是一个面向玩家与整合包作者的「游戏内思索（Ponder�
 
 - **在游戏内新建思索**：从手持物品或指定物品快速生成新的思索条目（支持不同 NBT 分别思索，如不同署名的成书）。
 - **可视化编辑步骤**：通过图形界面编辑文本、镜头、方块变化、实体生成、操作提示、音效等 Ponder 步骤，支持复制粘贴、撤销重做、坐标选点。
+- **游戏内场景编辑器**：通过图形界面新增/编辑/删除/排序步骤，支持复制粘贴、撤销重做、坐标选点、丰富的步骤类型（默认按 V 键打开）
 - **AI 场景生成（Beta）**：通过 LLM（Claude / ChatGPT 等）根据结构和自然语言描述自动生成完整场景，支持多种 API 提供商。
 - **蓝图选区与结构保存**：使用蓝图工具选择区域并保存结构，便于复用和迭代演示内容。
 - **多人协作同步**：从服务器拉取与向服务器推送思索内容，方便团队协作或快速获取其他玩家创建的思索。
-- **格式互转与场景包**：支持与 PonderJS 格式互相转换；支持将场景和结构打包为 ZIP 文件分享。
-- **模组配置面板**：通过图形界面管理所有设置，无需手动输入指令。
+- **格式互转与场景包**：支持与 PonderJS 格式互相转换；支持将场景和结构打包为资源包格式的 ZIP 文件，带有版本控制与自动加载，方便在社区分享。
 - **JEI 集成**：所有 ID 输入框支持从 JEI 点击或拖放自动填入（可选依赖）。
 - **开箱即用**：内置引导思索；手持**书与笔**即可查看示例。
 
@@ -31,7 +31,8 @@ Ponderer 是一个面向玩家与整合包作者的「游戏内思索（Ponder�
 - `/ponderer delete <id>` / `delete item <item_id>`：删除场景。
 - `/ponderer list`：打开思索物品列表界面。
 - `/ponderer convert to_ponderjs|from_ponderjs all|<id>`：PonderJS 格式转换。
-- `/ponderer export [filename]` / `import <filename>`：场景包导入导出。
+- `/ponderer export`：打开导出界面，将场景打包为资源包。
+- `/ponderer import`：打开导入界面，从资源包加载场景。
 
 ## 适合哪些人
 
@@ -67,11 +68,11 @@ Supports both **Forge 1.20.1** and **NeoForge 1.21.1**.
 
 - **Create scenes in-game**: Quickly create Ponder entries from your held item or a specified item (supports different NBT for separate scenes, e.g. signed books with different authors).
 - **Edit steps visually**: GUI editor for text, camera, block changes, entity spawning, control hints, sounds, and more, with copy-paste, undo-redo, and coordinate picking.
+- **In-game scene editor**: GUI for adding/editing/deleting/reordering steps, with copy-paste, undo-redo, coordinate picking, and rich step types (press V to open by default)
 - **AI scene generation (Beta)**: Automatically generate complete scenes from structures and natural language descriptions via LLMs (Claude / ChatGPT, etc.), with multi-provider support.
 - **Blueprint selection and structure saving**: Use the blueprint tool to select areas and save structures for reuse and iterating demo content.
 - **Multiplayer collaboration sync**: Pull from and push to server-side scene data, making it easy for teams to collaboratively maintain tutorials.
-- **Format conversion & scene packs**: Convert to/from PonderJS; bundle scenes and structures as ZIP for sharing.
-- **Mod config panel**: Manage all settings via a GUI — no commands needed.
+- **Format conversion & scene packs**: Convert to/from PonderJS; bundle scenes and structures as resource-pack-format ZIPs with versioning and auto-loading for sharing.
 - **JEI integration**: Click or drag-drop from JEI to fill in ID fields (optional dependency).
 - **Works out of the box**: Built-in guide scene; hold a **writable_book** to view the demo.
 
@@ -87,7 +88,8 @@ Supports both **Forge 1.20.1** and **NeoForge 1.21.1**.
 - `/ponderer delete <id>` / `delete item <item_id>`: Delete scenes.
 - `/ponderer list`: Open the ponder item list UI.
 - `/ponderer convert to_ponderjs|from_ponderjs all|<id>`: PonderJS conversion.
-- `/ponderer export [filename]` / `import <filename>`: Scene pack import/export.
+- `/ponderer export`: Open the export screen to bundle scenes as a resource pack.
+- `/ponderer import`: Open the import screen to load scenes from a resource pack.
 
 ## Who this is for
 
