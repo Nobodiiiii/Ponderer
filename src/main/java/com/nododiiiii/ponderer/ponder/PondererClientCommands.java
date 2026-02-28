@@ -394,7 +394,6 @@ public final class PondererClientCommands {
                 "zh_cn", "新场景 - " + itemId.getPath()));
         scene.structures = List.of("ponderer:basic");
         scene.tags = List.of();
-        scene.steps = List.of();
         if (nbt != null) {
             scene.nbtFilter = nbt.toString();
         }

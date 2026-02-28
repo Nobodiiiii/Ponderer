@@ -986,32 +986,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return scene.scenes;
         }
         List<DslScene.SceneSegment> sceneList = new ArrayList<>();
-        DslScene.SceneSegment current = new DslScene.SceneSegment();
-        current.steps = new ArrayList<>();
-
-        if (scene.steps != null) {
-            for (DslScene.DslStep step : scene.steps) {
-                if (step != null && step.type != null && "next_scene".equalsIgnoreCase(step.type)) {
-                    if (!current.steps.isEmpty()) {
-                        sceneList.add(current);
-                    }
-                    current = new DslScene.SceneSegment();
-                    current.steps = new ArrayList<>();
-                    continue;
-                }
-                current.steps.add(step);
-            }
-        }
-
-        if (!current.steps.isEmpty()) {
-            sceneList.add(current);
-        }
-
-        if (sceneList.isEmpty()) {
-            DslScene.SceneSegment fallback = new DslScene.SceneSegment();
-            fallback.steps = List.of();
-            sceneList.add(fallback);
-        }
+        DslScene.SceneSegment fallback = new DslScene.SceneSegment();
+        fallback.steps = List.of();
+        sceneList.add(fallback);
         return sceneList;
     }
 

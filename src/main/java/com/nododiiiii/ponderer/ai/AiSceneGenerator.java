@@ -368,7 +368,6 @@ public class AiSceneGenerator {
      * in each consecutive run. Resets when a text or idle step is encountered.
      */
     private static void autoAddKeyFrames(DslScene scene) {
-        if (scene.steps != null) addKeyFramesToSteps(scene.steps);
         if (scene.scenes != null) {
             for (DslScene.SceneSegment seg : scene.scenes) {
                 if (seg.steps != null) addKeyFramesToSteps(seg.steps);

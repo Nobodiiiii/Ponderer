@@ -248,7 +248,6 @@ public final class PonderJsConversionService {
             scene.title = LocalizedText.of("Imported from PonderJS");
             scene.structures = structurePool;
             scene.scenes = segments.isEmpty() ? List.of() : segments;
-            scene.steps = List.of();
             return scene;
         } catch (Exception e) {
             return null;
@@ -316,8 +315,7 @@ public final class PonderJsConversionService {
         sb.append("  event.create(\"").append(escapeJs(item)).append("\")\n");
 
         if (segments.isEmpty()) {
-            String schematic = resolveDefaultSchematic(scene);
-            emitSceneCall(sb, scene.id, scene.title, scene.steps, schematic, true);
+            // No scenes, nothing to emit
         } else {
             List<String> schematics = resolveSceneSchematics(scene, segments);
             for (int i = 0; i < segments.size(); i++) {

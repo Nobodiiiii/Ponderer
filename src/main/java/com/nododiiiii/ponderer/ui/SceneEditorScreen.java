@@ -577,29 +577,20 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         if (scene.scenes != null && !scene.scenes.isEmpty()) {
             if (sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
                 scene.scenes.get(sceneIndex).steps = new ArrayList<>(newSteps);
-                return;
             }
         }
-        scene.steps = new ArrayList<>(newSteps);
     }
 
     /* -------- Step list helpers -------- */
 
     private List<DslScene.DslStep> getSteps() {
         if (scene.scenes != null && !scene.scenes.isEmpty()) {
-            // Direct access to the scenes[] array (no virtual splitting)
             if (sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
                 List<DslScene.DslStep> steps = scene.scenes.get(sceneIndex).steps;
                 return steps != null ? steps : List.of();
             }
         }
-        // Flat steps mode: use getScenes() which splits by next_scene
-        List<DslScene.SceneSegment> scenes = getScenes();
-        if (sceneIndex >= 0 && sceneIndex < scenes.size()) {
-            List<DslScene.DslStep> steps = scenes.get(sceneIndex).steps;
-            return steps != null ? steps : List.of();
-        }
-        return scene.steps != null ? scene.steps : List.of();
+        return List.of();
     }
 
     /**
@@ -617,12 +608,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
                 return sc.steps;
             }
         }
-        if (scene.steps == null) {
-            scene.steps = new ArrayList<>();
-        } else if (!(scene.steps instanceof ArrayList)) {
-            scene.steps = new ArrayList<>(scene.steps);
-        }
-        return scene.steps;
+        return new ArrayList<>();
     }
 
     private List<DslScene.SceneSegment> getScenes() {
@@ -630,28 +616,9 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             return scene.scenes;
         }
         List<DslScene.SceneSegment> result = new ArrayList<>();
-        DslScene.SceneSegment current = new DslScene.SceneSegment();
-        current.steps = new ArrayList<>();
-
-        if (scene.steps != null) {
-            for (DslScene.DslStep step : scene.steps) {
-                if (step != null && step.type != null && "next_scene".equalsIgnoreCase(step.type)) {
-                    if (!current.steps.isEmpty())
-                        result.add(current);
-                    current = new DslScene.SceneSegment();
-                    current.steps = new ArrayList<>();
-                    continue;
-                }
-                current.steps.add(step);
-            }
-        }
-        if (!current.steps.isEmpty())
-            result.add(current);
-        if (result.isEmpty()) {
-            DslScene.SceneSegment fallback = new DslScene.SceneSegment();
-            fallback.steps = new ArrayList<>();
-            result.add(fallback);
-        }
+        DslScene.SceneSegment fallback = new DslScene.SceneSegment();
+        fallback.steps = new ArrayList<>();
+        result.add(fallback);
         return result;
     }
 

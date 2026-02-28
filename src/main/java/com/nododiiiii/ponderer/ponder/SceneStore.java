@@ -561,10 +561,6 @@ public final class SceneStore {
                 ensureFirstStepIsShowStructure(seg);
             }
         }
-        // Also handle legacy flat steps list
-        if (scene.steps != null && !scene.steps.isEmpty()) {
-            ensureFirstStepIsShowStructureFlat(scene);
-        }
     }
 
     private static void ensureFirstStepIsShowStructure(DslScene.SceneSegment seg) {
@@ -585,43 +581,6 @@ public final class SceneStore {
         fixed.add(idleStep);
         fixed.addAll(seg.steps);
         seg.steps = fixed;
-    }
-
-    /**
-     * Ensures every segment in flat steps mode starts with show_structure.
-     * Segments are delimited by next_scene steps.
-     */
-    private static void ensureFirstStepIsShowStructureFlat(DslScene scene) {
-        List<DslScene.DslStep> result = new ArrayList<>();
-        boolean needsShowStructure = true; // start of first segment
-
-        for (DslScene.DslStep step : scene.steps) {
-            if (step == null || step.type == null) {
-                result.add(step);
-                continue;
-            }
-            if ("next_scene".equalsIgnoreCase(step.type)) {
-                result.add(step);
-                needsShowStructure = true; // next segment starts
-                continue;
-            }
-            if (needsShowStructure) {
-                if (!"show_structure".equalsIgnoreCase(step.type)) {
-                    // Prepend show_structure + idle(20t) before this segment's first real step
-                    DslScene.DslStep showStep = new DslScene.DslStep();
-                    showStep.type = "show_structure";
-                    result.add(showStep);
-                    DslScene.DslStep idleStep = new DslScene.DslStep();
-                    idleStep.type = "idle";
-                    idleStep.duration = 20;
-                    result.add(idleStep);
-                }
-                needsShowStructure = false;
-            }
-            result.add(step);
-        }
-
-        scene.steps = result;
     }
 
     // ===== Pack Export/Import Methods =====

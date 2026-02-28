@@ -145,7 +145,7 @@ public final class PickState {
         AbstractStepEditorScreen editor;
         if (editIndex >= 0) {
             // Edit mode - need the existing step; use scene-aware step accessor
-            // to handle both flat (scene.steps) and multi-scene (scene.scenes[].steps) formats
+            // Use scene-aware step accessor for scene.scenes[].steps format
             List<DslScene.DslStep> steps = getStepsForScene();
             DslScene.DslStep existingStep = (steps != null && editIndex < steps.size())
                     ? steps.get(editIndex) : null;
@@ -181,7 +181,7 @@ public final class PickState {
                 return scene.scenes.get(sceneIndex).steps;
             }
         }
-        return scene.steps;
+        return null;
     }
 
     /**

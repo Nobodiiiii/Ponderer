@@ -18,7 +18,6 @@ public class DslScene {
      */
     public List<String> structures = List.of();
     public List<String> tags = List.of();
-    public List<DslStep> steps = List.of();
     public List<SceneSegment> scenes = List.of();
     /**
      * Optional SNBT filter string. When set, scenes for this DslScene
