@@ -138,7 +138,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
 
         for (DslScene scene : SceneRuntime.getScenes()) {
             if (scene.items == null || scene.id == null) continue;
-            String packPrefix = DslScene.extractPackPrefix(scene.sourceFile);
+            String packPrefix = scene.getPackPrefix();
             String packKey = packPrefix != null ? packPrefix : "";
             String sceneKey = scene.sceneKey();
 

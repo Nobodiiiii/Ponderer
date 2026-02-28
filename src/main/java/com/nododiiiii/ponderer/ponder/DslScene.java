@@ -28,6 +28,14 @@ public class DslScene {
     public String nbtFilter;
 
     /**
+     * Pack name this scene belongs to. Null or absent for local scenes.
+     * Set during import from a Ponderer resource pack.
+     * Serialized to JSON (NOT transient).
+     */
+    @Nullable
+    public String pack;
+
+    /**
      * Transient field set by SceneStore.reloadFromDisk().
      * Stores the source filename (e.g. "example.json" or "[my_pack] example.json").
      * Not serialized by GSON.
@@ -52,13 +60,27 @@ public class DslScene {
     }
 
     /**
+     * Get the pack prefix string from the pack field.
+     * Returns "[PackName]" or null for local scenes.
+     */
+    @Nullable
+    public String getPackPrefix() {
+        if (pack != null && !pack.isEmpty()) {
+            return "[" + pack + "]";
+        }
+        return null;
+    }
+
+    /**
      * Generate a unique scene key.
      * Local scene: "ponderer:example"
      * Pack scene: "[my_pack] ponderer:example"
      */
     public String sceneKey() {
-        String prefix = extractPackPrefix(sourceFile);
-        return prefix == null ? id : prefix + " " + id;
+        if (pack != null && !pack.isEmpty()) {
+            return "[" + pack + "] " + id;
+        }
+        return id;
     }
 
     public static class SceneSegment {

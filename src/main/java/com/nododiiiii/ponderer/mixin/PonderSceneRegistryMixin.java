@@ -32,9 +32,9 @@ public class PonderSceneRegistryMixin {
     private static void ponderer$loadLocalSchematic(ResourceManager resourceManager, ResourceLocation location,
                                                     CallbackInfoReturnable<StructureTemplate> cir) {
         if (Ponderer.MODID.equals(location.getNamespace())) {
-            // Priority 1: user's config/ponderer/structures/ folder
-            Path path = SceneStore.getStructurePath(location.getPath());
-            if (Files.exists(path)) {
+            // Priority 1: user's config/ponderer/structures/ folder (flat + pack subdirectories)
+            Path path = SceneStore.resolveStructurePath(location.getPath(), null);
+            if (path != null && Files.exists(path)) {
                 try (InputStream stream = Files.newInputStream(path)) {
                     cir.setReturnValue(PonderSceneRegistry.loadSchematic(stream));
                 } catch (Exception e) {

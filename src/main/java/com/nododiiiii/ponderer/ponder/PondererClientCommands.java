@@ -599,10 +599,14 @@ public final class PondererClientCommands {
             }
         }
 
-        // Delete extracted script and structure files with this pack prefix
-        if (entry.packPrefix != null && !entry.packPrefix.isEmpty()) {
-            deleteFilesWithPrefix(SceneStore.getSceneDir(), entry.packPrefix + " ");
-            deleteFilesWithPrefix(SceneStore.getStructureDir(), entry.packPrefix + " ");
+        // Delete extracted script and structure files (pack subdirectories)
+        String name = entry.name;
+        if (name == null && entry.packPrefix != null && entry.packPrefix.startsWith("[") && entry.packPrefix.endsWith("]")) {
+            name = entry.packPrefix.substring(1, entry.packPrefix.length() - 1);
+        }
+        if (name != null && !name.isEmpty()) {
+            deleteDirectoryRecursive(SceneStore.getPackSceneDir(name));
+            deleteDirectoryRecursive(SceneStore.getPackStructureDir(name));
         }
 
         // Remove from registry
@@ -616,10 +620,11 @@ public final class PondererClientCommands {
         return 1;
     }
 
-    private static void deleteFilesWithPrefix(Path dir, String prefix) {
+    private static void deleteDirectoryRecursive(Path dir) {
         if (!java.nio.file.Files.exists(dir)) return;
-        try (var paths = java.nio.file.Files.list(dir)) {
-            for (Path p : paths.filter(p -> p.getFileName().toString().startsWith(prefix)).toList()) {
+        try (var paths = java.nio.file.Files.walk(dir)) {
+            // Delete files first (reverse order so directories come after their contents)
+            for (Path p : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
                 try {
                     java.nio.file.Files.deleteIfExists(p);
                 } catch (Exception ignored) {

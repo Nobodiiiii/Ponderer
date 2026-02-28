@@ -43,6 +43,7 @@ public final class SceneStore {
     private static final String BASE_DIR = "ponderer";
     private static final String SCRIPT_DIR = "scripts";
     private static final String STRUCTURE_DIR = "structures";
+    private static final String PACKS_SUBDIR = "_packs";
 
     private SceneStore() {
     }
@@ -55,12 +56,64 @@ public final class SceneStore {
         return FMLPaths.CONFIGDIR.get().resolve(BASE_DIR).resolve(STRUCTURE_DIR);
     }
 
+    public static Path getPackSceneDir(String packName) {
+        return getSceneDir().resolve(PACKS_SUBDIR).resolve(packName);
+    }
+
+    public static Path getPackStructureDir(String packName) {
+        return getStructureDir().resolve(PACKS_SUBDIR).resolve(packName);
+    }
+
     public static Path getStructurePath(String path) {
         return getStructureDir().resolve(path + ".nbt");
     }
 
     public static Path getStructurePath(ResourceLocation id) {
         return getStructureDir().resolve(id.getPath() + ".nbt");
+    }
+
+    /**
+     * Resolve a structure file path, considering pack context.
+     * 1. If packName is given, check pack subdirectory first
+     * 2. Fall back to flat directory
+     * 3. Search all pack subdirectories
+     */
+    @javax.annotation.Nullable
+    public static Path resolveStructurePath(String path, @javax.annotation.Nullable String packName) {
+        // 1. Check pack subdirectory first
+        if (packName != null && !packName.isEmpty()) {
+            Path packPath = getPackStructureDir(packName).resolve("[" + packName + "] " + path + ".nbt");
+            if (Files.exists(packPath)) return packPath;
+        }
+        // 2. Fall back to flat directory
+        Path flatPath = getStructureDir().resolve(path + ".nbt");
+        if (Files.exists(flatPath)) return flatPath;
+        // 3. Search all pack subdirectories
+        Path packsDir = getStructureDir().resolve(PACKS_SUBDIR);
+        if (Files.exists(packsDir)) {
+            try (Stream<Path> packDirs = Files.list(packsDir)) {
+                for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
+                    try (Stream<Path> files = Files.list(packDir)) {
+                        for (Path f : files.toList()) {
+                            String fname = f.getFileName().toString();
+                            if (fname.endsWith(".nbt")) {
+                                // Strip [PackName] prefix and .nbt extension to get the base name
+                                String baseName = fname;
+                                String prefix = DslScene.extractPackPrefix(fname);
+                                if (prefix != null) {
+                                    baseName = fname.substring(prefix.length()).trim();
+                                }
+                                if (baseName.endsWith(".nbt")) {
+                                    baseName = baseName.substring(0, baseName.length() - 4);
+                                }
+                                if (baseName.equals(path)) return f;
+                            }
+                        }
+                    } catch (IOException ignored) {}
+                }
+            } catch (IOException ignored) {}
+        }
+        return null;
     }
 
     public static Path getServerSceneDir(MinecraftServer server) {
@@ -177,9 +230,7 @@ public final class SceneStore {
 
     /**
      * Save a DslScene to the local config directory.
-     * File path follows the same convention as reloadFromDisk expects:
-     *   namespace == "ponderer" -> config/ponderer/scripts/{path}.json
-     *   otherwise              -> config/ponderer/scripts/{path}.json (flat for now)
+     * Routes to pack subdirectory if scene has a pack field.
      *
      * @param scene the DslScene to serialize and save
      * @return true if saved successfully
@@ -196,13 +247,19 @@ public final class SceneStore {
             return false;
         }
 
-        Path dir = getSceneDir();
-        // Use the path part as filename (reloadFromDisk currently only reads flat files in scripts/)
-        String filename = loc.getPath().replace('/', '_') + ".json";
+        Path dir;
+        String filename;
+        if (scene.pack != null && !scene.pack.isEmpty()) {
+            dir = getPackSceneDir(scene.pack);
+            filename = "[" + scene.pack + "] " + loc.getPath().replace('/', '_') + ".json";
+        } else {
+            dir = getSceneDir();
+            filename = loc.getPath().replace('/', '_') + ".json";
+        }
         Path filePath = dir.resolve(filename);
 
-        // Also check if there's an existing file that contains this scene id
-        Path existingFile = findExistingFile(dir, scene.id);
+        // Check if there's an existing file that contains this scene id
+        Path existingFile = findExistingFileForScene(scene);
         if (existingFile != null) {
             filePath = existingFile;
         }
@@ -218,6 +275,17 @@ public final class SceneStore {
             LOGGER.error("Failed to save scene {} to {}", scene.id, filePath, e);
             return false;
         }
+    }
+
+    /**
+     * Find existing file for a scene considering its pack context.
+     */
+    @javax.annotation.Nullable
+    private static Path findExistingFileForScene(DslScene scene) {
+        if (scene.pack != null && !scene.pack.isEmpty()) {
+            return findExistingFile(getPackSceneDir(scene.pack), scene.id);
+        }
+        return findExistingFile(getSceneDir(), scene.id);
     }
 
     /**
@@ -248,8 +316,11 @@ public final class SceneStore {
      */
     public static boolean deleteSceneLocal(String sceneId) {
         if (sceneId == null || sceneId.isBlank()) return false;
-        Path dir = getSceneDir();
-        Path existing = findExistingFile(dir, sceneId);
+        // Search flat directory first, then all pack subdirectories
+        Path existing = findExistingFile(getSceneDir(), sceneId);
+        if (existing == null) {
+            existing = findExistingFileInPacks(sceneId);
+        }
         if (existing == null) {
             LOGGER.warn("No local file found for scene id: {}", sceneId);
             return false;
@@ -265,44 +336,49 @@ public final class SceneStore {
     }
 
     /**
+     * Search all pack subdirectories for a scene with the given id.
+     */
+    @javax.annotation.Nullable
+    private static Path findExistingFileInPacks(String sceneId) {
+        Path packsDir = getSceneDir().resolve(PACKS_SUBDIR);
+        if (!Files.exists(packsDir)) return null;
+        try (Stream<Path> packDirs = Files.list(packsDir)) {
+            for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
+                Path found = findExistingFile(packDir, sceneId);
+                if (found != null) return found;
+            }
+        } catch (IOException ignored) {}
+        return null;
+    }
+
+    /**
      * Find the JSON file for a scene identified by its scene key.
      * Scene key formats:
      * - Local: "ponderer:example" (no pack prefix)
      * - Pack: "[my_pack] ponderer:example"
      */
     @javax.annotation.Nullable
-    private static Path findExistingFileByKey(Path dir, String sceneKey) {
-        if (!Files.exists(dir)) return null;
+    private static Path findExistingFileByKey(String sceneKey) {
+        if (sceneKey == null || sceneKey.isBlank()) return null;
         String packPrefix = DslScene.extractPackPrefix(sceneKey);
         String sceneId;
+        String packName;
         if (packPrefix != null) {
-            // "[my_pack] ponderer:example" → sceneId = "ponderer:example"
             sceneId = sceneKey.substring(packPrefix.length()).trim();
+            packName = packPrefix.substring(1, packPrefix.length() - 1);
         } else {
             sceneId = sceneKey;
+            packName = null;
         }
 
-        try (Stream<Path> paths = Files.list(dir)) {
-            Path fallback = null;
-            for (Path path : paths.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json")).toList()) {
-                try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-                    DslScene existing = GSON.fromJson(reader, DslScene.class);
-                    if (existing == null || !sceneId.equals(existing.id)) continue;
-                    String filePrefix = DslScene.extractPackPrefix(path.getFileName().toString());
-                    if (packPrefix == null && filePrefix == null) {
-                        return path; // local scene matches local file
-                    }
-                    if (packPrefix != null && packPrefix.equals(filePrefix)) {
-                        return path; // pack prefix matches
-                    }
-                    if (fallback == null) {
-                        fallback = path; // keep first match as fallback
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-            return fallback;
-        } catch (IOException ignored) {
+        // Search in the appropriate directory
+        Path searchDir = packName != null ? getPackSceneDir(packName) : getSceneDir();
+        Path result = findExistingFile(searchDir, sceneId);
+        if (result != null) return result;
+
+        // Fallback: search flat directory even for pack scenes
+        if (packName != null) {
+            return findExistingFile(getSceneDir(), sceneId);
         }
         return null;
     }
@@ -313,8 +389,7 @@ public final class SceneStore {
      */
     public static boolean deleteSceneByKey(String sceneKey) {
         if (sceneKey == null || sceneKey.isBlank()) return false;
-        Path dir = getSceneDir();
-        Path existing = findExistingFileByKey(dir, sceneKey);
+        Path existing = findExistingFileByKey(sceneKey);
         if (existing == null) {
             LOGGER.warn("No local file found for scene key: {}", sceneKey);
             return false;
@@ -410,30 +485,51 @@ public final class SceneStore {
             return 0;
         }
 
+        // 1. Load flat files (local scenes)
         try (Stream<Path> paths = Files.list(dir)) {
             paths.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
                 .sorted(Comparator.comparing(Path::toString))
-                .forEach(path -> {
-                    try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-                        DslScene scene = GSON.fromJson(reader, DslScene.class);
-                        if (scene == null || scene.id == null || scene.id.isBlank()) {
-                            LOGGER.warn("Skipping invalid scene file (missing id): {}", path);
-                            return;
-                        }
-                        sanitizeScene(scene);
-                        scene.sourceFile = path.getFileName().toString();
-                        loaded.add(scene);
-                    } catch (Exception e) {
-                        LOGGER.warn("Failed to read scene file: {}", path, e);
-                    }
-                });
+                .forEach(path -> loadSceneFile(path, loaded));
         } catch (IOException e) {
             LOGGER.error("Failed to list scene directory: {}", dir, e);
+        }
+
+        // 2. Load pack subdirectories (_packs/{PackName}/)
+        Path packsDir = dir.resolve(PACKS_SUBDIR);
+        if (Files.exists(packsDir)) {
+            try (Stream<Path> packDirs = Files.list(packsDir)) {
+                for (Path packDir : packDirs.filter(Files::isDirectory).sorted().toList()) {
+                    try (Stream<Path> paths = Files.list(packDir)) {
+                        paths.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                            .sorted(Comparator.comparing(Path::toString))
+                            .forEach(path -> loadSceneFile(path, loaded));
+                    } catch (IOException e) {
+                        LOGGER.warn("Failed to list pack directory: {}", packDir, e);
+                    }
+                }
+            } catch (IOException e) {
+                LOGGER.warn("Failed to list packs directory: {}", packsDir, e);
+            }
         }
 
         SceneRuntime.setScenes(loaded);
         LOGGER.info("Loaded {} ponderer scene(s) from {}", loaded.size(), dir);
         return loaded.size();
+    }
+
+    private static void loadSceneFile(Path path, List<DslScene> loaded) {
+        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            DslScene scene = GSON.fromJson(reader, DslScene.class);
+            if (scene == null || scene.id == null || scene.id.isBlank()) {
+                LOGGER.warn("Skipping invalid scene file (missing id): {}", path);
+                return;
+            }
+            sanitizeScene(scene);
+            scene.sourceFile = path.getFileName().toString();
+            loaded.add(scene);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to read scene file: {}", path, e);
+        }
     }
 
     /**
@@ -515,6 +611,7 @@ public final class SceneStore {
     /**
      * Pack all scenes and structures into a Ponderer resource pack (zip).
      * File will be created at: resourcepacks/[Ponderer] {name}.zip
+     * After export: reorganizes files into _packs/{name}/ and reloads.
      */
     public static boolean packScenesAndStructures(String name, String version, String author) {
         try {
@@ -529,6 +626,10 @@ public final class SceneStore {
             // Create pack.json metadata
             String packJson = createPackMetadata(name, version, author);
 
+            // Collect all scene files (flat + pack subdirectories)
+            List<Path> allScriptFiles = collectAllScriptFiles();
+            Set<String> allStructureRefs = new HashSet<>();
+
             try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath), StandardCharsets.UTF_8)) {
                 // Write pack.mcmeta
                 writeZipEntry(zos, "pack.mcmeta", "{\"pack\": {\"pack_format\": 15, \"description\": \"Ponderer scene collection\"}}");
@@ -536,40 +637,31 @@ public final class SceneStore {
                 // Write pack.json (Ponderer metadata)
                 writeZipEntry(zos, "pack.json", packJson);
 
-                // Write scripts
+                // Write scripts: update pack field and strip filename prefix
                 int count = 0;
-                Path scriptsDir = getSceneDir();
-                if (Files.exists(scriptsDir)) {
-                    try (Stream<Path> paths = Files.walk(scriptsDir)) {
-                        for (Path p : paths.filter(Files::isRegularFile).toList()) {
-                            String entryName = "data/ponderer/scripts/" + scriptsDir.relativize(p).toString().replace("\\", "/");
-                            zos.putNextEntry(new ZipEntry(entryName));
-                            Files.copy(p, zos);
-                            zos.closeEntry();
-                            count++;
-                        }
-                    }
+                for (Path p : allScriptFiles) {
+                    String cleanJson = readAndUpdatePackField(p, name);
+                    if (cleanJson == null) continue;
+                    collectStructureReferences(cleanJson, allStructureRefs);
+                    String cleanFilename = stripPackPrefix(p.getFileName().toString());
+                    String entryName = "data/ponderer/scripts/" + cleanFilename;
+                    zos.putNextEntry(new ZipEntry(entryName));
+                    zos.write(cleanJson.getBytes(StandardCharsets.UTF_8));
+                    zos.closeEntry();
+                    count++;
                 }
 
-                // Write structures
-                Path structuresDir = getStructureDir();
-                if (Files.exists(structuresDir)) {
-                    try (Stream<Path> paths = Files.walk(structuresDir)) {
-                        for (Path p : paths.filter(Files::isRegularFile).toList()) {
-                            String entryName = "data/ponderer/structures/" + structuresDir.relativize(p).toString().replace("\\", "/");
-                            zos.putNextEntry(new ZipEntry(entryName));
-                            Files.copy(p, zos);
-                            zos.closeEntry();
-                            count++;
-                        }
-                    }
-                }
+                // Write structures (strip prefix from filenames)
+                count += writeStructuresToZip(zos, allStructureRefs);
 
                 LOGGER.info("Packed {} files into {}", count, filename);
             }
 
             // Auto-update registry on export
             updateRegistryAfterExport(outputPath, name, version, author);
+
+            // Reorganize files on disk: move all to _packs/{name}/ with proper naming
+            reorganizeFilesForPack(name, allScriptFiles);
 
             return true;
         } catch (IOException e) {
@@ -582,6 +674,7 @@ public final class SceneStore {
      * Pack selected scenes and their structures into a Ponderer resource pack (zip).
      * Only includes scenes whose IDs are in the selectedSceneIds set.
      * File will be created at: resourcepacks/[Ponderer] {name}.zip
+     * After export: reorganizes exported files into _packs/{name}/ and reloads.
      */
     public static boolean packSelectedScenesAndStructures(String name, String version, String author, Set<String> selectedSceneIds) {
         if (selectedSceneIds == null || selectedSceneIds.isEmpty()) {
@@ -600,7 +693,8 @@ public final class SceneStore {
             // Create pack.json metadata
             String packJson = createPackMetadata(name, version, author);
 
-            Set<String> requiredStructures = new java.util.HashSet<>();
+            Set<String> requiredStructures = new HashSet<>();
+            List<Path> exportedFiles = new ArrayList<>();
 
             try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath), StandardCharsets.UTF_8)) {
                 // Write pack.mcmeta
@@ -609,61 +703,48 @@ public final class SceneStore {
                 // Write pack.json (Ponderer metadata)
                 writeZipEntry(zos, "pack.json", packJson);
 
-                // Write selected scripts and collect referenced structures
+                // Write selected scripts
                 int count = 0;
-                Path scriptsDir = getSceneDir();
-                if (Files.exists(scriptsDir)) {
-                    try (Stream<Path> paths = Files.walk(scriptsDir)) {
-                        for (Path p : paths.filter(Files::isRegularFile).toList()) {
-                            String fileName = p.getFileName().toString();
-                            // Extract scene ID from filename (remove .json extension)
-                            String sceneIdFromFile = fileName.endsWith(".json") ? fileName.substring(0, fileName.length() - 5) : fileName;
+                List<Path> allScriptFiles = collectAllScriptFiles();
+                for (Path p : allScriptFiles) {
+                    // Read scene to check if it's selected
+                    try {
+                        String rawJson = Files.readString(p, StandardCharsets.UTF_8);
+                        DslScene scene = GSON.fromJson(rawJson, DslScene.class);
+                        if (scene == null || scene.id == null) continue;
 
-                            // Check if this scene is in the selected set
-                            boolean isSelected = selectedSceneIds.stream()
-                                .anyMatch(id -> id.equals(sceneIdFromFile) || id.endsWith(":" + sceneIdFromFile));
-
-                            if (isSelected) {
-                                // Read the scene file and extract structure references
-                                try {
-                                    String sceneJson = Files.readString(p, StandardCharsets.UTF_8);
-                                    collectStructureReferences(sceneJson, requiredStructures);
-                                } catch (Exception ignored) {}
-
-                                String entryName = "data/ponderer/scripts/" + scriptsDir.relativize(p).toString().replace("\\", "/");
-                                zos.putNextEntry(new ZipEntry(entryName));
-                                Files.copy(p, zos);
-                                zos.closeEntry();
-                                count++;
-                            }
+                        // Check if this scene is in the selected set
+                        boolean isSelected = selectedSceneIds.contains(scene.id) ||
+                            selectedSceneIds.contains(scene.sceneKey());
+                        if (!isSelected) {
+                            // Also try matching by filename without extension
+                            String fileBase = p.getFileName().toString();
+                            if (fileBase.endsWith(".json")) fileBase = fileBase.substring(0, fileBase.length() - 5);
+                            String stripped = stripPackPrefix(fileBase);
+                            isSelected = selectedSceneIds.stream()
+                                .anyMatch(id -> id.equals(stripped) || id.endsWith(":" + stripped));
                         }
+
+                        if (isSelected) {
+                            // Update pack field and write to zip
+                            scene.pack = name;
+                            String cleanJson = GSON_PRETTY.toJson(scene);
+                            collectStructureReferences(cleanJson, requiredStructures);
+                            String cleanFilename = stripPackPrefix(p.getFileName().toString());
+                            String entryName = "data/ponderer/scripts/" + cleanFilename;
+                            zos.putNextEntry(new ZipEntry(entryName));
+                            zos.write(cleanJson.getBytes(StandardCharsets.UTF_8));
+                            zos.closeEntry();
+                            exportedFiles.add(p);
+                            count++;
+                        }
+                    } catch (Exception e) {
+                        LOGGER.warn("Failed to process scene file: {}", p, e);
                     }
                 }
 
-                // Write only referenced structures
-                Path structuresDir = getStructureDir();
-                if (Files.exists(structuresDir)) {
-                    try (Stream<Path> paths = Files.walk(structuresDir)) {
-                        for (Path p : paths.filter(Files::isRegularFile).toList()) {
-                            String fileName = p.getFileName().toString();
-                            // Check if this structure is referenced
-                            boolean isReferenced = requiredStructures.stream()
-                                .anyMatch(ref -> {
-                                    String cleanRef = ref.replace(".nbt", "");
-                                    String cleanFileName = fileName.endsWith(".nbt") ? fileName.substring(0, fileName.length() - 4) : fileName;
-                                    return cleanRef.equals(cleanFileName) || cleanRef.endsWith(":" + cleanFileName);
-                                });
-
-                            if (isReferenced) {
-                                String entryName = "data/ponderer/structures/" + structuresDir.relativize(p).toString().replace("\\", "/");
-                                zos.putNextEntry(new ZipEntry(entryName));
-                                Files.copy(p, zos);
-                                zos.closeEntry();
-                                count++;
-                            }
-                        }
-                    }
-                }
+                // Write only referenced structures (strip prefix)
+                count += writeStructuresToZip(zos, requiredStructures);
 
                 LOGGER.info("Packed {} files into {} (selected {} scenes)", count, filename, selectedSceneIds.size());
             }
@@ -671,10 +752,229 @@ public final class SceneStore {
             // Auto-update registry on export
             updateRegistryAfterExport(outputPath, name, version, author);
 
+            // Reorganize exported files on disk
+            reorganizeFilesForPack(name, exportedFiles);
+
             return true;
         } catch (IOException e) {
             LOGGER.error("Failed to pack selected Ponderer scenes and structures", e);
             return false;
+        }
+    }
+
+    /**
+     * Collect all script files from flat directory and pack subdirectories.
+     */
+    private static List<Path> collectAllScriptFiles() {
+        List<Path> result = new ArrayList<>();
+        Path scriptsDir = getSceneDir();
+        if (!Files.exists(scriptsDir)) return result;
+
+        // Flat files
+        try (Stream<Path> paths = Files.list(scriptsDir)) {
+            paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                .forEach(result::add);
+        } catch (IOException ignored) {}
+
+        // Pack subdirectories
+        Path packsDir = scriptsDir.resolve(PACKS_SUBDIR);
+        if (Files.exists(packsDir)) {
+            try (Stream<Path> packDirs = Files.list(packsDir)) {
+                for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
+                    try (Stream<Path> paths = Files.list(packDir)) {
+                        paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                            .forEach(result::add);
+                    } catch (IOException ignored) {}
+                }
+            } catch (IOException ignored) {}
+        }
+
+        return result;
+    }
+
+    /**
+     * Read a scene JSON file and update its pack field.
+     */
+    @javax.annotation.Nullable
+    private static String readAndUpdatePackField(Path path, String packName) {
+        try {
+            String rawJson = Files.readString(path, StandardCharsets.UTF_8);
+            DslScene scene = GSON.fromJson(rawJson, DslScene.class);
+            if (scene == null) return null;
+            scene.pack = packName;
+            return GSON_PRETTY.toJson(scene);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to read/update scene file: {}", path, e);
+            return null;
+        }
+    }
+
+    /**
+     * Strip [PackName] prefix from a filename.
+     * "[MyPack] oak_log.json" → "oak_log.json"
+     * "oak_log.json" → "oak_log.json"
+     */
+    private static String stripPackPrefix(String filename) {
+        String prefix = DslScene.extractPackPrefix(filename);
+        if (prefix != null) {
+            return filename.substring(prefix.length()).trim();
+        }
+        return filename;
+    }
+
+    /**
+     * Write structure files to zip, stripping pack prefix from filenames.
+     * Returns the number of files written.
+     */
+    private static int writeStructuresToZip(ZipOutputStream zos, Set<String> structureRefs) throws IOException {
+        int count = 0;
+        Path structuresDir = getStructureDir();
+        if (!Files.exists(structuresDir)) return 0;
+
+        // Collect all structure files (flat + pack subdirectories)
+        List<Path> allStructureFiles = new ArrayList<>();
+        try (Stream<Path> paths = Files.list(structuresDir)) {
+            paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".nbt"))
+                .forEach(allStructureFiles::add);
+        } catch (IOException ignored) {}
+
+        Path packsDir = structuresDir.resolve(PACKS_SUBDIR);
+        if (Files.exists(packsDir)) {
+            try (Stream<Path> packDirs = Files.list(packsDir)) {
+                for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
+                    try (Stream<Path> paths = Files.list(packDir)) {
+                        paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".nbt"))
+                            .forEach(allStructureFiles::add);
+                    } catch (IOException ignored) {}
+                }
+            } catch (IOException ignored) {}
+        }
+
+        Set<String> writtenEntries = new HashSet<>();
+        for (Path p : allStructureFiles) {
+            String fileName = p.getFileName().toString();
+            String cleanFileName = stripPackPrefix(fileName);
+            String baseName = cleanFileName.endsWith(".nbt") ? cleanFileName.substring(0, cleanFileName.length() - 4) : cleanFileName;
+
+            // Check if this structure is referenced
+            boolean isReferenced = structureRefs.stream()
+                .anyMatch(ref -> {
+                    String cleanRef = ref.replace(".nbt", "");
+                    return cleanRef.equals(baseName) || cleanRef.endsWith(":" + baseName);
+                });
+
+            if (isReferenced) {
+                String entryName = "data/ponderer/structures/" + cleanFileName;
+                if (writtenEntries.add(entryName)) { // avoid duplicates
+                    zos.putNextEntry(new ZipEntry(entryName));
+                    Files.copy(p, zos);
+                    zos.closeEntry();
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /**
+     * After export, reorganize files on disk:
+     * Move exported files into _packs/{packName}/ with proper [PackName] prefix and pack field.
+     * Then reload scripts.
+     */
+    private static void reorganizeFilesForPack(String packName, List<Path> exportedFiles) {
+        Path packScriptsDir = getPackSceneDir(packName);
+        try {
+            Files.createDirectories(packScriptsDir);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to create pack directory: {}", packScriptsDir, e);
+            return;
+        }
+
+        for (Path sourcePath : exportedFiles) {
+            try {
+                // Read and update pack field
+                String rawJson = Files.readString(sourcePath, StandardCharsets.UTF_8);
+                DslScene scene = GSON.fromJson(rawJson, DslScene.class);
+                if (scene == null) continue;
+                scene.pack = packName;
+                String updatedJson = GSON_PRETTY.toJson(scene);
+
+                // Determine target filename: [PackName] clean_name.json
+                String cleanFilename = stripPackPrefix(sourcePath.getFileName().toString());
+                String prefixedFilename = "[" + packName + "] " + cleanFilename;
+                Path targetPath = packScriptsDir.resolve(prefixedFilename);
+
+                // Write to new location
+                Files.writeString(targetPath, updatedJson, StandardCharsets.UTF_8);
+
+                // Delete original if it's in a different location
+                if (!sourcePath.equals(targetPath)) {
+                    Files.deleteIfExists(sourcePath);
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Failed to reorganize file: {}", sourcePath, e);
+            }
+        }
+
+        // Also reorganize referenced structures
+        reorganizeStructuresForPack(packName);
+
+        LOGGER.info("Reorganized files for pack: {}", packName);
+    }
+
+    /**
+     * Move structure files referenced by pack scenes into the pack structure directory.
+     */
+    private static void reorganizeStructuresForPack(String packName) {
+        Path packStructuresDir = getPackStructureDir(packName);
+        Path packScriptsDir = getPackSceneDir(packName);
+
+        // Collect structure references from pack scripts
+        Set<String> structureRefs = new HashSet<>();
+        if (Files.exists(packScriptsDir)) {
+            try (Stream<Path> paths = Files.list(packScriptsDir)) {
+                for (Path p : paths.filter(f -> f.getFileName().toString().endsWith(".json")).toList()) {
+                    try {
+                        String json = Files.readString(p, StandardCharsets.UTF_8);
+                        collectStructureReferences(json, structureRefs);
+                    } catch (Exception ignored) {}
+                }
+            } catch (IOException ignored) {}
+        }
+        if (structureRefs.isEmpty()) return;
+
+        try {
+            Files.createDirectories(packStructuresDir);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to create pack structure directory: {}", packStructuresDir, e);
+            return;
+        }
+
+        // Move matching structures from flat directory to pack directory
+        Path structuresDir = getStructureDir();
+        if (Files.exists(structuresDir)) {
+            try (Stream<Path> paths = Files.list(structuresDir)) {
+                for (Path p : paths.filter(f -> Files.isRegularFile(f) && f.getFileName().toString().endsWith(".nbt")).toList()) {
+                    String fileName = p.getFileName().toString();
+                    String baseName = fileName.endsWith(".nbt") ? fileName.substring(0, fileName.length() - 4) : fileName;
+
+                    boolean isReferenced = structureRefs.stream()
+                        .anyMatch(ref -> {
+                            String cleanRef = ref.replace(".nbt", "");
+                            return cleanRef.equals(baseName) || cleanRef.endsWith(":" + baseName);
+                        });
+
+                    if (isReferenced) {
+                        String prefixedName = "[" + packName + "] " + fileName;
+                        Path targetPath = packStructuresDir.resolve(prefixedName);
+                        if (!Files.exists(targetPath)) {
+                            Files.copy(p, targetPath);
+                        }
+                        // Don't delete from flat dir — other scenes might still reference it
+                    }
+                }
+            } catch (IOException ignored) {}
         }
     }
 
@@ -805,12 +1105,14 @@ public final class SceneStore {
     }
 
     /**
-     * Extract pack contents, backing up any locally modified files as .bak before overwriting.
+     * Extract pack contents into _packs/{PackName}/ subdirectories.
+     * Scripts get [PackName] prefix in filename and "pack" field injected into JSON.
+     * Structures get [PackName] prefix in filename.
      */
     private static int extractPonderPackWithBackup(Path zipPath, PonderPackInfo info) throws IOException {
         int count = 0;
-        Path scriptsDir = getSceneDir();
-        Path structuresDir = getStructureDir();
+        Path packScriptsDir = getPackSceneDir(info.name);
+        Path packStructuresDir = getPackStructureDir(info.name);
 
         try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipPath), StandardCharsets.UTF_8)) {
             ZipEntry entry;
@@ -819,27 +1121,50 @@ public final class SceneStore {
 
                 if (name.startsWith("data/ponderer/scripts/")) {
                     String fileName = name.substring("data/ponderer/scripts/".length());
+                    if (fileName.isEmpty() || fileName.endsWith("/")) continue;
                     String prefixedName = info.packPrefix + " " + fileName;
-                    Path targetPath = scriptsDir.resolve(prefixedName);
+                    Path targetPath = packScriptsDir.resolve(prefixedName);
 
                     Files.createDirectories(targetPath.getParent());
                     backupIfModified(targetPath);
-                    Files.copy(zis, targetPath, StandardCopyOption.REPLACE_EXISTING);
+
+                    // Read JSON, inject pack field, write
+                    byte[] rawBytes = zis.readAllBytes();
+                    String json = new String(rawBytes, StandardCharsets.UTF_8);
+                    json = injectPackField(json, info.name);
+                    Files.writeString(targetPath, json, StandardCharsets.UTF_8);
                     count++;
                 } else if (name.startsWith("data/ponderer/structures/")) {
                     String fileName = name.substring("data/ponderer/structures/".length());
+                    if (fileName.isEmpty() || fileName.endsWith("/")) continue;
                     String prefixedName = info.packPrefix + " " + fileName;
-                    Path targetPath = structuresDir.resolve(prefixedName);
+                    Path targetPath = packStructuresDir.resolve(prefixedName);
 
                     Files.createDirectories(targetPath.getParent());
                     backupIfModified(targetPath);
-                    Files.copy(zis, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                    Files.write(targetPath, zis.readAllBytes());
                     count++;
                 }
             }
         }
 
         return count;
+    }
+
+    /**
+     * Inject "pack" field into scene JSON string.
+     */
+    private static String injectPackField(String json, String packName) {
+        try {
+            DslScene scene = GSON.fromJson(json, DslScene.class);
+            if (scene != null) {
+                scene.pack = packName;
+                return GSON_PRETTY.toJson(scene);
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to inject pack field, writing raw content", e);
+        }
+        return json;
     }
 
     /**
@@ -857,16 +1182,19 @@ public final class SceneStore {
     }
 
     /**
-     * Check if at least one extracted script file from a pack prefix still exists on disk.
+     * Check if at least one extracted script file from a pack still exists on disk.
      */
-    private static boolean packScriptFilesExist(String packPrefix) {
-        Path scriptsDir = getSceneDir();
-        String prefix = packPrefix + " ";
-        try (Stream<Path> paths = Files.list(scriptsDir)) {
-            return paths.anyMatch(p -> p.getFileName().toString().startsWith(prefix));
-        } catch (IOException e) {
-            return false;
+    private static boolean packScriptFilesExist(String packName) {
+        // Check _packs/{packName}/ subdirectory
+        Path packDir = getPackSceneDir(packName);
+        if (Files.exists(packDir)) {
+            try (Stream<Path> paths = Files.list(packDir)) {
+                if (paths.anyMatch(p -> p.getFileName().toString().endsWith(".json"))) {
+                    return true;
+                }
+            } catch (IOException ignored) {}
         }
+        return false;
     }
 
     private static String computeSha256(Path file) {
@@ -917,9 +1245,14 @@ public final class SceneStore {
         for (var entry : PonderPackRegistry.getAllPacks().entrySet()) {
             String displayName = entry.getKey();
             PonderPackRegistry.PackEntry pack = entry.getValue();
-            if (pack.packPrefix != null && !packScriptFilesExist(pack.packPrefix)) {
+            // Extract pack name from packPrefix "[PackName]" or use name field
+            String packName = pack.name;
+            if (packName == null && pack.packPrefix != null && pack.packPrefix.startsWith("[") && pack.packPrefix.endsWith("]")) {
+                packName = pack.packPrefix.substring(1, pack.packPrefix.length() - 1);
+            }
+            if (packName != null && !packScriptFilesExist(packName)) {
                 orphaned.add(displayName);
-                LOGGER.info("Orphaned pack detected: {} (no script files found for prefix {})", displayName, pack.packPrefix);
+                LOGGER.info("Orphaned pack detected: {} (no script files found for pack {})", displayName, packName);
             }
         }
         return orphaned;
