@@ -389,7 +389,9 @@ public final class PondererClientCommands {
         DslScene scene = new DslScene();
         scene.id = sceneId;
         scene.items = List.of(itemId.toString());
-        scene.title = LocalizedText.of("New Scene - " + itemId.getPath());
+        scene.title = LocalizedText.ofMap(Map.of(
+                "en_us", "New Scene - " + itemId.getPath(),
+                "zh_cn", "新场景 - " + itemId.getPath()));
         scene.structures = List.of("ponderer:basic");
         scene.tags = List.of();
         scene.steps = List.of();
@@ -399,7 +401,9 @@ public final class PondererClientCommands {
 
         DslScene.SceneSegment seg = new DslScene.SceneSegment();
         seg.id = "scene_1";
-        seg.title = LocalizedText.of("Scene 1");
+        seg.title = LocalizedText.ofMap(Map.of(
+                "en_us", "Scene 1",
+                "zh_cn", "场景 1"));
 
         DslScene.DslStep showStep = new DslScene.DslStep();
         showStep.type = "show_structure";
@@ -412,7 +416,9 @@ public final class PondererClientCommands {
         DslScene.DslStep textStep = new DslScene.DslStep();
         textStep.type = "text";
         textStep.duration = 60;
-        textStep.text = LocalizedText.of("Edit this ponder scene!");
+        textStep.text = LocalizedText.ofMap(Map.of(
+                "en_us", "Edit this ponder scene!",
+                "zh_cn", "编辑这个思索场景!"));
         textStep.point = List.of(2.5, 2.0, 2.5);
         textStep.placeNearTarget = true;
         textStep.attachKeyFrame = true;

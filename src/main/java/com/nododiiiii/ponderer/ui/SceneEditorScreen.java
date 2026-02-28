@@ -25,8 +25,10 @@ import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Ponder editor screen - shows all steps in the current scene.
@@ -808,7 +810,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             idleStep.type = "idle";
             idleStep.duration = 20;
             newScene.steps.add(idleStep);
-            newScene.id = "new_" + (scene.scenes.size() + 1);
+            newScene.id = generateUniqueSegmentId(scene);
             if (!(scene.scenes instanceof ArrayList)) {
                 scene.scenes = new ArrayList<>(scene.scenes);
             }
@@ -837,6 +839,27 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         } else {
             this.init(Minecraft.getInstance(), this.width, this.height);
         }
+    }
+
+    /**
+     * Generate a unique segment ID that does not collide with any existing
+     * segment IDs in the given scene.
+     */
+    private static String generateUniqueSegmentId(DslScene scene) {
+        Set<String> existing = new HashSet<>();
+        if (scene.scenes != null) {
+            for (DslScene.SceneSegment seg : scene.scenes) {
+                if (seg.id != null) {
+                    existing.add(seg.id);
+                }
+            }
+        }
+        java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
+        String candidate;
+        do {
+            candidate = "s_" + Integer.toHexString(rng.nextInt(0x10000, 0xFFFFF));
+        } while (existing.contains(candidate));
+        return candidate;
     }
 
     /** Save the scene JSON to file without reloading Ponder. */

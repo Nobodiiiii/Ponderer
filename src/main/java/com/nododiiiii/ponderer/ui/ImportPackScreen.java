@@ -88,7 +88,8 @@ public class ImportPackScreen extends AbstractSimiScreen {
 
         PonderPackInfo pack = availablePacks.get(selectedIndex);
         try {
-            int count = SceneStore.loadPonderPackFromResourcePack(pack.sourcePath, true);
+            SceneStore.PackUpdateInfo result = SceneStore.loadPonderPackFromResourcePack(pack.sourcePath, true);
+            int count = result != null ? result.totalFiles : 0;
             SceneStore.reloadFromDisk();
             Minecraft.getInstance().execute(PonderIndex::reload);
             notifyUser(UIText.of("ponderer.ui.import.success", count, pack.name));

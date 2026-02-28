@@ -2,7 +2,6 @@ package com.nododiiiii.ponderer;
 
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
@@ -39,6 +38,8 @@ public class Ponderer {
 
     /** Orphaned pack names detected during startup, to be shown on first world join. */
     private static List<String> pendingOrphanedPacks = new ArrayList<>();
+    /** Pack updates detected during startup, to be shown on first world join. */
+    private static List<SceneStore.PackUpdateInfo> pendingPackUpdates = new ArrayList<>();
 
     public Ponderer() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -63,9 +64,12 @@ public class Ponderer {
         event.enqueueWork(() -> {
             SceneStore.extractDefaultsIfNeeded();
             // Auto-load Ponderer packs from resourcepacks directory
-            List<String> orphaned = SceneStore.autoLoadPonderPacks();
-            if (!orphaned.isEmpty()) {
-                pendingOrphanedPacks.addAll(orphaned);
+            SceneStore.AutoLoadResult result = SceneStore.autoLoadPonderPacks();
+            if (!result.orphanedPacks.isEmpty()) {
+                pendingOrphanedPacks.addAll(result.orphanedPacks);
+            }
+            if (!result.updatedPacks.isEmpty()) {
+                pendingPackUpdates.addAll(result.updatedPacks);
             }
             SceneStore.reloadFromDisk();
             PonderIndex.addPlugin(new DynamicPonderPlugin());
@@ -77,44 +81,74 @@ public class Ponderer {
     }
 
     private void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        if (!Config.PACK_ORPHAN_PROMPT.get()) {
-            pendingOrphanedPacks.clear();
-            return;
-        }
-        if (pendingOrphanedPacks.isEmpty()) return;
-
-        // Copy and clear to avoid showing again
+        // Copy and clear pending notifications
+        List<SceneStore.PackUpdateInfo> updates = new ArrayList<>(pendingPackUpdates);
+        pendingPackUpdates.clear();
         List<String> orphaned = new ArrayList<>(pendingOrphanedPacks);
         pendingOrphanedPacks.clear();
+
+        if (updates.isEmpty() && orphaned.isEmpty()) return;
+        if (!Config.PACK_ORPHAN_PROMPT.get() && orphaned.isEmpty() && updates.isEmpty()) return;
 
         // Defer message to next tick so chat is ready
         Minecraft.getInstance().execute(() -> {
             var player = Minecraft.getInstance().player;
             if (player == null) return;
 
-            for (String packName : orphaned) {
-                // "Pack [Ponderer] MyPack: all scripts deleted."
+            // Show pack update notifications
+            for (SceneStore.PackUpdateInfo info : updates) {
+                String versionChange = info.oldVersion != null
+                        ? "v" + info.oldVersion + " → v" + info.newVersion
+                        : "v" + info.newVersion;
                 MutableComponent msg = Component.literal("[Ponderer] ")
                         .withStyle(Style.EMPTY.withColor(0xFFA500))
-                        .append(Component.literal(packName)
+                        .append(Component.literal(info.packName)
                                 .withStyle(Style.EMPTY.withColor(0xFFFFFF)))
                         .append(Component.literal(": ")
-                                .withStyle(Style.EMPTY.withColor(0xAAAAAA)))
-                        .append(Component.translatable("ponderer.pack.orphan.message")
                                 .withStyle(Style.EMPTY.withColor(0xAAAAAA)));
-                player.displayClientMessage(msg, false);
 
-                // "[Remove from registry]" clickable button
-                MutableComponent removeBtn = Component.literal("  [")
-                        .withStyle(Style.EMPTY.withColor(0x888888))
-                        .append(Component.translatable("ponderer.pack.orphan.remove")
-                                .withStyle(Style.EMPTY
-                                        .withColor(0xFF6666)
-                                        .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/ponderer unregister_pack " + packName))
-                                        .withUnderlined(true)))
-                        .append(Component.literal("]")
-                                .withStyle(Style.EMPTY.withColor(0x888888)));
-                player.displayClientMessage(removeBtn, false);
+                if (info.oldVersion != null) {
+                    // Version update
+                    msg.append(Component.translatable("ponderer.pack.update.version", versionChange)
+                            .withStyle(Style.EMPTY.withColor(0x55FF55)));
+                } else {
+                    // First load
+                    msg.append(Component.translatable("ponderer.pack.update.loaded", info.newVersion)
+                            .withStyle(Style.EMPTY.withColor(0x55FF55)));
+                }
+
+                if (info.conflictCount > 0) {
+                    msg.append(Component.literal(" ")
+                            .append(Component.translatable("ponderer.pack.update.conflicts", info.conflictCount)
+                                    .withStyle(Style.EMPTY.withColor(0xFFAA00))));
+                }
+                player.displayClientMessage(msg, false);
+            }
+
+            // Show orphaned pack notifications
+            if (Config.PACK_ORPHAN_PROMPT.get()) {
+                for (String packName : orphaned) {
+                    MutableComponent msg = Component.literal("[Ponderer] ")
+                            .withStyle(Style.EMPTY.withColor(0xFFA500))
+                            .append(Component.literal(packName)
+                                    .withStyle(Style.EMPTY.withColor(0xFFFFFF)))
+                            .append(Component.literal(": ")
+                                    .withStyle(Style.EMPTY.withColor(0xAAAAAA)))
+                            .append(Component.translatable("ponderer.pack.orphan.message")
+                                    .withStyle(Style.EMPTY.withColor(0xAAAAAA)));
+                    player.displayClientMessage(msg, false);
+
+                    MutableComponent removeBtn = Component.literal("  [")
+                            .withStyle(Style.EMPTY.withColor(0x888888))
+                            .append(Component.translatable("ponderer.pack.orphan.remove")
+                                    .withStyle(Style.EMPTY
+                                            .withColor(0xFF6666)
+                                            .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/ponderer unregister_pack " + packName))
+                                            .withUnderlined(true)))
+                            .append(Component.literal("]")
+                                    .withStyle(Style.EMPTY.withColor(0x888888)));
+                    player.displayClientMessage(removeBtn, false);
+                }
             }
         });
     }

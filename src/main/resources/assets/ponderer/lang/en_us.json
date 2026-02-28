@@ -36,6 +36,13 @@
   "ponderer.ui.scene_desc.scene_title": "Scene Title",
   "ponderer.ui.scene_desc.hint.ponder_title": "Ponder title...",
   "ponderer.ui.scene_desc.hint.scene_title": "Scene title...",
+  "ponderer.ui.scene_desc.ponder_id": "Ponder ID",
+  "ponderer.ui.scene_desc.scene_id": "Scene ID",
+  "ponderer.ui.scene_desc.hint.ponder_id": "e.g. ponderer:oak_log",
+  "ponderer.ui.scene_desc.hint.scene_id": "e.g. scene_1",
+  "ponderer.ui.scene_desc.id_hint": "Only change ID if title/text display incorrectly",
+  "ponderer.ui.scene_desc.error.ponder_id_exists": "Ponder ID \"%s\" already exists",
+  "ponderer.ui.scene_desc.error.scene_id_exists": "Scene ID \"%s\" already exists",
   "ponderer.ui.step_selector": "Add Step",
   "ponderer.ui.step_selector.title": "Select Step Type",
   "ponderer.ui.step.page.story": "Story & Overlay",
@@ -599,5 +606,8 @@
   "ponderer.pack.orphan.message": "All scripts have been deleted.",
   "ponderer.pack.orphan.remove": "Remove pack",
   "ponderer.pack.unregister.done": "Removed pack %s",
-  "ponderer.pack.unregister.not_found": "Pack not found in registry: %s"
+  "ponderer.pack.unregister.not_found": "Pack not found in registry: %s",
+  "ponderer.pack.update.version": "Updated (%s)",
+  "ponderer.pack.update.loaded": "Loaded (v%s)",
+  "ponderer.pack.update.conflicts": "%s file(s) modified locally, backed up as .bak"
 }

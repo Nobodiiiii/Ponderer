@@ -36,6 +36,13 @@
   "ponderer.ui.scene_desc.scene_title": "场景标题",
   "ponderer.ui.scene_desc.hint.ponder_title": "思索标题...",
   "ponderer.ui.scene_desc.hint.scene_title": "场景标题...",
+  "ponderer.ui.scene_desc.ponder_id": "思索 ID",
+  "ponderer.ui.scene_desc.scene_id": "场景 ID",
+  "ponderer.ui.scene_desc.hint.ponder_id": "如 ponderer:oak_log",
+  "ponderer.ui.scene_desc.hint.scene_id": "如 scene_1",
+  "ponderer.ui.scene_desc.id_hint": "仅在标题/文本显示异常时修改ID",
+  "ponderer.ui.scene_desc.error.ponder_id_exists": "思索 ID \"%s\" 已被使用",
+  "ponderer.ui.scene_desc.error.scene_id_exists": "场景 ID \"%s\" 已被使用",
   "ponderer.ui.step_selector": "添加步骤",
   "ponderer.ui.step_selector.title": "选择步骤类型",
   "ponderer.ui.step.page.story": "剧情与覆盖层",
@@ -599,5 +606,8 @@
   "ponderer.pack.orphan.message": "所有脚本已被删除。",
   "ponderer.pack.orphan.remove": "删除资源包",
   "ponderer.pack.unregister.done": "已删除资源包 %s",
-  "ponderer.pack.unregister.not_found": "注册表中未找到资源包: %s"
+  "ponderer.pack.unregister.not_found": "注册表中未找到资源包: %s",
+  "ponderer.pack.update.version": "已更新 (%s)",
+  "ponderer.pack.update.loaded": "已加载 (v%s)",
+  "ponderer.pack.update.conflicts": "%s 个文件有本地修改，已备份为 .bak"
 }

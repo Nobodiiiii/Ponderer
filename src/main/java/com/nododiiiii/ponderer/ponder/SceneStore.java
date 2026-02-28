@@ -17,13 +17,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -32,6 +33,23 @@ import java.util.zip.ZipOutputStream;
 
 public final class SceneStore {
     private static final Logger LOGGER = LogUtils.getLogger();
+
+    /** Information about a pack that was updated during auto-load. */
+    public static class PackUpdateInfo {
+        public final String packName;
+        public final String oldVersion;
+        public final String newVersion;
+        public final int totalFiles;     // total files extracted
+        public final int conflictCount;  // number of user-modified files that were backed up
+
+        public PackUpdateInfo(String packName, String oldVersion, String newVersion, int totalFiles, int conflictCount) {
+            this.packName = packName;
+            this.oldVersion = oldVersion;
+            this.newVersion = newVersion;
+            this.totalFiles = totalFiles;
+            this.conflictCount = conflictCount;
+        }
+    }
     private static final Gson GSON = new GsonBuilder().setLenient()
         .disableHtmlEscaping()
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
@@ -639,11 +657,13 @@ public final class SceneStore {
 
                 // Write scripts: update pack field and strip filename prefix
                 int count = 0;
+                Set<String> usedEntryNames = new HashSet<>();
                 for (Path p : allScriptFiles) {
                     String cleanJson = readAndUpdatePackField(p, name);
                     if (cleanJson == null) continue;
                     collectStructureReferences(cleanJson, allStructureRefs);
                     String cleanFilename = stripPackPrefix(p.getFileName().toString());
+                    cleanFilename = deduplicateFilename(cleanFilename, usedEntryNames);
                     String entryName = "data/ponderer/scripts/" + cleanFilename;
                     zos.putNextEntry(new ZipEntry(entryName));
                     zos.write(cleanJson.getBytes(StandardCharsets.UTF_8));
@@ -705,6 +725,7 @@ public final class SceneStore {
 
                 // Write selected scripts
                 int count = 0;
+                Set<String> usedEntryNames = new HashSet<>();
                 List<Path> allScriptFiles = collectAllScriptFiles();
                 for (Path p : allScriptFiles) {
                     // Read scene to check if it's selected
@@ -731,6 +752,7 @@ public final class SceneStore {
                             String cleanJson = GSON_PRETTY.toJson(scene);
                             collectStructureReferences(cleanJson, requiredStructures);
                             String cleanFilename = stripPackPrefix(p.getFileName().toString());
+                            cleanFilename = deduplicateFilename(cleanFilename, usedEntryNames);
                             String entryName = "data/ponderer/scripts/" + cleanFilename;
                             zos.putNextEntry(new ZipEntry(entryName));
                             zos.write(cleanJson.getBytes(StandardCharsets.UTF_8));
@@ -820,6 +842,31 @@ public final class SceneStore {
             return filename.substring(prefix.length()).trim();
         }
         return filename;
+    }
+
+    /**
+     * Ensure a filename is unique within the given set. If it already exists,
+     * append _1, _2, etc. before the extension until unique.
+     * The unique name is added to the set before returning.
+     */
+    private static String deduplicateFilename(String filename, Set<String> usedNames) {
+        if (usedNames.add(filename)) {
+            return filename;
+        }
+        String base = filename;
+        String ext = "";
+        int dot = filename.lastIndexOf('.');
+        if (dot >= 0) {
+            base = filename.substring(0, dot);
+            ext = filename.substring(dot);
+        }
+        int suffix = 1;
+        String candidate;
+        do {
+            suffix++;
+            candidate = base + "_" + suffix + ext;
+        } while (!usedNames.add(candidate));
+        return candidate;
     }
 
     /**
@@ -1058,59 +1105,86 @@ public final class SceneStore {
 
     /**
      * Load a Ponderer pack from resourcepacks directory.
-     * Extracts scenes and structures with [PackName] prefix.
+     * Extracts scenes and structures into _packs/{PackName}/ subdirectories.
      *
      * Logic:
      * - Same version → skip (already loaded)
-     * - Different version (higher or lower) → backup modified local files as .bak, then overwrite
+     * - Different version (higher or lower) → backup user-modified files as .bak, then overwrite
      * - forceOverwrite → always extract (no version check)
+     *
+     * @return PackUpdateInfo if the pack was updated, null if skipped
      */
-    public static int loadPonderPackFromResourcePack(Path zipPath, boolean forceOverwrite) throws IOException {
+    @javax.annotation.Nullable
+    public static PackUpdateInfo loadPonderPackFromResourcePack(Path zipPath, boolean forceOverwrite) throws IOException {
         if (!Files.exists(zipPath)) {
             LOGGER.warn("Pack file not found: {}", zipPath);
-            return 0;
+            return null;
         }
 
         // Read pack info
         PonderPackInfo info = PonderPackInfo.fromZip(zipPath);
         if (info == null) {
             LOGGER.warn("Invalid Ponderer pack: {}", zipPath);
-            return 0;
+            return null;
         }
 
         String displayName = PonderPackRegistry.getDisplayName(info.name);
         String newFileHash = computeSha256(zipPath);
+        String oldVersion = null;
+        long loadedAtMillis = 0;
 
-        if (!forceOverwrite) {
-            PonderPackRegistry.PackEntry existing = PonderPackRegistry.getPack(displayName);
-            if (existing != null) {
-                if (existing.version.equals(info.version)) {
-                    // Same version → skip
-                    LOGGER.info("Pack {} already loaded (v{}), skipping", info.name, existing.version);
-                    return 0;
-                }
-                // Version differs → extract with backup
-                LOGGER.info("Pack {} updating: v{} -> v{}", info.name, existing.version, info.version);
+        PonderPackRegistry.PackEntry existing = PonderPackRegistry.getPack(displayName);
+        if (existing != null) {
+            oldVersion = existing.version;
+            // Parse loadedAt timestamp to epoch millis for file modification comparison
+            loadedAtMillis = parseLoadedAtMillis(existing.loadedAt);
+
+            if (!forceOverwrite && existing.version.equals(info.version)) {
+                // Same version → skip
+                LOGGER.info("Pack {} already loaded (v{}), skipping", info.name, existing.version);
+                return null;
             }
+            // Version differs → extract with backup
+            LOGGER.info("Pack {} updating: v{} -> v{}", info.name, existing.version, info.version);
         }
 
-        // Extract pack (with backup for modified local files)
-        int count = extractPonderPackWithBackup(zipPath, info);
+        // Extract pack (with backup for user-modified files)
+        int[] result = extractPonderPackWithBackup(zipPath, info, loadedAtMillis);
+        int count = result[0];
+        int conflicts = result[1];
 
         // Update registry
         PonderPackRegistry.addOrUpdatePack(displayName, info, newFileHash);
 
-        LOGGER.info("Loaded Ponderer pack: {} ({})", info.name, count + " files");
-        return count;
+        LOGGER.info("Loaded Ponderer pack: {} ({} files, {} conflicts)", info.name, count, conflicts);
+        return new PackUpdateInfo(info.name, oldVersion, info.version, count, conflicts);
+    }
+
+    /**
+     * Parse the ISO date-time string from registry into epoch millis.
+     */
+    private static long parseLoadedAtMillis(@javax.annotation.Nullable String loadedAt) {
+        if (loadedAt == null || loadedAt.isEmpty()) return 0;
+        try {
+            LocalDateTime ldt = LocalDateTime.parse(loadedAt, DateTimeFormatter.ISO_DATE_TIME);
+            return ldt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse loadedAt timestamp: {}", loadedAt, e);
+            return 0;
+        }
     }
 
     /**
      * Extract pack contents into _packs/{PackName}/ subdirectories.
      * Scripts get [PackName] prefix in filename and "pack" field injected into JSON.
      * Structures get [PackName] prefix in filename.
+     * Only backs up files that were modified by the user after loadedAtMillis.
+     *
+     * @return int[2]: [0] = total files extracted, [1] = conflict count (user-modified files backed up)
      */
-    private static int extractPonderPackWithBackup(Path zipPath, PonderPackInfo info) throws IOException {
+    private static int[] extractPonderPackWithBackup(Path zipPath, PonderPackInfo info, long loadedAtMillis) throws IOException {
         int count = 0;
+        int conflicts = 0;
         Path packScriptsDir = getPackSceneDir(info.name);
         Path packStructuresDir = getPackStructureDir(info.name);
 
@@ -1126,7 +1200,9 @@ public final class SceneStore {
                     Path targetPath = packScriptsDir.resolve(prefixedName);
 
                     Files.createDirectories(targetPath.getParent());
-                    backupIfModified(targetPath);
+                    if (backupIfModified(targetPath, loadedAtMillis)) {
+                        conflicts++;
+                    }
 
                     // Read JSON, inject pack field, write
                     byte[] rawBytes = zis.readAllBytes();
@@ -1141,14 +1217,16 @@ public final class SceneStore {
                     Path targetPath = packStructuresDir.resolve(prefixedName);
 
                     Files.createDirectories(targetPath.getParent());
-                    backupIfModified(targetPath);
+                    if (backupIfModified(targetPath, loadedAtMillis)) {
+                        conflicts++;
+                    }
                     Files.write(targetPath, zis.readAllBytes());
                     count++;
                 }
             }
         }
 
-        return count;
+        return new int[]{count, conflicts};
     }
 
     /**
@@ -1168,16 +1246,29 @@ public final class SceneStore {
     }
 
     /**
-     * If the target file exists, back it up as .bak before it gets overwritten.
+     * If the target file exists and was modified by the user (after loadedAt timestamp),
+     * back it up as .bak before it gets overwritten.
+     *
+     * @param targetPath the file to check
+     * @param loadedAtMillis the epoch millis when the pack was last loaded (0 = always backup if exists)
+     * @return true if a backup was made (file was user-modified), false otherwise
      */
-    private static void backupIfModified(Path targetPath) {
-        if (!Files.exists(targetPath)) return;
-        Path bakPath = targetPath.resolveSibling(targetPath.getFileName().toString() + ".bak");
+    private static boolean backupIfModified(Path targetPath, long loadedAtMillis) {
+        if (!Files.exists(targetPath)) return false;
         try {
+            long fileModified = Files.getLastModifiedTime(targetPath).toMillis();
+            // Only backup if the file was modified after the last load time
+            // (meaning the user hand-edited it). Allow 5 second tolerance.
+            if (loadedAtMillis > 0 && fileModified <= loadedAtMillis + 5000) {
+                return false; // File was not modified by user, just overwrite
+            }
+            Path bakPath = targetPath.resolveSibling(targetPath.getFileName().toString() + ".bak");
             Files.copy(targetPath, bakPath, StandardCopyOption.REPLACE_EXISTING);
-            LOGGER.info("Backed up modified file: {} -> {}", targetPath.getFileName(), bakPath.getFileName());
+            LOGGER.info("Backed up user-modified file: {} -> {}", targetPath.getFileName(), bakPath.getFileName());
+            return true;
         } catch (IOException e) {
             LOGGER.warn("Failed to backup file: {}", targetPath, e);
+            return false;
         }
     }
 
@@ -1214,23 +1305,39 @@ public final class SceneStore {
         }
     }
 
+    /** Result of auto-loading packs at startup. */
+    public static class AutoLoadResult {
+        public final List<String> orphanedPacks;
+        public final List<PackUpdateInfo> updatedPacks;
+
+        public AutoLoadResult(List<String> orphanedPacks, List<PackUpdateInfo> updatedPacks) {
+            this.orphanedPacks = orphanedPacks;
+            this.updatedPacks = updatedPacks;
+        }
+    }
+
     /**
      * Auto-load Ponderer packs from resourcepacks directory.
      * Called during client setup to load packs on first launch or when new packs are added.
      *
-     * @return list of orphaned pack display names (registered but all scripts deleted)
+     * @return AutoLoadResult with orphaned pack names and updated pack info
      */
-    public static List<String> autoLoadPonderPacks() {
+    public static AutoLoadResult autoLoadPonderPacks() {
         PonderPackRegistry.load();
 
         Path gameDir = net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get();
         Path resourcepacksDir = gameDir.resolve("resourcepacks");
 
+        List<PackUpdateInfo> updates = new ArrayList<>();
+
         if (Files.exists(resourcepacksDir)) {
             try (Stream<Path> paths = Files.list(resourcepacksDir)) {
                 for (Path p : paths.filter(path -> path.toString().toLowerCase().endsWith(".zip")).toList()) {
                     try {
-                        loadPonderPackFromResourcePack(p, false);
+                        PackUpdateInfo updateInfo = loadPonderPackFromResourcePack(p, false);
+                        if (updateInfo != null) {
+                            updates.add(updateInfo);
+                        }
                     } catch (Exception e) {
                         LOGGER.warn("Failed to load pack: {}", p, e);
                     }
@@ -1255,7 +1362,7 @@ public final class SceneStore {
                 LOGGER.info("Orphaned pack detected: {} (no script files found for pack {})", displayName, packName);
             }
         }
-        return orphaned;
+        return new AutoLoadResult(orphaned, updates);
     }
 
     /**
