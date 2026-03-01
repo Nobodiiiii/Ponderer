@@ -546,6 +546,7 @@
   "ponderer.ui.ai_generate.add_url": "+ 添加网址",
   "ponderer.ui.ai_generate.build_tutorial": "搭建教程",
   "ponderer.ui.ai_generate.include_images": "附带图片",
+  "ponderer.ui.ai_generate.url.mcmod": "[MC百科]",
   "ponderer.ui.ai_generate.generate": "生成",
   "ponderer.ui.ai_generate.generating": "生成中...",
   "ponderer.ui.ai_generate.error.no_structure": "请至少添加一个结构",

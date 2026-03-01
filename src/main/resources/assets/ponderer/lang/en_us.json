@@ -565,6 +565,7 @@
   "ponderer.ui.ai_generate.add_url": "+ Add URL",
   "ponderer.ui.ai_generate.build_tutorial": "Build Tutorial",
   "ponderer.ui.ai_generate.include_images": "Include Images",
+  "ponderer.ui.ai_generate.url.mcmod": "[MC Mod]",
   "ponderer.ui.ai_generate.generate": "Generate",
   "ponderer.ui.ai_generate.generating": "Generating...",
   "ponderer.ui.ai_generate.error.no_structure": "Add at least one structure",
