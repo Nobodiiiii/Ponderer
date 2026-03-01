@@ -447,8 +447,6 @@
   "ponderer.ui.pick.tooltip": "Pick",
 
   "ponderer.cmd.export.done": "Ponderer: exported %s files to %s",
-  "ponderer.ui.ai_generate.url.added": "URL added",
-  "ponderer.ui.ai_generate.url.jei.hint": "Click J to add MCMod URL",
   "ponderer.cmd.export.failed": "Ponderer: export failed: %s",
   "ponderer.cmd.import.done": "Ponderer: imported %s files from %s",
   "ponderer.cmd.import.failed": "Ponderer: import failed: %s",

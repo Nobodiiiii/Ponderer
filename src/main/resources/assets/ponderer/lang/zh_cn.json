@@ -567,7 +567,5 @@
   "ponderer.ui.ai_generate.add_url.tooltip": "添加参考网页链接，AI 会抓取内容作为参考",
   "ponderer.ui.ai_generate.build_tutorial.tooltip": "开启后第一个场景为逐层搭建教程",
   "ponderer.ui.ai_generate.include_images.tooltip": "开启后会截取参考网页的图片发送给 AI",
-  "ponderer.ui.ai_generate.generate.tooltip": "开始生成思索场景（需要先配置 AI）",
-  "ponderer.ui.ai_generate.url.added": "URL已添加",
-  "ponderer.ui.ai_generate.url.jei.hint": "点击J添加MC百科链接"
+  "ponderer.ui.ai_generate.generate.tooltip": "开始生成思索场景（需要先配置 AI）"
 }
