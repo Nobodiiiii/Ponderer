@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.compat.jei;
 
+import com.mojang.logging.LogUtils;
+import com.nododiiiii.ponderer.ai.McmodApiClient;
 import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
 import com.nododiiiii.ponderer.ui.AiGenerateScreen;
 import com.nododiiiii.ponderer.ui.CommandParamScreen;
@@ -15,17 +17,23 @@ import mezz.jei.api.runtime.IIngredientListOverlay;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
+import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
+
+import java.util.Locale;
 import java.util.Optional;
 
 @JeiPlugin
 public class PondererJeiPlugin implements IModPlugin {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     @Nullable
     private static JeiAwareScreen activeScreen = null;
@@ -139,6 +147,14 @@ public class PondererJeiPlugin implements IModPlugin {
         }
         if (ingredient.isEmpty()) return;
 
+        // Other modes: only accept items
+        Optional<ItemStack> stackOpt = ingredient.get().getItemStack();
+        if (stackOpt.isEmpty()) {
+            event.setCanceled(true);
+            return;
+        }
+        ItemStack stack = stackOpt.get();
+
         // INGREDIENT mode: accept any JEI ingredient type
         if (activeMode == IdFieldMode.INGREDIENT) {
             String id = JeiIngredientHelper.resolveId(ingredient.get());
@@ -156,25 +172,47 @@ public class PondererJeiPlugin implements IModPlugin {
             return;
         }
 
-        // Other modes: only accept items
-        Optional<ItemStack> stackOpt = ingredient.get().getItemStack();
-        if (stackOpt.isEmpty()) {
-            event.setCanceled(true);
-            return;
-        }
-        ItemStack stack = stackOpt.get();
-
         String id = StepEditorGhostHandler.resolveId(stack, activeMode);
         if (id != null) {
             HintableTextFieldWidget field = aware.getJeiTargetField();
             if (field != null) {
                 field.setValue(id);
             }
+
+            // For AiGenerateScreen, automatically generate MCMod URL
+            if (screen instanceof AiGenerateScreen aiScreen) {
+                generateAndAddMcmodUrl(aiScreen, stack);
+            }
+
             aware.deactivateJei();
             event.setCanceled(true);
         } else {
             aware.showJeiIncompatibleWarning(activeMode);
             event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Generate MCMod URL from item stack and add it to AiGenerateScreen
+     */
+    private static void generateAndAddMcmodUrl(AiGenerateScreen aiScreen, ItemStack stack) {
+        try {
+            // Get item registry name
+            ResourceLocation registryName = BuiltInRegistries.ITEM
+                    .getKey(stack.getItem());
+            if (registryName != null) {
+                // Call MCMod API to get item URL
+                Optional<String> urlOptional = McmodApiClient.getItemUrl(registryName.toString());
+                if (urlOptional.isPresent()) {
+                    aiScreen.updateAutoUrl(urlOptional.get(), registryName.toString());
+                } else {
+                    // Remove existing auto-added URLs when no URL is found
+                    aiScreen.updateAutoUrl(null, registryName.toString());
+                }
+            }
+        } catch (Exception e) {
+            // Log error and continue
+            LOGGER.warn("Failed to generate and add MCMod URL: {}", e.getMessage());
         }
     }
 
