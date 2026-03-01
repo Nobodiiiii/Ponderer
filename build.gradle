@@ -25,8 +25,11 @@ base {
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 // Ensure UTF-8 encoding for source files
+// Disable build cache for compileJava: Mixin AP generates refmap in build/tmp/
+// which Gradle cache doesn't restore, causing "No refMap loaded" crashes at runtime.
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    outputs.cacheIf { false }
 }
 
 // -- Mixin Support
