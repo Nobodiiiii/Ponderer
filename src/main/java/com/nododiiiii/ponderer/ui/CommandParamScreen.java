@@ -9,18 +9,12 @@ import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
@@ -77,8 +71,20 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
             BooleanSupplier isActive) {
     }
 
-    private record ClickableButton(int x, int y, int w, int h, Supplier<String> labelSupplier, Runnable action) {
+    private record ClickableButton(int x, int y, int w, int h, Supplier<String> labelSupplier, Runnable action,
+            boolean scrollable) {
+        ClickableButton(int x, int y, int w, int h, Supplier<String> labelSupplier, Runnable action) {
+            this(x, y, w, h, labelSupplier, action, true);
+        }
     }
+
+    // -- Scroll support --
+    private int scrollOffset = 0;
+    private int maxScroll = 0;
+    private final List<FormWidgetRecord> formWidgetRecords = new ArrayList<>();
+    private record FormWidgetRecord(AbstractWidget widget, int contentOffsetY) {}
+    private static final int FORM_TOP_Y = 30;
+    private static final int BOTTOM_H = 40;
 
     // -- State --
 
@@ -257,8 +263,46 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
 
     // -- Layout --
 
+    private int getContentHeight() {
+        return 36 + fieldDefs.size() * ROW_H + BOTTOM_H;
+    }
+
     private int getWindowHeight() {
-        return 36 + fieldDefs.size() * ROW_H + 40;
+        int contentH = getContentHeight();
+        if (height <= 0) {
+            maxScroll = 0;
+            return contentH;
+        }
+        int maxH = height - UILayoutConstants.SCREEN_MARGIN * 2;
+        if (contentH <= maxH) {
+            maxScroll = 0;
+            return contentH;
+        }
+        maxScroll = contentH - maxH;
+        scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
+        return maxH;
+    }
+
+    private boolean isScrollEnabled() {
+        return maxScroll > 0;
+    }
+
+    private int viewportTop() { return guiTop + FORM_TOP_Y; }
+    private int viewportBottom() { return guiTop + getWindowHeight() - BOTTOM_H; }
+
+    private void updateScrollPositions() {
+        if (formWidgetRecords.isEmpty()) return;
+        int vTop = viewportTop();
+        int vBot = viewportBottom();
+        for (FormWidgetRecord rec : formWidgetRecords) {
+            int newY = guiTop + FORM_TOP_Y + rec.contentOffsetY - scrollOffset;
+            rec.widget.setY(newY);
+            if (isScrollEnabled()) {
+                rec.widget.visible = (newY + rec.widget.getHeight() > vTop) && (newY < vBot);
+            } else {
+                rec.widget.visible = true;
+            }
+        }
     }
 
     @Override
@@ -270,10 +314,12 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
         toggleWidgets.clear();
         labeledButtons.clear();
         clickableButtons.clear();
+        formWidgetRecords.clear();
         errorMessage = null;
 
         int wH = getWindowHeight();
-        int fieldY = guiTop + 30;
+        int childCountBeforeForm = children().size();
+        int fieldY = guiTop + FORM_TOP_Y;
 
         for (FieldDef def : fieldDefs) {
             int fieldX = guiLeft + MARGIN + LABEL_W + 4;
@@ -363,6 +409,16 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
             fieldY += ROW_H;
         }
 
+        // Track form widgets for scroll repositioning
+        List<? extends GuiEventListener> allChildren = children();
+        for (int i = childCountBeforeForm; i < allChildren.size(); i++) {
+            if (allChildren.get(i) instanceof AbstractWidget aw) {
+                int contentOffsetY = aw.getY() - guiTop - FORM_TOP_Y;
+                formWidgetRecords.add(new FormWidgetRecord(aw, contentOffsetY));
+            }
+        }
+        updateScrollPositions();
+
         // Focus first text field
         for (HintableTextFieldWidget field : textInputs.values()) {
             field.setFocused(true);
@@ -370,14 +426,14 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
             break;
         }
 
-        // Execute button
+        // Execute button (fixed, not scrollable)
         int btnY = guiTop + wH - 32;
         clickableButtons.add(new ClickableButton(guiLeft + MARGIN, btnY, 70, 20,
-                () -> UIText.of("ponderer.ui.function_page.execute"), this::doExecute));
+                () -> UIText.of("ponderer.ui.function_page.execute"), this::doExecute, false));
 
-        // Back button
+        // Back button (fixed, not scrollable)
         clickableButtons.add(new ClickableButton(guiLeft + WIDTH - MARGIN - 70, btnY, 70, 20,
-                () -> UIText.of("ponderer.ui.function_page.back"), this::goBack));
+                () -> UIText.of("ponderer.ui.function_page.back"), this::goBack, false));
     }
 
     // -- Scene selector --
@@ -466,8 +522,8 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
 
         // Background panel
         new BoxElement()
-                .withBackground(new Color(0xdd_000000, true))
-                .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+                .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
+                .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
                 .at(guiLeft, guiTop, 0)
                 .withBounds(WIDTH, wH)
                 .render(graphics);
@@ -476,10 +532,16 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
 
         // Title
         graphics.drawCenteredString(font, this.title, guiLeft + WIDTH / 2, guiTop + 8, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WIDTH - 5, guiTop + 21, 0x60_FFFFFF);
+        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WIDTH - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
 
-        // Field labels
-        int fieldY = guiTop + 30;
+        // Scrollable field labels
+        if (isScrollEnabled()) {
+            graphics.enableScissor(guiLeft, viewportTop(), guiLeft + WIDTH, viewportBottom());
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, -scrollOffset, 0);
+        }
+
+        int fieldY = guiTop + FORM_TOP_Y;
         for (FieldDef def : fieldDefs) {
             String labelKey;
             if (def instanceof TextFieldDef tf)
@@ -490,32 +552,64 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
                 labelKey = tg.labelKey;
             else
                 labelKey = "";
-            graphics.drawString(font, UIText.of(labelKey), guiLeft + MARGIN, fieldY + 5, 0xCCCCCC);
+            graphics.drawString(font, UIText.of(labelKey), guiLeft + MARGIN, fieldY + 5, UILayoutConstants.COLOR_LABEL);
             fieldY += ROW_H;
         }
 
-        // Error message
+        // Scrollable clickable buttons (choice cycle buttons in form area)
+        for (ClickableButton btn : clickableButtons) {
+            if (!btn.scrollable) continue;
+            renderClickableButton(graphics, btn, mouseX, mouseY + scrollOffset, font);
+        }
+
+        if (isScrollEnabled()) {
+            graphics.pose().popPose();
+            graphics.disableScissor();
+            renderScrollbar(graphics);
+        }
+
+        // Error message (fixed)
         if (errorMessage != null) {
             graphics.drawCenteredString(font, errorMessage, guiLeft + WIDTH / 2, guiTop + wH - 44, 0xFF6666);
         }
 
-        // Simi-style clickable buttons
+        // Fixed clickable buttons (execute/back)
         for (ClickableButton btn : clickableButtons) {
-            boolean hovered = mouseX >= btn.x && mouseX < btn.x + btn.w
-                    && mouseY >= btn.y && mouseY < btn.y + btn.h;
-            int bgColor = hovered ? 0x80_4466aa : 0x60_333366;
-            int borderColor = hovered ? 0xCC_6688cc : 0x60_555588;
-            graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h, bgColor);
-            graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + 1, borderColor);
-            graphics.fill(btn.x, btn.y + btn.h - 1, btn.x + btn.w, btn.y + btn.h, borderColor);
-            graphics.fill(btn.x, btn.y, btn.x + 1, btn.y + btn.h, borderColor);
-            graphics.fill(btn.x + btn.w - 1, btn.y, btn.x + btn.w, btn.y + btn.h, borderColor);
-            String label = btn.labelSupplier.get();
-            int textWidth = font.width(label);
-            int textX = btn.x + (btn.w - textWidth) / 2;
-            int textY = btn.y + (btn.h - font.lineHeight) / 2 + 1;
-            graphics.drawString(font, label, textX, textY, hovered ? 0xFFFFFF : 0xCCCCCC);
+            if (btn.scrollable) continue;
+            renderClickableButton(graphics, btn, mouseX, mouseY, font);
         }
+    }
+
+    private void renderClickableButton(GuiGraphics graphics, ClickableButton btn, int mouseX, int mouseY,
+            net.minecraft.client.gui.Font font) {
+        boolean hovered = mouseX >= btn.x && mouseX < btn.x + btn.w
+                && mouseY >= btn.y && mouseY < btn.y + btn.h;
+        int bgColor = hovered ? 0x80_4466aa : 0x60_333366;
+        int borderColor = hovered ? 0xCC_6688cc : 0x60_555588;
+        graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h, bgColor);
+        graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + 1, borderColor);
+        graphics.fill(btn.x, btn.y + btn.h - 1, btn.x + btn.w, btn.y + btn.h, borderColor);
+        graphics.fill(btn.x, btn.y, btn.x + 1, btn.y + btn.h, borderColor);
+        graphics.fill(btn.x + btn.w - 1, btn.y, btn.x + btn.w, btn.y + btn.h, borderColor);
+        String label = btn.labelSupplier.get();
+        int textWidth = font.width(label);
+        int textX = btn.x + (btn.w - textWidth) / 2;
+        int textY = btn.y + (btn.h - font.lineHeight) / 2 + 1;
+        graphics.drawString(font, label, textX, textY, hovered ? 0xFFFFFF : UILayoutConstants.COLOR_LABEL);
+    }
+
+    private void renderScrollbar(GuiGraphics graphics) {
+        if (maxScroll <= 0) return;
+        int barX = guiLeft + WIDTH - UILayoutConstants.SCROLLBAR_W - 2;
+        int vTop = viewportTop();
+        int vBot = viewportBottom();
+        int trackH = vBot - vTop;
+        graphics.fill(barX, vTop, barX + UILayoutConstants.SCROLLBAR_W, vBot, UILayoutConstants.COLOR_SCROLLBAR_BG);
+        int contentH = fieldDefs.size() * ROW_H;
+        if (contentH <= 0) return;
+        int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * trackH / contentH);
+        int thumbY = vTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
+        graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
     }
 
     @Override
@@ -525,6 +619,11 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
         graphics.pose().translate(0, 0, 500);
 
         var font = Minecraft.getInstance().font;
+
+        // Scissor form foreground when scrolling
+        if (isScrollEnabled()) {
+            graphics.enableScissor(guiLeft, viewportTop(), guiLeft + WIDTH, viewportBottom());
+        }
 
         // Unified toggle rendering
         for (var entry : toggleWidgets.entrySet()) {
@@ -539,6 +638,10 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
                     lb.button.getX() + 7, lb.button.getY() + 2, color);
         }
 
+        if (isScrollEnabled()) {
+            graphics.disableScissor();
+        }
+
         graphics.pose().popPose();
     }
 
@@ -548,14 +651,28 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
             for (ClickableButton btn : clickableButtons) {
+                double adjustedY = btn.scrollable ? mouseY + scrollOffset : mouseY;
                 if (mouseX >= btn.x && mouseX < btn.x + btn.w
-                        && mouseY >= btn.y && mouseY < btn.y + btn.h) {
+                        && adjustedY >= btn.y && adjustedY < btn.y + btn.h) {
                     btn.action.run();
                     return true;
                 }
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (isScrollEnabled()) {
+            int oldOffset = scrollOffset;
+            scrollOffset = Mth.clamp(scrollOffset - (int)(delta * UILayoutConstants.SCROLL_SPEED), 0, maxScroll);
+            if (scrollOffset != oldOffset) {
+                updateScrollPositions();
+                return true;
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override

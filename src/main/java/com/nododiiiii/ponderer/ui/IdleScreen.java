@@ -2,8 +2,6 @@ package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -29,22 +27,14 @@ public class IdleScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + FORM_TOP;
-        durationField = createSmallNumberField(x, y, 60, "20");
-        addLabelTooltip(guiLeft + 10, y + 3, UIText.of("ponderer.ui.duration"), UIText.of("ponderer.ui.duration.tooltip.idle"));
+        beginForm();
+        durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.duration.tooltip.idle", "20", 60, "ponderer.ui.ticks");
     }
 
     @Override
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         if (step.duration != null) durationField.setValue(String.valueOf(step.duration));
-    }
-
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        graphics.drawString(font, UIText.of("ponderer.ui.duration"), guiLeft + 10, guiTop + FORM_TOP + 3, 0xCCCCCC);
-        graphics.drawString(font, UIText.of("ponderer.ui.ticks"), guiLeft + 140, guiTop + FORM_TOP + 3, 0x808080);
     }
 
     @Override

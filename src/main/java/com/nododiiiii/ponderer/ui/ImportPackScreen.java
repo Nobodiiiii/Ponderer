@@ -26,6 +26,7 @@ public class ImportPackScreen extends AbstractSimiScreen {
     private static final int WINDOW_W = 280;
     private static final int WINDOW_H = 300;
     private static final int PACK_LIST_HEIGHT = 200;
+    private static final int ITEM_HEIGHT = UILayoutConstants.ROW_H;
 
     private List<PonderPackInfo> availablePacks;
     private int selectedIndex = -1;
@@ -109,8 +110,8 @@ public class ImportPackScreen extends AbstractSimiScreen {
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         // Background
         new BoxElement()
-                .withBackground(new Color(0xdd_000000, true))
-                .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+                .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
+                .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
                 .at(guiLeft, guiTop, 0)
                 .withBounds(WINDOW_W, WINDOW_H)
                 .render(graphics);
@@ -119,26 +120,29 @@ public class ImportPackScreen extends AbstractSimiScreen {
 
         // Header
         graphics.drawString(font, UIText.of("ponderer.ui.import"), guiLeft + 10, guiTop + 8, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WINDOW_W - 5, guiTop + 21, 0x60_FFFFFF);
+        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WINDOW_W - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
 
         // List header
-        graphics.drawString(font, UIText.of("ponderer.ui.import.available"), guiLeft + 10, guiTop + 30, 0xCCCCCC);
+        graphics.drawString(font, UIText.of("ponderer.ui.import.available"), guiLeft + 10, guiTop + 30, UILayoutConstants.COLOR_LABEL);
 
         // Pack list area background
-        graphics.fill(guiLeft + 10, guiTop + 48, guiLeft + WINDOW_W - 10, guiTop + 48 + PACK_LIST_HEIGHT, 0x40_000000);
+        int listAreaX = guiLeft + 10;
+        int listAreaRight = guiLeft + WINDOW_W - 10;
+        int listAreaTop = guiTop + 48;
+        graphics.fill(listAreaX, listAreaTop, listAreaRight, listAreaTop + PACK_LIST_HEIGHT, 0x40_000000);
 
-        // Render pack list
+        // Render pack list with scissor
         int listY = guiTop + 50;
-        int itemHeight = 22;
-        int visibleCount = PACK_LIST_HEIGHT / itemHeight;
+        int visibleCount = PACK_LIST_HEIGHT / ITEM_HEIGHT;
+        graphics.enableScissor(listAreaX, listAreaTop, listAreaRight, listAreaTop + PACK_LIST_HEIGHT);
 
         for (int i = scrollOffset; i < Math.min(scrollOffset + visibleCount, availablePacks.size()); i++) {
             PonderPackInfo pack = availablePacks.get(i);
-            int y = listY + (i - scrollOffset) * itemHeight;
+            int y = listY + (i - scrollOffset) * ITEM_HEIGHT;
 
             // Highlight selected
             if (i == selectedIndex) {
-                graphics.fill(guiLeft + 11, y, guiLeft + WINDOW_W - 11, y + itemHeight - 2, 0x60_4080FF);
+                graphics.fill(guiLeft + 11, y, guiLeft + WINDOW_W - 11, y + ITEM_HEIGHT - 2, 0x60_4080FF);
             }
 
             // Pack info
@@ -148,6 +152,20 @@ public class ImportPackScreen extends AbstractSimiScreen {
             if (!pack.author.isEmpty()) {
                 graphics.drawString(font, "by " + pack.author, guiLeft + 15, y + 12, 0xAAAAAA);
             }
+        }
+
+        graphics.disableScissor();
+
+        // Scrollbar for pack list
+        int maxScroll = Math.max(0, availablePacks.size() - visibleCount);
+        if (maxScroll > 0) {
+            int trackX = listAreaRight - UILayoutConstants.SCROLLBAR_W - 1;
+            int trackTop = listAreaTop;
+            int trackH = PACK_LIST_HEIGHT;
+            graphics.fill(trackX, trackTop, trackX + UILayoutConstants.SCROLLBAR_W, trackTop + trackH, UILayoutConstants.COLOR_SCROLLBAR_BG);
+            int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * visibleCount / availablePacks.size());
+            int thumbY = trackTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
+            graphics.fill(trackX, thumbY, trackX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
         }
     }
 
@@ -168,12 +186,13 @@ public class ImportPackScreen extends AbstractSimiScreen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         // Check if scrolling within the pack list area
-        int listStartY = guiTop + 50;
-        int listEndY = guiTop + 50 + PACK_LIST_HEIGHT;
+        int listStartY = guiTop + 48;
+        int listEndY = listStartY + PACK_LIST_HEIGHT;
 
         if (mouseX >= guiLeft + 10 && mouseX <= guiLeft + WINDOW_W - 10 &&
                 mouseY >= listStartY && mouseY <= listEndY) {
-            int maxScroll = Math.max(0, availablePacks.size() - (PACK_LIST_HEIGHT / 22));
+            int visibleCount = PACK_LIST_HEIGHT / ITEM_HEIGHT;
+            int maxScroll = Math.max(0, availablePacks.size() - visibleCount);
             int newOffset = (int) (scrollOffset - delta);
             scrollOffset = Math.max(0, Math.min(newOffset, maxScroll));
             return true;
@@ -191,8 +210,7 @@ public class ImportPackScreen extends AbstractSimiScreen {
             if (mouseX >= guiLeft + 10 && mouseX <= guiLeft + WINDOW_W - 10 &&
                     mouseY >= listStartY && mouseY <= listEndY) {
 
-                int itemHeight = 22;
-                int clickedIndex = (int) ((mouseY - listStartY) / itemHeight) + scrollOffset;
+                int clickedIndex = (int) ((mouseY - listStartY) / ITEM_HEIGHT) + scrollOffset;
                 if (clickedIndex >= 0 && clickedIndex < availablePacks.size()) {
                     selectedIndex = clickedIndex;
                     return true;

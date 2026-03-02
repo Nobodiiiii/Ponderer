@@ -4,8 +4,6 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -46,31 +44,18 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        blockField = createTextField(x, y, 124, 18, UIText.of("ponderer.ui.set_block.hint"));
-        jeiBtn = createJeiButton(x + 129, y, blockField, IdFieldMode.BLOCK);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.set_block"), UIText.of("ponderer.ui.set_block.tooltip"));
-        y += 22;
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.block_properties"), UIText.of("ponderer.ui.block_properties.tooltip"));
-        y = buildBlockPropsUI(x, y);
-        posXField = createSmallNumberField(x, y, sw, "X");
-        posYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        posZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn1 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS1);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.set_block.pos_from"), UIText.of("ponderer.ui.set_block.pos_from.tooltip"));
-        y += 22;
-        pos2XField = createSmallNumberField(x, y, sw, "X");
-        pos2YField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        pos2ZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn2 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS2);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.set_block.pos_to"), UIText.of("ponderer.ui.set_block.pos_to.tooltip"));
-        y += 22;
-        particlesToggle = createToggle(x, y);
-        particlesToggle.withCallback(() -> spawnParticles = !spawnParticles);
-        addRenderableWidget(particlesToggle);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.set_block.particles"), UIText.of("ponderer.ui.set_block.particles.tooltip"));
+        beginForm();
+        var blk = addFormTextFieldWithJei("ponderer.ui.set_block", "ponderer.ui.set_block.tooltip",
+                UIText.of("ponderer.ui.set_block.hint"), IdFieldMode.BLOCK);
+        blockField = blk.field();
+        jeiBtn = blk.jeiBtn();
+        addFormBlockProps("ponderer.ui.block_properties", "ponderer.ui.block_properties.tooltip");
+        var from = addFormXyzRow("ponderer.ui.set_block.pos_from", "ponderer.ui.set_block.pos_from.tooltip", PickState.TargetField.POS1);
+        posXField = from.x(); posYField = from.y(); posZField = from.z(); pickBtn1 = from.pickBtn();
+        var to = addFormXyzRow("ponderer.ui.set_block.pos_to", "ponderer.ui.set_block.pos_to.tooltip", PickState.TargetField.POS2);
+        pos2XField = to.x(); pos2YField = to.y(); pos2ZField = to.z(); pickBtn2 = to.pickBtn();
+        particlesToggle = addFormToggle("ponderer.ui.set_block.particles", "ponderer.ui.set_block.particles.tooltip",
+                () -> spawnParticles, () -> spawnParticles = !spawnParticles);
     }
 
     @Override
@@ -92,30 +77,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
         }
     }
 
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
 
-        graphics.drawString(font, UIText.of("ponderer.ui.set_block"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.block_properties"), lx, y, lc);
-        y += blockPropRowCount() * 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.set_block.pos_from"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.set_block.pos_to"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.set_block.particles"), lx, y + 3, lc);
-    }
-
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderToggleState(graphics, particlesToggle, spawnParticles);
-        renderPickButtonLabel(graphics, pickBtn1);
-        renderPickButtonLabel(graphics, pickBtn2);
-        renderJeiButtonLabel(graphics, jeiBtn);
-        renderBlockPropsForeground(graphics);
-    }
 
     @Override
     protected String getStepType() { return "set_block"; }

@@ -4,8 +4,6 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -51,36 +49,16 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        // Row 1: ID field (optional) + JEI button
-        idField = createTextField(x, y, 124, 18, UIText.of("ponderer.ui." + stepType + ".id.hint"));
-        jeiBtn = createJeiButton(x + 129, y, idField, jeiMode);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".id"), UIText.of("ponderer.ui." + stepType + ".id.tooltip"));
-        y += 22;
-
-        // Row 2: From position
-        posXField = createSmallNumberField(x, y, sw, "X");
-        posYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        posZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn1 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS1);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".pos_from"), UIText.of("ponderer.ui." + stepType + ".pos_from.tooltip"));
-        y += 22;
-
-        // Row 3: To position
-        pos2XField = createSmallNumberField(x, y, sw, "X");
-        pos2YField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        pos2ZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn2 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS2);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".pos_to"), UIText.of("ponderer.ui." + stepType + ".pos_to.tooltip"));
-        y += 22;
-
-        // Row 4: Full scene toggle
-        fullSceneToggle = createToggle(x, y);
-        fullSceneToggle.withCallback(() -> fullScene = !fullScene);
-        addRenderableWidget(fullSceneToggle);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".full_scene"), UIText.of("ponderer.ui." + stepType + ".full_scene.tooltip"));
+        beginForm();
+        var jei = addFormTextFieldWithJei("ponderer.ui." + stepType + ".id", "ponderer.ui." + stepType + ".id.tooltip",
+                UIText.of("ponderer.ui." + stepType + ".id.hint"), jeiMode);
+        idField = jei.field(); jeiBtn = jei.jeiBtn();
+        var pos1 = addFormXyzRow("ponderer.ui." + stepType + ".pos_from", "ponderer.ui." + stepType + ".pos_from.tooltip", PickState.TargetField.POS1);
+        posXField = pos1.x(); posYField = pos1.y(); posZField = pos1.z(); pickBtn1 = pos1.pickBtn();
+        var pos2 = addFormXyzRow("ponderer.ui." + stepType + ".pos_to", "ponderer.ui." + stepType + ".pos_to.tooltip", PickState.TargetField.POS2);
+        pos2XField = pos2.x(); pos2YField = pos2.y(); pos2ZField = pos2.z(); pickBtn2 = pos2.pickBtn();
+        fullSceneToggle = addFormToggle("ponderer.ui." + stepType + ".full_scene", "ponderer.ui." + stepType + ".full_scene.tooltip",
+                () -> fullScene, () -> fullScene = !fullScene);
     }
 
     @Override
@@ -99,28 +77,6 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
             pos2ZField.setValue(String.valueOf(step.blockPos2.get(2)));
         }
         if (step.fullScene != null) fullScene = step.fullScene;
-    }
-
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
-
-        graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".id"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".pos_from"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".pos_to"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".full_scene"), lx, y + 3, lc);
-    }
-
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderToggleState(graphics, fullSceneToggle, fullScene);
-        renderPickButtonLabel(graphics, pickBtn1);
-        renderPickButtonLabel(graphics, pickBtn2);
-        renderJeiButtonLabel(graphics, jeiBtn);
     }
 
     @Override

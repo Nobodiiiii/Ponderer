@@ -41,6 +41,9 @@ public class FunctionScreen extends NavigatableSimiScreen {
     private final List<Section> sections = new ArrayList<>();
     private final List<ClickableButton> clickableButtons = new ArrayList<>();
 
+    private int scrollOffset = 0;
+    private int maxScroll = 0;
+
     public FunctionScreen() {
         // -- Scene Management --
         sections.add(new Section("ponderer.ui.function_page.scene_management", List.of(
@@ -414,9 +417,13 @@ public class FunctionScreen extends NavigatableSimiScreen {
         super.init();
         clickableButtons.clear();
 
-        int wH = getWindowHeight();
+        int contentH = getWindowHeight();
+        int displayH = Math.min(contentH, height - UILayoutConstants.SCREEN_MARGIN * 2);
+        maxScroll = Math.max(0, contentH - displayH);
+        scrollOffset = Math.min(scrollOffset, maxScroll);
+
         int gLeft = (width - WINDOW_W) / 2;
-        int gTop = (height - wH) / 2;
+        int gTop = (height - displayH) / 2;
         int y = gTop + 28;
 
         for (Section section : sections) {
@@ -447,15 +454,16 @@ public class FunctionScreen extends NavigatableSimiScreen {
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.renderWindow(graphics, mouseX, mouseY, partialTicks);
 
-        int wH = getWindowHeight();
+        int contentH = getWindowHeight();
+        int displayH = Math.min(contentH, height - UILayoutConstants.SCREEN_MARGIN * 2);
         int gLeft = (width - WINDOW_W) / 2;
-        int gTop = (height - wH) / 2;
+        int gTop = (height - displayH) / 2;
 
         new BoxElement()
-            .withBackground(new Color(0xdd_000000, true))
-            .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+            .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
+            .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
             .at(gLeft, gTop, 0)
-            .withBounds(WINDOW_W, wH)
+            .withBounds(WINDOW_W, displayH)
             .render(graphics);
 
         var font = Minecraft.getInstance().font;
@@ -463,7 +471,17 @@ public class FunctionScreen extends NavigatableSimiScreen {
         graphics.drawCenteredString(font,
             Component.translatable("ponderer.ui.function_page.title"),
             gLeft + WINDOW_W / 2, gTop + 8, 0xFFFFFF);
-        graphics.fill(gLeft + 5, gTop + 20, gLeft + WINDOW_W - 5, gTop + 21, 0x60_FFFFFF);
+        graphics.fill(gLeft + 5, gTop + 20, gLeft + WINDOW_W - 5, gTop + 21, UILayoutConstants.COLOR_SEPARATOR);
+
+        int scrollAreaTop = gTop + 22;
+        int scrollAreaBottom = gTop + displayH;
+        if (maxScroll > 0) {
+            graphics.enableScissor(gLeft, scrollAreaTop, gLeft + WINDOW_W, scrollAreaBottom);
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, -scrollOffset, 0);
+        }
+        int adjustedMouseY = mouseY + scrollOffset;
+        boolean inViewport = maxScroll <= 0 || (mouseY >= scrollAreaTop && mouseY < scrollAreaBottom);
 
         int y = gTop + 28;
         for (Section section : sections) {
@@ -475,8 +493,8 @@ public class FunctionScreen extends NavigatableSimiScreen {
             int col = 0;
             for (ButtonDef def : section.buttons) {
                 int bx = gLeft + MARGIN_LEFT + col * (BTN_W + BTN_GAP);
-                boolean hovered = mouseX >= bx && mouseX < bx + BTN_W
-                    && mouseY >= y && mouseY < y + BTN_H;
+                boolean hovered = inViewport && mouseX >= bx && mouseX < bx + BTN_W
+                    && adjustedMouseY >= y && adjustedMouseY < y + BTN_H;
 
                 int bgColor = hovered ? 0x80_4466aa : 0x60_333366;
                 int borderColor = hovered ? 0xCC_6688cc : 0x60_555588;
@@ -490,7 +508,7 @@ public class FunctionScreen extends NavigatableSimiScreen {
                 int textWidth = font.width(label);
                 int textX = bx + (BTN_W - textWidth) / 2;
                 int textY = y + (BTN_H - font.lineHeight) / 2 + 1;
-                graphics.drawString(font, label, textX, textY, hovered ? 0xFFFFFF : 0xCCCCCC);
+                graphics.drawString(font, label, textX, textY, hovered ? 0xFFFFFF : UILayoutConstants.COLOR_LABEL);
 
                 col++;
                 if (col >= COLS) {
@@ -503,14 +521,21 @@ public class FunctionScreen extends NavigatableSimiScreen {
             }
             y += SECTION_GAP;
         }
+
+        if (maxScroll > 0) {
+            graphics.pose().popPose();
+            graphics.disableScissor();
+            renderScrollbar(graphics, gLeft, scrollAreaTop, scrollAreaBottom);
+        }
     }
 
     @Override
     protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         var font = Minecraft.getInstance().font;
+        int adjMouseY = mouseY + scrollOffset;
         for (ClickableButton btn : clickableButtons) {
             if (btn.tooltipKey != null && mouseX >= btn.x && mouseX < btn.x + btn.w
-                && mouseY >= btn.y && mouseY < btn.y + btn.h) {
+                && adjMouseY >= btn.y && adjMouseY < btn.y + btn.h) {
                 graphics.pose().pushPose();
                 graphics.pose().translate(0, 0, 600);
                 graphics.renderComponentTooltip(font,
@@ -523,11 +548,21 @@ public class FunctionScreen extends NavigatableSimiScreen {
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (maxScroll > 0) {
+            scrollOffset = (int) Math.max(0, Math.min(maxScroll, scrollOffset - delta * UILayoutConstants.SCROLL_SPEED));
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
+            double adjY = mouseY + scrollOffset;
             for (ClickableButton btn : clickableButtons) {
                 if (mouseX >= btn.x && mouseX < btn.x + btn.w
-                    && mouseY >= btn.y && mouseY < btn.y + btn.h) {
+                    && adjY >= btn.y && adjY < btn.y + btn.h) {
                     btn.action.run();
                     return true;
                 }
@@ -544,6 +579,17 @@ public class FunctionScreen extends NavigatableSimiScreen {
     @Override
     public boolean isPauseScreen() {
         return true;
+    }
+
+    private void renderScrollbar(GuiGraphics graphics, int gLeft, int scrollAreaTop, int scrollAreaBottom) {
+        int barX = gLeft + WINDOW_W - UILayoutConstants.SCROLLBAR_W - 2;
+        int trackH = scrollAreaBottom - scrollAreaTop;
+        graphics.fill(barX, scrollAreaTop, barX + UILayoutConstants.SCROLLBAR_W, scrollAreaBottom, UILayoutConstants.COLOR_SCROLLBAR_BG);
+        int contentH = getWindowHeight() - 28;
+        if (contentH <= 0) return;
+        int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * trackH / contentH);
+        int thumbY = scrollAreaTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
+        graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
     }
 
     private record ClickableButton(int x, int y, int w, int h, String labelKey, Runnable action, String tooltipKey) {}

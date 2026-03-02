@@ -204,8 +204,8 @@ public class SceneEditorScreen extends AbstractSimiScreen {
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         // Background
         new BoxElement()
-                .withBackground(new Color(0xdd_000000, true))
-                .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+                .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
+                .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
                 .at(guiLeft, guiTop, 0)
                 .withBounds(WINDOW_W, WINDOW_H)
                 .render(graphics);
@@ -247,7 +247,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
 
         // Separator
         int separatorY = sceneCount > 1 ? guiTop + 30 : guiTop + 20;
-        graphics.fill(guiLeft + 5, separatorY, guiLeft + WINDOW_W - 5, separatorY + 1, 0x60_FFFFFF);
+        graphics.fill(guiLeft + 5, separatorY, guiLeft + WINDOW_W - 5, separatorY + 1, UILayoutConstants.COLOR_SEPARATOR);
 
         // Steps list
         List<DslScene.DslStep> steps = getSteps();
@@ -296,11 +296,21 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             }
         }
 
-        // Scroll indicator (right-aligned on the redo hint line)
+        // Scroll indicator + scrollbar
         if (steps.size() > maxVisible()) {
             String hint = "(" + (scrollOffset + 1) + "-"
                     + Math.min(scrollOffset + maxVisible(), steps.size()) + " / " + steps.size() + ")";
             graphics.drawString(font, hint, guiLeft + WINDOW_W - 10 - font.width(hint), guiTop + WINDOW_H - 20, 0x808080);
+
+            // Scrollbar beside the step list
+            int trackX = guiLeft + WINDOW_W - UILayoutConstants.SCROLLBAR_W - 3;
+            int trackTop = lt;
+            int trackH = maxVisible() * STEP_ROW_HEIGHT;
+            graphics.fill(trackX, trackTop, trackX + UILayoutConstants.SCROLLBAR_W, trackTop + trackH, UILayoutConstants.COLOR_SCROLLBAR_BG);
+            int maxOff = steps.size() - maxVisible();
+            int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * maxVisible() / steps.size());
+            int thumbY = trackTop + (maxOff > 0 ? (int) ((float) scrollOffset / maxOff * (trackH - thumbH)) : 0);
+            graphics.fill(trackX, thumbY, trackX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
         }
 
         // Footer hint (undo/redo always shown)

@@ -3,8 +3,6 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -37,19 +35,12 @@ public class IndicateEffectScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        posXField = createSmallNumberField(x, y, sw, "X");
-        posYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        posZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn1 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS1);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".pos"), UIText.of("ponderer.ui." + stepType + ".pos.tooltip"));
-    }
-
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderPickButtonLabel(graphics, pickBtn1);
+        beginForm();
+        var xyz = addFormXyzRow("ponderer.ui." + stepType + ".pos", "ponderer.ui." + stepType + ".pos.tooltip", PickState.TargetField.POS1);
+        posXField = xyz.x();
+        posYField = xyz.y();
+        posZField = xyz.z();
+        pickBtn1 = xyz.pickBtn();
     }
 
     @Override
@@ -60,12 +51,6 @@ public class IndicateEffectScreen extends AbstractStepEditorScreen {
             posYField.setValue(String.valueOf(step.blockPos.get(1)));
             posZField.setValue(String.valueOf(step.blockPos.get(2)));
         }
-    }
-
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".pos"), guiLeft + 10, guiTop + 29, 0xCCCCCC);
     }
 
     @Override

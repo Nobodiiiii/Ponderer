@@ -6,7 +6,6 @@ import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -59,35 +58,25 @@ public class TextStepScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        // Text field (narrower to make room for lang button)
-        textField = createTextField(x, y, 108, 18, UIText.of("ponderer.ui.text.hint"));
-        // Lang toggle button right of text field
-        langButton = createFormButton(x + 112, y, 28);
-        langButton.withCallback(this::toggleLang);
-        addRenderableWidget(langButton);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.text"), UIText.of("ponderer.ui.text.tooltip"));
-        y += 22;
-        pointXField = createSmallNumberField(x, y, sw, "X");
-        pointYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        pointZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtnPoint = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POINT, true);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.point"), UIText.of("ponderer.ui.point.tooltip"));
-        y += 22;
-        durationField = createSmallNumberField(x, y, 50, "60");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.duration"), UIText.of("ponderer.ui.duration.tooltip.text"));
-        y += 22;
-        colorButton = createFormButton(x, y, 100);
-        colorButton.withCallback(() -> { colorIndex = (colorIndex + 1) % COLORS.length; });
-        addRenderableWidget(colorButton);
-        addLabelTooltip(lx, y + 1, UIText.of("ponderer.ui.color"), UIText.of("ponderer.ui.color.tooltip"));
-        y += 22;
-        placeToggle = createToggle(x, y);
-        placeToggle.withCallback(() -> placeNearTarget = !placeNearTarget);
-        addRenderableWidget(placeToggle);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.place_near"), UIText.of("ponderer.ui.place_near.tooltip"));
+        beginForm();
+        // Row 1: text field + lang toggle button
+        var langField = addFormTextFieldWithLang("ponderer.ui.text", "ponderer.ui.text.tooltip",
+                UIText.of("ponderer.ui.text.hint"), 104, () -> editingLang, this::toggleLang);
+        textField = langField.field();
+        langButton = langField.langBtn();
+        // Row 2: point XYZ + pick
+        var pos = addFormXyzRow("ponderer.ui.point", "ponderer.ui.point.tooltip", PickState.TargetField.POINT, true);
+        pointXField = pos.x(); pointYField = pos.y(); pointZField = pos.z(); pickBtnPoint = pos.pickBtn();
+        // Row 3: duration
+        durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.duration.tooltip.text", "60", 50, "ponderer.ui.ticks");
+        // Row 4: color cycle button
+        colorButton = addFormCycleButton("ponderer.ui.color", "ponderer.ui.color.tooltip", 100,
+                () -> colorIndex = (colorIndex + 1) % COLORS.length,
+                () -> colorIndex == 0 ? UIText.of("ponderer.ui.none") : colorLabel(COLORS[colorIndex]),
+                () -> colorIndex == 0 ? 0xFFFFFF : getPaletteColor(COLORS[colorIndex]));
+        // Row 5: place near toggle
+        placeToggle = addFormToggle("ponderer.ui.place_near", "ponderer.ui.place_near.tooltip",
+                () -> placeNearTarget, () -> placeNearTarget = !placeNearTarget);
     }
 
     @Override
@@ -110,39 +99,6 @@ public class TextStepScreen extends AbstractStepEditorScreen {
             }
         }
         placeNearTarget = Boolean.TRUE.equals(step.placeNearTarget);
-    }
-
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
-
-        graphics.drawString(font, UIText.of("ponderer.ui.text"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.point"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.duration"), lx, y, lc);
-        graphics.drawString(font, UIText.of("ponderer.ui.ticks"), guiLeft + 130, y, 0x808080);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.color"), lx, y + 1, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.place_near"), lx, y + 3, lc);
-    }
-
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        // Lang button label
-        String langLabel = editingLang.length() > 5 ? editingLang.substring(0, 5) : editingLang;
-        graphics.drawCenteredString(font, langLabel, langButton.getX() + 14, langButton.getY() + 2, 0xAAFFAA);
-        // Color button label
-        String colorLabel = colorIndex == 0 ? UIText.of("ponderer.ui.none") : colorLabel(COLORS[colorIndex]);
-        int colorRgb = colorIndex == 0 ? 0xFFFFFF : getPaletteColor(COLORS[colorIndex]);
-        graphics.drawCenteredString(font, colorLabel, colorButton.getX() + 50, colorButton.getY() + 2, colorRgb);
-        // Place near toggle
-        renderToggleState(graphics, placeToggle, placeNearTarget);
-        // Pick button label
-        renderPickButtonLabel(graphics, pickBtnPoint);
     }
 
     private String colorLabel(String value) {
