@@ -1,5 +1,5 @@
 # Sets default memory used for gradle commands. Can be overridden by user or command line properties.
-org.gradle.jvmargs=-Xmx3G
+org.gradle.jvmargs=-Xmx2G
 org.gradle.daemon=true
 org.gradle.parallel=true
 org.gradle.caching=true
@@ -14,17 +14,11 @@ parchment_version=2023.09.03
 use_parchment=true
 librarian_version=1.+
 
-## Fabric
-loom_version=1.7.+
-fabric_version=0.92.3+1.20.1
-fabric_loader_version=0.16.9
-forgeconfigapiport_version=8.0.0
-
 ## Mod Properties
 mod_id=ponderer
 mod_name=Ponderer
 mod_license=MIT
-mod_version=1.6.0
+mod_version=1.5.2.4
 mod_group_id=com.nododiiiii
 mod_authors=Nobodiiiii
 mod_description=In-game visual scene editor for Ponder content: build, edit, sync, and export tutorials directly from gameplay.
