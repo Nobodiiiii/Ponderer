@@ -42,9 +42,9 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
     private static int cachedStructureIndex = 0;
     private static String cachedCarrier = "";
     private static String cachedPrompt = "";
-    private static final List<String> cachedUrlValues = new ArrayList<>();
-    private static boolean cachedBuildTutorial = true;
-    private static boolean cachedIncludeImages = true;
+    private static final ReferenceUrlManager referenceUrlManager = new ReferenceUrlManager();
+    private static boolean cachedBuildTutorial = false;
+    private static boolean cachedIncludeImages = false;
     // Adjustment mode removed for now — each generation is a fresh request
     @Nullable private static String cachedStatusMessage = null;
     private static int cachedStatusColor = 0xCCCCCC;
@@ -70,7 +70,7 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
     private static final int LABEL_H = 12;  // height reserved for a label line above a field
 
     private int getWindowHeight() {
-        int urlCount = cachedUrlValues.size();
+        int urlCount = referenceUrlManager.getUrlValues().size();
         return 30 + PREVIEW_H + 6 + ROW_H + 6     // title + preview + struct buttons
             + FIELD_H + 6                             // carrier (inline label, no separate label row)
             + LABEL_H + FIELD_H + 4                   // prompt label + field
@@ -85,8 +85,9 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
         if (carrierField != null) cachedCarrier = carrierField.getValue();
         if (promptField != null) cachedPrompt = promptField.getValue();
         // Sync URL fields
-        for (int i = 0; i < urlFields.size() && i < cachedUrlValues.size(); i++) {
-            cachedUrlValues.set(i, urlFields.get(i).getValue());
+        List<String> urlValues = referenceUrlManager.getUrlValues();
+        for (int i = 0; i < urlFields.size() && i < urlValues.size(); i++) {
+            referenceUrlManager.updateUrl(i, urlFields.get(i).getValue());
         }
     }
 
@@ -164,14 +165,38 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
 
         // -- Reference URLs (starts empty, fully optional) --
         y += LABEL_H;  // space for "Reference URLs" label
-        for (int i = 0; i < cachedUrlValues.size(); i++) {
+        List<String> urlValues = referenceUrlManager.getUrlValues();
+        List<Boolean> urlAutoAdded = referenceUrlManager.getUrlAutoAdded();
+        for (int i = 0; i < urlValues.size(); i++) {
+            String url = urlValues.get(i);
+            boolean isAutoAdded = i < urlAutoAdded.size() && urlAutoAdded.get(i);
+            boolean isMcmodUrl = isMcModUrl(url);
+
             int urlFieldW = fieldW - 20;
-            HintableTextFieldWidget urlField = new SoftHintTextFieldWidget(font, fieldX, y, urlFieldW, FIELD_H);
-            urlField.setHint(UIText.of("ponderer.ui.ai_generate.url.hint"));
-            urlField.setMaxLength(512);
-            urlField.setValue(cachedUrlValues.get(i));
-            addRenderableWidget(urlField);
-            urlFields.add(urlField);
+            if (isMcmodUrl)
+                urlFieldW -= 40; // Extra space for MCMod label
+
+            if (isAutoAdded) {
+                // Use CustomBackgroundTextFieldWidget for auto-added URLs to support custom
+                // background color
+                CustomBackgroundTextFieldWidget urlField = new CustomBackgroundTextFieldWidget(font, fieldX, y,
+                        urlFieldW, FIELD_H);
+                urlField.setHint(UIText.of("ponderer.ui.ai_generate.url.hint"));
+                urlField.setMaxLength(512);
+                urlField.setValue(url);
+                urlField.setEditable(false); // Make auto-added URLs non-editable
+                urlField.setBackgroundColor(0xFF_333333); // Darker background for auto-added URLs
+                addRenderableWidget(urlField);
+                urlFields.add(urlField);
+            } else {
+                // Use regular SoftHintTextFieldWidget for manually added URLs
+                SoftHintTextFieldWidget urlField = new SoftHintTextFieldWidget(font, fieldX, y, urlFieldW, FIELD_H);
+                urlField.setHint(UIText.of("ponderer.ui.ai_generate.url.hint"));
+                urlField.setMaxLength(512);
+                urlField.setValue(url);
+                addRenderableWidget(urlField);
+                urlFields.add(urlField);
+            }
 
             // Remove button
             int rmBtnX = fieldX + urlFieldW + 4;
@@ -179,6 +204,7 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
             PonderButton rmBtn = new PonderButton(rmBtnX, y + 2, 14, 12);
             rmBtn.withCallback(() -> removeUrl(idx));
             addRenderableWidget(rmBtn);
+
             y += ROW_H;
         }
 
@@ -303,15 +329,13 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
 
     private void addUrl() {
         syncToCache();
-        cachedUrlValues.add("");
+        referenceUrlManager.addManualUrl("");
         init(minecraft, width, height);
     }
 
     private void removeUrl(int index) {
         syncToCache();
-        if (index >= 0 && index < cachedUrlValues.size()) {
-            cachedUrlValues.remove(index);
-        }
+        referenceUrlManager.removeUrl(index);
         init(minecraft, width, height);
     }
 
@@ -352,7 +376,7 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
         }
 
         List<String> urls = new ArrayList<>();
-        for (String u : cachedUrlValues) {
+        for (String u : referenceUrlManager.getUrlValues()) {
             if (u != null && !u.isBlank()) urls.add(u.trim());
         }
 
@@ -475,7 +499,22 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
             guiLeft + MARGIN, y, 0xCCCCCC);
         y += LABEL_H;  // label height
 
-        y += cachedUrlValues.size() * ROW_H + ROW_H + 4;
+        // Render MCMod labels for generated URLs
+        int fieldX = guiLeft + MARGIN;
+        int fieldW = WIDTH - MARGIN * 2;
+        List<String> urlValues = referenceUrlManager.getUrlValues();
+        for (int i = 0; i < urlValues.size(); i++) {
+            String url = urlValues.get(i);
+            if (isMcModUrl(url)) {
+                int urlFieldW = fieldW - 20 - 40; // Extra space for MCMod label
+                int rmBtnX = fieldX + urlFieldW + 4;
+                int labelX = rmBtnX + 14 + 4;
+                graphics.drawString(font, UIText.of("ponderer.ui.ai_generate.url.mcmod"), labelX, y + 4, 0xAAAAFF);
+            }
+            y += ROW_H;
+        }
+
+        y += ROW_H + 4;
 
         // -- Toggle options (rendered via clickableButtons) --
         y += ROW_H + 4;
@@ -507,6 +546,10 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
             graphics.drawString(font, btn.label, textX, textY,
                 isGenerating ? 0x888888 : (hovered ? 0xFFFFFF : 0xCCCCCC));
         }
+    }
+
+    private boolean isMcModUrl(String url) {
+        return url.startsWith("https://www.mcmod.cn/item/");
     }
 
     @Override
@@ -618,6 +661,53 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
     public void showJeiIncompatibleWarning(IdFieldMode mode) {
         cachedStatusMessage = UIText.of("ponderer.ui.jei.error.not_block");
         cachedStatusColor = 0xFF6666;
+    }
+
+    /**
+     * Add an automatically generated URL to the reference URLs list.
+     * This method is used for URLs that are automatically fetched by the mod,
+     * such as MCMod encyclopedia links for items selected via JEI.
+     * Automatically added URLs are marked as non-editable.
+     * 
+     * @param url    The URL to add
+     * @param itemId The item identifier (registry name) associated with this URL
+     */
+    public void addAutoUrl(String url, String itemId) {
+        syncToCache();
+        // Add auto-added URL using ReferenceUrlManager
+        referenceUrlManager.addUrl(url, itemId, true);
+        // Reinitialize screen to reflect changes
+        init(minecraft, width, height);
+    }
+
+    /**
+     * Remove all auto-added URLs for the current item.
+     */
+    public void removeAutoUrlsForItem() {
+        referenceUrlManager.removeAutoUrlsForItem();
+    }
+
+    /**
+     * Update auto-added URL for the given item.
+     * This is a convenience method that handles the entire process of updating
+     * auto-added URLs, including syncing, removing old URLs, and reinitializing the
+     * screen.
+     * 
+     * @param url    The new URL to add, or null to remove existing auto-added URLs
+     * @param itemId The item identifier (registry name) associated with this URL
+     */
+    public void updateAutoUrl(@Nullable String url, String itemId) {
+        syncToCache();
+
+        if (url != null) {
+            // Add new auto-added URL
+            addAutoUrl(url, itemId);
+        } else {
+            // Remove existing auto-added URLs
+            removeAutoUrlsForItem();
+            // Reinitialize screen to reflect changes
+            init(minecraft, width, height);
+        }
     }
 
     @Override public int getGuiLeft() { return guiLeft; }
