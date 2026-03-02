@@ -21,6 +21,8 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
+
+import java.util.List;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -44,7 +46,8 @@ public abstract class PonderUIMixin extends Screen {
         }
 
         // Check if this scene has a matching DslScene
-        var match = SceneRuntime.findBySceneId(active.getId());
+        int occurrence = ponderer$computeOccurrenceIndex(self, active);
+        var match = SceneRuntime.findBySceneId(active.getId(), occurrence);
         if (match == null) {
             return;
         }
@@ -56,11 +59,13 @@ public abstract class PonderUIMixin extends Screen {
         int bY = this.height - 20 - 31;
 
         PonderButton editButton = new PonderButton(this.width - 80 - 31, bY)
-            .showing(new ItemStack(Items.WRITABLE_BOOK))
-            .enableFade(0, 5);
+                .showing(new ItemStack(Items.WRITABLE_BOOK))
+                .enableFade(0, 5);
         editButton.withCallback(() -> {
-            PonderScene current = ((PonderUI) (Object) this).getActiveScene();
-            var result = SceneRuntime.findBySceneId(current.getId());
+            PonderUI current = (PonderUI) (Object) this;
+            PonderScene currentScene = current.getActiveScene();
+            int occ = ponderer$computeOccurrenceIndex(current, currentScene);
+            var result = SceneRuntime.findBySceneId(currentScene.getId(), occ);
             if (result != null) {
                 Minecraft.getInstance().setScreen(new SceneEditorScreen(result.scene(), result.sceneIndex()));
             }
@@ -70,26 +75,49 @@ public abstract class PonderUIMixin extends Screen {
     }
 
     private static boolean canEdit(Player player) {
-        if (player == null) return false;
-        if (player.isCreative()) return true;
+        if (player == null)
+            return false;
+        if (player.isCreative())
+            return true;
         for (ItemStack stack : player.getInventory().items) {
-            if (BlueprintFeature.matchesCarrierStack(stack)) return true;
+            if (BlueprintFeature.matchesCarrierStack(stack))
+                return true;
         }
         return false;
+    }
+
+    /**
+     * Compute the 0-based occurrence index of the given PonderScene among all scenes
+     * with the same ID in the PonderUI's scene list.
+     * This is used to disambiguate when multiple packs register scenes with the same ID.
+     */
+    private static int ponderer$computeOccurrenceIndex(PonderUI ui, PonderScene target) {
+        PonderUIAccessor accessor = (PonderUIAccessor) (Object) ui;
+        List<PonderScene> allScenes = accessor.ponderer$getScenes();
+        net.minecraft.resources.ResourceLocation targetId = target.getId();
+        int occurrence = 0;
+        for (PonderScene s : allScenes) {
+            if (s == target) return occurrence;
+            if (s.getId().equals(targetId)) occurrence++;
+        }
+        return 0;
     }
 
     // ---- Pick mode integration ----
 
     /**
-     * At the START of tick: reset identifyMode to false so the scene ticks normally.
-     * PonderUI.tick() checks {@code if (!identifyMode) { activeScene.tick(); }} — if identifyMode
+     * At the START of tick: reset identifyMode to false so the scene ticks
+     * normally.
+    * PonderUI.tick() checks {@code if (!identifyMode) { activeScene.tick(); }} — if identifyMode
      * is true, the scene freezes and the structure never appears.
-     * We set it false here so the scene keeps animating, then re-enable it right before
+     * We set it false here so the scene keeps animating, then re-enable it right
+     * before
      * updateIdentifiedItem (see below).
      */
     @Inject(method = "tick", at = @At("HEAD"))
     private void ponderer$tickPickModeReset(CallbackInfo ci) {
-        if (!PickState.isActive()) return;
+        if (!PickState.isActive())
+            return;
         PonderUIAccessor accessor = (PonderUIAccessor) this;
         accessor.ponderer$setIdentifyMode(false);
     }
@@ -101,11 +129,10 @@ public abstract class PonderUIMixin extends Screen {
      * During render (between ticks), identifyMode=true gives a cleaner scene view
      * (no overlays) and enables the native block-highlight tooltip.
      */
-    @Inject(method = "tick",
-            at = @At(value = "INVOKE",
-                     target = "Lnet/createmod/ponder/foundation/ui/PonderUI;updateIdentifiedItem(Lnet/createmod/ponder/foundation/PonderScene;)V"))
+    @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/createmod/ponder/foundation/ui/PonderUI;updateIdentifiedItem(Lnet/createmod/ponder/foundation/PonderScene;)V", remap = false))
     private void ponderer$tickPickModeEnable(CallbackInfo ci) {
-        if (!PickState.isActive()) return;
+        if (!PickState.isActive())
+            return;
         PonderUIAccessor accessor = (PonderUIAccessor) this;
         accessor.ponderer$setIdentifyMode(true);
     }
@@ -113,11 +140,13 @@ public abstract class PonderUIMixin extends Screen {
     /**
      * Intercept mouse clicks when pick mode is active.
      * Left-click on a block: pick the block's coordinates.
-     * Right-click on a block: pick the adjacent block coordinates (block pos + face normal).
+     * Right-click on a block: pick the adjacent block coordinates (block pos + face
+     * normal).
      */
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void ponderer$onPickClick(double x, double y, int button, CallbackInfoReturnable<Boolean> cir) {
-        if (!PickState.isActive()) return;
+        if (!PickState.isActive())
+            return;
 
         // Both left-click and right-click try to pick a block
         if (button == 0 || button == 1) {
@@ -159,17 +188,22 @@ public abstract class PonderUIMixin extends Screen {
     }
 
     /**
-     * Render a pick hint overlay to the right of the cursor showing both click coordinates.
+     * Render a pick hint overlay to the right of the cursor showing both click
+     * coordinates.
      * Styled with opaque background and border matching editor tooltips.
-     * Rendered at the highest z-level to avoid being occluded by structures/tooltips.
+     * Rendered at the highest z-level to avoid being occluded by
+     * structures/tooltips.
      */
-    @Inject(method = "renderWidgets", at = @At("TAIL"))
-    private void ponderer$renderPickHint(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
-        if (!PickState.isActive()) return;
+    @Inject(method = "renderWidgets", at = @At("TAIL"), remap = false)
+    private void ponderer$renderPickHint(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks,
+            CallbackInfo ci) {
+        if (!PickState.isActive())
+            return;
 
         var font = Minecraft.getInstance().font;
 
-        // Push to topmost z-level so hint is never occluded by structures or native tooltips
+        // Push to topmost z-level so hint is never occluded by structures or native
+        // tooltips
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 800);
 
@@ -186,11 +220,11 @@ public abstract class PonderUIMixin extends Screen {
                 line1 = "[ " + ponderer$fmtCoord(pos.getX(), faceAxis != Direction.Axis.X)
                         + ", " + ponderer$fmtCoord(pos.getY(), faceAxis != Direction.Axis.Y)
                         + ", " + ponderer$fmtCoord(pos.getZ(), faceAxis != Direction.Axis.Z)
-                        + " ] 左键选取";
+                    + " ] 左键选取";
                 line2 = "[ " + ponderer$fmtCoord(adjacent.getX(), faceAxis != Direction.Axis.X)
                         + ", " + ponderer$fmtCoord(adjacent.getY(), faceAxis != Direction.Axis.Y)
                         + ", " + ponderer$fmtCoord(adjacent.getZ(), faceAxis != Direction.Axis.Z)
-                        + " ] 右键选取";
+                    + " ] 右键选取";
             } else {
                 line1 = "[ " + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + " ] 左键选取";
                 line2 = "[ " + adjacent.getX() + ", " + adjacent.getY() + ", " + adjacent.getZ() + " ] 右键选取";
@@ -205,9 +239,12 @@ public abstract class PonderUIMixin extends Screen {
             int tx = mouseX + 10;
             int ty = mouseY - boxH - 17;
             // Clamp to screen
-            if (tx < 2) tx = 2;
-            if (tx + boxW > this.width - 2) tx = this.width - boxW - 2;
-            if (ty < 2) ty = 2;
+            if (tx < 2)
+                tx = 2;
+            if (tx + boxW > this.width - 2)
+                tx = this.width - boxW - 2;
+            if (ty < 2)
+                ty = 2;
 
             // Opaque background with border (matching editor tooltip style)
             graphics.fill(tx - 2, ty - 2, tx + boxW + 2, ty + boxH + 2, 0xF0_100020);
@@ -222,9 +259,12 @@ public abstract class PonderUIMixin extends Screen {
             int textW = font.width(hint) + 8;
             int tx = mouseX + 10;
             int ty = mouseY - 31;
-            if (tx < 2) tx = 2;
-            if (tx + textW > this.width - 2) tx = this.width - textW - 2;
-            if (ty < 2) ty = 2;
+            if (tx < 2)
+                tx = 2;
+            if (tx + textW > this.width - 2)
+                tx = this.width - textW - 2;
+            if (ty < 2)
+                ty = 2;
 
             graphics.fill(tx - 2, ty - 2, tx + textW + 2, ty + 16, 0xF0_100020);
             graphics.fill(tx - 1, ty - 1, tx + textW + 1, ty + 15, 0xC0_5040a0);
@@ -243,18 +283,29 @@ public abstract class PonderUIMixin extends Screen {
         if (PickState.isActive()) {
             PickState.reset();
         }
+        // Return to PonderItemGridScreen if it was set as the return target
+        if (com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen != null) {
+            var ret = com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen;
+            com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen = null;
+            Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(ret));
+        }
     }
 
     // ---- Pick mode helpers ----
 
-    /** Format a coordinate: if offset is true, display as int+0.5; otherwise just the integer. */
+    /**
+     * Format a coordinate: if offset is true, display as int+0.5; otherwise just
+     * the integer.
+     */
     private static String ponderer$fmtCoord(int value, boolean offset) {
         return offset ? (value + 0.5) + "" : String.valueOf(value);
     }
 
     /**
-     * Determine which face of a block the camera ray hits, using ray-AABB slab intersection.
-     * The ray is computed from the current mouse position via the scene's transform.
+     * Determine which face of a block the camera ray hits, using ray-AABB slab
+     * intersection.
+     * The ray is computed from the current mouse position via the scene's
+     * transform.
      */
     private Direction ponderer$getHitFace(PonderScene activeScene, BlockPos pos) {
         Minecraft mc = Minecraft.getInstance();
@@ -279,7 +330,10 @@ public abstract class PonderUIMixin extends Screen {
             double t2 = (maxX - from.x) / dir.x;
             double tEnter = Math.min(t1, t2);
             Direction face = (t1 < t2) ? Direction.WEST : Direction.EAST;
-            if (tEnter > tMin) { tMin = tEnter; result = face; }
+            if (tEnter > tMin) {
+                tMin = tEnter;
+                result = face;
+            }
         }
 
         // Y axis
@@ -288,7 +342,10 @@ public abstract class PonderUIMixin extends Screen {
             double t2 = (maxY - from.y) / dir.y;
             double tEnter = Math.min(t1, t2);
             Direction face = (t1 < t2) ? Direction.DOWN : Direction.UP;
-            if (tEnter > tMin) { tMin = tEnter; result = face; }
+            if (tEnter > tMin) {
+                tMin = tEnter;
+                result = face;
+            }
         }
 
         // Z axis
@@ -297,7 +354,10 @@ public abstract class PonderUIMixin extends Screen {
             double t2 = (maxZ - from.z) / dir.z;
             double tEnter = Math.min(t1, t2);
             Direction face = (t1 < t2) ? Direction.NORTH : Direction.SOUTH;
-            if (tEnter > tMin) { tMin = tEnter; result = face; }
+            if (tEnter > tMin) {
+                tMin = tEnter;
+                result = face;
+            }
         }
 
         return result;

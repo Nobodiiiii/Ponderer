@@ -38,6 +38,8 @@ public final class StepEditorFactory {
             case "modify_block_entity_nbt" -> new ModifyBlockEntityNbtScreen(scene, sceneIndex, parent);
             case "indicate_redstone" -> new IndicateEffectScreen("indicate_redstone", scene, sceneIndex, parent);
             case "indicate_success" -> new IndicateEffectScreen("indicate_success", scene, sceneIndex, parent);
+            case "clear_entities" -> new ClearEntitiesScreen("clear_entities", scene, sceneIndex, parent);
+            case "clear_item_entities" -> new ClearEntitiesScreen("clear_item_entities", scene, sceneIndex, parent);
             default -> null;
         };
     }
@@ -70,6 +72,8 @@ public final class StepEditorFactory {
             case "modify_block_entity_nbt" -> new ModifyBlockEntityNbtScreen(scene, sceneIndex, parent, stepIndex, step);
             case "indicate_redstone" -> new IndicateEffectScreen("indicate_redstone", scene, sceneIndex, parent, stepIndex, step);
             case "indicate_success" -> new IndicateEffectScreen("indicate_success", scene, sceneIndex, parent, stepIndex, step);
+            case "clear_entities" -> new ClearEntitiesScreen("clear_entities", scene, sceneIndex, parent, stepIndex, step);
+            case "clear_item_entities" -> new ClearEntitiesScreen("clear_item_entities", scene, sceneIndex, parent, stepIndex, step);
             default -> null;
         };
     }

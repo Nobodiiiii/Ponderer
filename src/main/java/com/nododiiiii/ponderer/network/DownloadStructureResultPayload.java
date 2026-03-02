@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 
 public record DownloadStructureResultPayload(String sourceId, String targetId,
                                              boolean success, String message) implements CustomPacketPayload {
+
     public static final Type<DownloadStructureResultPayload> TYPE =
         new Type<>(ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, "download_structure_result"));
     public static final StreamCodec<RegistryFriendlyByteBuf, DownloadStructureResultPayload> CODEC =

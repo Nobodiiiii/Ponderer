@@ -5,45 +5,15 @@ Ponderer 是一个面向玩家与整合包作者的「游戏内思索（Ponder�
 
 [h1=你可以用它做什么]
 
-在游戏内新建思索：从手持物品或指定物品快速生成新的思索条目（支持不同 NBT 分别思索，如不同署名的成书）；
-可视化编辑步骤：点击本模组创建的思索左下角编辑图标，即可通过图形界面编辑文本、镜头、方块变化、实体生成、音效等 Ponder 步骤。所有坐标字段均支持从场景中直接选点（左键选取方块坐标，右键选取相邻方块坐标）；
-复制粘贴与撤销重做：支持步骤复制/粘贴、在指定位置插入、Ctrl+Z 撤销 / Ctrl+Y 重做；
-蓝图选区与结构保存：使用蓝图工具（默认为纸）选择区域并保存结构，便于复用和迭代演示内容；
-开箱即用：内置了对应引导思索；手持书与笔即可直接查看示例思索；
-本地热重载：编辑后可直接重载，快速查看效果，减少反复重启；
-多人协作同步：支持从服务器拉取与向服务器推送思索内容，方便团队协作维护教程或快速获取其他玩家创建的思索；
-格式互转：支持与 PonderJS 格式互相转换，兼容不同工作流；
-场景包导入导出：支持将所有场景和结构打包为 ZIP 文件，方便在社区分享或备份；
-JEI 集成：所有 ID 输入框支持从 JEI 物品列表中点击或拖放自动填入（需安装 JEI），方块、物品、实体三种模式自动过滤不兼容类型；
-方块状态属性：放置或替换方块时可指定朝向、半边等 BlockState 属性，编辑器中以动态列表形式输入；
-扩展实体解析：船、矿车、盔甲架等物品类实体也可通过 JEI 直接拖入实体 ID 字段。
-
-[h1=指令总览]
-
-/ponderer reload：重载本地场景脚本并刷新思索索引；
-/ponderer pull：从服务端拉取改动（冲突检查模式）；
-/ponderer pull force：强制以服务端版本覆盖本地；
-/ponderer pull keep_local：拉取时尽量保留本地版本；
-/ponderer push：推送本地场景到服务端（冲突检查模式）；
-/ponderer push force：强制覆盖服务端场景；
-/ponderer push <id>：仅推送指定场景 ID；
-/ponderer push force <id>：强制推送并覆盖指定场景 ID；
-/ponderer download <id>：将指定结构导入到 Ponderer 的结构目录；
-/ponderer new hand：以主手物品创建新场景；
-/ponderer new hand use_held_nbt：以主手物品 + 当前物品 NBT 创建场景；
-/ponderer new hand <nbt>：以主手物品 + 指定 NBT 创建场景；
-/ponderer new <item>：以指定物品创建新场景；
-/ponderer new <item> <nbt>：以指定物品 + 指定 NBT 创建新场景；
-/ponderer copy <id> <target_item>：复制指定场景并改绑到目标物品；
-/ponderer delete <id>：删除指定场景；
-/ponderer delete item <item_id>：删除某个物品下的所有场景；
-/ponderer list：打开思索物品列表界面；
-/ponderer convert to_ponderjs all：将全部场景转换为 PonderJS；
-/ponderer convert to_ponderjs <id>：将指定场景转换为 PonderJS；
-/ponderer convert from_ponderjs all：将全部 PonderJS 场景导回 Ponderer；
-/ponderer convert from_ponderjs <id>：将指定 PonderJS 场景导回 Ponderer；
-/ponderer export [filename]：将所有脚本和结构导出为 ZIP 文件到 config/ponderer/；
-/ponderer import <filename>：从 config/ponderer/ 中的 ZIP 文件导入脚本和结构。
+在游戏内新建思索：从手持物品或指定物品快速生成新的思索条目（支持不同 NBT 分别思索，如不同署名的成书）。
+可视化编辑步骤：通过图形界面编辑文本、镜头、方块变化、实体生成、操作提示、音效等 Ponder 步骤，支持复制粘贴、撤销重做、坐标选点。
+游戏内场景编辑器：通过图形界面新增/编辑/删除/排序步骤，支持复制粘贴、撤销重做、坐标选点、丰富的步骤类型（默认按 V 键打开）
+AI 场景生成（Beta）：通过 LLM（Claude / ChatGPT 等）根据结构和自然语言描述自动生成完整场景，支持多种 API 提供商。
+蓝图选区与结构保存：使用蓝图工具选择区域并保存结构，便于复用和迭代演示内容。
+多人协作同步：从服务器拉取与向服务器推送思索内容，方便团队协作或快速获取其他玩家创建的思索。
+格式互转与场景包：支持与 PonderJS 格式互相转换；支持将场景和结构打包为资源包格式的 ZIP 文件，带有版本控制与自动加载，方便在社区分享。
+JEI 集成：所有 ID 输入框支持从 JEI 点击或拖放自动填入（可选依赖）。
+开箱即用：内置引导思索；手持书与笔即可查看示例。
 
 [h1=适合哪些人]
 

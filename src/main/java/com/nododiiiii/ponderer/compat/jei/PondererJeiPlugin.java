@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.compat.jei;
 
 import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
+import com.nododiiiii.ponderer.ui.AiGenerateScreen;
 import com.nododiiiii.ponderer.ui.CommandParamScreen;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
@@ -27,7 +28,7 @@ import java.util.Optional;
 public class PondererJeiPlugin implements IModPlugin {
 
     @Nullable
-    private static Screen activeScreen = null;
+    private static JeiAwareScreen activeScreen = null;
     @Nullable
     private static IdFieldMode activeMode = null;
     @Nullable
@@ -58,24 +59,34 @@ public class PondererJeiPlugin implements IModPlugin {
 
     @Override
     public void registerGuiHandlers(IGuiHandlerRegistration registration) {
+        // AbstractStepEditorScreen
         registration.addGuiScreenHandler(AbstractStepEditorScreen.class, screen -> {
             if (activeScreen != screen) return null;
-            return new PondererGuiProperties((JeiAwareScreen) screen, screen);
+            return new JeiAwareGuiProperties(screen);
         });
-
-        registration.addGuiScreenHandler(CommandParamScreen.class, screen -> {
-            if (activeScreen != screen) return null;
-            return new PondererGuiProperties((JeiAwareScreen) screen, screen);
-        });
-
         registration.addGhostIngredientHandler(
                 AbstractStepEditorScreen.class,
-                new StepEditorGhostHandler<>()
+                new JeiAwareGhostHandler<>()
         );
 
+        // CommandParamScreen
+        registration.addGuiScreenHandler(CommandParamScreen.class, screen -> {
+            if (activeScreen != screen) return null;
+            return new JeiAwareGuiProperties(screen);
+        });
         registration.addGhostIngredientHandler(
                 CommandParamScreen.class,
-                new StepEditorGhostHandler<>()
+                new JeiAwareGhostHandler<>()
+        );
+
+        // AiGenerateScreen
+        registration.addGuiScreenHandler(AiGenerateScreen.class, screen -> {
+            if (activeScreen != screen) return null;
+            return new JeiAwareGuiProperties(screen);
+        });
+        registration.addGhostIngredientHandler(
+                AiGenerateScreen.class,
+                new JeiAwareGhostHandler<>()
         );
     }
 
@@ -86,7 +97,7 @@ public class PondererJeiPlugin implements IModPlugin {
         activeMode = mode;
     }
 
-    static void setActiveScreen(Screen screen, IdFieldMode mode) {
+    static void setActiveScreen(JeiAwareScreen screen, IdFieldMode mode) {
         activeScreen = screen;
         activeMode = mode;
     }
@@ -97,12 +108,17 @@ public class PondererJeiPlugin implements IModPlugin {
     }
 
     @Nullable
+    static IJeiRuntime getRuntime() {
+        return runtime;
+    }
+
+    @Nullable
     static IdFieldMode getActiveMode() {
         return activeMode;
     }
 
     @Nullable
-    static Screen getActiveScreen() {
+    static JeiAwareScreen getActiveScreen() {
         return activeScreen;
     }
 
@@ -112,7 +128,7 @@ public class PondererJeiPlugin implements IModPlugin {
         Screen screen = event.getScreen();
         if (!(screen instanceof JeiAwareScreen aware)) return;
         if (activeMode == null || runtime == null) return;
-        if (activeScreen != screen) return;
+        if (activeScreen != aware) return;
 
         IIngredientListOverlay overlay = runtime.getIngredientListOverlay();
         IBookmarkOverlay bookmarks = runtime.getBookmarkOverlay();
@@ -123,6 +139,24 @@ public class PondererJeiPlugin implements IModPlugin {
         }
         if (ingredient.isEmpty()) return;
 
+        // INGREDIENT mode: accept any JEI ingredient type
+        if (activeMode == IdFieldMode.INGREDIENT) {
+            String id = JeiIngredientHelper.resolveId(ingredient.get());
+            if (id != null) {
+                HintableTextFieldWidget field = aware.getJeiTargetField();
+                if (field != null) {
+                    field.setValue(id);
+                }
+                aware.deactivateJei();
+                event.setCanceled(true);
+            } else {
+                aware.showJeiIncompatibleWarning(activeMode);
+                event.setCanceled(true);
+            }
+            return;
+        }
+
+        // Other modes: only accept items
         Optional<ItemStack> stackOpt = ingredient.get().getItemStack();
         if (stackOpt.isEmpty()) {
             event.setCanceled(true);
@@ -144,15 +178,15 @@ public class PondererJeiPlugin implements IModPlugin {
         }
     }
 
-    // ---- IGuiProperties implementation ----
+    // ---- IGuiProperties implementation for any JeiAwareScreen ----
 
-    private static class PondererGuiProperties implements IGuiProperties {
-        private final JeiAwareScreen aware;
+    private static class JeiAwareGuiProperties implements IGuiProperties {
         private final Screen screen;
+        private final JeiAwareScreen aware;
 
-        PondererGuiProperties(JeiAwareScreen aware, Screen screen) {
+        JeiAwareGuiProperties(JeiAwareScreen aware) {
+            this.screen = (Screen) aware;
             this.aware = aware;
-            this.screen = screen;
         }
 
         @Override

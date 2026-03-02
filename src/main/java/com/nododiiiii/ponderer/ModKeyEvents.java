@@ -5,9 +5,7 @@ import net.createmod.catnip.gui.ScreenOpener;
 import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 
-public final class ModKeyEvents {
-
-    private ModKeyEvents() {}
+public class ModKeyEvents {
 
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();

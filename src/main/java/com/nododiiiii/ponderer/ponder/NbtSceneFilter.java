@@ -3,12 +3,13 @@ package com.nododiiiii.ponderer.ponder;
 import com.mojang.logging.LogUtils;
 import net.createmod.ponder.foundation.PonderScene;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
@@ -149,13 +150,45 @@ public final class NbtSceneFilter {
         if (filter == null || filter.isEmpty()) return true;
 
         try {
-            RegistryAccess registryAccess = getRegistryAccess();
-            if (registryAccess == null) return false;
+            CompoundTag customTag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
 
-            Tag saved = stack.save(registryAccess);
-            if (!(saved instanceof CompoundTag stackTag)) return false;
+            // 1) Direct match for "raw NBT" filters (legacy/new lightweight filters)
+            if (!customTag.isEmpty() && isSubset(filter, customTag)) {
+                return true;
+            }
 
-            return isSubset(filter, stackTag);
+            // 2) Legacy full-stack format from Forge era: {id, Count, tag:{...}}
+            if (filter.contains("tag", Tag.TAG_COMPOUND)) {
+                CompoundTag legacyTag = filter.getCompound("tag");
+                if (!legacyTag.isEmpty() && isSubset(legacyTag, customTag)) {
+                    return true;
+                }
+            }
+
+            // 3) Full stack serialization match (1.21 components format)
+            var level = Minecraft.getInstance().level;
+            if (level != null) {
+                Tag savedTag = stack.saveOptional(level.registryAccess());
+                if (savedTag instanceof CompoundTag ct) {
+                    if (isSubsetIgnoringCount(filter, ct)) {
+                        return true;
+                    }
+
+                    if (filter.contains("components", Tag.TAG_COMPOUND)
+                        && ct.contains("components", Tag.TAG_COMPOUND)
+                        && isSubset(filter.getCompound("components"), ct.getCompound("components"))) {
+                        return true;
+                    }
+
+                    if (filter.contains("tag", Tag.TAG_COMPOUND)
+                        && ct.contains("tag", Tag.TAG_COMPOUND)
+                        && isSubset(filter.getCompound("tag"), ct.getCompound("tag"))) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         } catch (Exception e) {
             LOGGER.debug("NBT match check failed", e);
             return false;
@@ -182,6 +215,27 @@ public final class NbtSceneFilter {
     }
 
     /**
+     * Like {@link #isSubset(CompoundTag, CompoundTag)} but ignores the legacy Count field
+     * so stack-size differences don't break scene matching.
+     */
+    private static boolean isSubsetIgnoringCount(CompoundTag subset, CompoundTag superset) {
+        for (String key : subset.getAllKeys()) {
+            if ("Count".equals(key)) continue;
+
+            Tag subVal = subset.get(key);
+            Tag superVal = superset.get(key);
+            if (superVal == null) return false;
+
+            if (subVal instanceof CompoundTag subCompound && superVal instanceof CompoundTag superCompound) {
+                if (!isSubsetIgnoringCount(subCompound, superCompound)) return false;
+            } else {
+                if (!subVal.equals(superVal)) return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Parse an SNBT string into a CompoundTag, or null if invalid.
      */
     @Nullable
@@ -195,10 +249,4 @@ public final class NbtSceneFilter {
         }
     }
 
-    @Nullable
-    private static RegistryAccess getRegistryAccess() {
-        var mc = Minecraft.getInstance();
-        if (mc.level != null) return mc.level.registryAccess();
-        return null;
-    }
 }

@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ponder;
 
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
+import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
@@ -30,6 +31,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -62,6 +64,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
     @Override
     public void registerScenes(PonderSceneRegistrationHelper<ResourceLocation> helper) {
         NbtSceneFilter.clear();
+        SceneRuntime.clearPonderIdMapping();
         for (DslScene scene : SceneRuntime.getScenes()) {
             registerScene(helper, scene);
         }
@@ -210,6 +213,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
                     NbtSceneFilter.registerFilter(fullSceneId, nbt);
                 }
             }
+
+            // Register mapping from PonderScene ID to DslScene sceneKey for pack disambiguation
+            SceneRuntime.registerPonderIdMapping(fullSceneId, scene.sceneKey(), i);
         }
     }
 
@@ -331,40 +337,44 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private PonderStoryBoard createStoryBoard(DslScene scene, DslScene.SceneSegment sc, int index, int total) {
         return (builder, util) -> {
-            ResourceLocation baseId = ResourceLocation.tryParse(scene.id);
-            String basePath = baseId == null ? "scene" : baseId.getPath();
-            String scenePath = total > 1 ? basePath + "_" + sceneSuffix(sc, index) : basePath;
+            try {
+                ResourceLocation baseId = ResourceLocation.tryParse(scene.id);
+                String basePath = baseId == null ? "scene" : baseId.getPath();
+                String scenePath = total > 1 ? basePath + "_" + sceneSuffix(sc, index) : basePath;
 
-            String title = sc.title != null ? sc.title.resolve() : null;
-            if (title == null || title.isBlank()) {
-                String sceneTitle = scene.title != null ? scene.title.resolve() : null;
-                if (sceneTitle == null || sceneTitle.isBlank()) {
-                    title = scenePath;
-                } else {
-                    title = total > 1 ? sceneTitle + " #" + (index + 1) : sceneTitle;
+                String title = sc.title != null ? sc.title.resolve() : null;
+                if (title == null || title.isBlank()) {
+                    String sceneTitle = scene.title != null ? scene.title.resolve() : null;
+                    if (sceneTitle == null || sceneTitle.isBlank()) {
+                        title = scenePath;
+                    } else {
+                        title = total > 1 ? sceneTitle + " #" + (index + 1) : sceneTitle;
+                    }
                 }
-            }
-            builder.title(scenePath, title);
+                builder.title(scenePath, title);
 
-            if (sc.steps == null) {
-                return;
-            }
-
-            if (!hasShowStructure(sc)) {
-                applyShowStructure(builder, new DslScene.DslStep());
-                builder.idle(20);
-            }
-
-            StepContext context = new StepContext();
-
-            for (DslScene.DslStep step : sc.steps) {
-                if (step == null || step.type == null) {
-                    continue;
+                if (sc.steps == null) {
+                    return;
                 }
-                if ("next_scene".equalsIgnoreCase(step.type)) {
-                    continue;
+
+                if (!firstStepIsShowStructure(sc)) {
+                    applyShowStructure(builder, new DslScene.DslStep());
+                    builder.idle(20);
                 }
-                applyStep(builder, util, scene, step, context);
+
+                StepContext context = new StepContext();
+
+                for (DslScene.DslStep step : sc.steps) {
+                    if (step == null || step.type == null) {
+                        continue;
+                    }
+                    if ("next_scene".equalsIgnoreCase(step.type)) {
+                        continue;
+                    }
+                    applyStep(builder, util, scene, step, context);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Error building ponder storyboard for scene {} segment {}: {}", scene.id, index, e.getMessage(), e);
             }
         };
     }
@@ -395,6 +405,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "modify_block_entity_nbt" -> applyModifyBlockEntityNbt(scene, step);
             case "indicate_redstone" -> applyIndicateRedstone(scene, step);
             case "indicate_success" -> applyIndicateSuccess(scene, step);
+            case "clear_entities" -> applyClearEntities(scene, step);
+            case "clear_item_entities" -> applyClearItemEntities(scene, step);
             case "next_scene" -> {
             }
             default -> LOGGER.warn("Unknown step type '{}' in scene {}", step.type, dsl.id);
@@ -533,11 +545,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         if (step.item != null && !step.item.isBlank()) {
-            ResourceLocation itemId = ResourceLocation.tryParse(step.item);
-            Item item = itemId == null ? null : BuiltInRegistries.ITEM.getOptional(itemId).orElse(null);
-            if (item != null) {
-                builder.withItem(new ItemStack(item));
-            }
+            resolveIngredient(builder, step.item);
         }
 
         if (Boolean.TRUE.equals(step.whileSneaking)) {
@@ -548,6 +556,54 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
+    /**
+     * Resolve an ingredient ID and apply it to the builder.
+     * For items: use withItem() so the item renders alongside the action icon (LMB/RMB/Scroll).
+     * For non-items (fluids, chemicals, etc.): use showing() via JEI renderer, which replaces the icon slot.
+     * This distinction is critical because showing() overwrites the icon field (leftClick/rightClick/scroll),
+     * while withItem() uses a separate item field that renders alongside the icon.
+     */
+    private void resolveIngredient(InputElementBuilder builder, String id) {
+        ResourceLocation loc = ResourceLocation.tryParse(id);
+        if (loc == null) return;
+
+        // 1. Try item registry first — use withItem() to preserve action icon
+        Item item = BuiltInRegistries.ITEM.getOptional(loc).orElse(null);
+        if (item != null) {
+            builder.withItem(new ItemStack(item));
+            return;
+        }
+
+        // 2. Try fluid registry (requires JEI for rendering)
+        net.minecraft.world.level.material.Fluid fluid =
+                BuiltInRegistries.FLUID.getOptional(loc).orElse(null);
+        if (fluid != null && fluid != net.minecraft.world.level.material.Fluids.EMPTY) {
+            if (JeiCompat.isAvailable()) {
+                net.createmod.catnip.gui.element.ScreenElement element =
+                        JeiCompat.createIngredientElement(
+                                new net.neoforged.neoforge.fluids.FluidStack(fluid, 1000));
+                if (element != null) {
+                    builder.showing(element);
+                    return;
+                }
+            }
+            LOGGER.warn("show_controls: fluid '{}' found but JEI is not available for rendering", id);
+            return;
+        }
+
+        // 3. Fallback: search all JEI ingredient types (chemicals, etc.)
+        if (JeiCompat.isAvailable()) {
+            net.createmod.catnip.gui.element.ScreenElement element =
+                    JeiCompat.resolveIngredientById(id);
+            if (element != null) {
+                builder.showing(element);
+                return;
+            }
+        }
+
+        LOGGER.warn("show_controls: unable to resolve ingredient '{}'", id);
+    }
+
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step) {
         if (step.height != null && step.height >= 0) {
             var selection = scene.getScene().getSceneBuildingUtil().select().layersFrom(step.height);
@@ -555,6 +611,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         } else {
             var selection = scene.getScene().getSceneBuildingUtil().select().everywhere();
             scene.world().showSection(selection, Direction.UP);
+        }
+        if (step.scale != null) {
+            scene.scaleSceneView(step.scale);
         }
     }
 
@@ -702,7 +761,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (selection == null) {
             return;
         }
-        // Safety: auto-initialize base world section if empty (prevents NPE)
+        // Safety: ensure the base world section has been initialized before hiding.
+        // If show_structure was somehow skipped, the base section's internal Selection is null,
+        // and hideSection's erase() would NPE. This pre-instruction prevents that.
         scene.addInstruction(ps -> {
             if (ps.getBaseWorldSection().isEmpty()) {
                 LOGGER.warn("hide_section executed before show_structure; auto-showing structure");
@@ -805,6 +866,52 @@ public class DynamicPonderPlugin implements PonderPlugin {
         scene.effects().indicateSuccess(pos);
     }
 
+    private void applyClearEntities(SceneBuilder scene, DslScene.DslStep step) {
+        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
+        String filterId = step.entity;
+        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
+
+        if (isFullScene) {
+            scene.world().modifyEntities(Entity.class, entity -> {
+                if (entity instanceof ItemEntity) return;
+                if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
+                    entity.discard();
+                }
+            });
+        } else {
+            Selection selection = selectionFromStep(scene, step, "clear_entities");
+            if (selection == null) return;
+            scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
+                if (entity instanceof ItemEntity) return;
+                if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
+                    entity.discard();
+                }
+            });
+        }
+    }
+
+    private void applyClearItemEntities(SceneBuilder scene, DslScene.DslStep step) {
+        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
+        String filterId = step.item;
+        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
+
+        if (isFullScene) {
+            scene.world().modifyEntities(ItemEntity.class, entity -> {
+                if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
+                    entity.discard();
+                }
+            });
+        } else {
+            Selection selection = selectionFromStep(scene, step, "clear_item_entities");
+            if (selection == null) return;
+            scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
+                if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
+                    entity.discard();
+                }
+            });
+        }
+    }
+
     private Selection selectionFromStep(SceneBuilder scene, DslScene.DslStep step, String stepName) {
         if (step.blockPos == null || step.blockPos.size() < 3) {
             LOGGER.warn("{} missing blockPos", stepName);
@@ -872,35 +979,16 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private List<DslScene.SceneSegment> normalizeScenes(DslScene scene) {
         if (scene.scenes != null && !scene.scenes.isEmpty()) {
+            // Ensure each segment starts with show_structure
+            for (DslScene.SceneSegment seg : scene.scenes) {
+                SceneStore.sanitizeScene(scene);
+            }
             return scene.scenes;
         }
         List<DslScene.SceneSegment> sceneList = new ArrayList<>();
-        DslScene.SceneSegment current = new DslScene.SceneSegment();
-        current.steps = new ArrayList<>();
-
-        if (scene.steps != null) {
-            for (DslScene.DslStep step : scene.steps) {
-                if (step != null && step.type != null && "next_scene".equalsIgnoreCase(step.type)) {
-                    if (!current.steps.isEmpty()) {
-                        sceneList.add(current);
-                    }
-                    current = new DslScene.SceneSegment();
-                    current.steps = new ArrayList<>();
-                    continue;
-                }
-                current.steps.add(step);
-            }
-        }
-
-        if (!current.steps.isEmpty()) {
-            sceneList.add(current);
-        }
-
-        if (sceneList.isEmpty()) {
-            DslScene.SceneSegment fallback = new DslScene.SceneSegment();
-            fallback.steps = List.of();
-            sceneList.add(fallback);
-        }
+        DslScene.SceneSegment fallback = new DslScene.SceneSegment();
+        fallback.steps = List.of();
+        sceneList.add(fallback);
         return sceneList;
     }
 
@@ -911,7 +999,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         return String.valueOf(index + 1);
     }
 
-    private boolean hasShowStructure(DslScene.SceneSegment sc) {
+    private boolean firstStepIsShowStructure(DslScene.SceneSegment sc) {
         if (sc.steps == null) {
             return false;
         }
@@ -919,9 +1007,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             if (step == null || step.type == null) {
                 continue;
             }
-            if ("show_structure".equalsIgnoreCase(step.type)) {
-                return true;
-            }
+            // Return whether the first meaningful step is show_structure
+            return "show_structure".equalsIgnoreCase(step.type);
         }
         return false;
     }

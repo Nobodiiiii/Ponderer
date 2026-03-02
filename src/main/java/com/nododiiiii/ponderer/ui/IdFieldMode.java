@@ -10,5 +10,7 @@ public enum IdFieldMode {
     /** Accepts all items. Resolves to Item registry name. */
     ITEM,
     /** Accepts only spawn eggs. Resolves to EntityType registry name. */
-    ENTITY
+    ENTITY,
+    /** Accepts any JEI-registered ingredient (items, fluids, chemicals, etc.). Resolves to registry ID. */
+    INGREDIENT
 }

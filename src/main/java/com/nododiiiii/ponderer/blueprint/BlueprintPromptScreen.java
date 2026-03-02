@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.blueprint;
 
+import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.element.BoxElement;
@@ -21,10 +22,11 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
     private static final int HEIGHT = 84;
 
     private EditBox nameField;
+    private boolean awaitingOverrideConfirm;
 
     // Simi-style clickable button areas
-    private int discardX, discardY, discardW, discardH;
     private int saveX, saveY, saveW, saveH;
+    private int discardX, discardY, discardW, discardH;
 
     public BlueprintPromptScreen() {
         super(Component.translatable("ponderer.ui.blueprint.prompt.title"));
@@ -42,6 +44,7 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
         nameField.setBordered(true);
         nameField.setMaxLength(35);
         nameField.setFocused(true);
+        nameField.setResponder(s -> resetOverrideState());
         setFocused(nameField);
         addRenderableWidget(nameField);
 
@@ -62,7 +65,8 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
         // Background panel
         new BoxElement()
             .withBackground(new Color(0xdd_000000, true))
-            .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+            .gradientBorder(new Color(awaitingOverrideConfirm ? 0x60_ff6666 : 0x60_c0c0ff, true),
+                            new Color(awaitingOverrideConfirm ? 0x30_ff6666 : 0x30_c0c0ff, true))
             .at(guiLeft, guiTop, 0)
             .withBounds(WIDTH, HEIGHT)
             .render(graphics);
@@ -78,8 +82,17 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
                 .at(guiLeft + 8, guiTop + 22, 0)
                 .render(graphics);
 
+        // Override warning
+        if (awaitingOverrideConfirm) {
+            Component warn = Component.translatable("ponderer.ui.blueprint.prompt.override_warn");
+            int warnWidth = font.width(warn);
+            graphics.drawString(font, warn, guiLeft + (WIDTH - warnWidth) / 2, guiTop + HEIGHT - 34, 0xFF6666, true);
+        }
+
         // Simi-style save button (left)
-        String saveLabel = UIText.of("ponderer.ui.blueprint.prompt.save");
+        String saveLabel = awaitingOverrideConfirm
+            ? UIText.of("ponderer.ui.blueprint.prompt.confirm_override")
+            : UIText.of("ponderer.ui.blueprint.prompt.save");
         renderSimiButton(graphics, font, saveX, saveY, saveW, saveH, saveLabel, mouseX, mouseY);
 
         // Simi-style discard button (right)
@@ -105,15 +118,15 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
+            if (mouseX >= saveX && mouseX < saveX + saveW
+                && mouseY >= saveY && mouseY < saveY + saveH) {
+                doConfirm();
+                return true;
+            }
             if (mouseX >= discardX && mouseX < discardX + discardW
                 && mouseY >= discardY && mouseY < discardY + discardH) {
                 BlueprintEvents.HANDLER.discard();
                 onClose();
-                return true;
-            }
-            if (mouseX >= saveX && mouseX < saveX + saveW
-                && mouseY >= saveY && mouseY < saveY + saveH) {
-                doConfirm();
                 return true;
             }
         }
@@ -139,8 +152,17 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
     }
 
     private void doConfirm() {
+        String name = nameField.getValue().trim();
+        if (!awaitingOverrideConfirm && SceneStore.isBuiltinStructureName(name)) {
+            awaitingOverrideConfirm = true;
+            return;
+        }
         BlueprintEvents.HANDLER.saveBlueprint(nameField.getValue());
         onClose();
+    }
+
+    private void resetOverrideState() {
+        awaitingOverrideConfirm = false;
     }
 
     @Override

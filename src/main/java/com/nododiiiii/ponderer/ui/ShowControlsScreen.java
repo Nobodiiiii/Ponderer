@@ -71,7 +71,7 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
         addLabelTooltip(lx, y + 1, UIText.of("ponderer.ui.show_controls.action"), UIText.of("ponderer.ui.show_controls.action.tooltip"));
         y += 22;
         itemField = createTextField(x, y, 124, 18, UIText.of("ponderer.ui.show_controls.item.hint"));
-        jeiBtn = createJeiButton(x + 129, y, itemField, IdFieldMode.ITEM);
+        jeiBtn = createJeiButton(x + 129, y, itemField, IdFieldMode.INGREDIENT);
         addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.show_controls.item"), UIText.of("ponderer.ui.show_controls.item.tooltip"));
         y += 22;
         sneakToggle = createToggle(x, y);

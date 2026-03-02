@@ -16,25 +16,25 @@ import java.util.List;
 @Mixin(PonderUI.class)
 public interface PonderUIAccessor {
 
-    @Accessor("hoveredBlockPos")
+    @Accessor(value = "hoveredBlockPos", remap = false)
     @Nullable
     BlockPos ponderer$getHoveredBlockPos();
 
-    @Accessor("identifyMode")
+    @Accessor(value = "identifyMode", remap = false)
     boolean ponderer$getIdentifyMode();
 
-    @Accessor("identifyMode")
+    @Accessor(value = "identifyMode", remap = false)
     void ponderer$setIdentifyMode(boolean value);
 
-    @Accessor("scenes")
+    @Accessor(value = "scenes", remap = false)
     List<PonderScene> ponderer$getScenes();
 
-    @Accessor("index")
+    @Accessor(value = "index", remap = false)
     int ponderer$getIndex();
 
-    @Accessor("index")
+    @Accessor(value = "index", remap = false)
     void ponderer$setIndex(int value);
 
-    @Accessor("lazyIndex")
+    @Accessor(value = "lazyIndex", remap = false)
     LerpedFloat ponderer$getLazyIndex();
 }

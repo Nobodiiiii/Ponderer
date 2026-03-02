@@ -26,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 public class ShowStructureScreen extends AbstractStepEditorScreen {
 
     private HintableTextFieldWidget heightField;
+    private HintableTextFieldWidget scaleField;
     private HintableTextFieldWidget structureField;
     private PonderButton browseButton;
     private boolean waitingDownload;
@@ -41,7 +42,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         super(Component.translatable("ponderer.ui.show_structure"), scene, sceneIndex, parent, editIndex, step);
     }
 
-    @Override protected int getFormRowCount() { return 2; }
+    @Override protected int getFormRowCount() { return 3; }
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.show_structure"); }
 
     @Override
@@ -51,19 +52,24 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         addLabelTooltip(guiLeft + 10, y + 3, UIText.of("ponderer.ui.show_structure.height"), UIText.of("ponderer.ui.show_structure.height.tooltip"));
 
         int y2 = y + ROW_HEIGHT;
-        structureField = createTextField(x, y2, 95, 18, UIText.of("ponderer.ui.show_structure.structure.hint"));
-        addLabelTooltip(guiLeft + 10, y2 + 3, UIText.of("ponderer.ui.show_structure.structure"), UIText.of("ponderer.ui.show_structure.structure.tooltip"));
+        scaleField = createSmallNumberField(x, y2, 60, "1.0");
+        addLabelTooltip(guiLeft + 10, y2 + 3, UIText.of("ponderer.ui.show_structure.scale"), UIText.of("ponderer.ui.show_structure.scale.tooltip"));
 
-        browseButton = new PonderButton(x + 100, y2, 30, 18);
+        int y3 = y2 + ROW_HEIGHT;
+        structureField = createTextField(x, y3, 95, 18, UIText.of("ponderer.ui.show_structure.structure.hint"));
+        addLabelTooltip(guiLeft + 10, y3 + 3, UIText.of("ponderer.ui.show_structure.structure"), UIText.of("ponderer.ui.show_structure.structure.tooltip"));
+
+        browseButton = new PonderButton(x + 100, y3, 30, 18);
         browseButton.withCallback(this::openFilePicker);
         addRenderableWidget(browseButton);
-        addLabelTooltip(x + 100, y2, UIText.of("ponderer.ui.show_structure.browse"), UIText.of("ponderer.ui.show_structure.browse.tooltip"));
+        addLabelTooltip(x + 100, y3, UIText.of("ponderer.ui.show_structure.browse"), UIText.of("ponderer.ui.show_structure.browse.tooltip"));
     }
 
     @Override
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         if (step.height != null) heightField.setValue(String.valueOf(step.height));
+        if (step.scale != null) scaleField.setValue(String.valueOf(step.scale));
         if (step.structure != null && !step.structure.isBlank()) structureField.setValue(step.structure);
     }
 
@@ -71,7 +77,8 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         var font = Minecraft.getInstance().font;
         graphics.drawString(font, UIText.of("ponderer.ui.show_structure.height"), guiLeft + 10, guiTop + FORM_TOP + 3, 0xCCCCCC);
-        graphics.drawString(font, UIText.of("ponderer.ui.show_structure.structure"), guiLeft + 10, guiTop + FORM_TOP + ROW_HEIGHT + 3, 0xCCCCCC);
+        graphics.drawString(font, UIText.of("ponderer.ui.show_structure.scale"), guiLeft + 10, guiTop + FORM_TOP + ROW_HEIGHT + 3, 0xCCCCCC);
+        graphics.drawString(font, UIText.of("ponderer.ui.show_structure.structure"), guiLeft + 10, guiTop + FORM_TOP + ROW_HEIGHT * 2 + 3, 0xCCCCCC);
     }
 
     @Override
@@ -140,6 +147,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     protected Map<String, String> snapshotForm() {
         Map<String, String> m = new HashMap<>();
         m.put("height", heightField.getValue());
+        m.put("scale", scaleField.getValue());
         m.put("structure", structureField.getValue());
         return m;
     }
@@ -148,6 +156,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     protected void restoreFromSnapshot(Map<String, String> snapshot) {
         restoreKeyFrame(snapshot);
         if (snapshot.containsKey("height")) heightField.setValue(snapshot.get("height"));
+        if (snapshot.containsKey("scale")) scaleField.setValue(snapshot.get("scale"));
         if (snapshot.containsKey("structure")) structureField.setValue(snapshot.get("structure"));
     }
 
@@ -166,6 +175,12 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
             Integer h = parseInt(hv, "Height");
             if (h == null) return null;
             s.height = h;
+        }
+        String sv = scaleField.getValue().trim();
+        if (!sv.isEmpty()) {
+            Float sc = parseFloat(sv, "Scale");
+            if (sc == null) return null;
+            s.scale = sc;
         }
         String structure = structureField.getValue().trim();
         if (!structure.isEmpty()) {

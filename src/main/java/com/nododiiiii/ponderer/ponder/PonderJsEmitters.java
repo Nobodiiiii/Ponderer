@@ -60,10 +60,16 @@ public final class PonderJsEmitters {
     // -- emitters ----------------------------------------------------------------
 
     private static String emitShowStructure(DslScene.DslStep step, EmitContext ctx) {
+        String line;
         if (step.height != null && step.height > 0) {
-            return "scene.showStructure(" + step.height + ");";
+            line = "scene.showStructure(" + step.height + ");";
+        } else {
+            line = "scene.showStructure();";
         }
-        return "scene.showStructure();";
+        if (step.scale != null) {
+            line += "\nscene.scaleSceneView(" + fmtFloat(step.scale) + ");";
+        }
+        return line;
     }
 
     private static String emitIdle(DslScene.DslStep step, EmitContext ctx) {

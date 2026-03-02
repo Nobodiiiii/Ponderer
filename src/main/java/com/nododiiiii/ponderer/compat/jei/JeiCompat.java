@@ -2,8 +2,12 @@ package com.nododiiiii.ponderer.compat.jei;
 
 import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
-import net.minecraft.client.gui.screens.Screen;
+import com.nododiiiii.ponderer.ui.JeiAwareScreen;
+import net.createmod.catnip.gui.element.ScreenElement;
 import net.neoforged.fml.ModList;
+
+import javax.annotation.Nullable;
+import java.util.List;
 
 /**
  * Safe entry point for JEI integration.
@@ -31,8 +35,8 @@ public final class JeiCompat {
         PondererJeiPlugin.setActiveEditor(screen, mode);
     }
 
-    /** Tell JEI plugin to show overlay for any JeiAwareScreen (e.g. CommandParamScreen). */
-    public static void setActiveScreen(Screen screen, IdFieldMode mode) {
+    /** Tell JEI plugin to show overlay for any JEI-aware screen. */
+    public static void setActiveScreen(JeiAwareScreen screen, IdFieldMode mode) {
         if (!isAvailable()) return;
         PondererJeiPlugin.setActiveScreen(screen, mode);
     }
@@ -41,5 +45,49 @@ public final class JeiCompat {
     public static void clearActiveEditor() {
         if (!isAvailable()) return;
         PondererJeiPlugin.clearActiveEditor();
+    }
+
+    /**
+     * Create a ScreenElement that renders the given ingredient object using JEI.
+     * The ingredient can be an ItemStack, FluidStack, or any JEI-registered type.
+     * Returns null if JEI is unavailable or the ingredient is not recognized.
+     */
+    @Nullable
+    public static ScreenElement createIngredientElement(Object ingredient) {
+        if (!isAvailable()) return null;
+        return JeiIngredientHelper.createScreenElement(ingredient);
+    }
+
+    /**
+     * Resolve an ingredient ID string by searching JEI's registered ingredient types.
+     * Used as a fallback when item/fluid registries don't contain the ID.
+     * Returns a ScreenElement if a matching ingredient is found, null otherwise.
+     */
+    @Nullable
+    public static ScreenElement resolveIngredientById(String id) {
+        if (!isAvailable()) return null;
+        return JeiIngredientHelper.resolveById(id);
+    }
+
+    /**
+     * Resolve an ingredient ID string from a JEI ITypedIngredient click.
+     * Handles all ingredient types (items, fluids, chemicals, etc.).
+     * Returns the registry ID string, or null if unable to resolve.
+     */
+    @Nullable
+    public static String resolveIngredientId(Object typedIngredient) {
+        if (!isAvailable()) return null;
+        return JeiIngredientHelper.resolveId(typedIngredient);
+    }
+
+    /**
+     * Get all JEI ingredient entries for registry mapping.
+     * Returns a list of {id, displayName, path, kind} string arrays for ALL ingredients
+     * from ALL JEI-registered types (items, fluids, Mekanism chemicals, etc.).
+     * The "kind" field indicates the ingredient type (e.g. "item", "fluid", "chemical").
+     */
+    public static List<String[]> getAllExtraIngredientEntries() {
+        if (!isAvailable()) return List.of();
+        return JeiIngredientHelper.getAllExtraEntries();
     }
 }

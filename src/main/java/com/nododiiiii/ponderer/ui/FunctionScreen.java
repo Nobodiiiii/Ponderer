@@ -47,6 +47,9 @@ public class FunctionScreen extends NavigatableSimiScreen {
             new ButtonDef("ponderer.ui.function_page.new_scene", () -> {
                 Minecraft.getInstance().setScreen(buildNewScenePage());
             }, "ponderer.ui.function_page.new_scene.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.ai_generate", () -> {
+                Minecraft.getInstance().setScreen(new AiGenerateScreen());
+            }, "ponderer.ui.function_page.ai_generate.tooltip"),
             new ButtonDef("ponderer.ui.function_page.copy_scene", () -> {
                 Minecraft.getInstance().setScreen(buildCopyPage());
             }, "ponderer.ui.function_page.copy_scene.tooltip"),
@@ -75,10 +78,10 @@ public class FunctionScreen extends NavigatableSimiScreen {
         // -- Import / Export --
         sections.add(new Section("ponderer.ui.function_page.import_export", List.of(
             new ButtonDef("ponderer.ui.function_page.export", () -> {
-                Minecraft.getInstance().setScreen(buildExportPage());
+                Minecraft.getInstance().setScreen(new ExportPackScreen());
             }, "ponderer.ui.function_page.export.tooltip"),
             new ButtonDef("ponderer.ui.function_page.import", () -> {
-                Minecraft.getInstance().setScreen(buildImportPage());
+                Minecraft.getInstance().setScreen(new ImportPackScreen());
             }, "ponderer.ui.function_page.import.tooltip"),
             new ButtonDef("ponderer.ui.function_page.download", () -> {
                 Minecraft.getInstance().setScreen(buildDownloadPage());
@@ -108,7 +111,10 @@ public class FunctionScreen extends NavigatableSimiScreen {
             new ButtonDef("ponderer.ui.function_page.keybindings", () -> {
                 Minecraft mc = Minecraft.getInstance();
                 mc.setScreen(new KeyBindsScreen(null, mc.options));
-            }, "ponderer.ui.function_page.keybindings.tooltip")
+            }, "ponderer.ui.function_page.keybindings.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.ai_config", () -> {
+                Minecraft.getInstance().setScreen(new AiConfigScreen());
+            }, "ponderer.ui.function_page.ai_config.tooltip")
         )));
     }
 
@@ -120,16 +126,17 @@ public class FunctionScreen extends NavigatableSimiScreen {
                 List.of("ponderer.ui.function_page.mode.check", "ponderer.ui.function_page.mode.force"),
                 List.of("check", "force"))
             .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
-                "ponderer.ui.function_page.param.scene_id.hint", false)
+                "ponderer.ui.function_page.param.scene_id.hint", false, true)
             .onExecute(values -> {
                 String mode = values.get("mode");
                 String sceneId = values.get("scene_id");
                 if (sceneId != null && !sceneId.isEmpty()) {
-                    ResourceLocation rl = ResourceLocation.tryParse(sceneId);
-                    if (rl != null) {
-                        PondererClientCommands.push(rl, mode);
-                        return;
+                    for (String part : sceneId.split(",")) {
+                        String trimmed = part.trim();
+                        if (trimmed.isEmpty()) continue;
+                        PondererClientCommands.pushByKey(trimmed, mode);
                     }
+                    return;
                 }
                 PondererClientCommands.pushAll(mode);
             })
@@ -172,17 +179,7 @@ public class FunctionScreen extends NavigatableSimiScreen {
                     }
                     itemId = BuiltInRegistries.ITEM.getKey(held.getItem());
                     if (useHeldNbt) {
-                        // 1.21.1: use save(registryAccess) to extract custom data
-                        var registryAccess = player.registryAccess();
-                        net.minecraft.nbt.Tag saved = held.save(registryAccess);
-                        if (saved instanceof CompoundTag fullTag) {
-                            CompoundTag filterTag = fullTag.copy();
-                            filterTag.remove("count");
-                            filterTag.remove("id");
-                            if (!filterTag.isEmpty()) {
-                                nbt = filterTag;
-                            }
-                        }
+                        nbt = PondererClientCommands.extractStackNbtFilter(held);
                     }
                 } else {
                     itemId = ResourceLocation.tryParse(values.get("item_id"));
@@ -222,18 +219,10 @@ public class FunctionScreen extends NavigatableSimiScreen {
             if (player == null) return "";
             ItemStack held = player.getMainHandItem();
             if (held.isEmpty()) return "";
-            // 1.21.1: use save(registryAccess) to extract custom data
-            var registryAccess = player.registryAccess();
-            net.minecraft.nbt.Tag saved = held.save(registryAccess);
-            if (saved instanceof CompoundTag fullTag) {
-                CompoundTag filterTag = fullTag.copy();
-                filterTag.remove("count");
-                filterTag.remove("id");
-                if (!filterTag.isEmpty()) {
-                    return filterTag.toString();
-                }
-            }
-            return "";
+            CompoundTag tag = PondererClientCommands.extractStackNbtFilter(held);
+            if (tag == null) return "";
+            if (tag.isEmpty()) return "";
+            return tag.toString();
         });
 
         // Pre-fill item_id with held item
@@ -256,10 +245,10 @@ public class FunctionScreen extends NavigatableSimiScreen {
             .itemField("target_item", "ponderer.ui.function_page.param.target_item",
                 "ponderer.ui.function_page.param.target_item.hint", true)
             .onExecute(values -> {
-                ResourceLocation sceneId = ResourceLocation.tryParse(values.get("scene_id"));
+                String sceneKey = values.get("scene_id");
                 ResourceLocation targetItem = ResourceLocation.tryParse(values.get("target_item"));
-                if (sceneId != null && targetItem != null) {
-                    PondererClientCommands.copyScene(sceneId, targetItem);
+                if (sceneKey != null && !sceneKey.isEmpty() && targetItem != null) {
+                    PondererClientCommands.copySceneByKey(sceneKey, targetItem);
                 }
             })
             .build();
@@ -271,7 +260,7 @@ public class FunctionScreen extends NavigatableSimiScreen {
                 List.of("ponderer.ui.function_page.delete.by_scene", "ponderer.ui.function_page.delete.by_item"),
                 List.of("by_scene", "by_item"))
             .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
-                "ponderer.ui.function_page.param.scene_id.hint", false)
+                "ponderer.ui.function_page.param.scene_id.hint", false, true)
             .itemField("item_id", "ponderer.ui.function_page.param.item_id",
                 "ponderer.ui.function_page.param.item_id.hint", false)
             .onExecute(values -> {
@@ -279,8 +268,11 @@ public class FunctionScreen extends NavigatableSimiScreen {
                 if ("by_scene".equals(mode)) {
                     String sceneId = values.get("scene_id");
                     if (sceneId != null && !sceneId.isEmpty()) {
-                        ResourceLocation rl = ResourceLocation.tryParse(sceneId);
-                        if (rl != null) PondererClientCommands.deleteScene(rl);
+                        for (String part : sceneId.split(",")) {
+                            String trimmed = part.trim();
+                            if (trimmed.isEmpty()) continue;
+                            PondererClientCommands.deleteSceneByKey(trimmed);
+                        }
                     }
                 } else {
                     String itemId = values.get("item_id");
@@ -290,25 +282,6 @@ public class FunctionScreen extends NavigatableSimiScreen {
                     }
                 }
             })
-            .build();
-    }
-
-    private static CommandParamScreen buildExportPage() {
-        return CommandParamScreen.builder("ponderer.ui.function_page.export.title")
-            .textField("filename", "ponderer.ui.function_page.param.filename",
-                "ponderer.ui.function_page.param.filename.hint", false)
-            .onExecute(values -> {
-                String fn = values.get("filename");
-                PondererClientCommands.exportPack(fn.isEmpty() ? null : fn);
-            })
-            .build();
-    }
-
-    private static CommandParamScreen buildImportPage() {
-        return CommandParamScreen.builder("ponderer.ui.function_page.import.title")
-            .textField("filename", "ponderer.ui.function_page.param.filename",
-                "ponderer.ui.function_page.param.filename.hint", true)
-            .onExecute(values -> PondererClientCommands.importPack(values.get("filename")))
             .build();
     }
 

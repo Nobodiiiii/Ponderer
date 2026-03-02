@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
@@ -17,7 +18,6 @@ public class DslScene {
      */
     public List<String> structures = List.of();
     public List<String> tags = List.of();
-    public List<DslStep> steps = List.of();
     public List<SceneSegment> scenes = List.of();
     /**
      * Optional SNBT filter string. When set, scenes for this DslScene
@@ -25,6 +25,62 @@ public class DslScene {
      * Example: "{CustomModelData:1}" or "{display:{Name:'\"Special\"'}}"
      */
     public String nbtFilter;
+
+    /**
+     * Pack name this scene belongs to. Null or absent for local scenes.
+     * Set during import from a Ponderer resource pack.
+     * Serialized to JSON (NOT transient).
+     */
+    @Nullable
+    public String pack;
+
+    /**
+     * Transient field set by SceneStore.reloadFromDisk().
+     * Stores the source filename (e.g. "example.json" or "[my_pack] example.json").
+     * Not serialized by GSON.
+     */
+    public transient String sourceFile;
+
+    /**
+     * Extract pack prefix from a source filename.
+    * "[my_pack] example.json" → "[my_pack]"
+    * "example.json" → null
+     */
+    @Nullable
+    public static String extractPackPrefix(@Nullable String sourceFile) {
+        if (sourceFile == null) return null;
+        if (sourceFile.startsWith("[")) {
+            int close = sourceFile.indexOf(']');
+            if (close > 0) {
+                return sourceFile.substring(0, close + 1);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get the pack prefix string from the pack field.
+     * Returns "[PackName]" or null for local scenes.
+     */
+    @Nullable
+    public String getPackPrefix() {
+        if (pack != null && !pack.isEmpty()) {
+            return "[" + pack + "]";
+        }
+        return null;
+    }
+
+    /**
+     * Generate a unique scene key.
+     * Local scene: "ponderer:example"
+     * Pack scene: "[my_pack] ponderer:example"
+     */
+    public String sceneKey() {
+        if (pack != null && !pack.isEmpty()) {
+            return "[" + pack + "] " + id;
+        }
+        return id;
+    }
 
     public static class SceneSegment {
         public String id;
@@ -47,6 +103,7 @@ public class DslScene {
         public Float yaw;
         public Float pitch;
         public Float degrees;
+        public Float scale;
         public Integer count;
         public List<Integer> bounds;
         public String direction;
@@ -73,6 +130,7 @@ public class DslScene {
         public Boolean attachKeyFrame;
         public Boolean whileSneaking;
         public Boolean whileCTRL;
+        public Boolean fullScene;
 
         public int durationOrDefault(int fallback) {
             return duration == null ? fallback : Math.max(duration, 0);

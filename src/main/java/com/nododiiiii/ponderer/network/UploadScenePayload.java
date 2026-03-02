@@ -10,6 +10,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
@@ -19,6 +20,7 @@ import java.util.List;
 public record UploadScenePayload(String sceneId, String json,
                                  List<StructureEntry> structures,
                                  String mode, String lastSyncHash) implements CustomPacketPayload {
+
     public static final Type<UploadScenePayload> TYPE =
         new Type<>(ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, "upload_scene"));
     public static final StreamCodec<RegistryFriendlyByteBuf, UploadScenePayload> CODEC =
@@ -76,9 +78,8 @@ public record UploadScenePayload(String sceneId, String json,
             String serverHash = computeServerSceneHash(player.server, payload.sceneId());
 
             if (!serverHash.isEmpty() && !lastSyncHash.isEmpty() && !serverHash.equals(lastSyncHash)) {
-                // Server file was modified since last sync - conflict
                 player.sendSystemMessage(Component.translatable("ponderer.cmd.push.server_conflict", payload.sceneId()));
-                net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+                PacketDistributor.sendToPlayer(player,
                     new UploadResponsePayload(payload.sceneId(), "conflict"));
                 return;
             }
@@ -96,13 +97,12 @@ public record UploadScenePayload(String sceneId, String json,
 
         if (ok) {
             player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_ok", payload.sceneId()));
-            // Compute new server hash after write and send it back to client for SyncMeta update
             String newHash = computeServerSceneHash(player.server, payload.sceneId());
-            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+            PacketDistributor.sendToPlayer(player,
                 new UploadResponsePayload(payload.sceneId(), "ok:" + newHash));
         } else {
             player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_failed", payload.sceneId()));
-            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+            PacketDistributor.sendToPlayer(player,
                 new UploadResponsePayload(payload.sceneId(), "error"));
         }
     }

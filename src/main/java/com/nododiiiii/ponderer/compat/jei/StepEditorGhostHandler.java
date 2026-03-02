@@ -1,11 +1,10 @@
 package com.nododiiiii.ponderer.compat.jei;
 
+import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
-import com.nododiiiii.ponderer.ui.JeiAwareScreen;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -17,20 +16,18 @@ import net.minecraft.world.item.SpawnEggItem;
 import java.util.List;
 import java.util.Optional;
 
-public class StepEditorGhostHandler<T extends Screen> implements IGhostIngredientHandler<T> {
+public class StepEditorGhostHandler implements IGhostIngredientHandler<AbstractStepEditorScreen> {
 
     @Override
     public <I> List<Target<I>> getTargetsTyped(
-            T gui,
+            AbstractStepEditorScreen gui,
             ITypedIngredient<I> ingredient,
             boolean doStart) {
-
-        if (!(gui instanceof JeiAwareScreen aware)) return List.of();
 
         IdFieldMode mode = PondererJeiPlugin.getActiveMode();
         if (mode == null) return List.of();
 
-        HintableTextFieldWidget targetField = aware.getJeiTargetField();
+        HintableTextFieldWidget targetField = gui.getJeiTargetField();
         if (targetField == null) return List.of();
 
         Optional<ItemStack> stackOpt = ingredient.getItemStack();
@@ -67,7 +64,7 @@ public class StepEditorGhostHandler<T extends Screen> implements IGhostIngredien
 
     static String resolveId(ItemStack stack, IdFieldMode mode) {
         return switch (mode) {
-            case ITEM -> {
+            case ITEM, INGREDIENT -> {
                 ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
                 yield key.toString();
             }

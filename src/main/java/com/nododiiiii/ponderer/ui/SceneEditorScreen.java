@@ -25,8 +25,10 @@ import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Ponder editor screen - shows all steps in the current scene.
@@ -45,13 +47,6 @@ public class SceneEditorScreen extends AbstractSimiScreen {
     private static final int ACTION_BTN_AREA = 84;
     /** Each small inline button width */
     private static final int SMALL_BTN = 14;
-
-    private static final ResourceLocation ICON_MOVE_UP = ResourceLocation.fromNamespaceAndPath("minecraft",
-            "server_list/move_up");
-    private static final ResourceLocation ICON_MOVE_DOWN = ResourceLocation.fromNamespaceAndPath("minecraft",
-            "server_list/move_down");
-    private static final ResourceLocation ICON_DELETE = ResourceLocation.fromNamespaceAndPath("minecraft",
-            "container/beacon/cancel");
 
     /** Client-side clipboard for copy/paste. Holds a deep-copied step. */
     private static DslScene.DslStep clipboard = null;
@@ -211,7 +206,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         new BoxElement()
                 .withBackground(new Color(0xdd_000000, true))
                 .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
-                .at(guiLeft, guiTop, 100)
+                .at(guiLeft, guiTop, 0)
                 .withBounds(WINDOW_W, WINDOW_H)
                 .render(graphics);
 
@@ -382,69 +377,83 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         if (hovered) {
             hoveredRow = -1; // prevent text-area hover when on button
             hoveredAction = actionId;
-            // Store the row for action handling
             hoveredActionRow = rowIndex;
         }
         int bg = disabled ? 0x10_FFFFFF : (hovered ? 0x60_FFFFFF : 0x30_FFFFFF);
         graphics.fill(x, y, x + SMALL_BTN, y + STEP_ROW_HEIGHT - 2, bg);
 
-        ResourceLocation icon = switch (actionId) {
-            case 0 -> ICON_MOVE_UP;
-            case 1 -> ICON_MOVE_DOWN;
-            case 5 -> ICON_DELETE;
-            default -> null;
-        };
+        int iconColor;
+        if (disabled) {
+            iconColor = 0xFF_404040;
+        } else {
+            iconColor = switch (actionId) {
+                case 0 -> 0xFF_FFFFFF; // move up
+                case 1 -> 0xFF_FFFFFF; // move down
+                case 2 -> 0xFF_80FF80; // green for insert
+                case 3 -> 0xFF_80C0FF; // blue for copy
+                case 4 -> clipboard != null ? 0xFF_FFD080 : 0xFF_606060; // orange for paste, gray when empty
+                case 5 -> 0xFF_FF5555; // red for delete
+                default -> 0xFFFFFFFF;
+            };
+        }
 
-        if (icon != null) {
-            if (disabled) {
-                graphics.setColor(0.25f, 0.25f, 0.25f, 1.0f);
-            } else {
-                graphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-            }
-            graphics.pose().pushPose();
-            graphics.pose().translate(0, 0, 500);
-            if (actionId == 5) {
-                // Delete icon (14x14 fits the button perfectly)
-                graphics.blitSprite(icon, x, y + 1, 14, 14);
-            } else {
-                // Move Up/Down icons (using 24x24 as requested, centered on the 14x16 button)
-                graphics.blitSprite(icon, x, y - 4, 24, 24);
-            }
-            graphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-            graphics.pose().popPose();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 500);
+
+        if (actionId == 0) {
+            // Up arrow triangle icon
+            int cx = x + SMALL_BTN / 2;
+            int cy = y + (STEP_ROW_HEIGHT - 2) / 2;
+            drawUpArrow(graphics, cx, cy, iconColor);
+        } else if (actionId == 1) {
+            // Down arrow triangle icon
+            int cx = x + SMALL_BTN / 2;
+            int cy = y + (STEP_ROW_HEIGHT - 2) / 2;
+            drawDownArrow(graphics, cx, cy, iconColor);
         } else {
             var font = Minecraft.getInstance().font;
-            graphics.pose().pushPose();
-            graphics.pose().translate(0, 0, 500);
-            int textColor;
-            if (disabled) {
-                textColor = 0xFF_404040;
-            } else {
-                textColor = switch (actionId) {
-                    case 2 -> 0xFF_80FF80; // green for insert
-                    case 3 -> 0xFF_80C0FF; // blue for copy
-                    case 4 -> clipboard != null ? 0xFF_FFD080 : 0xFF_606060; // orange for paste, gray when empty
-                    default -> 0xFFFFFFFF;
-                };
-            }
-            graphics.drawCenteredString(font, label, x + SMALL_BTN / 2, y + 4, textColor);
-            graphics.pose().popPose();
+            graphics.drawCenteredString(font, label, x + SMALL_BTN / 2, y + 4, iconColor);
         }
+
+        graphics.pose().popPose();
+    }
+
+    /** Draw a small upward-pointing triangle centered at (cx, cy). */
+    private void drawUpArrow(GuiGraphics graphics, int cx, int cy, int color) {
+        graphics.fill(cx - 1, cy - 2, cx + 1, cy - 1, color);
+        graphics.fill(cx - 2, cy - 1, cx + 2, cy,     color);
+        graphics.fill(cx - 3, cy,     cx + 3, cy + 1,  color);
+        graphics.fill(cx - 4, cy + 1, cx + 4, cy + 2,  color);
+    }
+
+    /** Draw a small downward-pointing triangle centered at (cx, cy). */
+    private void drawDownArrow(GuiGraphics graphics, int cx, int cy, int color) {
+        graphics.fill(cx - 4, cy - 2, cx + 4, cy - 1, color);
+        graphics.fill(cx - 3, cy - 1, cx + 3, cy,     color);
+        graphics.fill(cx - 2, cy,     cx + 2, cy + 1,  color);
+        graphics.fill(cx - 1, cy + 1, cx + 1, cy + 2,  color);
     }
 
     /**
-     * Returns true if the given action should be disabled for the given row.
-     * Protects the first show_structure step from being moved or deleted.
+     * Returns true if the given action should be disabled for the step at rowIndex.
+     * Every scene segment's first show_structure cannot be deleted or moved.
+     * The second step's move-up is also disabled to prevent swapping with the protected first step.
      */
     private boolean isActionDisabled(int actionId, int rowIndex) {
         List<DslScene.DslStep> steps = getSteps();
         if (steps.isEmpty()) return false;
+
         DslScene.DslStep first = steps.get(0);
         if (first == null || !"show_structure".equalsIgnoreCase(first.type)) return false;
-        // Row 0 (show_structure): disable delete, move-up, move-down
-        if (rowIndex == 0 && (actionId == 5 || actionId == 0 || actionId == 1)) return true;
-        // Row 1: disable move-up (would swap with show_structure)
-        if (rowIndex == 1 && actionId == 0) return true;
+
+        // First step: disable delete, move-up, move-down
+        if (rowIndex == 0 && (actionId == 5 || actionId == 0 || actionId == 1)) {
+            return true;
+        }
+        // Second step: disable move-up (prevents swapping above the protected first step)
+        if (rowIndex == 1 && actionId == 0) {
+            return true;
+        }
         return false;
     }
 
@@ -455,11 +464,8 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         if (button == 0) {
             // Check action buttons first
             if (hoveredAction >= 0 && hoveredActionRow >= 0) {
-                if (isActionDisabled(hoveredAction, hoveredActionRow)) {
-                    return true; // swallow click on disabled button
-                }
                 List<DslScene.DslStep> steps = getSteps();
-                if (hoveredActionRow < steps.size()) {
+                if (hoveredActionRow < steps.size() && !isActionDisabled(hoveredAction, hoveredActionRow)) {
                     switch (hoveredAction) {
                         case 0 -> moveStepUp(hoveredActionRow);
                         case 1 -> moveStepDown(hoveredActionRow);
@@ -571,29 +577,20 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         if (scene.scenes != null && !scene.scenes.isEmpty()) {
             if (sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
                 scene.scenes.get(sceneIndex).steps = new ArrayList<>(newSteps);
-                return;
             }
         }
-        scene.steps = new ArrayList<>(newSteps);
     }
 
     /* -------- Step list helpers -------- */
 
     private List<DslScene.DslStep> getSteps() {
         if (scene.scenes != null && !scene.scenes.isEmpty()) {
-            // Direct access to the scenes[] array (no virtual splitting)
             if (sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
                 List<DslScene.DslStep> steps = scene.scenes.get(sceneIndex).steps;
                 return steps != null ? steps : List.of();
             }
         }
-        // Flat steps mode: use getScenes() which splits by next_scene
-        List<DslScene.SceneSegment> scenes = getScenes();
-        if (sceneIndex >= 0 && sceneIndex < scenes.size()) {
-            List<DslScene.DslStep> steps = scenes.get(sceneIndex).steps;
-            return steps != null ? steps : List.of();
-        }
-        return scene.steps != null ? scene.steps : List.of();
+        return List.of();
     }
 
     /**
@@ -611,12 +608,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
                 return sc.steps;
             }
         }
-        if (scene.steps == null) {
-            scene.steps = new ArrayList<>();
-        } else if (!(scene.steps instanceof ArrayList)) {
-            scene.steps = new ArrayList<>(scene.steps);
-        }
-        return scene.steps;
+        return new ArrayList<>();
     }
 
     private List<DslScene.SceneSegment> getScenes() {
@@ -624,28 +616,9 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             return scene.scenes;
         }
         List<DslScene.SceneSegment> result = new ArrayList<>();
-        DslScene.SceneSegment current = new DslScene.SceneSegment();
-        current.steps = new ArrayList<>();
-
-        if (scene.steps != null) {
-            for (DslScene.DslStep step : scene.steps) {
-                if (step != null && step.type != null && "next_scene".equalsIgnoreCase(step.type)) {
-                    if (!current.steps.isEmpty())
-                        result.add(current);
-                    current = new DslScene.SceneSegment();
-                    current.steps = new ArrayList<>();
-                    continue;
-                }
-                current.steps.add(step);
-            }
-        }
-        if (!current.steps.isEmpty())
-            result.add(current);
-        if (result.isEmpty()) {
-            DslScene.SceneSegment fallback = new DslScene.SceneSegment();
-            fallback.steps = new ArrayList<>();
-            result.add(fallback);
-        }
+        DslScene.SceneSegment fallback = new DslScene.SceneSegment();
+        fallback.steps = new ArrayList<>();
+        result.add(fallback);
         return result;
     }
 
@@ -688,6 +661,10 @@ public class SceneEditorScreen extends AbstractSimiScreen {
                 case "move_section" -> stepTypeName("move_section");
                 case "indicate_redstone" -> stepTypeName("indicate_redstone");
                 case "indicate_success" -> stepTypeName("indicate_success");
+                case "clear_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
+                    stepTypeName("clear_entities"), step.entity != null && !step.entity.isEmpty() ? step.entity : "*");
+                case "clear_item_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
+                    stepTypeName("clear_item_entities"), step.item != null && !step.item.isEmpty() ? step.item : "*");
             case "next_scene" -> UIText.of("ponderer.ui.step.summary.next_scene");
             default -> step.type;
         };
@@ -800,7 +777,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             idleStep.type = "idle";
             idleStep.duration = 20;
             newScene.steps.add(idleStep);
-            newScene.id = "new_" + (scene.scenes.size() + 1);
+            newScene.id = generateUniqueSegmentId(scene);
             if (!(scene.scenes instanceof ArrayList)) {
                 scene.scenes = new ArrayList<>(scene.scenes);
             }
@@ -829,6 +806,27 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         } else {
             this.init(Minecraft.getInstance(), this.width, this.height);
         }
+    }
+
+    /**
+     * Generate a unique segment ID that does not collide with any existing
+     * segment IDs in the given scene.
+     */
+    private static String generateUniqueSegmentId(DslScene scene) {
+        Set<String> existing = new HashSet<>();
+        if (scene.scenes != null) {
+            for (DslScene.SceneSegment seg : scene.scenes) {
+                if (seg.id != null) {
+                    existing.add(seg.id);
+                }
+            }
+        }
+        java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
+        String candidate;
+        do {
+            candidate = "s_" + Integer.toHexString(rng.nextInt(0x10000, 0xFFFFF));
+        } while (existing.contains(candidate));
+        return candidate;
     }
 
     /** Save the scene JSON to file without reloading Ponder. */
@@ -920,17 +918,61 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         }
         final ResourceLocation reopenId = itemId;
         final String targetSceneId = computeCurrentSceneId();
+        final String nbtFilter = scene.nbtFilter;
 
         mc.execute(() -> {
             PonderIndex.reload();
             if (reopenId != null && PonderIndex.getSceneAccess().doScenesExistForId(reopenId)) {
-                PonderUI ui = PonderUI.of(reopenId);
+                PonderUI ui;
+                // When scene has an NBT filter, use PonderUI.of(ItemStack) so that
+                // the NBT capture mixin sets the filter context for scene compilation
+                if (nbtFilter != null && !nbtFilter.isBlank()) {
+                    net.minecraft.world.item.ItemStack stack = buildFilteredStack(reopenId, nbtFilter);
+                    ui = PonderUI.of(stack);
+                } else {
+                    ui = PonderUI.of(reopenId);
+                }
                 if (targetSceneId != null) {
                     navigateToScene(ui, targetSceneId);
                 }
                 mc.setScreen(ui);
             }
         });
+    }
+
+    /**
+     * Build an ItemStack with NBT matching the given filter, so PonderUI.of(ItemStack)
+     * correctly triggers the NBT scene filter.
+     */
+    private static net.minecraft.world.item.ItemStack buildFilteredStack(ResourceLocation itemId, String nbtFilter) {
+        net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
+        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item);
+        try {
+            net.minecraft.nbt.CompoundTag filterTag = net.minecraft.nbt.TagParser.parseTag(nbtFilter);
+            net.minecraft.nbt.CompoundTag customData = filterTag;
+            if (filterTag.contains("tag", net.minecraft.nbt.Tag.TAG_COMPOUND)) {
+                customData = filterTag.getCompound("tag").copy();
+            }
+
+            if (filterTag.contains("components", net.minecraft.nbt.Tag.TAG_COMPOUND)) {
+                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                if (mc.level != null) {
+                    net.minecraft.nbt.CompoundTag fullTag = new net.minecraft.nbt.CompoundTag();
+                    fullTag.putString("id", itemId.toString());
+                    fullTag.putInt("count", 1);
+                    fullTag.put("components", filterTag.getCompound("components").copy());
+                    net.minecraft.world.item.ItemStack parsed = net.minecraft.world.item.ItemStack.parseOptional(
+                        mc.level.registryAccess(), fullTag);
+                    if (!parsed.isEmpty()) {
+                        return parsed;
+                    }
+                }
+            }
+
+            stack.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                net.minecraft.world.item.component.CustomData.of(customData.copy()));
+        } catch (Exception ignored) {}
+        return stack;
     }
 
     /**
