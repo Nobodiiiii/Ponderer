@@ -4,8 +4,6 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -61,34 +59,18 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        posXField = createSmallNumberField(x, y, sw, "X");
-        posYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        posZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn1 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS1);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".pos_from"), UIText.of("ponderer.ui." + stepType + ".pos_from.tooltip"));
-
-        y += 22;
-        pos2XField = createSmallNumberField(x, y, sw, "X");
-        pos2YField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        pos2ZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn2 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS2);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".pos_to"), UIText.of("ponderer.ui." + stepType + ".pos_to.tooltip"));
-
+        beginForm();
+        var from = addFormXyzRow("ponderer.ui." + stepType + ".pos_from", "ponderer.ui." + stepType + ".pos_from.tooltip", PickState.TargetField.POS1);
+        posXField = from.x(); posYField = from.y(); posZField = from.z(); pickBtn1 = from.pickBtn();
+        var to = addFormXyzRow("ponderer.ui." + stepType + ".pos_to", "ponderer.ui." + stepType + ".pos_to.tooltip", PickState.TargetField.POS2);
+        pos2XField = to.x(); pos2YField = to.y(); pos2ZField = to.z(); pickBtn2 = to.pickBtn();
         if (withDirection) {
-            y += 22;
-            directionButton = createFormButton(x, y, 140);
-            directionButton.withCallback(() -> directionIndex = (directionIndex + 1) % DIRECTIONS.length);
-            addRenderableWidget(directionButton);
-            addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".direction"), UIText.of("ponderer.ui." + stepType + ".direction.tooltip"));
+            directionButton = addFormCycleButton("ponderer.ui." + stepType + ".direction", "ponderer.ui." + stepType + ".direction.tooltip",
+                    140, () -> directionIndex = (directionIndex + 1) % DIRECTIONS.length,
+                    () -> optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[directionIndex]));
         }
-
         if (withLinkId) {
-            y += 22;
-            linkIdField = createTextField(x, y, 140, 18, "default");
-            addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".link"), UIText.of("ponderer.ui." + stepType + ".link.tooltip"));
+            linkIdField = addFormTextField("ponderer.ui." + stepType + ".link", "ponderer.ui." + stepType + ".link.tooltip", "default", 140);
         }
     }
 
@@ -119,36 +101,7 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         }
     }
 
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
-        graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".pos_from"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".pos_to"), lx, y, lc);
-        if (withDirection) {
-            y += 22;
-            graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".direction"), lx, y, lc);
-        }
-        if (withLinkId) {
-            y += 22;
-            graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".link"), lx, y, lc);
-        }
-    }
 
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        if (withDirection && directionButton != null) {
-            var font = Minecraft.getInstance().font;
-            graphics.drawCenteredString(font,
-                optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[directionIndex]),
-                directionButton.getX() + 70,
-                directionButton.getY() + 2,
-                0xFFFFFF);
-        }
-        renderPickButtonLabel(graphics, pickBtn1);
-        renderPickButtonLabel(graphics, pickBtn2);
-    }
 
     private String optionLabel(String prefix, String value) {
         String key = prefix + "." + value;

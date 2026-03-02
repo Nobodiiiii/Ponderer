@@ -10,6 +10,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Popup screen for choosing which step type to add.
  */
@@ -38,6 +41,12 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
     private PonderButton prevPageButton;
     private PonderButton nextPageButton;
 
+    private int scrollOffset = 0;
+    private int maxScroll = 0;
+    private int displayH;
+    private record TypeButton(int contentY, String type) {}
+    private final List<TypeButton> typeButtons = new ArrayList<>();
+
     private final DslScene scene;
     private final int sceneIndex;
     private final SceneEditorScreen parent;
@@ -64,9 +73,14 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
 
     @Override
     protected void init() {
+        typeButtons.clear();
         String[] types = PAGE_TYPES[pageIndex];
-        int h = 52 + types.length * ROW_H + 34;
-        setWindowSize(W, h);
+        int fullH = 52 + types.length * ROW_H + 34;
+        displayH = Math.min(fullH, height - UILayoutConstants.SCREEN_MARGIN * 2);
+        maxScroll = Math.max(0, fullH - displayH);
+        scrollOffset = Math.min(scrollOffset, maxScroll);
+
+        setWindowSize(W, displayH);
         super.init();
 
         prevPageButton = new PonderButton(guiLeft + 10, guiTop + 25, 16, 16);
@@ -78,51 +92,114 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
         addRenderableWidget(nextPageButton);
 
         for (int i = 0; i < types.length; i++) {
-            String type = types[i];
-            var btn = new PonderButton(guiLeft + 10, guiTop + 47 + i * ROW_H, W - 20, 18);
-            btn.withCallback(() -> openEditorForType(type));
-            addRenderableWidget(btn);
+            typeButtons.add(new TypeButton(47 + i * ROW_H, types[i]));
         }
 
-        backButton = new PonderButton(guiLeft + W - 56, guiTop + h - 24, 46, 16);
+        backButton = new PonderButton(guiLeft + W - 56, guiTop + displayH - 24, 46, 16);
         backButton.withCallback(() -> Minecraft.getInstance().setScreen(parent));
         addRenderableWidget(backButton);
     }
 
     @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        String[] types = PAGE_TYPES[pageIndex];
-        int h = 52 + types.length * ROW_H + 34;
         new BoxElement()
-            .withBackground(new Color(0xdd_000000, true))
-            .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+            .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
+            .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
             .at(guiLeft, guiTop, 0)
-            .withBounds(W, h)
+            .withBounds(W, displayH)
             .render(graphics);
 
         var font = Minecraft.getInstance().font;
         graphics.drawString(font, UIText.of("ponderer.ui.step_selector.title"), guiLeft + 10, guiTop + 8, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + W - 5, guiTop + 21, 0x60_FFFFFF);
+        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + W - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
         graphics.drawCenteredString(font, UIText.of(PAGE_KEYS[pageIndex]), guiLeft + W / 2, guiTop + 30, 0xCCCCFF);
+
+        // Scrollable type buttons
+        int vpTop = guiTop + 44;
+        int vpBot = guiTop + displayH - 26;
+        if (maxScroll > 0) {
+            graphics.enableScissor(guiLeft, vpTop, guiLeft + W, vpBot);
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, -scrollOffset, 0);
+        }
+        int adjustedMouseY = mouseY + scrollOffset;
+        boolean inVP = maxScroll <= 0 || (mouseY >= vpTop && mouseY < vpBot);
+        for (TypeButton tb : typeButtons) {
+            int by = guiTop + tb.contentY;
+            int bx = guiLeft + 10;
+            int bw = W - 20;
+            boolean hovered = inVP && mouseX >= bx && mouseX < bx + bw
+                && adjustedMouseY >= by && adjustedMouseY < by + 18;
+            int bgColor = hovered ? 0x60_4466aa : 0x40_333366;
+            int borderColor = hovered ? 0xCC_6688cc : 0x60_555588;
+            graphics.fill(bx, by, bx + bw, by + 18, bgColor);
+            graphics.fill(bx, by, bx + bw, by + 1, borderColor);
+            graphics.fill(bx, by + 18 - 1, bx + bw, by + 18, borderColor);
+            graphics.fill(bx, by, bx + 1, by + 18, borderColor);
+            graphics.fill(bx + bw - 1, by, bx + bw, by + 18, borderColor);
+            graphics.drawCenteredString(font, UIText.of(stepTypeLabelKey(tb.type)),
+                guiLeft + W / 2, by + 5, hovered ? 0xFFFFFF : 0xDDDDDD);
+        }
+        if (maxScroll > 0) {
+            graphics.pose().popPose();
+            graphics.disableScissor();
+            renderScrollbar(graphics);
+        }
     }
 
     @Override
     protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         var font = Minecraft.getInstance().font;
-        String[] types = PAGE_TYPES[pageIndex];
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 500);
         graphics.drawCenteredString(font, "<", prevPageButton.getX() + 8, prevPageButton.getY() + 4, pageIndex > 0 ? 0xFFFFFF : 0x666666);
         graphics.drawCenteredString(font, ">", nextPageButton.getX() + 8, nextPageButton.getY() + 4, pageIndex < PAGE_TYPES.length - 1 ? 0xFFFFFF : 0x666666);
-        for (int i = 0; i < types.length; i++) {
-            graphics.drawCenteredString(font, UIText.of(stepTypeLabelKey(types[i])),
-                guiLeft + W / 2, guiTop + 47 + i * ROW_H + 5, 0xDDDDDD);
-        }
         if (backButton != null) {
             graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.back"),
                 backButton.getX() + 23, backButton.getY() + 4, 0xFFFFFF);
         }
         graphics.pose().popPose();
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            double adjY = mouseY + scrollOffset;
+            for (TypeButton tb : typeButtons) {
+                int by = guiTop + tb.contentY;
+                int bx = guiLeft + 10;
+                int bw = W - 20;
+                if (mouseX >= bx && mouseX < bx + bw && adjY >= by && adjY < by + 18) {
+                    openEditorForType(tb.type);
+                    return true;
+                }
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (maxScroll > 0) {
+            scrollOffset = (int) Math.max(0, Math.min(maxScroll, scrollOffset - delta * UILayoutConstants.SCROLL_SPEED));
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    private void renderScrollbar(GuiGraphics graphics) {
+        if (maxScroll <= 0) return;
+        int barX = guiLeft + W - UILayoutConstants.SCROLLBAR_W - 2;
+        int vpTop = guiTop + 44;
+        int vpBot = guiTop + displayH - 26;
+        int trackH = vpBot - vpTop;
+        graphics.fill(barX, vpTop, barX + UILayoutConstants.SCROLLBAR_W, vpBot, UILayoutConstants.COLOR_SCROLLBAR_BG);
+        String[] types = PAGE_TYPES[pageIndex];
+        int contentH = types.length * ROW_H;
+        if (contentH <= 0) return;
+        int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * trackH / contentH);
+        int thumbY = vpTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
+        graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
     }
 
     private void openEditorForType(String type) {

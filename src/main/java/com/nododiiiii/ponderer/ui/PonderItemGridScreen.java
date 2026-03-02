@@ -54,7 +54,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
     private static final int VISIBLE_ROWS = 6;
     private static final int VISIBLE_H = VISIBLE_ROWS * CELL_SIZE;
     private static final int SECTION_HEADER_H = 16;
-    private static final int SCROLL_SPEED = 20;
+    private static final int SCROLL_SPEED = UILayoutConstants.SCROLL_SPEED;
 
     // -- Data model --
     record ItemEntry(ItemStack stack, @Nullable String nbtFilter, List<String> sceneKeys) {
@@ -328,8 +328,8 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
 
         // Background
         new BoxElement()
-                .withBackground(new Color(0xdd_000000, true))
-                .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+                .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
+                .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
                 .at(guiLeft, guiTop, 0)
                 .withBounds(WINDOW_W, wH)
                 .render(graphics);
@@ -338,7 +338,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
 
         // Title
         graphics.drawCenteredString(font, this.title, guiLeft + WINDOW_W / 2, guiTop + 8, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WINDOW_W - 5, guiTop + 21, 0x60_FFFFFF);
+        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WINDOW_W - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
 
         // Subtitle
         String subtitle;
@@ -451,10 +451,10 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
             int barX = guiLeft + GRID_LEFT + COLS * CELL_SIZE + 2;
             int barH = VISIBLE_H;
             double ratio = scrollY / maxScrollY;
-            int thumbH = Math.max(10, (int) (barH * (double) barH / (maxScrollY + barH)));
+            int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, (int) (barH * (double) barH / (maxScrollY + barH)));
             int thumbY = clipTop + (int) ((barH - thumbH) * ratio);
-            graphics.fill(barX, clipTop, barX + 3, clipTop + barH, 0x30_FFFFFF);
-            graphics.fill(barX, thumbY, barX + 3, thumbY + thumbH, 0x80_AAAAAA);
+            graphics.fill(barX, clipTop, barX + UILayoutConstants.SCROLLBAR_W, clipTop + barH, UILayoutConstants.COLOR_SCROLLBAR_BG);
+            graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
         }
 
         // MULTI_SELECT action buttons
@@ -490,7 +490,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         int bg = hov ? 0x80_4466aa : 0x60_333366;
         int bdr = hov ? 0xCC_6688cc : 0x60_555588;
         renderBoxButton(graphics, x, y, w, h, bg, bdr);
-        int tc = hov ? 0xFFFFFF : 0xCCCCCC;
+        int tc = hov ? 0xFFFFFF : UILayoutConstants.COLOR_LABEL;
         int tw = font.width(label);
         graphics.drawString(font, label, x + (w - tw) / 2, y + (h - font.lineHeight) / 2 + 1, tc);
     }
@@ -863,15 +863,15 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
             int wH = getListWindowHeight();
             new BoxElement()
-                    .withBackground(new Color(0xdd_000000, true))
-                    .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+                    .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
+                    .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
                     .at(guiLeft, guiTop, 0)
                     .withBounds(LIST_W, wH)
                     .render(graphics);
 
             var font = Minecraft.getInstance().font;
             graphics.drawCenteredString(font, this.title, guiLeft + LIST_W / 2, guiTop + 8, 0xFFFFFF);
-            graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + LIST_W - 5, guiTop + 21, 0x60_FFFFFF);
+            graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + LIST_W - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
 
             if (selectMode == SelectMode.MULTI) {
                 String countText = UIText.of("ponderer.ui.item_grid.sub_selected",
@@ -897,10 +897,10 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                 if (selectMode == SelectMode.MULTI) {
                     String prefix = isSelected ? "\u2713 " : "  ";
                     graphics.drawString(font, prefix + sceneKey, guiLeft + 10, rowY + 4,
-                            hovered ? 0x80FFFF : 0xCCCCCC);
+                            hovered ? 0x80FFFF : UILayoutConstants.COLOR_LABEL);
                 } else {
                     graphics.drawString(font, sceneKey, guiLeft + 10, rowY + 4,
-                            hovered ? 0x80FFFF : 0xCCCCCC);
+                            hovered ? 0x80FFFF : UILayoutConstants.COLOR_LABEL);
                 }
             }
         }

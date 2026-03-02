@@ -4,8 +4,6 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -48,41 +46,25 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        pointXField = createSmallNumberField(x, y, sw, "X");
-        pointYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        pointZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtnPoint = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POINT, true);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.point"), UIText.of("ponderer.ui.show_controls.point.tooltip"));
-        y += 22;
-        dirButton = createFormButton(x, y, 100);
-        dirButton.withCallback(() -> dirIndex = (dirIndex + 1) % DIRECTIONS.length);
-        addRenderableWidget(dirButton);
-        addLabelTooltip(lx, y + 1, UIText.of("ponderer.ui.show_controls.direction"), UIText.of("ponderer.ui.show_controls.direction.tooltip"));
-        y += 22;
-        durationField = createSmallNumberField(x, y, 50, "60");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.duration"), UIText.of("ponderer.ui.duration.tooltip.controls"));
-        y += 22;
-        actionButton = createFormButton(x, y, 100);
-        actionButton.withCallback(() -> actionIndex = (actionIndex + 1) % ACTIONS.length);
-        addRenderableWidget(actionButton);
-        addLabelTooltip(lx, y + 1, UIText.of("ponderer.ui.show_controls.action"), UIText.of("ponderer.ui.show_controls.action.tooltip"));
-        y += 22;
-        itemField = createTextField(x, y, 124, 18, UIText.of("ponderer.ui.show_controls.item.hint"));
-        jeiBtn = createJeiButton(x + 129, y, itemField, IdFieldMode.INGREDIENT);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.show_controls.item"), UIText.of("ponderer.ui.show_controls.item.tooltip"));
-        y += 22;
-        sneakToggle = createToggle(x, y);
-        sneakToggle.withCallback(() -> whileSneaking = !whileSneaking);
-        addRenderableWidget(sneakToggle);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.show_controls.sneaking"), UIText.of("ponderer.ui.show_controls.sneaking.tooltip"));
-        y += 22;
-        ctrlToggle = createToggle(x, y);
-        ctrlToggle.withCallback(() -> whileCTRL = !whileCTRL);
-        addRenderableWidget(ctrlToggle);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.show_controls.ctrl"), UIText.of("ponderer.ui.show_controls.ctrl.tooltip"));
+        beginForm();
+        var pos = addFormXyzRow("ponderer.ui.point", "ponderer.ui.show_controls.point.tooltip",
+                PickState.TargetField.POINT, true);
+        pointXField = pos.x(); pointYField = pos.y(); pointZField = pos.z(); pickBtnPoint = pos.pickBtn();
+        dirButton = addFormCycleButton("ponderer.ui.show_controls.direction", "ponderer.ui.show_controls.direction.tooltip",
+                100, () -> dirIndex = (dirIndex + 1) % DIRECTIONS.length,
+                () -> optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[dirIndex]));
+        durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.duration.tooltip.controls",
+                "60", 50, "ponderer.ui.ticks");
+        actionButton = addFormCycleButton("ponderer.ui.show_controls.action", "ponderer.ui.show_controls.action.tooltip",
+                100, () -> actionIndex = (actionIndex + 1) % ACTIONS.length,
+                () -> actionIndex == 0 ? UIText.of("ponderer.ui.none") : optionLabel("ponderer.ui.show_controls.action", ACTIONS[actionIndex]));
+        var icon = addFormTextFieldWithJei("ponderer.ui.show_controls.item", "ponderer.ui.show_controls.item.tooltip",
+                UIText.of("ponderer.ui.show_controls.item.hint"), IdFieldMode.INGREDIENT);
+        itemField = icon.field(); jeiBtn = icon.jeiBtn();
+        sneakToggle = addFormToggle("ponderer.ui.show_controls.sneaking", "ponderer.ui.show_controls.sneaking.tooltip",
+                () -> whileSneaking, () -> whileSneaking = !whileSneaking);
+        ctrlToggle = addFormToggle("ponderer.ui.show_controls.ctrl", "ponderer.ui.show_controls.ctrl.tooltip",
+                () -> whileCTRL, () -> whileCTRL = !whileCTRL);
     }
 
     @Override
@@ -109,43 +91,7 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
         whileCTRL = Boolean.TRUE.equals(step.whileCTRL);
     }
 
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
 
-        graphics.drawString(font, UIText.of("ponderer.ui.point"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.show_controls.direction"), lx, y + 1, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.duration"), lx, y, lc);
-        graphics.drawString(font, UIText.of("ponderer.ui.ticks"), guiLeft + 130, y, 0x808080);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.show_controls.action"), lx, y + 1, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.show_controls.item"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.show_controls.sneaking"), lx, y + 3, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.show_controls.ctrl"), lx, y + 3, lc);
-    }
-
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        // Direction button label
-        graphics.drawCenteredString(font, optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[dirIndex]), dirButton.getX() + 50, dirButton.getY() + 2, 0xFFFFFF);
-        // Action button label
-        String al = actionIndex == 0 ? UIText.of("ponderer.ui.none") : optionLabel("ponderer.ui.show_controls.action", ACTIONS[actionIndex]);
-        graphics.drawCenteredString(font, al, actionButton.getX() + 50, actionButton.getY() + 2, 0xFFFFFF);
-        // Sneaking toggle
-        renderToggleState(graphics, sneakToggle, whileSneaking);
-        // CTRL toggle
-        renderToggleState(graphics, ctrlToggle, whileCTRL);
-        // Pick button label
-        renderPickButtonLabel(graphics, pickBtnPoint);
-        renderJeiButtonLabel(graphics, jeiBtn);
-    }
 
     private String optionLabel(String prefix, String value) {
         String key = prefix + "." + value;

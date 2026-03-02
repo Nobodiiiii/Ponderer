@@ -3,9 +3,6 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -27,7 +24,7 @@ public class PlaySoundScreen extends AbstractStepEditorScreen {
     private HintableTextFieldWidget volumeField;
     private HintableTextFieldWidget pitchField;
     private int sourceIndex = 0;
-    private BoxWidget sourceButton;
+    private BoxWidget sourceBtn;
 
     public PlaySoundScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.play_sound"), scene, sceneIndex, parent);
@@ -43,21 +40,13 @@ public class PlaySoundScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26;
-        int lx = guiLeft + 10;
-        soundField = createTextField(x, y, 140, 18, UIText.of("ponderer.ui.play_sound.sound.hint"));
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.play_sound.sound"), UIText.of("ponderer.ui.play_sound.sound.tooltip"));
-        y += 22;
-        volumeField = createSmallNumberField(x, y, 50, "1.0");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.play_sound.volume"), UIText.of("ponderer.ui.play_sound.volume.tooltip"));
-        y += 22;
-        pitchField = createSmallNumberField(x, y, 50, "1.0");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.play_sound.pitch"), UIText.of("ponderer.ui.play_sound.pitch.tooltip"));
-        y += 22;
-        sourceButton = createFormButton(x, y, 100);
-        sourceButton.withCallback(() -> sourceIndex = (sourceIndex + 1) % SOURCES.length);
-        addRenderableWidget(sourceButton);
-        addLabelTooltip(lx, y + 1, UIText.of("ponderer.ui.play_sound.source"), UIText.of("ponderer.ui.play_sound.source.tooltip"));
+        beginForm();
+        soundField = addFormTextField("ponderer.ui.play_sound.sound", "ponderer.ui.play_sound.sound.tooltip", UIText.of("ponderer.ui.play_sound.sound.hint"), 140);
+        volumeField = addFormNumberField("ponderer.ui.play_sound.volume", "ponderer.ui.play_sound.volume.tooltip", "1.0", 50);
+        pitchField = addFormNumberField("ponderer.ui.play_sound.pitch", "ponderer.ui.play_sound.pitch.tooltip", "1.0", 50);
+        sourceBtn = addFormCycleButton("ponderer.ui.play_sound.source", "ponderer.ui.play_sound.source.tooltip", 100,
+                () -> sourceIndex = (sourceIndex + 1) % SOURCES.length,
+                () -> sourceLabel(SOURCES[sourceIndex]));
     }
 
     @Override
@@ -71,27 +60,6 @@ public class PlaySoundScreen extends AbstractStepEditorScreen {
                 if (SOURCES[i].equalsIgnoreCase(step.source)) { sourceIndex = i; break; }
             }
         }
-    }
-
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
-
-        graphics.drawString(font, UIText.of("ponderer.ui.play_sound.sound"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.play_sound.volume"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.play_sound.pitch"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.play_sound.source"), lx, y + 1, lc);
-    }
-
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        graphics.drawCenteredString(font, sourceLabel(SOURCES[sourceIndex]),
-            sourceButton.getX() + 50, sourceButton.getY() + 2, 0xFFFFFF);
     }
 
     private String sourceLabel(String value) {

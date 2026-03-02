@@ -3,8 +3,6 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -41,30 +39,15 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        itemField = createTextField(x, y, 124, 18, UIText.of("ponderer.ui.create_item_entity.hint"));
-        jeiBtn = createJeiButton(x + 129, y, itemField, IdFieldMode.ITEM);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.create_item_entity.item"), UIText.of("ponderer.ui.create_item_entity.item.tooltip"));
-        y += 22;
-
-        countField = createSmallNumberField(x, y, 50, "1");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.create_item_entity.count"), UIText.of("ponderer.ui.create_item_entity.count.tooltip"));
-        y += 22;
-
-        posXField = createSmallNumberField(x, y, sw, "X");
-        posYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        posZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtnPos = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS1, true);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.create_item_entity.pos"), UIText.of("ponderer.ui.create_item_entity.pos.tooltip"));
-        y += 22;
-
-        motionXField = createSmallNumberField(x, y, sw, "0");
-        motionYField = createSmallNumberField(x + sw + 5, y, sw, "0");
-        motionZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "0");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.create_item_entity.motion"), UIText.of("ponderer.ui.create_item_entity.motion.tooltip"));
-        y += 22;
+        beginForm();
+        var jei = addFormTextFieldWithJei("ponderer.ui.create_item_entity.item", "ponderer.ui.create_item_entity.item.tooltip",
+                UIText.of("ponderer.ui.create_item_entity.hint"), IdFieldMode.ITEM);
+        itemField = jei.field(); jeiBtn = jei.jeiBtn();
+        countField = addFormNumberField("ponderer.ui.create_item_entity.count", "ponderer.ui.create_item_entity.count.tooltip", "1", 50);
+        var pos = addFormXyzRow("ponderer.ui.create_item_entity.pos", "ponderer.ui.create_item_entity.pos.tooltip", PickState.TargetField.POS1, true);
+        posXField = pos.x(); posYField = pos.y(); posZField = pos.z(); pickBtnPos = pos.pickBtn();
+        var motion = addFormXyzRow("ponderer.ui.create_item_entity.motion", "ponderer.ui.create_item_entity.motion.tooltip");
+        motionXField = motion.x(); motionYField = motion.y(); motionZField = motion.z();
     }
 
     @Override
@@ -82,26 +65,6 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             motionYField.setValue(String.valueOf(step.motion.get(1)));
             motionZField.setValue(String.valueOf(step.motion.get(2)));
         }
-    }
-
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
-
-        graphics.drawString(font, UIText.of("ponderer.ui.create_item_entity.item"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.create_item_entity.count"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.create_item_entity.pos"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.create_item_entity.motion"), lx, y, lc);
-    }
-
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderPickButtonLabel(graphics, pickBtnPos);
-        renderJeiButtonLabel(graphics, jeiBtn);
     }
 
     @Override

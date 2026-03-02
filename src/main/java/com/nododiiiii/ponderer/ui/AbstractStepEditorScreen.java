@@ -10,14 +10,20 @@ import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 /**
  * Abstract base class for step editor screens.
@@ -85,12 +91,25 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     @Nullable
     private Map<String, String> pendingPickRestore = null;
 
+    // -- Scroll support --
+    /** Current vertical scroll offset in pixels. */
+    protected int scrollOffset = 0;
+    /** Maximum scroll offset (0 = no scroll needed). */
+    private int maxScroll = 0;
+    /** Tracked form widgets and their content-relative Y offsets for scroll repositioning. */
+    private final List<FormWidgetRecord> formWidgetRecords = new ArrayList<>();
+    private record FormWidgetRecord(AbstractWidget widget, int contentOffsetY) {}
+
     /** Registered tooltip regions: hover over label area to see description. */
     protected final List<TooltipRegion> tooltipRegions = new ArrayList<>();
 
-    protected record TooltipRegion(int x, int y, int w, int h, String text) {
-        boolean contains(int mx, int my) {
-            return mx >= x && mx < x + w && my >= y && my < y + h;
+    protected record TooltipRegion(int x, int y, int w, int h, String text, boolean scrollable) {
+        TooltipRegion(int x, int y, int w, int h, String text) {
+            this(x, y, w, h, text, true);
+        }
+        boolean contains(int mx, int my, int scrollOff) {
+            int adjustedY = scrollable ? y - scrollOff : y;
+            return mx >= x && mx < x + w && my >= adjustedY && my < adjustedY + h;
         }
     }
 
@@ -144,27 +163,42 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         setWindowSize(WINDOW_W, getWindowHeight());
         super.init();
         tooltipRegions.clear();
+        formWidgetRecords.clear();
 
+        int wH = getWindowHeight();
         int btnW = 80;
         int btnH = 20;
 
-        confirmButton = new PonderButton(guiLeft + 15, guiTop + getWindowHeight() - 30, btnW, btnH);
+        confirmButton = new PonderButton(guiLeft + 15, guiTop + wH - 30, btnW, btnH);
         confirmButton.withCallback(this::onConfirm);
         addRenderableWidget(confirmButton);
 
-        cancelButton = new PonderButton(guiLeft + WINDOW_W - btnW - 15, guiTop + getWindowHeight() - 30, btnW, btnH);
+        cancelButton = new PonderButton(guiLeft + WINDOW_W - btnW - 15, guiTop + wH - 30, btnW, btnH);
         cancelButton.withCallback(this::returnToParent);
         addRenderableWidget(cancelButton);
 
         // KeyFrame toggle (common to all step types), placed above confirm/cancel
-        int kfY = guiTop + getWindowHeight() - 58;
+        int kfY = guiTop + wH - 58;
         keyFrameToggle = createToggle(guiLeft + 70, kfY);
         keyFrameToggle.withCallback(() -> attachKeyFrame = !attachKeyFrame);
         addRenderableWidget(keyFrameToggle);
         addLabelTooltip(guiLeft + 10, kfY + 3, UIText.of("ponderer.ui.key_frame"),
-                UIText.of("ponderer.ui.key_frame.tooltip"));
+                UIText.of("ponderer.ui.key_frame.tooltip"), false);
+
+        // Record child count before buildForm so we can track form-specific widgets
+        int childCountBeforeForm = children().size();
 
         buildForm();
+
+        // Track form widgets (everything added during buildForm) for scroll repositioning
+        List<? extends GuiEventListener> allChildren = children();
+        for (int i = childCountBeforeForm; i < allChildren.size(); i++) {
+            if (allChildren.get(i) instanceof AbstractWidget aw) {
+                int contentOffsetY = aw.getY() - guiTop - FORM_TOP;
+                formWidgetRecords.add(new FormWidgetRecord(aw, contentOffsetY));
+            }
+        }
+        updateScrollPositions();
 
         if (!initialPopulateDone) {
             if (isEditMode()) {
@@ -186,9 +220,53 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         }
     }
 
-    /** Computes window height from form row count. */
+    /** Computes window height from form row count, clamped to screen height. */
     protected int getWindowHeight() {
-        return FORM_TOP + getFormRowCount() * ROW_HEIGHT + BOTTOM_SECTION;
+        int contentH = FORM_TOP + getFormRowCount() * ROW_HEIGHT + BOTTOM_SECTION;
+        if (height <= 0) {
+            maxScroll = 0;
+            return contentH;
+        }
+        int maxH = height - UILayoutConstants.SCREEN_MARGIN * 2;
+        if (contentH <= maxH) {
+            maxScroll = 0;
+            return contentH;
+        }
+        maxScroll = contentH - maxH;
+        scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
+        return maxH;
+    }
+
+    /** Whether scrolling is currently active (content taller than viewport). */
+    protected boolean isScrollEnabled() {
+        return maxScroll > 0;
+    }
+
+    /** Viewport top Y (first pixel of the scrollable form area). */
+    private int viewportTop() {
+        return guiTop + FORM_TOP;
+    }
+
+    /** Viewport bottom Y (last pixel of the scrollable form area, just above bottom section). */
+    private int viewportBottom() {
+        return guiTop + getWindowHeight() - BOTTOM_SECTION;
+    }
+
+    /** Reposition all tracked form widgets based on current scrollOffset and update visibility. */
+    private void updateScrollPositions() {
+        if (formWidgetRecords.isEmpty()) return;
+        int vTop = viewportTop();
+        int vBot = viewportBottom();
+        for (FormWidgetRecord rec : formWidgetRecords) {
+            int newY = guiTop + FORM_TOP + rec.contentOffsetY - scrollOffset;
+            rec.widget.setY(newY);
+            if (isScrollEnabled()) {
+                boolean visible = (newY + rec.widget.getHeight() > vTop) && (newY < vBot);
+                rec.widget.visible = visible;
+            } else {
+                rec.widget.visible = true;
+            }
+        }
     }
 
     /**
@@ -253,8 +331,8 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         int wH = getWindowHeight();
         new BoxElement()
-                .withBackground(new Color(0xdd_000000, true))
-                .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+                .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
+                .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
                 .at(guiLeft, guiTop, 0)
                 .withBounds(WINDOW_W, wH)
                 .render(graphics);
@@ -263,17 +341,49 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
 
         String header = getHeaderTitle() + (isEditMode() ? UIText.of("ponderer.ui.edit_suffix") : "");
         graphics.drawString(font, header, guiLeft + 10, guiTop + 8, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WINDOW_W - 5, guiTop + 21, 0x60_FFFFFF);
+        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WINDOW_W - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
+
+        // Scroll: scissor + translate for form label rendering
+        if (isScrollEnabled()) {
+            graphics.enableScissor(guiLeft, viewportTop(), guiLeft + WINDOW_W, viewportBottom());
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, -scrollOffset, 0);
+        }
 
         renderForm(graphics, mouseX, mouseY, partialTicks);
 
-        // KeyFrame label (not on button, safe here)
+        if (isScrollEnabled()) {
+            graphics.pose().popPose();
+            graphics.disableScissor();
+            renderScrollbar(graphics);
+        }
+
+        // KeyFrame label (fixed, not scrolled)
         int kfY = guiTop + wH - 58;
-        graphics.drawString(font, UIText.of("ponderer.ui.key_frame"), guiLeft + 10, kfY + 3, 0xCCCCCC);
+        graphics.drawString(font, UIText.of("ponderer.ui.key_frame"), guiLeft + 10, kfY + 3, UILayoutConstants.COLOR_LABEL);
 
         if (errorMessage != null) {
-            graphics.drawString(font, errorMessage, guiLeft + 10, guiTop + wH - 45, 0xFF5555);
+            graphics.drawString(font, errorMessage, guiLeft + 10, guiTop + wH - 45, UILayoutConstants.COLOR_ERROR);
         }
+    }
+
+    /** Render a scrollbar track and thumb on the right edge of the form area. */
+    private void renderScrollbar(GuiGraphics graphics) {
+        if (maxScroll <= 0) return;
+        int barX = guiLeft + WINDOW_W - UILayoutConstants.SCROLLBAR_W - 2;
+        int vTop = viewportTop();
+        int vBot = viewportBottom();
+        int trackH = vBot - vTop;
+
+        // Track background
+        graphics.fill(barX, vTop, barX + UILayoutConstants.SCROLLBAR_W, vBot, UILayoutConstants.COLOR_SCROLLBAR_BG);
+
+        // Thumb
+        int contentH = getFormRowCount() * ROW_HEIGHT;
+        if (contentH <= 0) return;
+        int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * trackH / contentH);
+        int thumbY = vTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
+        graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
     }
 
     /**
@@ -300,8 +410,14 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.cancel"),
                 cancelButton.getX() + 40, cancelButton.getY() + 6, 0xFFFFFF);
 
-        // Subclass button-overlay text
+        // Subclass button-overlay text (scissored when scrolling)
+        if (isScrollEnabled()) {
+            graphics.enableScissor(guiLeft, viewportTop(), guiLeft + WINDOW_W, viewportBottom());
+        }
         renderFormForeground(graphics, mouseX, mouseY, partialTicks);
+        if (isScrollEnabled()) {
+            graphics.disableScissor();
+        }
 
         graphics.pose().popPose();
 
@@ -317,12 +433,37 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
      * (toggle states, cycle button labels). Rendered after widgets.
      */
     protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        // Auto-render foreground elements registered via addFormXxx() helpers
+        if (!autoFgElements.isEmpty()) {
+            var font = Minecraft.getInstance().font;
+            for (AutoFg el : autoFgElements) {
+                if (el instanceof FgToggle t) {
+                    renderToggleState(graphics, t.widget, t.state.getAsBoolean());
+                } else if (el instanceof FgJeiBtn j) {
+                    renderJeiButtonLabel(graphics, j.btn);
+                } else if (el instanceof FgPickBtn p) {
+                    renderPickButtonLabel(graphics, p.btn);
+                } else if (el instanceof FgCycleBtn c) {
+                    graphics.drawCenteredString(font, c.labelGetter.get(),
+                            c.btn.getX() + c.btn.getWidth() / 2, c.btn.getY() + 2, c.colorGetter.getAsInt());
+                } else if (el instanceof FgLangBtn lb) {
+                    String lang = lb.langGetter.get();
+                    if (lang.length() > 5) lang = lang.substring(0, 5);
+                    graphics.drawCenteredString(font, lang,
+                            lb.btn.getX() + lb.btn.getWidth() / 2, lb.btn.getY() + 2, 0xAAFFAA);
+                }
+            }
+        }
+        // Auto-render block props foreground if applicable
+        if (blockPropFields != null || blockPropRemoveBtns != null || blockPropAddBtn != null) {
+            renderBlockPropsForeground(graphics);
+        }
     }
 
     /** Render tooltip for whichever region the mouse is hovering over. */
     private void renderHoveredTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
         for (TooltipRegion region : tooltipRegions) {
-            if (region.contains(mouseX, mouseY)) {
+            if (region.contains(mouseX, mouseY, scrollOffset)) {
                 renderTooltipBox(graphics, region.text(), mouseX, mouseY);
                 break;
             }
@@ -372,8 +513,15 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         return lines;
     }
 
-    /** Subclasses render their form labels and decorations. */
+    /** Subclasses render their form labels and decorations.
+     * Default implementation auto-renders labels registered via addFormXxx() helpers. */
     protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        if (!autoLabels.isEmpty()) {
+            var font = Minecraft.getInstance().font;
+            for (AutoLabel lbl : autoLabels) {
+                graphics.drawString(font, lbl.text, lbl.x, lbl.y, lbl.color);
+            }
+        }
     }
 
     @Override
@@ -394,6 +542,19 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         return super.charTyped(codePoint, modifiers);
     }
 
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (isScrollEnabled()) {
+            int oldOffset = scrollOffset;
+            scrollOffset = Mth.clamp(scrollOffset - (int)(delta * UILayoutConstants.SCROLL_SPEED), 0, maxScroll);
+            if (scrollOffset != oldOffset) {
+                updateScrollPositions();
+                return true;
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
     // -- Shared utility methods for subclasses --
 
     /**
@@ -403,7 +564,12 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
      * area.
      */
     protected void addTooltip(int x, int y, int w, int h, String text) {
-        tooltipRegions.add(new TooltipRegion(x, y, w, h, text));
+        tooltipRegions.add(new TooltipRegion(x, y, w, h, text, true));
+    }
+
+    /** Register a tooltip with explicit scrollable flag. */
+    protected void addTooltip(int x, int y, int w, int h, String text, boolean scrollable) {
+        tooltipRegions.add(new TooltipRegion(x, y, w, h, text, scrollable));
     }
 
     /**
@@ -413,7 +579,13 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
      */
     protected void addLabelTooltip(int x, int y, String label, String tooltip) {
         var font = Minecraft.getInstance().font;
-        tooltipRegions.add(new TooltipRegion(x, y - 1, font.width(label) + 4, 12, tooltip));
+        tooltipRegions.add(new TooltipRegion(x, y - 1, font.width(label) + 4, 12, tooltip, true));
+    }
+
+    /** Register a label tooltip with explicit scrollable flag. */
+    protected void addLabelTooltip(int x, int y, String label, String tooltip, boolean scrollable) {
+        var font = Minecraft.getInstance().font;
+        tooltipRegions.add(new TooltipRegion(x, y - 1, font.width(label) + 4, 12, tooltip, scrollable));
     }
 
     // -- Pick button support --
@@ -551,6 +723,192 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         graphics.drawCenteredString(font, "+",
                 pickButton.getX() + 7, pickButton.getY() + 2, 0x80FFFF);
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ── Declarative Form Row API ───────────────────────────────────────
+    // Subclasses call addFormXxx() methods in buildForm() instead of
+    // manually computing coordinates. Labels and foreground text are
+    // auto-rendered by base renderForm() / renderFormForeground().
+    // ═══════════════════════════════════════════════════════════════════
+
+    /** Return value for {@link #addFormTextFieldWithJei}. */
+    protected record FieldWithJei(HintableTextFieldWidget field, @Nullable PonderButton jeiBtn) {}
+    /** Return value for {@link #addFormXyzRow}. */
+    protected record XyzFieldGroup(HintableTextFieldWidget x, HintableTextFieldWidget y, HintableTextFieldWidget z, @Nullable PonderButton pickBtn) {}
+    /** Return value for {@link #addFormTextFieldWithLang}. */
+    protected record FieldWithLang(HintableTextFieldWidget field, BoxWidget langBtn) {}
+
+    /** Tracked label for auto-rendering in renderForm(). */
+    private record AutoLabel(String text, int x, int y, int color) {}
+    private final List<AutoLabel> autoLabels = new ArrayList<>();
+
+    /** Tracked foreground element for auto-rendering in renderFormForeground(). */
+    private sealed interface AutoFg {}
+    private record FgToggle(BoxWidget widget, BooleanSupplier state) implements AutoFg {}
+    private record FgJeiBtn(@Nullable PonderButton btn) implements AutoFg {}
+    private record FgPickBtn(PonderButton btn) implements AutoFg {}
+    private record FgCycleBtn(BoxWidget btn, Supplier<String> labelGetter, IntSupplier colorGetter) implements AutoFg {}
+    private record FgLangBtn(BoxWidget btn, Supplier<String> langGetter) implements AutoFg {}
+    private final List<AutoFg> autoFgElements = new ArrayList<>();
+
+    /** Current Y position during form building. Set by beginForm(). */
+    private int formCursorY;
+
+    /** Initialize the form layout cursor. Call at the start of buildForm(). */
+    protected void beginForm() {
+        formCursorY = guiTop + FORM_TOP;
+        autoLabels.clear();
+        autoFgElements.clear();
+    }
+
+    /** Current field X position (left edge of control column). */
+    protected int fieldX() { return guiLeft + 70; }
+
+    /** Current form Y position. For custom row layouts, read this to position widgets manually. */
+    protected int formY() { return formCursorY; }
+
+    /** Advance to the next form row. */
+    protected void nextFormRow() { formCursorY += ROW_HEIGHT; }
+
+    /** Register a label + tooltip at the current row. Called by addFormXxx helpers. */
+    protected void addFormLabel(String labelKey, @Nullable String tooltipKey) {
+        int lx = guiLeft + 10;
+        String label = UIText.of(labelKey);
+        autoLabels.add(new AutoLabel(label, lx, formCursorY + 3, UILayoutConstants.COLOR_LABEL));
+        if (tooltipKey != null) {
+            addLabelTooltip(lx, formCursorY + 3, label, UIText.of(tooltipKey));
+        }
+    }
+
+    // ── Row builders ────────────────────────────────────────────────────
+
+    /** Add a text field row with label. */
+    protected HintableTextFieldWidget addFormTextField(String labelKey, @Nullable String tooltipKey, String hint, int fieldW) {
+        addFormLabel(labelKey, tooltipKey);
+        HintableTextFieldWidget field = createTextField(fieldX(), formCursorY, fieldW, 18, hint);
+        nextFormRow();
+        return field;
+    }
+
+    /** Add a text field row with label and JEI browse button. */
+    protected FieldWithJei addFormTextFieldWithJei(String labelKey, @Nullable String tooltipKey, String hint, int fieldW, IdFieldMode mode) {
+        addFormLabel(labelKey, tooltipKey);
+        int fx = fieldX();
+        HintableTextFieldWidget field = createTextField(fx, formCursorY, fieldW, 18, hint);
+        PonderButton jeiBtn = createJeiButton(fx + fieldW + 5, formCursorY, field, mode);
+        if (jeiBtn != null) autoFgElements.add(new FgJeiBtn(jeiBtn));
+        nextFormRow();
+        return new FieldWithJei(field, jeiBtn);
+    }
+
+    /** Add a text field with JEI button (standard 124px field width). */
+    protected FieldWithJei addFormTextFieldWithJei(String labelKey, @Nullable String tooltipKey, String hint, IdFieldMode mode) {
+        return addFormTextFieldWithJei(labelKey, tooltipKey, hint, 124, mode);
+    }
+
+    /** Add an XYZ coordinate field row with optional pick button. */
+    protected XyzFieldGroup addFormXyzRow(String labelKey, @Nullable String tooltipKey,
+                                          @Nullable PickState.TargetField target, boolean halfOffset) {
+        addFormLabel(labelKey, tooltipKey);
+        int fx = fieldX();
+        int sw = 38;
+        var xf = createSmallNumberField(fx, formCursorY, sw, "X");
+        var yf = createSmallNumberField(fx + sw + 5, formCursorY, sw, "Y");
+        var zf = createSmallNumberField(fx + 2 * (sw + 5), formCursorY, sw, "Z");
+        PonderButton pb = null;
+        if (target != null) {
+            pb = createPickButton(fx + 3 * (sw + 5), formCursorY, target, halfOffset);
+            autoFgElements.add(new FgPickBtn(pb));
+        }
+        nextFormRow();
+        return new XyzFieldGroup(xf, yf, zf, pb);
+    }
+
+    /** Add an XYZ coordinate field row with pick button (no half-offset). */
+    protected XyzFieldGroup addFormXyzRow(String labelKey, @Nullable String tooltipKey, PickState.TargetField target) {
+        return addFormXyzRow(labelKey, tooltipKey, target, false);
+    }
+
+    /** Add an XYZ field row without pick button. */
+    protected XyzFieldGroup addFormXyzRow(String labelKey, @Nullable String tooltipKey) {
+        return addFormXyzRow(labelKey, tooltipKey, null, false);
+    }
+
+    /** Add a toggle (checkbox) row. */
+    protected BoxWidget addFormToggle(String labelKey, @Nullable String tooltipKey,
+                                      BooleanSupplier stateGetter, Runnable onToggle) {
+        addFormLabel(labelKey, tooltipKey);
+        BoxWidget toggle = createToggle(fieldX(), formCursorY);
+        toggle.withCallback(onToggle);
+        addRenderableWidget(toggle);
+        autoFgElements.add(new FgToggle(toggle, stateGetter));
+        nextFormRow();
+        return toggle;
+    }
+
+    /** Add a cycle button row. */
+    protected BoxWidget addFormCycleButton(String labelKey, @Nullable String tooltipKey,
+                                           int btnW, Runnable onClick,
+                                           Supplier<String> labelGetter, IntSupplier colorGetter) {
+        addFormLabel(labelKey, tooltipKey);
+        BoxWidget btn = createFormButton(fieldX(), formCursorY, btnW);
+        btn.withCallback(onClick);
+        addRenderableWidget(btn);
+        autoFgElements.add(new FgCycleBtn(btn, labelGetter, colorGetter));
+        nextFormRow();
+        return btn;
+    }
+
+    /** Add a cycle button with default white text. */
+    protected BoxWidget addFormCycleButton(String labelKey, @Nullable String tooltipKey,
+                                           int btnW, Runnable onClick, Supplier<String> labelGetter) {
+        return addFormCycleButton(labelKey, tooltipKey, btnW, onClick, labelGetter, () -> 0xFFFFFF);
+    }
+
+    /** Add a small number field row with optional unit label. */
+    protected HintableTextFieldWidget addFormNumberField(String labelKey, @Nullable String tooltipKey,
+                                                         String hint, int fieldW, @Nullable String unitKey) {
+        addFormLabel(labelKey, tooltipKey);
+        int fx = fieldX();
+        HintableTextFieldWidget field = createSmallNumberField(fx, formCursorY, fieldW, hint);
+        if (unitKey != null) {
+            autoLabels.add(new AutoLabel(UIText.of(unitKey), fx + fieldW + 10, formCursorY + 3,
+                    UILayoutConstants.COLOR_HINT));
+        }
+        nextFormRow();
+        return field;
+    }
+
+    /** Add a small number field row without unit. */
+    protected HintableTextFieldWidget addFormNumberField(String labelKey, @Nullable String tooltipKey,
+                                                         String hint, int fieldW) {
+        return addFormNumberField(labelKey, tooltipKey, hint, fieldW, null);
+    }
+
+    /** Add a text field row with label and language toggle button for bilingual input. */
+    protected FieldWithLang addFormTextFieldWithLang(String labelKey, @Nullable String tooltipKey,
+                                                     String hint, int fieldW,
+                                                     Supplier<String> langGetter, Runnable onToggle) {
+        addFormLabel(labelKey, tooltipKey);
+        int fx = fieldX();
+        HintableTextFieldWidget field = createTextField(fx, formCursorY, fieldW, 18, hint);
+        int langBtnW = 28;
+        int gap = 6;
+        BoxWidget langBtn = createFormButton(fx + fieldW + gap, formCursorY, langBtnW);
+        langBtn.withCallback(onToggle);
+        addRenderableWidget(langBtn);
+        autoFgElements.add(new FgLangBtn(langBtn, langGetter));
+        nextFormRow();
+        return new FieldWithLang(field, langBtn);
+    }
+
+    /** Add a block properties section (dynamic rows). Advances cursor by blockPropRowCount(). */
+    protected void addFormBlockProps(String labelKey, @Nullable String tooltipKey) {
+        addFormLabel(labelKey, tooltipKey);
+        formCursorY = buildBlockPropsUI(fieldX(), formCursorY);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
 
     // -- JEI integration --
 
@@ -822,7 +1180,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
             for (HintableTextFieldWidget[] kv : blockPropFields) {
                 int eqX = kv[0].getX() + kv[0].getWidth() + 3;
                 int eqY = kv[0].getY() + 5;
-                graphics.drawString(font, "=", eqX, eqY, 0xCCCCCC);
+                graphics.drawString(font, "=", eqX, eqY, UILayoutConstants.COLOR_LABEL);
             }
         }
         if (blockPropRemoveBtns != null) {

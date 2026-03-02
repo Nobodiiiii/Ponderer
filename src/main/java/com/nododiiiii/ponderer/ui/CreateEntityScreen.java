@@ -43,31 +43,29 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        entityField = createTextField(x, y, 124, 18, UIText.of("ponderer.ui.create_entity.hint"));
-        jeiBtn = createJeiButton(x + 129, y, entityField, IdFieldMode.ENTITY);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.create_entity"), UIText.of("ponderer.ui.create_entity.tooltip"));
-        y += 22;
-        posXField = createSmallNumberField(x, y, sw, "X");
-        posYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        posZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtnPos = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS1, true);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.create_entity.pos"), UIText.of("ponderer.ui.create_entity.pos.tooltip"));
-        y += 22;
-        orientModeButton = createFormButton(x, y, 100);
-        orientModeButton.withCallback(() -> { useYawPitch = !useYawPitch; updateOrientVis(); });
-        addRenderableWidget(orientModeButton);
-        addLabelTooltip(lx, y + 1, UIText.of("ponderer.ui.create_entity.orient"), UIText.of("ponderer.ui.create_entity.orient.tooltip"));
-        y += 22;
-        lookAtXField = createSmallNumberField(x, y, sw, "X");
-        lookAtYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        lookAtZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtnLookAt = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.LOOK_AT, true);
-        yawField = createSmallNumberField(x, y, sw + 15, "0.0");
-        pitchField = createSmallNumberField(x + sw + 20, y, sw + 15, "0.0");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.create_entity.lookat"), UIText.of("ponderer.ui.create_entity.lookat.tooltip"));
+        beginForm();
+        // Row 1: entity + JEI
+        var ent = addFormTextFieldWithJei("ponderer.ui.create_entity", "ponderer.ui.create_entity.tooltip",
+                UIText.of("ponderer.ui.create_entity.hint"), IdFieldMode.ENTITY);
+        entityField = ent.field();
+        jeiBtn = ent.jeiBtn();
+        // Row 2: position XYZ + pick
+        var pos = addFormXyzRow("ponderer.ui.create_entity.pos", "ponderer.ui.create_entity.pos.tooltip",
+                PickState.TargetField.POS1, true);
+        posXField = pos.x(); posYField = pos.y(); posZField = pos.z(); pickBtnPos = pos.pickBtn();
+        // Row 3: orient mode cycle
+        orientModeButton = addFormCycleButton("ponderer.ui.create_entity.orient", "ponderer.ui.create_entity.orient.tooltip",
+                100, () -> { useYawPitch = !useYawPitch; updateOrientVis(); },
+                () -> useYawPitch ? UIText.of("ponderer.ui.create_entity.yaw_pitch") : UIText.of("ponderer.ui.create_entity.lookat"));
+        // Row 4: conditional - lookAt XYZ or yaw/pitch (manual layout)
+        int sw = 38;
+        lookAtXField = createSmallNumberField(fieldX(), formY(), sw, "X");
+        lookAtYField = createSmallNumberField(fieldX() + sw + 5, formY(), sw, "Y");
+        lookAtZField = createSmallNumberField(fieldX() + 2 * (sw + 5), formY(), sw, "Z");
+        pickBtnLookAt = createPickButton(fieldX() + 3 * (sw + 5), formY(), PickState.TargetField.LOOK_AT, true);
+        yawField = createSmallNumberField(fieldX(), formY(), sw + 15, "0.0");
+        pitchField = createSmallNumberField(fieldX() + sw + 20, formY(), sw + 15, "0.0");
+        nextFormRow();
 
         updateOrientVis();
     }
@@ -104,26 +102,21 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.renderForm(graphics, mouseX, mouseY, partialTicks);
+        // Row 4: dynamic label based on orient mode
         var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC, x = guiLeft + 70, sw = 38;
-
-        graphics.drawString(font, UIText.of("ponderer.ui.create_entity"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.create_entity.pos"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.create_entity.orient"), lx, y + 1, lc);
-        y += 22;
-        graphics.drawString(font, useYawPitch ? UIText.of("ponderer.ui.create_entity.yaw_pitch") : UIText.of("ponderer.ui.create_entity.lookat"), lx, y, lc);
+        int lx = guiLeft + 10;
+        int y = guiTop + FORM_TOP + 3 * ROW_HEIGHT + 3;
+        graphics.drawString(font,
+                useYawPitch ? UIText.of("ponderer.ui.create_entity.yaw_pitch") : UIText.of("ponderer.ui.create_entity.lookat"),
+                lx, y, UILayoutConstants.COLOR_LABEL);
     }
 
     @Override
     protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        graphics.drawCenteredString(font, useYawPitch ? UIText.of("ponderer.ui.create_entity.yaw_pitch") : UIText.of("ponderer.ui.create_entity.lookat"),
-            orientModeButton.getX() + 50, orientModeButton.getY() + 2, 0xFFFFFF);
-        renderPickButtonLabel(graphics, pickBtnPos);
+        super.renderFormForeground(graphics, mouseX, mouseY, partialTicks);
+        // Row 4: pick button for lookAt mode
         if (!useYawPitch) renderPickButtonLabel(graphics, pickBtnLookAt);
-        renderJeiButtonLabel(graphics, jeiBtn);
     }
 
     @Override

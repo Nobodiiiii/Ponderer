@@ -11,7 +11,10 @@ import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
@@ -30,11 +33,19 @@ import java.util.concurrent.CompletableFuture;
  */
 public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScreen {
 
-    private static final int WIDTH = 260;
+    private static final int WIDTH = UILayoutConstants.WIDE_WINDOW_W;
     private static final int PREVIEW_H = 60;
     private static final int MARGIN = 12;
     private static final int ROW_H = 20;
     private static final int FIELD_H = 16;
+
+    // ─── Scroll state ────────────────────────────────────────────────────
+    private static final int FORM_TOP_Y = 26;
+    private static final int BOTTOM_H = 34;
+    private int scrollOffset = 0;
+    private int maxScroll = 0;
+    private record FormWidgetRecord(AbstractWidget widget, int contentOffsetY) {}
+    private final List<FormWidgetRecord> formWidgetRecords = new ArrayList<>();
 
     // ---- Static cache: persists across screen open/close ----
     private static final List<Path> cachedStructurePaths = new ArrayList<>();
@@ -47,7 +58,7 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
     private static boolean cachedIncludeImages = false;
     // Adjustment mode removed for now — each generation is a fresh request
     @Nullable private static String cachedStatusMessage = null;
-    private static int cachedStatusColor = 0xCCCCCC;
+    private static int cachedStatusColor = UILayoutConstants.COLOR_LABEL;
     private static boolean cachedGenerating = false;
 
     // ---- Instance fields (widgets, rebuilt on init) ----
@@ -60,7 +71,7 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
     @Nullable private HintableTextFieldWidget jeiTargetField = null;
 
     // Buttons
-    private record ClickableButton(int x, int y, int w, int h, String label, Runnable action, @Nullable String tooltip) {}
+    private record ClickableButton(int x, int y, int w, int h, String label, Runnable action, @Nullable String tooltip, boolean scrollable) {}
     private final List<ClickableButton> clickableButtons = new ArrayList<>();
 
     public AiGenerateScreen() {
@@ -69,15 +80,37 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
 
     private static final int LABEL_H = 12;  // height reserved for a label line above a field
 
-    private int getWindowHeight() {
+    /** Raw content height (form area only, excluding title and bottom). */
+    private int getContentHeight() {
         int urlCount = referenceUrlManager.getUrlValues().size();
-        return 30 + PREVIEW_H + 6 + ROW_H + 6     // title + preview + struct buttons
-            + FIELD_H + 6                             // carrier (inline label, no separate label row)
+        return 4 + PREVIEW_H + 6 + ROW_H + 6        // preview + struct buttons
+            + FIELD_H + 6                             // carrier
             + LABEL_H + FIELD_H + 4                   // prompt label + field
             + LABEL_H                                  // "Reference URLs" label
             + urlCount * ROW_H + ROW_H + 4             // URL fields + add button
             + ROW_H + 4                                // toggle options row
-            + 12 + 24 + 10;                            // status + generate button
+            + 12;                                       // status
+    }
+
+    private int getWindowHeight() {
+        int raw = FORM_TOP_Y + getContentHeight() + BOTTOM_H;
+        int maxH = height - UILayoutConstants.SCREEN_MARGIN * 2;
+        return Math.min(raw, maxH);
+    }
+
+    private boolean isScrollEnabled() { return maxScroll > 0; }
+    private int viewportTop() { return guiTop + FORM_TOP_Y; }
+    private int viewportBottom() { return guiTop + getWindowHeight() - BOTTOM_H; }
+
+    private void updateScrollPositions() {
+        int vpTop = viewportTop();
+        int vpBot = viewportBottom();
+        for (FormWidgetRecord rec : formWidgetRecords) {
+            int newY = vpTop + rec.contentOffsetY - scrollOffset;
+            rec.widget.setY(newY);
+            rec.widget.visible = (newY + rec.widget.getHeight() > vpTop && newY < vpBot);
+            rec.widget.active = rec.widget.visible;
+        }
     }
 
     /** Sync all widget values back to the static cache. */
@@ -97,14 +130,22 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
         super.init();
         clickableButtons.clear();
         urlFields.clear();
+        formWidgetRecords.clear();
+
+        // Compute scroll bounds
+        int contentH = getContentHeight();
+        int viewportH = getWindowHeight() - FORM_TOP_Y - BOTTOM_H;
+        maxScroll = Math.max(0, contentH - viewportH);
+        scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
 
         var font = Minecraft.getInstance().font;
         int fieldX = guiLeft + MARGIN;
         int fieldW = WIDTH - MARGIN * 2;
-        int y = guiTop + 30;
+        int formTop = guiTop + FORM_TOP_Y;
+        int cy = 4; // content-relative Y offset
 
         // -- Structure preview area --
-        y += PREVIEW_H + 4;
+        cy += PREVIEW_H + 4;
 
         // -- Structure control buttons: Add, Delete, <, > --
         int btnW = 40;
@@ -112,20 +153,20 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
         int totalBtnW = 4 * btnW + 3 * btnGap;
         int btnX = guiLeft + (WIDTH - totalBtnW) / 2;
 
-        clickableButtons.add(new ClickableButton(btnX, y, btnW, 16,
+        clickableButtons.add(new ClickableButton(btnX, formTop + cy, btnW, 16,
             UIText.of("ponderer.ui.ai_generate.add"), this::addStructure,
-            "ponderer.ui.ai_generate.add.tooltip"));
+            "ponderer.ui.ai_generate.add.tooltip", true));
         btnX += btnW + btnGap;
-        clickableButtons.add(new ClickableButton(btnX, y, btnW, 16,
+        clickableButtons.add(new ClickableButton(btnX, formTop + cy, btnW, 16,
             UIText.of("ponderer.ui.ai_generate.delete"), this::deleteStructure,
-            "ponderer.ui.ai_generate.delete.tooltip"));
+            "ponderer.ui.ai_generate.delete.tooltip", true));
         btnX += btnW + btnGap;
-        clickableButtons.add(new ClickableButton(btnX, y, btnW, 16, "<", this::prevStructure,
-            "ponderer.ui.ai_generate.prev.tooltip"));
+        clickableButtons.add(new ClickableButton(btnX, formTop + cy, btnW, 16, "<", this::prevStructure,
+            "ponderer.ui.ai_generate.prev.tooltip", true));
         btnX += btnW + btnGap;
-        clickableButtons.add(new ClickableButton(btnX, y, btnW, 16, ">", this::nextStructure,
-            "ponderer.ui.ai_generate.next.tooltip"));
-        y += ROW_H + 4;
+        clickableButtons.add(new ClickableButton(btnX, formTop + cy, btnW, 16, ">", this::nextStructure,
+            "ponderer.ui.ai_generate.next.tooltip", true));
+        cy += ROW_H + 4;
 
         // -- Carrier item (label inline with field) --
         int carrierLabelW = font.width(UIText.of("ponderer.ui.ai_generate.carrier")) + 6;
@@ -133,14 +174,15 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
         boolean hasJei = JeiCompat.isAvailable();
         if (hasJei) carrierFieldW -= 20;
 
-        carrierField = new SoftHintTextFieldWidget(font, fieldX + carrierLabelW, y, carrierFieldW, FIELD_H);
+        carrierField = new SoftHintTextFieldWidget(font, fieldX + carrierLabelW, formTop + cy, carrierFieldW, FIELD_H);
         carrierField.setHint(UIText.of("ponderer.ui.ai_generate.carrier.hint"));
         carrierField.setMaxLength(128);
         carrierField.setValue(cachedCarrier);
         addRenderableWidget(carrierField);
+        formWidgetRecords.add(new FormWidgetRecord(carrierField, cy));
 
         if (hasJei) {
-            PonderButton jeiBtn = new PonderButton(fieldX + carrierLabelW + carrierFieldW + 4, y + 2, 14, 12);
+            PonderButton jeiBtn = new PonderButton(fieldX + carrierLabelW + carrierFieldW + 4, formTop + cy + 2, 14, 12);
             jeiBtn.withCallback(() -> {
                 if (jeiActive && jeiTargetField == carrierField) {
                     deactivateJei();
@@ -151,20 +193,22 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
                 }
             });
             addRenderableWidget(jeiBtn);
+            formWidgetRecords.add(new FormWidgetRecord(jeiBtn, cy + 2));
         }
-        y += FIELD_H + 6;
+        cy += FIELD_H + 6;
 
         // -- Prompt --
-        y += LABEL_H;  // space for label
-        promptField = new SoftHintTextFieldWidget(font, fieldX, y, fieldW, FIELD_H);
+        cy += LABEL_H;  // space for label
+        promptField = new SoftHintTextFieldWidget(font, fieldX, formTop + cy, fieldW, FIELD_H);
         promptField.setHint(UIText.of("ponderer.ui.ai_generate.prompt.hint"));
         promptField.setMaxLength(2048);
         promptField.setValue(cachedPrompt);
         addRenderableWidget(promptField);
-        y += FIELD_H + 4;
+        formWidgetRecords.add(new FormWidgetRecord(promptField, cy));
+        cy += FIELD_H + 4;
 
         // -- Reference URLs (starts empty, fully optional) --
-        y += LABEL_H;  // space for "Reference URLs" label
+        cy += LABEL_H;  // space for "Reference URLs" label
         List<String> urlValues = referenceUrlManager.getUrlValues();
         List<Boolean> urlAutoAdded = referenceUrlManager.getUrlAutoAdded();
         for (int i = 0; i < urlValues.size(); i++) {
@@ -177,66 +221,71 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
                 urlFieldW -= 40; // Extra space for MCMod label
 
             if (isAutoAdded) {
-                // Use CustomBackgroundTextFieldWidget for auto-added URLs to support custom
-                // background color
-                CustomBackgroundTextFieldWidget urlField = new CustomBackgroundTextFieldWidget(font, fieldX, y,
+                CustomBackgroundTextFieldWidget urlField = new CustomBackgroundTextFieldWidget(font, fieldX, formTop + cy,
                         urlFieldW, FIELD_H);
                 urlField.setHint(UIText.of("ponderer.ui.ai_generate.url.hint"));
                 urlField.setMaxLength(512);
                 urlField.setValue(url);
-                urlField.setEditable(false); // Make auto-added URLs non-editable
-                urlField.setBackgroundColor(0xFF_333333); // Darker background for auto-added URLs
+                urlField.setEditable(false);
+                urlField.setBackgroundColor(0xFF_333333);
                 addRenderableWidget(urlField);
                 urlFields.add(urlField);
+                formWidgetRecords.add(new FormWidgetRecord(urlField, cy));
             } else {
-                // Use regular SoftHintTextFieldWidget for manually added URLs
-                SoftHintTextFieldWidget urlField = new SoftHintTextFieldWidget(font, fieldX, y, urlFieldW, FIELD_H);
+                SoftHintTextFieldWidget urlField = new SoftHintTextFieldWidget(font, fieldX, formTop + cy, urlFieldW, FIELD_H);
                 urlField.setHint(UIText.of("ponderer.ui.ai_generate.url.hint"));
                 urlField.setMaxLength(512);
                 urlField.setValue(url);
                 addRenderableWidget(urlField);
                 urlFields.add(urlField);
+                formWidgetRecords.add(new FormWidgetRecord(urlField, cy));
             }
 
             // Remove button
             int rmBtnX = fieldX + urlFieldW + 4;
             final int idx = i;
-            PonderButton rmBtn = new PonderButton(rmBtnX, y + 2, 14, 12);
+            PonderButton rmBtn = new PonderButton(rmBtnX, formTop + cy + 2, 14, 12);
             rmBtn.withCallback(() -> removeUrl(idx));
             addRenderableWidget(rmBtn);
+            formWidgetRecords.add(new FormWidgetRecord(rmBtn, cy + 2));
 
-            y += ROW_H;
+            cy += ROW_H;
         }
 
         // Add URL button
-        clickableButtons.add(new ClickableButton(fieldX + 3, y + 1, fieldW - 6, 14,
+        clickableButtons.add(new ClickableButton(fieldX + 3, formTop + cy + 1, fieldW - 6, 14,
             UIText.of("ponderer.ui.ai_generate.add_url"), this::addUrl,
-            "ponderer.ui.ai_generate.add_url.tooltip"));
-        y += ROW_H + 4;
+            "ponderer.ui.ai_generate.add_url.tooltip", true));
+        cy += ROW_H + 4;
 
         // -- Toggle options: Build Tutorial | Include Images --
         int toggleW = (fieldW - 6) / 2;
-        clickableButtons.add(new ClickableButton(fieldX, y, toggleW, 16,
+        clickableButtons.add(new ClickableButton(fieldX, formTop + cy, toggleW, 16,
             UIText.of("ponderer.ui.ai_generate.build_tutorial") + ": " + (cachedBuildTutorial ? "ON" : "OFF"),
             this::toggleBuildTutorial,
-            "ponderer.ui.ai_generate.build_tutorial.tooltip"));
-        clickableButtons.add(new ClickableButton(fieldX + toggleW + 6, y, toggleW, 16,
+            "ponderer.ui.ai_generate.build_tutorial.tooltip", true));
+        clickableButtons.add(new ClickableButton(fieldX + toggleW + 6, formTop + cy, toggleW, 16,
             UIText.of("ponderer.ui.ai_generate.include_images") + ": " + (cachedIncludeImages ? "ON" : "OFF"),
             this::toggleIncludeImages,
-            "ponderer.ui.ai_generate.include_images.tooltip"));
-        y += ROW_H + 4;
+            "ponderer.ui.ai_generate.include_images.tooltip", true));
+        cy += ROW_H + 4;
 
-        // -- Status message area --
-        y += 12;
+        // -- Status message area (scrollable) --
+        // status is rendered inline in renderWindow, no widget needed
+        cy += 12;
 
-        // -- Generate / Back buttons --
+        // -- Generate / Back buttons (fixed bottom) --
+        int bottomY = guiTop + getWindowHeight() - BOTTOM_H + 4;
         int genBtnW = 80;
-        clickableButtons.add(new ClickableButton(guiLeft + MARGIN, y, genBtnW, 20,
+        clickableButtons.add(new ClickableButton(guiLeft + MARGIN, bottomY, genBtnW, 20,
             cachedGenerating ? UIText.of("ponderer.ui.ai_generate.generating") : UIText.of("ponderer.ui.ai_generate.generate"),
             this::doGenerate,
-            "ponderer.ui.ai_generate.generate.tooltip"));
-        clickableButtons.add(new ClickableButton(guiLeft + WIDTH - MARGIN - 60, y, 60, 20,
-            UIText.of("ponderer.ui.function_page.back"), this::goBack, null));
+            "ponderer.ui.ai_generate.generate.tooltip", false));
+        clickableButtons.add(new ClickableButton(guiLeft + WIDTH - MARGIN - 60, bottomY, 60, 20,
+            UIText.of("ponderer.ui.function_page.back"), this::goBack, null, false));
+
+        // Apply scroll positions
+        updateScrollPositions();
 
         // Focus prompt field
         promptField.setFocused(true);
@@ -425,79 +474,83 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         int wH = getWindowHeight();
         new BoxElement()
-            .withBackground(new Color(0xdd_000000, true))
-            .gradientBorder(new Color(0x60_c0c0ff, true), new Color(0x30_c0c0ff, true))
+            .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
+            .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
             .at(guiLeft, guiTop, 0)
             .withBounds(WIDTH, wH)
             .render(graphics);
 
         var font = Minecraft.getInstance().font;
 
-        // Title
+        // Title (fixed)
         graphics.drawCenteredString(font, this.title, guiLeft + WIDTH / 2, guiTop + 8, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WIDTH - 5, guiTop + 21, 0x60_FFFFFF);
+        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WIDTH - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
 
-        int y = guiTop + 30;
+        // ── Scrollable content area ──
+        int vpTop = viewportTop();
+        int vpBot = viewportBottom();
+        graphics.enableScissor(guiLeft, vpTop, guiLeft + WIDTH, vpBot);
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, -scrollOffset, 0);
+
+        int formTop = guiTop + FORM_TOP_Y;
+        int cy = 4; // content-relative Y (same as in init)
 
         // -- Structure preview box --
         int previewX = guiLeft + MARGIN;
         int previewW = WIDTH - MARGIN * 2;
-        graphics.fill(previewX, y, previewX + previewW, y + PREVIEW_H, 0x40_222244);
-        graphics.fill(previewX, y, previewX + previewW, y + 1, 0x60_555588);
-        graphics.fill(previewX, y + PREVIEW_H - 1, previewX + previewW, y + PREVIEW_H, 0x60_555588);
-        graphics.fill(previewX, y, previewX + 1, y + PREVIEW_H, 0x60_555588);
-        graphics.fill(previewX + previewW - 1, y, previewX + previewW, y + PREVIEW_H, 0x60_555588);
+        int py = formTop + cy;
+        graphics.fill(previewX, py, previewX + previewW, py + PREVIEW_H, 0x40_222244);
+        graphics.fill(previewX, py, previewX + previewW, py + 1, 0x60_555588);
+        graphics.fill(previewX, py + PREVIEW_H - 1, previewX + previewW, py + PREVIEW_H, 0x60_555588);
+        graphics.fill(previewX, py, previewX + 1, py + PREVIEW_H, 0x60_555588);
+        graphics.fill(previewX + previewW - 1, py, previewX + previewW, py + PREVIEW_H, 0x60_555588);
 
         if (cachedStructurePaths.isEmpty()) {
             graphics.drawCenteredString(font, UIText.of("ponderer.ui.ai_generate.no_structure"),
-                guiLeft + WIDTH / 2, y + PREVIEW_H / 2 - 4, 0x666666);
+                guiLeft + WIDTH / 2, py + PREVIEW_H / 2 - 4, 0x666666);
         } else {
             StructureDescriber.StructureInfo info = cachedStructureInfos.get(cachedStructureIndex);
             String fileName = cachedStructurePaths.get(cachedStructureIndex).getFileName().toString();
             if (fileName.endsWith(".nbt")) fileName = fileName.substring(0, fileName.length() - 4);
 
-            // Structure name and index
             String header = (cachedStructureIndex + 1) + "/" + cachedStructurePaths.size() + " - " + fileName;
-            graphics.drawCenteredString(font, header, guiLeft + WIDTH / 2, y + 6, 0xFFFFFF);
+            graphics.drawCenteredString(font, header, guiLeft + WIDTH / 2, py + 6, 0xFFFFFF);
 
-            // Size
             String size = info.sizeX() + " x " + info.sizeY() + " x " + info.sizeZ();
-            graphics.drawCenteredString(font, size, guiLeft + WIDTH / 2, y + 20, 0xAAAAFF);
+            graphics.drawCenteredString(font, size, guiLeft + WIDTH / 2, py + 20, 0xAAAAFF);
 
-            // Block types (truncated)
             List<String> types = info.blockTypes();
             String typesStr = String.join(", ", types);
             if (font.width(typesStr) > previewW - 10) {
                 typesStr = font.plainSubstrByWidth(typesStr, previewW - 20) + "...";
             }
-            graphics.drawString(font, typesStr, previewX + 5, y + 34, 0x888888);
+            graphics.drawString(font, typesStr, previewX + 5, py + 34, 0x888888);
 
-            // Block count hint
             String countHint = types.size() + " block types";
-            graphics.drawString(font, countHint, previewX + 5, y + PREVIEW_H - 14, 0x666666);
+            graphics.drawString(font, countHint, previewX + 5, py + PREVIEW_H - 14, 0x666666);
         }
-        y += PREVIEW_H + 4;
+        cy += PREVIEW_H + 4;
 
-        // -- Structure buttons (rendered via clickableButtons) --
-        y += ROW_H + 4;
+        // -- Structure buttons (via clickableButtons, scrollable) --
+        cy += ROW_H + 4;
 
         // -- Carrier label (inline with field) --
+        int lc = UILayoutConstants.COLOR_LABEL;
         graphics.drawString(font, UIText.of("ponderer.ui.ai_generate.carrier"),
-            guiLeft + MARGIN, y + 4, 0xCCCCCC);
-        // carrier field is rendered by widget at this y (offset by carrierLabelW)
-        y += FIELD_H + 6;
+            guiLeft + MARGIN, formTop + cy + 4, lc);
+        cy += FIELD_H + 6;
 
         // -- Prompt label --
         graphics.drawString(font, UIText.of("ponderer.ui.ai_generate.prompt"),
-            guiLeft + MARGIN, y, 0xCCCCCC);
-        y += LABEL_H;  // label height
-        // prompt field is rendered by widget at this y
-        y += FIELD_H + 4;
+            guiLeft + MARGIN, formTop + cy, lc);
+        cy += LABEL_H;
+        cy += FIELD_H + 4;
 
         // -- URL label --
         graphics.drawString(font, UIText.of("ponderer.ui.ai_generate.urls"),
-            guiLeft + MARGIN, y, 0xCCCCCC);
-        y += LABEL_H;  // label height
+            guiLeft + MARGIN, formTop + cy, lc);
+        cy += LABEL_H;
 
         // Render MCMod labels for generated URLs
         int fieldX = guiLeft + MARGIN;
@@ -506,18 +559,18 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
         for (int i = 0; i < urlValues.size(); i++) {
             String url = urlValues.get(i);
             if (isMcModUrl(url)) {
-                int urlFieldW = fieldW - 20 - 40; // Extra space for MCMod label
+                int urlFieldW = fieldW - 20 - 40;
                 int rmBtnX = fieldX + urlFieldW + 4;
                 int labelX = rmBtnX + 14 + 4;
-                graphics.drawString(font, UIText.of("ponderer.ui.ai_generate.url.mcmod"), labelX, y + 4, 0xAAAAFF);
+                graphics.drawString(font, UIText.of("ponderer.ui.ai_generate.url.mcmod"), labelX, formTop + cy + 4, 0xAAAAFF);
             }
-            y += ROW_H;
+            cy += ROW_H;
         }
 
-        y += ROW_H + 4;
+        cy += ROW_H + 4;
 
-        // -- Toggle options (rendered via clickableButtons) --
-        y += ROW_H + 4;
+        // -- Toggle options (rendered via clickableButtons, scrollable) --
+        cy += ROW_H + 4;
 
         // -- Status --
         if (cachedStatusMessage != null) {
@@ -525,27 +578,59 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
             if (font.width(msg) > WIDTH - MARGIN * 2) {
                 msg = font.plainSubstrByWidth(msg, WIDTH - MARGIN * 2 - 10) + "...";
             }
-            graphics.drawCenteredString(font, msg, guiLeft + WIDTH / 2, y, cachedStatusColor);
+            graphics.drawCenteredString(font, msg, guiLeft + WIDTH / 2, formTop + cy, cachedStatusColor);
         }
-        y += 12;
 
-        // -- Buttons --
+        // Render scrollable ClickableButtons inside translate
+        int adjMouseY = (int)(mouseY + scrollOffset);
         for (ClickableButton btn : clickableButtons) {
-            boolean hovered = mouseX >= btn.x && mouseX < btn.x + btn.w
-                && mouseY >= btn.y && mouseY < btn.y + btn.h;
-            boolean isGenerating = cachedGenerating && btn.label.equals(UIText.of("ponderer.ui.ai_generate.generating"));
-            int bgColor = isGenerating ? 0x40_333355 : (hovered ? 0x80_4466aa : 0x60_333366);
-            int borderColor = hovered ? 0xCC_6688cc : 0x60_555588;
-            graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h, bgColor);
-            graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + 1, borderColor);
-            graphics.fill(btn.x, btn.y + btn.h - 1, btn.x + btn.w, btn.y + btn.h, borderColor);
-            graphics.fill(btn.x, btn.y, btn.x + 1, btn.y + btn.h, borderColor);
-            graphics.fill(btn.x + btn.w - 1, btn.y, btn.x + btn.w, btn.y + btn.h, borderColor);
-            int textX = btn.x + (btn.w - font.width(btn.label)) / 2;
-            int textY = btn.y + (btn.h - font.lineHeight) / 2 + 1;
-            graphics.drawString(font, btn.label, textX, textY,
-                isGenerating ? 0x888888 : (hovered ? 0xFFFFFF : 0xCCCCCC));
+            if (!btn.scrollable) continue;
+            renderClickableButton(graphics, font, btn, mouseX, adjMouseY, false);
         }
+
+        graphics.pose().popPose();
+        graphics.disableScissor();
+
+        // ── Fixed bottom buttons ──
+        for (ClickableButton btn : clickableButtons) {
+            if (btn.scrollable) continue;
+            renderClickableButton(graphics, font, btn, mouseX, mouseY, 
+                cachedGenerating && btn.label.equals(UIText.of("ponderer.ui.ai_generate.generating")));
+        }
+
+        // ── Scrollbar ──
+        if (isScrollEnabled()) {
+            renderScrollbar(graphics, vpTop, vpBot);
+        }
+    }
+
+    private void renderClickableButton(GuiGraphics graphics, net.minecraft.client.gui.Font font,
+                                        ClickableButton btn, int mouseX, int mouseY, boolean disabled) {
+        boolean hovered = mouseX >= btn.x && mouseX < btn.x + btn.w
+            && mouseY >= btn.y && mouseY < btn.y + btn.h;
+        int bgColor = disabled ? 0x40_333355 : (hovered ? 0x80_4466aa : 0x60_333366);
+        int borderColor = hovered ? 0xCC_6688cc : 0x60_555588;
+        graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h, bgColor);
+        graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + 1, borderColor);
+        graphics.fill(btn.x, btn.y + btn.h - 1, btn.x + btn.w, btn.y + btn.h, borderColor);
+        graphics.fill(btn.x, btn.y, btn.x + 1, btn.y + btn.h, borderColor);
+        graphics.fill(btn.x + btn.w - 1, btn.y, btn.x + btn.w, btn.y + btn.h, borderColor);
+        int textX = btn.x + (btn.w - font.width(btn.label)) / 2;
+        int textY = btn.y + (btn.h - font.lineHeight) / 2 + 1;
+        graphics.drawString(font, btn.label, textX, textY,
+            disabled ? 0x888888 : (hovered ? 0xFFFFFF : UILayoutConstants.COLOR_LABEL));
+    }
+
+    private void renderScrollbar(GuiGraphics graphics, int vpTop, int vpBot) {
+        int trackX = guiLeft + WIDTH - UILayoutConstants.SCROLLBAR_W - 2;
+        int trackH = vpBot - vpTop;
+        graphics.fill(trackX, vpTop, trackX + UILayoutConstants.SCROLLBAR_W, vpBot, UILayoutConstants.COLOR_SCROLLBAR_BG);
+        int contentH = getContentHeight();
+        int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB,
+            (int) ((float) trackH * trackH / contentH));
+        int thumbY = vpTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
+        graphics.fill(trackX, thumbY, trackX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH,
+            UILayoutConstants.COLOR_SCROLLBAR_FG);
     }
 
     private boolean isMcModUrl(String url) {
@@ -554,40 +639,52 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
 
     @Override
     protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        int vpTop = viewportTop();
+        int vpBot = viewportBottom();
+
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 500);
         var font = Minecraft.getInstance().font;
 
-        // JEI button label
+        // JEI & URL remove button labels — scissored to viewport
+        graphics.enableScissor(guiLeft, vpTop, guiLeft + WIDTH, vpBot);
+
         if (JeiCompat.isAvailable()) {
-            // Find the JEI PonderButton and render its label
             for (var child : children()) {
                 if (child instanceof PonderButton pb && pb.getWidth() == 14 && pb.getHeight() == 12) {
+                    if (!pb.visible) continue;
                     int pbx = pb.getX();
                     int pby = pb.getY();
                     // Check if it's the JEI button (near carrier field)
-                    if (pby >= guiTop + 30 + PREVIEW_H && pby < guiTop + 30 + PREVIEW_H + ROW_H + 30) {
+                    if (pby >= vpTop && pby <= vpTop + PREVIEW_H + ROW_H + 60 - scrollOffset) {
                         int color = (jeiActive && jeiTargetField == carrierField) ? 0x55FF55 : 0xAAAAFF;
                         graphics.drawCenteredString(font, "J", pbx + 7, pby + 2, color);
                     } else {
-                        // URL remove button
                         graphics.drawCenteredString(font, "-", pbx + 7, pby + 2, 0xFF6666);
                     }
                 }
             }
         } else {
-            // Just render "-" on URL remove buttons
             for (var child : children()) {
                 if (child instanceof PonderButton pb && pb.getWidth() == 14 && pb.getHeight() == 12) {
+                    if (!pb.visible) continue;
                     graphics.drawCenteredString(font, "-", pb.getX() + 7, pb.getY() + 2, 0xFF6666);
                 }
             }
         }
 
-        // Button tooltips
+        graphics.disableScissor();
+
+        // Button tooltips (scrollable buttons need scroll-adjusted Y in hit test)
         for (ClickableButton btn : clickableButtons) {
-            if (btn.tooltip != null && mouseX >= btn.x && mouseX < btn.x + btn.w
-                && mouseY >= btn.y && mouseY < btn.y + btn.h) {
+            if (btn.tooltip == null) continue;
+            double adjY = btn.scrollable ? mouseY + scrollOffset : mouseY;
+            if (btn.scrollable) {
+                int screenBtnY = btn.y - scrollOffset;
+                if (screenBtnY + btn.h < vpTop || screenBtnY > vpBot) continue;
+            }
+            if (mouseX >= btn.x && mouseX < btn.x + btn.w
+                && adjY >= btn.y && adjY < btn.y + btn.h) {
                 graphics.pose().pushPose();
                 graphics.pose().translate(0, 0, 100);
                 graphics.renderComponentTooltip(font,
@@ -607,14 +704,30 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
             for (ClickableButton btn : clickableButtons) {
+                double adjY = btn.scrollable ? mouseY + scrollOffset : mouseY;
                 if (mouseX >= btn.x && mouseX < btn.x + btn.w
-                    && mouseY >= btn.y && mouseY < btn.y + btn.h) {
+                    && adjY >= btn.y && adjY < btn.y + btn.h) {
+                    if (btn.scrollable) {
+                        int vpTop = viewportTop();
+                        int vpBot = viewportBottom();
+                        if (mouseY < vpTop || mouseY >= vpBot) continue;
+                    }
                     btn.action.run();
                     return true;
                 }
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (isScrollEnabled()) {
+            scrollOffset = Mth.clamp(scrollOffset - (int)(delta * UILayoutConstants.SCROLL_SPEED), 0, maxScroll);
+            updateScrollPositions();
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override

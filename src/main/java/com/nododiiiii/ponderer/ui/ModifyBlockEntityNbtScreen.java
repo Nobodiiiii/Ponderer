@@ -4,8 +4,6 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 
@@ -40,31 +38,14 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        posXField = createSmallNumberField(x, y, sw, "X");
-        posYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        posZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn1 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS1);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.modify_block_entity_nbt.pos_from"), UIText.of("ponderer.ui.modify_block_entity_nbt.pos_from.tooltip"));
-        y += 22;
-
-        pos2XField = createSmallNumberField(x, y, sw, "X");
-        pos2YField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        pos2ZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn2 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS2);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.modify_block_entity_nbt.pos_to"), UIText.of("ponderer.ui.modify_block_entity_nbt.pos_to.tooltip"));
-        y += 22;
-
-        nbtField = createTextField(x, y, 140, 18, "{CustomName:'\"Demo\"'}");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.modify_block_entity_nbt.nbt"), UIText.of("ponderer.ui.modify_block_entity_nbt.nbt.tooltip"));
-        y += 22;
-
-        redrawToggle = createToggle(x, y);
-        redrawToggle.withCallback(() -> redraw = !redraw);
-        addRenderableWidget(redrawToggle);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.modify_block_entity_nbt.redraw"), UIText.of("ponderer.ui.modify_block_entity_nbt.redraw.tooltip"));
+        beginForm();
+        var pos1 = addFormXyzRow("ponderer.ui.modify_block_entity_nbt.pos_from", "ponderer.ui.modify_block_entity_nbt.pos_from.tooltip", PickState.TargetField.POS1);
+        posXField = pos1.x(); posYField = pos1.y(); posZField = pos1.z(); pickBtn1 = pos1.pickBtn();
+        var pos2 = addFormXyzRow("ponderer.ui.modify_block_entity_nbt.pos_to", "ponderer.ui.modify_block_entity_nbt.pos_to.tooltip", PickState.TargetField.POS2);
+        pos2XField = pos2.x(); pos2YField = pos2.y(); pos2ZField = pos2.z(); pickBtn2 = pos2.pickBtn();
+        nbtField = addFormTextField("ponderer.ui.modify_block_entity_nbt.nbt", "ponderer.ui.modify_block_entity_nbt.nbt.tooltip", "{CustomName:'\"Demo\"'}", 140);
+        redrawToggle = addFormToggle("ponderer.ui.modify_block_entity_nbt.redraw", "ponderer.ui.modify_block_entity_nbt.redraw.tooltip",
+                () -> redraw, () -> redraw = !redraw);
     }
 
     @Override
@@ -82,26 +63,6 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
         }
         if (step.nbt != null) nbtField.setValue(step.nbt);
         if (step.reDrawBlocks != null) redraw = step.reDrawBlocks;
-    }
-
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
-        graphics.drawString(font, UIText.of("ponderer.ui.modify_block_entity_nbt.pos_from"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.modify_block_entity_nbt.pos_to"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.modify_block_entity_nbt.nbt"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.modify_block_entity_nbt.redraw"), lx, y + 3, lc);
-    }
-
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderToggleState(graphics, redrawToggle, redraw);
-        renderPickButtonLabel(graphics, pickBtn1);
-        renderPickButtonLabel(graphics, pickBtn2);
     }
 
     @Override

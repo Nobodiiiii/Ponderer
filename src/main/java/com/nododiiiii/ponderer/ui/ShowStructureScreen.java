@@ -17,7 +17,6 @@ import java.util.Map;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
-import javax.annotation.Nullable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
@@ -47,22 +46,15 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + FORM_TOP;
-        heightField = createSmallNumberField(x, y, 60, UIText.of("ponderer.ui.show_structure.height.hint"));
-        addLabelTooltip(guiLeft + 10, y + 3, UIText.of("ponderer.ui.show_structure.height"), UIText.of("ponderer.ui.show_structure.height.tooltip"));
-
-        int y2 = y + ROW_HEIGHT;
-        scaleField = createSmallNumberField(x, y2, 60, "1.0");
-        addLabelTooltip(guiLeft + 10, y2 + 3, UIText.of("ponderer.ui.show_structure.scale"), UIText.of("ponderer.ui.show_structure.scale.tooltip"));
-
-        int y3 = y2 + ROW_HEIGHT;
-        structureField = createTextField(x, y3, 95, 18, UIText.of("ponderer.ui.show_structure.structure.hint"));
-        addLabelTooltip(guiLeft + 10, y3 + 3, UIText.of("ponderer.ui.show_structure.structure"), UIText.of("ponderer.ui.show_structure.structure.tooltip"));
-
-        browseButton = new PonderButton(x + 100, y3, 30, 18);
+        beginForm();
+        heightField = addFormNumberField("ponderer.ui.show_structure.height", "ponderer.ui.show_structure.height.tooltip", UIText.of("ponderer.ui.show_structure.height.hint"), 60);
+        scaleField = addFormNumberField("ponderer.ui.show_structure.scale", "ponderer.ui.show_structure.scale.tooltip", "1.0", 60);
+        addFormLabel("ponderer.ui.show_structure.structure", "ponderer.ui.show_structure.structure.tooltip");
+        structureField = createTextField(fieldX(), formY(), 95, 18, UIText.of("ponderer.ui.show_structure.structure.hint"));
+        browseButton = new PonderButton(fieldX() + 100, formY(), 30, 18);
         browseButton.withCallback(this::openFilePicker);
         addRenderableWidget(browseButton);
-        addLabelTooltip(x + 100, y3, UIText.of("ponderer.ui.show_structure.browse"), UIText.of("ponderer.ui.show_structure.browse.tooltip"));
+        nextFormRow();
     }
 
     @Override
@@ -74,15 +66,8 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        graphics.drawString(font, UIText.of("ponderer.ui.show_structure.height"), guiLeft + 10, guiTop + FORM_TOP + 3, 0xCCCCCC);
-        graphics.drawString(font, UIText.of("ponderer.ui.show_structure.scale"), guiLeft + 10, guiTop + FORM_TOP + ROW_HEIGHT + 3, 0xCCCCCC);
-        graphics.drawString(font, UIText.of("ponderer.ui.show_structure.structure"), guiLeft + 10, guiTop + FORM_TOP + ROW_HEIGHT * 2 + 3, 0xCCCCCC);
-    }
-
-    @Override
     protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.renderFormForeground(graphics, mouseX, mouseY, partialTicks);
         var font = Minecraft.getInstance().font;
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.show_structure.browse"),
                 browseButton.getX() + 15, browseButton.getY() + 5, 0xFFFFFF);

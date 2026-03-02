@@ -3,8 +3,6 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -40,20 +38,14 @@ public class DestroyBlockScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 38;
-        int lx = guiLeft + 10;
-
-        posXField = createSmallNumberField(x, y, sw, "X");
-        posYField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        posZField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        pickBtn1 = createPickButton(x + 3 * (sw + 5), y, PickState.TargetField.POS1);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.destroy_block.pos"), UIText.of("ponderer.ui.destroy_block.pos.tooltip"));
-
-        y += 22;
-        particlesToggle = createToggle(x, y);
-        particlesToggle.withCallback(() -> destroyParticles = !destroyParticles);
-        addRenderableWidget(particlesToggle);
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.destroy_block.particles"), UIText.of("ponderer.ui.destroy_block.particles.tooltip"));
+        beginForm();
+        var pos = addFormXyzRow("ponderer.ui.destroy_block.pos", "ponderer.ui.destroy_block.pos.tooltip", PickState.TargetField.POS1);
+        posXField = pos.x();
+        posYField = pos.y();
+        posZField = pos.z();
+        pickBtn1 = pos.pickBtn();
+        particlesToggle = addFormToggle("ponderer.ui.destroy_block.particles", "ponderer.ui.destroy_block.particles.tooltip",
+                () -> destroyParticles, () -> destroyParticles = !destroyParticles);
     }
 
     @Override
@@ -67,21 +59,6 @@ public class DestroyBlockScreen extends AbstractStepEditorScreen {
         if (step.destroyParticles != null) {
             destroyParticles = step.destroyParticles;
         }
-    }
-
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
-        graphics.drawString(font, UIText.of("ponderer.ui.destroy_block.pos"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.destroy_block.particles"), lx, y + 3, lc);
-    }
-
-    @Override
-    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderToggleState(graphics, particlesToggle, destroyParticles);
-        renderPickButtonLabel(graphics, pickBtn1);
     }
 
     @Override

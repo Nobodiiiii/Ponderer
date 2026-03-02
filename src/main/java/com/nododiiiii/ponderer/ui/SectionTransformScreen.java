@@ -2,8 +2,6 @@ package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -43,21 +41,13 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void buildForm() {
-        int x = guiLeft + 70, y = guiTop + 26, sw = 40;
-        int lx = guiLeft + 10;
-
-        linkIdField = createTextField(x, y, 140, 18, "default");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".link"), UIText.of("ponderer.ui." + stepType + ".link.tooltip"));
-        y += 22;
-
-        xField = createSmallNumberField(x, y, sw, "X");
-        yField = createSmallNumberField(x + sw + 5, y, sw, "Y");
-        zField = createSmallNumberField(x + 2 * (sw + 5), y, sw, "Z");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui." + stepType + ".xyz"), UIText.of("ponderer.ui." + stepType + ".xyz.tooltip"));
-        y += 22;
-
-        durationField = createSmallNumberField(x, y, 60, "20");
-        addLabelTooltip(lx, y + 3, UIText.of("ponderer.ui.duration"), UIText.of("ponderer.ui.duration.tooltip.idle"));
+        beginForm();
+        linkIdField = addFormTextField("ponderer.ui." + stepType + ".link", "ponderer.ui." + stepType + ".link.tooltip", "default", 140);
+        var xyz = addFormXyzRow("ponderer.ui." + stepType + ".xyz", "ponderer.ui." + stepType + ".xyz.tooltip");
+        xField = xyz.x();
+        yField = xyz.y();
+        zField = xyz.z();
+        durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.duration.tooltip.idle", "20", 60);
     }
 
     @Override
@@ -74,17 +64,6 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
             zField.setValue(String.valueOf(step.offset.get(2)));
         }
         if (step.duration != null) durationField.setValue(String.valueOf(step.duration));
-    }
-
-    @Override
-    protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        int lx = guiLeft + 10, y = guiTop + 29, lc = 0xCCCCCC;
-        graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".link"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui." + stepType + ".xyz"), lx, y, lc);
-        y += 22;
-        graphics.drawString(font, UIText.of("ponderer.ui.duration"), lx, y, lc);
     }
 
     @Override
