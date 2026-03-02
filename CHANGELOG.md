@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.0
+
+### 新增 / Added
+
+- **Forge + Fabric 双平台（MC 1.20.1）**：完成从单 Forge 架构到 `Common` / `Forge` / `Fabric` 三模块的迁移。
+  Full dual-loader support on Minecraft 1.20.1 via `Common` / `Forge` / `Fabric` modules.
+
+- **平台服务抽象（SPI）**：新增 `PlatformHelper`、`NetworkHelper`、`RegistrationHelper`，通过 `ServiceLoader` 按平台加载实现。
+  Added SPI-based platform services (`PlatformHelper`, `NetworkHelper`, `RegistrationHelper`) loaded through `ServiceLoader`.
+
+---
+
 ## 1.5.0
 
 ### 改进 / Improvements
