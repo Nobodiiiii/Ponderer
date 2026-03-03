@@ -37,5 +37,8 @@ hs_err_pid*
 # Logs
 *.log
 
+# Secrets
+.env
+
 # Reference projects (remove if you want to track them)
 ref/
