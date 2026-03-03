@@ -179,12 +179,12 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (maxScroll > 0) {
-            scrollOffset = (int) Math.max(0, Math.min(maxScroll, scrollOffset - delta * UILayoutConstants.SCROLL_SPEED));
+            scrollOffset = (int) Math.max(0, Math.min(maxScroll, scrollOffset - scrollY * UILayoutConstants.SCROLL_SPEED));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     private void renderScrollbar(GuiGraphics graphics) {

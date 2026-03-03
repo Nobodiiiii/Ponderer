@@ -721,13 +721,13 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (isScrollEnabled()) {
-            scrollOffset = Mth.clamp(scrollOffset - (int)(delta * UILayoutConstants.SCROLL_SPEED), 0, maxScroll);
+            scrollOffset = Mth.clamp(scrollOffset - (int)(scrollY * UILayoutConstants.SCROLL_SPEED), 0, maxScroll);
             updateScrollPositions();
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     @Override

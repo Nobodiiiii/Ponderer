@@ -663,16 +663,16 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (isScrollEnabled()) {
             int oldOffset = scrollOffset;
-            scrollOffset = Mth.clamp(scrollOffset - (int)(delta * UILayoutConstants.SCROLL_SPEED), 0, maxScroll);
+            scrollOffset = Mth.clamp(scrollOffset - (int)(scrollY * UILayoutConstants.SCROLL_SPEED), 0, maxScroll);
             if (scrollOffset != oldOffset) {
                 updateScrollPositions();
                 return true;
             }
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     @Override
