@@ -5,7 +5,7 @@ Create 制作组在 6.0 版本将 Ponder 拆分为独立模组，然而较高的
 Ponderer 是一个面向玩家与整合包作者的「游戏内思索（Ponder）制作工具」。
 你不需要离开游戏，也不需要先写脚本，就可以直接在世界里搭建、录制和调整思索教学流程。
 
-支持 **Forge 1.20.1** 和 **NeoForge 1.21.1** 双版本。
+支持 **1.20.1 Forge + Fabric** 和 **1.21.1 NeoForge + Fabric**（自 1.6.0 起采用多平台架构，单一代码库构建所有版本）。
 
 ## 你可以用它做什么
 
@@ -62,7 +62,7 @@ The Create team spun Ponder off into a standalone module in version 6.0. Unfortu
 Ponderer is an in-game Ponder authoring tool for players and modpack creators.
 You can build, edit, and iterate tutorial scenes directly in Minecraft without leaving the game or writing scripts first.
 
-Supports both **Forge 1.20.1** and **NeoForge 1.21.1**.
+Supports both **1.20.1 Forge + Fabric** and **1.21.1 NeoForge + Fabric** (since 1.6.0, a single multi-platform codebase builds all variants).
 
 ## What you can do with it
 

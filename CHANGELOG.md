@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.6.0
+
+### 改进 / Improvements
+
+- **多平台架构重构**：使用 Lotus 多平台架构重构代码，单一代码库同时支持 NeoForge 和 Fabric（1.21.1）/ Forge 和 Fabric（1.20.1）。
+  Refactored to a multi-platform architecture (Lotus) — a single codebase now builds for both NeoForge + Fabric (1.21.1) and Forge + Fabric (1.20.1).
+
+- **新增 Fabric 支持**：1.20.1 和 1.21.1 均新增 Fabric 加载器支持。
+  Added Fabric loader support for both 1.20.1 and 1.21.1.
+
+---
+
+## 1.5.3.1
+
+### 修复 / Fixes
+
+- 修复了从旧分支移植到多平台架构时的兼容性问题。
+  Fixed compatibility issues when porting from the legacy branch to the multi-platform architecture.
+
+---
+
+## 1.5.3
+
+### 改进 / Improvements
+
+- **重构 UI 代码**：大规模重构了编辑器界面代码，引入统一的布局常量系统（UILayoutConstants），提升各编辑器屏幕的一致性和可维护性。
+  Major UI code refactor — introduced a unified layout constants system (UILayoutConstants) for improved consistency and maintainability across all editor screens.
+
+---
+
+## 1.5.2.4
+
+### 新增功能 / New Features
+
+- **MC百科自动链接**：在 AI 场景生成中新增 MC百科（mcmod.cn）自动链接功能，可自动获取相关模组/物品的百科页面作为参考。（感谢 GitHub @Sddft97 的 PR）
+  Added automatic MC Wiki (mcmod.cn) linking in AI scene generation — automatically fetches relevant mod/item wiki pages as reference. (Thanks to GitHub @Sddft97 for the PR)
+
+---
+
+## 1.5.2.3
+
+### 改进 / Improvements
+
+- 从 Forge 版跟进了内容更新，包括 AI 场景生成、配置面板、JEI 集成优化、场景包功能等。
+  Synced content updates from the Forge branch, including AI scene generation, config panel, JEI integration improvements, scene pack features, and more.
+
+---
+
 ## 1.5.0
 
 ### 改进 / Improvements

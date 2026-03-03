@@ -1,0 +1,78 @@
+plugins {
+    id "fabric-loom" version "${loom_version}"
+    id "com.nododiiiii.ponderer.gradle"
+}
+
+def commonProject = project(":Common")
+
+base {
+    archivesName = "${mod_id}-${minecraft_version}-fabric"
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+
+    // Ponder + Flywheel
+    modApi(include("net.createmod.ponder:Ponder-Fabric-${minecraft_version}:${ponder_version}"))
+    modApi("dev.engine-room.flywheel:flywheel-fabric-api-${minecraft_version}:${flywheel_version}")
+    modImplementation(include("dev.engine-room.flywheel:flywheel-fabric-${minecraft_version}:${flywheel_version}"))
+
+    // ForgeConfigAPIPort — provides ModConfigSpec on Fabric
+    modApi(include("fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forgeconfigapiport_version}"))
+
+    // JEI
+    modCompileOnly("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}")
+    modCompileOnly("mezz.jei:jei-${minecraft_version}-fabric-api:${jei_version}")
+    modRuntimeOnly("mezz.jei:jei-${minecraft_version}-fabric:${jei_version}")
+
+    implementation(commonProject)
+}
+
+loom {
+    runs {
+        client {
+            client()
+            setConfigName("Ponderer Fabric Client")
+            ideConfigGenerated(true)
+            runDir("../run")
+        }
+        server {
+            server()
+            setConfigName("Ponderer Fabric Server")
+            ideConfigGenerated(true)
+            runDir("../run")
+        }
+    }
+
+    mixin.setDefaultRefmapName("${mod_id}.refmap.json")
+}
+
+// Merge Common source into Fabric compilation
+tasks.named("compileJava", JavaCompile).configure {
+    source(commonProject.sourceSets.main.allSource)
+}
+tasks.withType(Javadoc).configureEach {
+    source(commonProject.sourceSets.main.allJava)
+}
+tasks.matching { it.name == "sourcesJar" && it instanceof Jar }.configureEach {
+    from(commonProject.sourceSets.main.allSource)
+}
+processResources {
+    from commonProject.sourceSets.main.resources
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}

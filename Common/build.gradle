@@ -1,0 +1,29 @@
+plugins {
+    id "org.spongepowered.gradle.vanilla" version "0.2.1-SNAPSHOT"
+}
+
+base {
+    archivesName = "${mod_id}-Common-${minecraft_version}"
+}
+
+minecraft {
+    version(minecraft_version)
+}
+
+dependencies {
+    compileOnly group: "org.spongepowered", name: "mixin", version: "0.8.7"
+
+    // NeoForge config spec (ForgeConfigAPIPort provides it on both platforms)
+    compileOnly "fuzs.forgeconfigapiport:forgeconfigapiport-common-neoforgeapi:${forgeconfigapiport_version}"
+
+    // Ponder & Flywheel common APIs
+    compileOnly "net.createmod.ponder:Ponder-Common-${minecraft_version}:${ponder_version}"
+    compileOnly "dev.engine-room.flywheel:flywheel-common-mojmap-api-${minecraft_version}:${flywheel_version}"
+
+    // JEI common API
+    compileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"
+}
+
+java {
+    withSourcesJar()
+}

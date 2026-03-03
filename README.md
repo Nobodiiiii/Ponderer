@@ -6,19 +6,26 @@
 
 Ponderer 是一个 Minecraft 模组，提供数据驱动的 Ponder 场景编写、游戏内可视化编辑、AI 辅助生成、热重载以及客户端/服务端同步能力。
 
-支持版本：
-- **Forge 1.20.1**
-- **NeoForge 1.21.1**（当前分支）
+### 当前分支与支持平台
+
+| 分支 | Minecraft | 加载器 | 状态 |
+|---|---|---|---|
+| `1.20.1` | 1.20.1 | Forge + Fabric | 维护中 |
+| `1.21.1` | 1.21.1 | NeoForge + Fabric | 维护中 |
+| `1.21.1neoforge-deprecated` | 1.21.1 | 仅 NeoForge | 已废弃 |
+| `1.20.1forge-deprecated` | 1.20.1 | 仅 Forge | 已废弃 |
+
+自 1.6.0 起，项目采用多平台架构（Lotus），单一代码库同时构建 Forge/NeoForge 和 Fabric 版本。
 
 ### 运行要求
 
-| | Forge 1.20.1 | NeoForge 1.21.1 |
-|---|---|---|
-| Minecraft | 1.20.1 | 1.21.1 |
-| 模组加载器 | Forge 47.2.6+ | NeoForge 21.1.219+ |
-| Ponder | 1.0.91 | 1.0.60 |
-| Flywheel | 1.0.0-215 | 1.0.4 |
-| Java | 17 | 21 |
+| | Forge 1.20.1 | Fabric 1.20.1 | NeoForge 1.21.1 | Fabric 1.21.1 |
+|---|---|---|---|---|
+| Minecraft | 1.20.1 | 1.20.1 | 1.21.1 | 1.21.1 |
+| 模组加载器 | Forge 47.2.6+ | Fabric Loader 0.16.9+ | NeoForge 21.1.219+ | Fabric Loader 0.16.14+ |
+| Ponder | 1.0.91 | 1.0.91 | 1.0.69 | 1.0.69 |
+| Flywheel | 1.0.0-215 | 1.0.0-215 | 1.0.4 | 1.0.4 |
+| Java | 17 | 17 | 21 | 21 |
 
 ### 核心功能
 - **JSON DSL 场景定义**：在 `config/ponderer/scripts/` 中使用 JSON 编写 Ponder 场景
@@ -33,22 +40,23 @@ Ponderer 是一个 Minecraft 模组，提供数据驱动的 Ponder 场景编写�
 
 ### 项目结构
 ```
-src/main/java/com/nododiiiii/ponderer/
-├── Ponderer.java              # 模组入口
-├── Config.java                # 模组配置
-├── ai/                        # AI 场景生成（LLM 调用、结构描述、注册表映射）
-├── blueprint/                 # 蓝图选区与结构保存
-├── compat/jei/                # JEI 集成（拖放填入、物品浏览）
-├── mixin/                     # Mixin（Ponder UI 扩展、NBT 过滤、本地化修复）
-├── network/                   # 客户端/服务端网络通信（同步、上传、下载）
-├── ponder/                    # 核心逻辑（场景解析、存储、PonderJS 转换、命令）
-├── registry/                  # 物品注册
-└── ui/                        # 所有编辑器界面（场景编辑器、步骤编辑器、AI 配置等）
-
-src/main/resources/
-├── assets/ponderer/lang/      # 语言文件（en_us、zh_cn）
-├── data/ponderer/             # 默认脚本与结构
-└── ponderer.mixins.json       # Mixin 配置
+├── Common/src/main/java/com/nododiiiii/ponderer/   # 跨平台共享代码
+│   ├── Ponderer.java              # 模组入口
+│   ├── Config.java                # 模组配置
+│   ├── ai/                        # AI 场景生成（LLM 调用、结构描述、注册表映射）
+│   ├── blueprint/                 # 蓝图选区与结构保存
+│   ├── compat/jei/                # JEI 集成（拖放填入、物品浏览）
+│   ├── mixin/                     # Mixin（Ponder UI 扩展、NBT 过滤、本地化修复）
+│   ├── network/                   # 客户端/服务端网络通信（同步、上传、下载）
+│   ├── ponder/                    # 核心逻辑（场景解析、存储、PonderJS 转换、命令）
+│   ├── registry/                  # 物品注册
+│   └── ui/                        # 所有编辑器界面（场景编辑器、步骤编辑器、AI 配置等）
+├── NeoForge/                      # NeoForge 1.21.1 平台适配
+├── Fabric/                        # Fabric 平台适配
+└── Common/src/main/resources/
+    ├── assets/ponderer/lang/      # 语言文件（en_us、zh_cn）
+    ├── data/ponderer/             # 默认脚本与结构
+    └── ponderer.mixins.json       # Mixin 配置
 ```
 
 ### 命令
@@ -85,19 +93,26 @@ MIT
 
 Ponderer is a Minecraft mod that provides data-driven Ponder scene authoring, in-game visual editing, AI-assisted generation, hot-reload, and client/server sync.
 
-Supported versions:
-- **Forge 1.20.1** (current branch)
-- **NeoForge 1.21.1**
+### Branches & Supported Platforms
+
+| Branch | Minecraft | Loaders | Status |
+|---|---|---|---|
+| `1.20.1` | 1.20.1 | Forge + Fabric | Maintained |
+| `1.21.1` | 1.21.1 | NeoForge + Fabric | Maintained |
+| `1.21.1neoforge-deprecated` | 1.21.1 | NeoForge only | Deprecated |
+| `1.20.1forge-deprecated` | 1.20.1 | Forge only | Deprecated |
+
+Since 1.6.0, the project uses a multi-platform architecture (Lotus) — a single codebase builds for both Forge/NeoForge and Fabric.
 
 ### Requirements
 
-| | Forge 1.20.1 | NeoForge 1.21.1 |
-|---|---|---|
-| Minecraft | 1.20.1 | 1.21.1 |
-| Mod Loader | Forge 47.2.6+ | NeoForge 21.1.219+ |
-| Ponder | 1.0.91 | 1.0.60 |
-| Flywheel | 1.0.0-215 | 1.0.4 |
-| Java | 17 | 21 |
+| | Forge 1.20.1 | Fabric 1.20.1 | NeoForge 1.21.1 | Fabric 1.21.1 |
+|---|---|---|---|---|
+| Minecraft | 1.20.1 | 1.20.1 | 1.21.1 | 1.21.1 |
+| Mod Loader | Forge 47.2.6+ | Fabric Loader 0.16.9+ | NeoForge 21.1.219+ | Fabric Loader 0.16.14+ |
+| Ponder | 1.0.91 | 1.0.91 | 1.0.69 | 1.0.69 |
+| Flywheel | 1.0.0-215 | 1.0.0-215 | 1.0.4 | 1.0.4 |
+| Java | 17 | 17 | 21 | 21 |
 
 ### Key Features
 - **JSON DSL scene definition**: Author Ponder scenes in JSON under `config/ponderer/scripts/`
@@ -112,22 +127,23 @@ Supported versions:
 
 ### Project Structure
 ```
-src/main/java/com/nododiiiii/ponderer/
-├── Ponderer.java              # Mod entry point
-├── Config.java                # Mod configuration
-├── ai/                        # AI scene generation (LLM calls, structure description, registry mapping)
-├── blueprint/                 # Blueprint selection & structure saving
-├── compat/jei/                # JEI integration (drag-drop, item browsing)
-├── mixin/                     # Mixins (Ponder UI extensions, NBT filtering, localization fixes)
-├── network/                   # Client/server networking (sync, upload, download)
-├── ponder/                    # Core logic (scene parsing, storage, PonderJS conversion, commands)
-├── registry/                  # Item registration
-└── ui/                        # All editor screens (scene editor, step editors, AI config, etc.)
-
-src/main/resources/
-├── assets/ponderer/lang/      # Language files (en_us, zh_cn)
-├── data/ponderer/             # Default scripts & structures
-└── ponderer.mixins.json       # Mixin config
+├── Common/src/main/java/com/nododiiiii/ponderer/   # Cross-platform shared code
+│   ├── Ponderer.java              # Mod entry point
+│   ├── Config.java                # Mod configuration
+│   ├── ai/                        # AI scene generation (LLM calls, structure description, registry mapping)
+│   ├── blueprint/                 # Blueprint selection & structure saving
+│   ├── compat/jei/                # JEI integration (drag-drop, item browsing)
+│   ├── mixin/                     # Mixins (Ponder UI extensions, NBT filtering, localization fixes)
+│   ├── network/                   # Client/server networking (sync, upload, download)
+│   ├── ponder/                    # Core logic (scene parsing, storage, PonderJS conversion, commands)
+│   ├── registry/                  # Item registration
+│   └── ui/                        # All editor screens (scene editor, step editors, AI config, etc.)
+├── NeoForge/                      # NeoForge 1.21.1 platform adapter
+├── Fabric/                        # Fabric platform adapter
+└── Common/src/main/resources/
+    ├── assets/ponderer/lang/      # Language files (en_us, zh_cn)
+    ├── data/ponderer/             # Default scripts & structures
+    └── ponderer.mixins.json       # Mixin config
 ```
 
 ### Commands
