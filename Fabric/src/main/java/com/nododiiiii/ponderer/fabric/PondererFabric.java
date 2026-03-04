@@ -6,8 +6,6 @@ import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.registry.ModItems;
 import fuzs.forgeconfigapiport.api.config.v2.ForgeConfigRegistry;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import net.minecraftforge.fml.config.ModConfig;
 
 /**
@@ -25,10 +23,5 @@ public class PondererFabric implements ModInitializer {
 
         // Register network
         PondererServices.NETWORK.registerPackets();
-
-        // Register client commands
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            PondererClientCommands.register(dispatcher);
-        });
     }
 }
