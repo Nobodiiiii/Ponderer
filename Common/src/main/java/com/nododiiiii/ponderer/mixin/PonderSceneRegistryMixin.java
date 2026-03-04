@@ -26,7 +26,8 @@ public class PonderSceneRegistryMixin {
     @Inject(
         method = "loadSchematic(Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate;",
         at = @At("HEAD"),
-        cancellable = true
+        cancellable = true,
+        remap = false
     )
     private static void ponderer$loadLocalSchematic(ResourceManager resourceManager, ResourceLocation location,
                                                     CallbackInfoReturnable<StructureTemplate> cir) {

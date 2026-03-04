@@ -34,7 +34,7 @@ public class PonderLocalizationMixin {
     public Map<ResourceLocation, Map<String, String>> specific;
 
     @Inject(method = "getShared(Lnet/minecraft/resources/ResourceLocation;)Ljava/lang/String;",
-            at = @At("HEAD"), cancellable = true)
+            at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$getShared(ResourceLocation key, CallbackInfoReturnable<String> cir) {
         if (PonderIndex.editingModeActive()) return;
         if (!Ponderer.MODID.equals(key.getNamespace())) return;
@@ -45,7 +45,7 @@ public class PonderLocalizationMixin {
     }
 
     @Inject(method = "getShared(Lnet/minecraft/resources/ResourceLocation;[Ljava/lang/Object;)Ljava/lang/String;",
-            at = @At("HEAD"), cancellable = true)
+            at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$getSharedFormatted(ResourceLocation key, Object[] params, CallbackInfoReturnable<String> cir) {
         if (PonderIndex.editingModeActive()) return;
         if (!Ponderer.MODID.equals(key.getNamespace())) return;
@@ -56,7 +56,7 @@ public class PonderLocalizationMixin {
     }
 
     @Inject(method = "getSpecific(Lnet/minecraft/resources/ResourceLocation;Ljava/lang/String;)Ljava/lang/String;",
-            at = @At("HEAD"), cancellable = true)
+            at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$getSpecific(ResourceLocation sceneId, String k, CallbackInfoReturnable<String> cir) {
         if (PonderIndex.editingModeActive()) return;
         if (!Ponderer.MODID.equals(sceneId.getNamespace())) return;
@@ -70,7 +70,7 @@ public class PonderLocalizationMixin {
     }
 
     @Inject(method = "getSpecific(Lnet/minecraft/resources/ResourceLocation;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;",
-            at = @At("HEAD"), cancellable = true)
+            at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$getSpecificFormatted(ResourceLocation sceneId, String k, Object[] params, CallbackInfoReturnable<String> cir) {
         if (PonderIndex.editingModeActive()) return;
         if (!Ponderer.MODID.equals(sceneId.getNamespace())) return;

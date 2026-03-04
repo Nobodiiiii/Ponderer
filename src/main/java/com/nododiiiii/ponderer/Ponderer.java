@@ -73,9 +73,10 @@ public class Ponderer {
             }
             SceneStore.reloadFromDisk();
             PonderIndex.addPlugin(new DynamicPonderPlugin());
-            PonderIndex.reload();
-            // Ensure editing mode is off so Create's ponder text uses I18n (localized).
-            // Ponderer's own text is handled by PonderLocalizationMixin regardless.
+            // Do NOT call PonderIndex.reload() here.
+            // The Ponder library's FMLLoadCompleteEvent will call PonderIndex.registerAll()
+            // to perform the initial scene registration. Calling reload() here would cause
+            // scenes to be registered twice (once by reload, once by registerAll).
             PonderConfig.Client().editingMode.set(false);
         });
     }

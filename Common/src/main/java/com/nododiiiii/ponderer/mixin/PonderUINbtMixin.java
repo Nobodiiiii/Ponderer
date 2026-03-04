@@ -18,7 +18,8 @@ public class PonderUINbtMixin {
 
     @Inject(
         method = "of(Lnet/minecraft/world/item/ItemStack;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
-        at = @At("HEAD")
+        at = @At("HEAD"),
+        remap = false
     )
     private static void ponderer$captureStackHead(ItemStack item, CallbackInfoReturnable<PonderUI> cir) {
         NbtSceneFilter.setCurrentStack(item);
@@ -26,7 +27,8 @@ public class PonderUINbtMixin {
 
     @Inject(
         method = "of(Lnet/minecraft/world/item/ItemStack;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
-        at = @At("RETURN")
+        at = @At("RETURN"),
+        remap = false
     )
     private static void ponderer$clearStackReturn(ItemStack item, CallbackInfoReturnable<PonderUI> cir) {
         NbtSceneFilter.clearCurrentStack();
@@ -34,7 +36,8 @@ public class PonderUINbtMixin {
 
     @Inject(
         method = "of(Lnet/minecraft/world/item/ItemStack;Lnet/createmod/ponder/foundation/PonderTag;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
-        at = @At("HEAD")
+        at = @At("HEAD"),
+        remap = false
     )
     private static void ponderer$captureStackTagHead(ItemStack item, PonderTag tag, CallbackInfoReturnable<PonderUI> cir) {
         NbtSceneFilter.setCurrentStack(item);
@@ -42,7 +45,8 @@ public class PonderUINbtMixin {
 
     @Inject(
         method = "of(Lnet/minecraft/world/item/ItemStack;Lnet/createmod/ponder/foundation/PonderTag;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
-        at = @At("RETURN")
+        at = @At("RETURN"),
+        remap = false
     )
     private static void ponderer$clearStackTagReturn(ItemStack item, PonderTag tag, CallbackInfoReturnable<PonderUI> cir) {
         NbtSceneFilter.clearCurrentStack();
