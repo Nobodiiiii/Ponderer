@@ -7,6 +7,7 @@ import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
+import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.registry.ModItems;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
@@ -18,6 +19,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.ClickEvent;
@@ -63,6 +65,11 @@ public class PondererFabricClient implements ClientModInitializer {
         // The Ponder library's load-complete lifecycle will run registerAll()
         // for initial registration; calling reload() here causes duplicate scenes.
         PonderConfig.client().editingMode.set(false);
+
+        // Register client commands
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+            PondererClientCommands.register(dispatcher);
+        });
 
         // Creative tab
         if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {

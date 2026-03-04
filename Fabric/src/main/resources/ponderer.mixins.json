@@ -4,13 +4,12 @@
   "package": "com.nododiiiii.ponderer.mixin",
   "refmap": "ponderer.refmap.json",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [
+  "mixins": [],
+  "client": [
     "PonderLocalizationMixin",
     "PonderSceneRegistryMixin",
     "PonderSceneRegistryNbtMixin",
-    "WorldSectionElementImplMixin"
-  ],
-  "client": [
+    "WorldSectionElementImplMixin",
     "PonderUIAccessor",
     "PonderUIMixin",
     "PonderUINbtMixin",

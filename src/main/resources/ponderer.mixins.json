@@ -3,13 +3,12 @@
   "minVersion": "0.8",
   "package": "com.nododiiiii.ponderer.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [
+  "mixins": [],
+  "client": [
     "PonderLocalizationMixin",
     "PonderSceneRegistryMixin",
     "PonderSceneRegistryNbtMixin",
-    "WorldSectionElementImplMixin"
-  ],
-  "client": [
+    "WorldSectionElementImplMixin",
     "PonderUIAccessor",
     "PonderUIMixin",
     "PonderUINbtMixin",
