@@ -59,7 +59,9 @@ public class PondererFabricClient implements ClientModInitializer {
         }
         SceneStore.reloadFromDisk();
         PonderIndex.addPlugin(new DynamicPonderPlugin());
-        PonderIndex.reload();
+        // Do NOT call PonderIndex.reload() here.
+        // The Ponder library's load-complete lifecycle will run registerAll()
+        // for initial registration; calling reload() here causes duplicate scenes.
         PonderConfig.client().editingMode.set(false);
 
         // Creative tab

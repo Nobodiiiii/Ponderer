@@ -68,7 +68,9 @@ public class Ponderer {
             }
             SceneStore.reloadFromDisk();
             PonderIndex.addPlugin(new DynamicPonderPlugin());
-            PonderIndex.reload();
+            // Do NOT call PonderIndex.reload() here.
+            // The Ponder library's load-complete lifecycle will run registerAll()
+            // for initial registration; calling reload() here causes duplicate scenes.
             // Ensure editing mode is off so Create's ponder text uses I18n (localized).
             // Ponderer's own text is handled by PonderLocalizationMixin regardless.
             PonderConfig.client().editingMode.set(false);
