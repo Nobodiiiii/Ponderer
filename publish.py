@@ -37,6 +37,18 @@ MODRINTH_PROJECT_ID = "voXQB5Hr"  # the-ponderer
 CURSEFORGE_UPLOAD_API = "https://minecraft.curseforge.com/api"
 CURSEFORGE_PROJECT_ID=1461949
 
+# CurseForge 固定版本 ID（1.20.1 / 1.21.1）
+CF_MC_VERSION_IDS = {
+    "1.20.1": 9990,
+    "1.21.1": 11779,
+}
+
+CF_LOADER_VERSION_IDS = {
+    "Forge": 7498,
+    "Fabric": 7499,
+    "NeoForge": 10150,
+}
+
 # 分支 → 构建配置映射
 BRANCH_CONFIG = {
     "1.21.1": {
@@ -144,6 +156,67 @@ def extract_changelog(version: str) -> str:
         return match.group(1).strip()
 
     print(f"警告: CHANGELOG.md 中未找到版本 {version} 的内容")
+    return ""
+
+
+def _version_candidates(version: str):
+    """生成可匹配的版本候选（例如 1.6.0.1 -> 1.6.0.1 / 1.6.0）"""
+    candidates = []
+    if version:
+        candidates.append(version)
+
+    parts = version.split(".") if version else []
+    if len(parts) >= 4:
+        candidates.append(".".join(parts[:3]))
+
+    # 去重并保序
+    seen = set()
+    unique = []
+    for v in candidates:
+        if v not in seen:
+            seen.add(v)
+            unique.append(v)
+    return unique
+
+
+def extract_changelog_from_git(version: str, mc_version: str, max_log: int = 200) -> str:
+    """当 CHANGELOG 缺失时，从 git 提交标题中提取版本说明
+
+    期望格式示例：
+    1.6.0 - 1.20.1 feat: 新增 xxx
+    """
+    candidates = _version_candidates(version)
+    if not candidates:
+        return ""
+
+    result = subprocess.run(
+        ["git", "log", f"-n{max_log}", "--pretty=format:%s"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=PROJECT_ROOT,
+    )
+    if result.returncode != 0:
+        return ""
+
+    subjects = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not subjects:
+        return ""
+
+    # 匹配：<version> - <mc_version> <message>
+    for subject in subjects:
+        for ver in candidates:
+            pattern = rf"^\s*{re.escape(ver)}\s*-\s*{re.escape(mc_version)}\s*(.+)$"
+            match = re.match(pattern, subject, re.IGNORECASE)
+            if not match:
+                continue
+
+            trimmed = match.group(1).strip()
+            # 去掉前置分隔符，保留提交本体（如 feat: xxx）
+            trimmed = re.sub(r"^[\-:：\s]+", "", trimmed)
+            return trimmed
+
     return ""
 
 
@@ -268,6 +341,11 @@ def get_curseforge_game_versions(token: str):
 
 def find_cf_version_ids(token: str, mc_version: str, loader_name: str):
     """查找 CurseForge 对应的 MC 版本和 loader 的 ID"""
+    fixed_mc_id = CF_MC_VERSION_IDS.get(mc_version)
+    fixed_loader_id = CF_LOADER_VERSION_IDS.get(loader_name)
+    if fixed_mc_id and fixed_loader_id:
+        return [fixed_mc_id, fixed_loader_id]
+
     versions = get_curseforge_game_versions(token)
     if not versions:
         return []
@@ -371,6 +449,12 @@ def main():
 
     # ── 3. 提取 changelog ──
     changelog = extract_changelog(mod_version)
+    if not changelog:
+        git_changelog = extract_changelog_from_git(mod_version, mc_version)
+        if git_changelog:
+            changelog = git_changelog
+            print(f"  从 Git 提取 changelog: {changelog}")
+
     if changelog:
         # 只显示前 3 行预览
         preview = "\n".join(changelog.splitlines()[:3])
