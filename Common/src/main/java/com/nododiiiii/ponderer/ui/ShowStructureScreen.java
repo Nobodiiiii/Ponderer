@@ -24,7 +24,6 @@ import java.util.concurrent.CompletableFuture;
 /** Editor for "show_structure" step - optional height and optional structure reference. */
 public class ShowStructureScreen extends AbstractStepEditorScreen {
 
-    private HintableTextFieldWidget heightField;
     private HintableTextFieldWidget scaleField;
     private HintableTextFieldWidget structureField;
     private PonderButton browseButton;
@@ -41,13 +40,12 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         super(Component.translatable("ponderer.ui.show_structure"), scene, sceneIndex, parent, editIndex, step);
     }
 
-    @Override protected int getFormRowCount() { return 3; }
+    @Override protected int getFormRowCount() { return 2; }
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.show_structure"); }
 
     @Override
     protected void buildForm() {
         beginForm();
-        heightField = addFormNumberField("ponderer.ui.show_structure.height", "ponderer.ui.show_structure.height.tooltip", UIText.of("ponderer.ui.show_structure.height.hint"), 60);
         scaleField = addFormNumberField("ponderer.ui.show_structure.scale", "ponderer.ui.show_structure.scale.tooltip", "1.0", 60);
         addFormLabel("ponderer.ui.show_structure.structure", "ponderer.ui.show_structure.structure.tooltip");
         structureField = createTextField(fieldX(), formY(), 95, 18, UIText.of("ponderer.ui.show_structure.structure.hint"));
@@ -60,7 +58,6 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     @Override
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
-        if (step.height != null) heightField.setValue(String.valueOf(step.height));
         if (step.scale != null) scaleField.setValue(String.valueOf(step.scale));
         if (step.structure != null && !step.structure.isBlank()) structureField.setValue(step.structure);
     }
@@ -131,7 +128,6 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     @Override
     protected Map<String, String> snapshotForm() {
         Map<String, String> m = new HashMap<>();
-        m.put("height", heightField.getValue());
         m.put("scale", scaleField.getValue());
         m.put("structure", structureField.getValue());
         return m;
@@ -140,7 +136,6 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     @Override
     protected void restoreFromSnapshot(Map<String, String> snapshot) {
         restoreKeyFrame(snapshot);
-        if (snapshot.containsKey("height")) heightField.setValue(snapshot.get("height"));
         if (snapshot.containsKey("scale")) scaleField.setValue(snapshot.get("scale"));
         if (snapshot.containsKey("structure")) structureField.setValue(snapshot.get("structure"));
     }
@@ -155,12 +150,6 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         errorMessage = null;
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = "show_structure";
-        String hv = heightField.getValue().trim();
-        if (!hv.isEmpty()) {
-            Integer h = parseInt(hv, "Height");
-            if (h == null) return null;
-            s.height = h;
-        }
         String sv = scaleField.getValue().trim();
         if (!sv.isEmpty()) {
             Float sc = parseFloat(sv, "Scale");
@@ -186,6 +175,12 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
                     : ResourceLocation.fromNamespaceAndPath("ponderer", source.getPath());
 
                 if (source.getNamespace().equals("ponderer") && localStructureExists(target)) {
+                    s.structure = target.toString();
+                    return s;
+                }
+
+                // Try to copy built-in structure from jar before triggering download
+                if (source.getNamespace().equals("ponderer") && SceneStore.ensureBuiltinStructure(target.getPath())) {
                     s.structure = target.toString();
                     return s;
                 }

@@ -42,7 +42,20 @@ public class PonderSceneRegistryMixin {
                 return;
             }
 
-            // Priority 2: built-in resources bundled in the jar
+            // Priority 2: auto-copy built-in structure to local folder, then load from local
+            if (SceneStore.ensureBuiltinStructure(location.getPath())) {
+                Path localPath = SceneStore.getStructurePath(location);
+                if (Files.exists(localPath)) {
+                    try (InputStream stream = Files.newInputStream(localPath)) {
+                        cir.setReturnValue(PonderSceneRegistry.loadSchematic(stream));
+                    } catch (Exception e) {
+                        LOGGER.error("Failed to read ponderer schematic after copy: {}", localPath, e);
+                    }
+                    return;
+                }
+            }
+
+            // Priority 3: load directly from jar without copying
             InputStream builtinStream = SceneStore.openBuiltinStructure(location.getPath());
             if (builtinStream != null) {
                 try (builtinStream) {
