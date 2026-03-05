@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.Config;
+import com.nododiiiii.ponderer.compat.resourcify.ResourcifyCompat;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import net.createmod.catnip.gui.NavigatableSimiScreen;
 import net.createmod.catnip.gui.element.BoxElement;
@@ -88,7 +89,10 @@ public class FunctionScreen extends NavigatableSimiScreen {
             }, "ponderer.ui.function_page.import.tooltip"),
             new ButtonDef("ponderer.ui.function_page.download", () -> {
                 Minecraft.getInstance().setScreen(buildDownloadPage());
-            }, "ponderer.ui.function_page.download.tooltip")
+            }, "ponderer.ui.function_page.download.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.browse_modrinth", () -> {
+                ResourcifyCompat.openBrowseScreen("[Ponderer]");
+            }, "ponderer.ui.function_page.browse_modrinth.tooltip")
         )));
 
         // -- Conversion --

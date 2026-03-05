@@ -28,6 +28,9 @@ dependencies {
     modCompileOnly("mezz.jei:jei-${minecraft_version}-fabric-api:${jei_version}")
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-fabric:${jei_version}")
 
+    // Resourcify (optional)
+    modCompileOnly("maven.modrinth:resourcify:${resourcify_version}")
+
     implementation(commonProject)
 }
 

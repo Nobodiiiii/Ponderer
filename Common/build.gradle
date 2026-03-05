@@ -22,6 +22,9 @@ dependencies {
 
     // JEI common API
     compileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"
+
+    // Resourcify (optional, for Modrinth resource pack browsing)
+    compileOnly "maven.modrinth:resourcify:${resourcify_version}"
 }
 
 java {

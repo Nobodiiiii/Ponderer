@@ -27,6 +27,7 @@
     "java": ">=21"
   },
   "suggests": {
-    "jei": ">=${jei_version}"
+    "jei": ">=${jei_version}",
+    "resourcify": ">=1.0.0"
   }
 }
