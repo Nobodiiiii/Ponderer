@@ -12,25 +12,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.List;
 
-/**
- * Filters compiled PonderScene list based on NBT filter when an ItemStack
- * is available via the ThreadLocal set by PonderUINbtMixin.
- */
 @Mixin(PonderSceneRegistry.class)
-public class PonderSceneRegistryNbtMixin {
+public class PonderSceneRegistryNbtMixinFabric {
 
     @Inject(
-        method = "compile(Lnet/minecraft/resources/ResourceLocation;)Ljava/util/List;",
+        method = "compile(Lnet/minecraft/class_2960;)Ljava/util/List;",
         at = @At("RETURN"),
         cancellable = true,
         remap = false,
         require = 0
     )
-    private void ponderer$filterByNbtMoj(ResourceLocation id, CallbackInfoReturnable<List<PonderScene>> cir) {
-        ponderer$filterByNbtImpl(cir);
-    }
-
-    private void ponderer$filterByNbtImpl(CallbackInfoReturnable<List<PonderScene>> cir) {
+    private void ponderer$filterByNbtFabric(ResourceLocation id, CallbackInfoReturnable<List<PonderScene>> cir) {
         ItemStack stack = NbtSceneFilter.getCurrentStack();
         if (stack == null || stack.isEmpty()) return;
 

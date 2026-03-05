@@ -11,37 +11,27 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Prevent showing the ponder tooltip for items whose scenes are ALL
- * filtered out by NBT filters.
- */
 @Mixin(PonderTooltipHandler.class)
-public class PonderTooltipNbtMixin {
+public class PonderTooltipNbtMixinFabric {
 
     @Inject(
-        method = "updateHovered(Lnet/minecraft/world/item/ItemStack;)V",
+        method = "updateHovered(Lnet/minecraft/class_1799;)V",
         at = @At("HEAD"),
         cancellable = true,
         remap = false,
         require = 0
     )
-    private static void ponderer$checkNbtFilterMoj(ItemStack stack, CallbackInfo ci) {
-        ponderer$checkNbtFilterImpl(stack, ci);
-    }
-
-    private static void ponderer$checkNbtFilterImpl(ItemStack stack, CallbackInfo ci) {
+    private static void ponderer$checkNbtFilterFabric(ItemStack stack, CallbackInfo ci) {
         if (stack.isEmpty()) return;
 
         try {
             ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
             if (!PonderIndex.getSceneAccess().doScenesExistForId(itemId)) return;
 
-            // Scenes exist for this item type, but do any pass the NBT filter?
             if (NbtSceneFilter.hasFilters(itemId) && !NbtSceneFilter.hasVisibleScenes(stack, itemId)) {
                 ci.cancel();
             }
         } catch (Exception ignored) {
-            // If anything goes wrong, let the original method handle it
         }
     }
 }

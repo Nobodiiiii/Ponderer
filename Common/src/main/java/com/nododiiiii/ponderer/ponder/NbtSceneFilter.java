@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class NbtSceneFilter {
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    // sceneId (e.g. "ponderer:ponderer_example") -> required NBT pattern
+    // sceneId (e.g. "ponderer:my_scene") -> required NBT pattern
     private static final Map<String, CompoundTag> FILTERS = new ConcurrentHashMap<>();
 
     // itemId -> set of scene IDs registered by our plugin (both filtered and unfiltered)

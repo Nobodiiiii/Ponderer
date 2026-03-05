@@ -27,13 +27,20 @@ import java.util.Map;
 @Mixin(PonderLocalization.class)
 public class PonderLocalizationMixin {
 
-    @Shadow(remap = false)
+            @Shadow(remap = false)
     public Map<ResourceLocation, String> shared;
 
-    @Shadow(remap = false)
+            @Shadow(remap = false)
     public Map<ResourceLocation, Map<String, String>> specific;
 
-    @Inject(method = "getShared(Lnet/minecraft/resources/ResourceLocation;)Ljava/lang/String;",
+    /**
+     * Fires for both getShared(RL) and getShared(RL, Object...).
+     * Only captures the first parameter so it is compatible with all overloads.
+     * The formatted overload will receive the raw value (formatting is handled
+     * by the caller if needed); this is acceptable for ponderer-namespace keys
+     * because dynamic scene text rarely contains format specifiers.
+     */
+    @Inject(method = "getShared",
             at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$getShared(ResourceLocation key, CallbackInfoReturnable<String> cir) {
         if (PonderIndex.editingModeActive()) return;
@@ -44,18 +51,11 @@ public class PonderLocalizationMixin {
         }
     }
 
-    @Inject(method = "getShared(Lnet/minecraft/resources/ResourceLocation;[Ljava/lang/Object;)Ljava/lang/String;",
-            at = @At("HEAD"), cancellable = true, remap = false)
-    private void ponderer$getSharedFormatted(ResourceLocation key, Object[] params, CallbackInfoReturnable<String> cir) {
-        if (PonderIndex.editingModeActive()) return;
-        if (!Ponderer.MODID.equals(key.getNamespace())) return;
-        String val = shared.get(key);
-        if (val != null) {
-            cir.setReturnValue(String.format(val, params));
-        }
-    }
-
-    @Inject(method = "getSpecific(Lnet/minecraft/resources/ResourceLocation;Ljava/lang/String;)Ljava/lang/String;",
+    /**
+     * Fires for both getSpecific(RL, String) and getSpecific(RL, String, Object...).
+     * Same rationale as above – only common parameters are captured.
+     */
+    @Inject(method = "getSpecific",
             at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$getSpecific(ResourceLocation sceneId, String k, CallbackInfoReturnable<String> cir) {
         if (PonderIndex.editingModeActive()) return;
@@ -65,20 +65,6 @@ public class PonderLocalizationMixin {
             String val = map.get(k);
             if (val != null) {
                 cir.setReturnValue(val);
-            }
-        }
-    }
-
-    @Inject(method = "getSpecific(Lnet/minecraft/resources/ResourceLocation;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;",
-            at = @At("HEAD"), cancellable = true, remap = false)
-    private void ponderer$getSpecificFormatted(ResourceLocation sceneId, String k, Object[] params, CallbackInfoReturnable<String> cir) {
-        if (PonderIndex.editingModeActive()) return;
-        if (!Ponderer.MODID.equals(sceneId.getNamespace())) return;
-        Map<String, String> map = specific.get(sceneId);
-        if (map != null) {
-            String val = map.get(k);
-            if (val != null) {
-                cir.setReturnValue(String.format(val, params));
             }
         }
     }

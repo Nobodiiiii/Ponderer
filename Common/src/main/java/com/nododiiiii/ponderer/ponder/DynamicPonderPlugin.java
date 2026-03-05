@@ -605,13 +605,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step) {
-        if (step.height != null && step.height >= 0) {
-            var selection = scene.getScene().getSceneBuildingUtil().select().layersFrom(step.height);
-            scene.world().showSection(selection, Direction.UP);
-        } else {
-            var selection = scene.getScene().getSceneBuildingUtil().select().everywhere();
-            scene.world().showSection(selection, Direction.UP);
-        }
+        // Always show everything – height is auto-detected from the structure bounds
+        var selection = scene.getScene().getSceneBuildingUtil().select().everywhere();
+        scene.world().showSection(selection, Direction.UP);
         if (step.scale != null) {
             scene.scaleSceneView(step.scale);
         }

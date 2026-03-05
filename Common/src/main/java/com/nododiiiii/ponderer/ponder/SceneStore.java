@@ -422,6 +422,11 @@ public final class SceneStore {
         }
     }
 
+    /** Names of all built-in basic structures bundled in the jar. */
+    private static final String[] BASIC_STRUCTURES = {
+        "basic", "basic_xs", "basic_s", "basic_l", "basic_xl", "basic_xxl"
+    };
+
     public static void extractDefaultsIfNeeded() {
         Path baseDir = PondererServices.PLATFORM.getConfigDir().resolve(BASE_DIR);
         Path marker = baseDir.resolve(".initialized");
@@ -436,19 +441,39 @@ public final class SceneStore {
             return;
         }
 
-        if (Files.exists(marker)) return;
+        // Ensure all basic structures are present on every startup
+        for (String name : BASIC_STRUCTURES) {
+            extractResource("data/ponderer/default_structures/" + name + ".nbt",
+                structureDir.resolve(name + ".nbt"));
+        }
 
-        extractResource("data/ponderer/default_scripts/ponderer_example.json",
-            scriptsDir.resolve("ponderer_example.json"));
-        extractResource("data/ponderer/default_structures/ponderer_example_1.nbt",
-            structureDir.resolve("ponderer_example_1.nbt"));
-        extractResource("data/ponderer/default_structures/ponderer_example_2.nbt",
-            structureDir.resolve("ponderer_example_2.nbt"));
+        if (!Files.exists(marker)) {
+            try {
+                extractResource("data/ponderer/default_scripts/ponderer_example.json", scriptsDir.resolve("ponderer_example.json"));
+                Files.writeString(marker, "initialized", StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                LOGGER.warn("Failed to write initialization marker", e);
+            }
+        }
+    }
 
-        try {
-            Files.writeString(marker, "initialized", StandardCharsets.UTF_8);
+    /**
+     * Ensure a built-in structure file exists in the local structures folder.
+     * If the file is missing but a built-in resource exists in the jar, copy it.
+     * Returns true if the file now exists locally.
+     */
+    public static boolean ensureBuiltinStructure(String path) {
+        Path target = getStructureDir().resolve(path + ".nbt");
+        if (Files.exists(target)) return true;
+        try (InputStream in = openBuiltinStructure(path)) {
+            if (in == null) return false;
+            Files.createDirectories(target.getParent());
+            Files.copy(in, target);
+            LOGGER.info("Copied built-in structure to local: {}", target);
+            return true;
         } catch (IOException e) {
-            LOGGER.warn("Failed to write initialization marker", e);
+            LOGGER.warn("Failed to copy built-in structure: {}", target, e);
+            return false;
         }
     }
 

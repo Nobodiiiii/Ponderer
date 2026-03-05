@@ -7,13 +7,13 @@
   "mixins": [],
   "client": [
     "PonderLocalizationMixin",
-    "PonderSceneRegistryMixin",
-    "PonderSceneRegistryNbtMixin",
+    "PonderSceneRegistryMixinFabric",
+    "PonderSceneRegistryNbtMixinFabric",
     "WorldSectionElementImplMixin",
     "PonderUIAccessor",
     "PonderUIMixin",
-    "PonderUINbtMixin",
-    "PonderTooltipNbtMixin"
+    "PonderUINbtMixinFabric",
+    "PonderTooltipNbtMixinFabric"
   ],
   "server": [],
   "injectors": {

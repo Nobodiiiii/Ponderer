@@ -8,29 +8,28 @@
     "zh_cn": "Ponderer 全步骤演示"
   },
   "structures": [
-    "ponderer:ponderer_example_1",
-    "ponderer:ponderer_example_2"
+    "ponderer:basic"
   ],
   "tags": [],
-  "steps": [],
   "scenes": [
     {
       "id": "page_1_structure_overlay",
       "title": {
-        "en_us": "Page 1/4 - Structure \u0026 Overlay",
+        "en_us": "Page 1/4 - Structure & Overlay",
         "zh_cn": "第1页/共4页 - 结构与覆盖层"
       },
       "steps": [
         {
           "type": "show_structure",
-          "structure": "ponderer:ponderer_example_1",
+          "structure": "ponderer:basic",
+          "scale": 1.0,
           "attachKeyFrame": true
         },
         {
           "type": "text",
           "duration": 80,
           "text": {
-            "en_us": "show_structure: Displays the loaded structure. Use \u0027structure\u0027 field to reference pool entries.",
+            "en_us": "show_structure: Displays the loaded structure. Use 'structure' field to reference pool entries.",
             "zh_cn": "show_structure: 展示已加载的结构。使用 structure 字段引用结构池条目。"
           },
           "point": [
@@ -67,28 +66,11 @@
           "duration": 40
         },
         {
-          "type": "shared_text",
-          "duration": 80,
-          "key": "ponderer.shared.demo",
-          "point": [
-            2.5,
-            3.5,
-            2.5
-          ],
-          "color": "input",
-          "placeNearTarget": true,
-          "attachKeyFrame": true
-        },
-        {
-          "type": "idle",
-          "duration": 40
-        },
-        {
           "type": "show_controls",
           "duration": 60,
           "point": [
             4.5,
-            2.8,
+            1.8,
             4.5
           ],
           "direction": "down",
@@ -106,7 +88,7 @@
           },
           "point": [
             2.5,
-            4.5,
+            3.5,
             2.5
           ],
           "placeNearTarget": true
@@ -133,7 +115,7 @@
           },
           "point": [
             2.5,
-            2.0,
+            1.5,
             2.5
           ],
           "placeNearTarget": true
@@ -153,7 +135,8 @@
       "steps": [
         {
           "type": "show_structure",
-          "structure": "ponderer:ponderer_example_1",
+          "structure": "ponderer:basic",
+          "scale": 1.0,
           "attachKeyFrame": true
         },
         {
@@ -200,15 +183,14 @@
           "block": "minecraft:glass",
           "blockPos": [
             0,
-            1,
+            0,
             0
           ],
           "blockPos2": [
-            2,
             1,
-            2
+            1,
+            1
           ],
-          "spawnParticles": true,
           "attachKeyFrame": true
         },
         {
@@ -252,6 +234,31 @@
             1.5
           ],
           "placeNearTarget": true
+        },
+        {
+          "type": "idle",
+          "duration": 40
+        },
+        {
+          "type": "set_block",
+          "block": "minecraft:lever",
+          "blockPos": [
+            4,
+            1,
+            0
+          ]
+        },
+        {
+          "type": "set_block",
+          "block": "minecraft:redstone_lamp",
+          "blockProperties": {
+            "facing": "east"
+          },
+          "blockPos": [
+            4,
+            1,
+            1
+          ]
         },
         {
           "type": "idle",
@@ -321,7 +328,7 @@
           "type": "text",
           "duration": 60,
           "text": {
-            "en_us": "modify_block_entity_nbt: Modifies a block entity\u0027s NBT data. Here a banner\u0027s pattern changed visually via reDrawBlocks.",
+            "en_us": "modify_block_entity_nbt: Modifies a block entity's NBT data. Here a banner's pattern changed visually via reDrawBlocks.",
             "zh_cn": "modify_block_entity_nbt: 修改方块实体的 NBT 数据。此处通过 reDrawBlocks 使旗帜图案发生可见变化。"
           },
           "point": [
@@ -382,7 +389,8 @@
       "steps": [
         {
           "type": "show_structure",
-          "structure": "ponderer:ponderer_example_2",
+          "structure": "ponderer:basic_xl",
+          "scale": 0.8,
           "attachKeyFrame": true
         },
         {
@@ -393,7 +401,7 @@
           "type": "text",
           "duration": 60,
           "text": {
-            "zh_cn": "更改不同背景",
+            "zh_cn": "更改不同背景，调整缩放",
             "en_us": "Change Background."
           },
           "point": [
@@ -535,13 +543,13 @@
     {
       "id": "page_4_entities_camera_sound",
       "title": {
-        "en_us": "Page 4/4 - Entity, Camera \u0026 Sound",
+        "en_us": "Page 4/4 - Entity, Camera & Sound",
         "zh_cn": "第4页/共4页 - 实体、镜头与音效"
       },
       "steps": [
         {
           "type": "show_structure",
-          "structure": "ponderer:ponderer_example_1",
+          "structure": "ponderer:basic",
           "attachKeyFrame": true
         },
         {
@@ -664,6 +672,30 @@
         {
           "type": "idle",
           "duration": 40
+        },
+        {
+          "type": "clear_entities",
+          "attachKeyFrame": true,
+          "fullScene": true
+        },
+        {
+          "type": "clear_item_entities",
+          "fullScene": true
+        },
+        {
+          "type": "text",
+          "duration": 60,
+          "text": {
+            "en_us": "Clear entities.",
+            "zh_cn": "清除实体以及掉落物"
+          },
+          "point": [
+            4.5,
+            1.0,
+            0.5
+          ],
+          "placeNearTarget": true,
+          "attachKeyFrame": true
         }
       ]
     }

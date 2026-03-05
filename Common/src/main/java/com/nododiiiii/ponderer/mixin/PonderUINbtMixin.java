@@ -19,36 +19,40 @@ public class PonderUINbtMixin {
     @Inject(
         method = "of(Lnet/minecraft/world/item/ItemStack;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
         at = @At("HEAD"),
-        remap = false
+        remap = false,
+        require = 0
     )
-    private static void ponderer$captureStackHead(ItemStack item, CallbackInfoReturnable<PonderUI> cir) {
+    private static void ponderer$captureStackHeadMoj(ItemStack item, CallbackInfoReturnable<PonderUI> cir) {
         NbtSceneFilter.setCurrentStack(item);
     }
 
     @Inject(
         method = "of(Lnet/minecraft/world/item/ItemStack;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
         at = @At("RETURN"),
-        remap = false
+        remap = false,
+        require = 0
     )
-    private static void ponderer$clearStackReturn(ItemStack item, CallbackInfoReturnable<PonderUI> cir) {
+    private static void ponderer$clearStackReturnMoj(ItemStack item, CallbackInfoReturnable<PonderUI> cir) {
         NbtSceneFilter.clearCurrentStack();
     }
 
     @Inject(
         method = "of(Lnet/minecraft/world/item/ItemStack;Lnet/createmod/ponder/foundation/PonderTag;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
         at = @At("HEAD"),
-        remap = false
+        remap = false,
+        require = 0
     )
-    private static void ponderer$captureStackTagHead(ItemStack item, PonderTag tag, CallbackInfoReturnable<PonderUI> cir) {
+    private static void ponderer$captureStackTagHeadMoj(ItemStack item, PonderTag tag, CallbackInfoReturnable<PonderUI> cir) {
         NbtSceneFilter.setCurrentStack(item);
     }
 
     @Inject(
         method = "of(Lnet/minecraft/world/item/ItemStack;Lnet/createmod/ponder/foundation/PonderTag;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
         at = @At("RETURN"),
-        remap = false
+        remap = false,
+        require = 0
     )
-    private static void ponderer$clearStackTagReturn(ItemStack item, PonderTag tag, CallbackInfoReturnable<PonderUI> cir) {
+    private static void ponderer$clearStackTagReturnMoj(ItemStack item, PonderTag tag, CallbackInfoReturnable<PonderUI> cir) {
         NbtSceneFilter.clearCurrentStack();
     }
 }
