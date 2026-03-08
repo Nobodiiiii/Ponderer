@@ -28,6 +28,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +43,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
     private final BlueprintHandler blueprintHandler = new BlueprintHandler();
     private boolean hasNotified = false;
+    private boolean wasRightMouseDown = false;
 
     @Override
     public void onInitializeClient() {
@@ -89,6 +91,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
             // Blueprint handler tick
             blueprintHandler.tick();
+            handleBlueprintMouseInput(client);
 
             // Player login notification (check once)
             if (!hasNotified && client.player != null) {
@@ -167,5 +170,17 @@ public class PondererFabricClient implements ClientModInitializer {
                 }
             }
         });
+    }
+
+    private void handleBlueprintMouseInput(Minecraft client) {
+        if (client.getWindow() == null) {
+            return;
+        }
+        long window = client.getWindow().getWindow();
+        boolean rightMouseDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS;
+        if (rightMouseDown && !wasRightMouseDown) {
+            blueprintHandler.onMouseInput(1, true);
+        }
+        wasRightMouseDown = rightMouseDown;
     }
 }
