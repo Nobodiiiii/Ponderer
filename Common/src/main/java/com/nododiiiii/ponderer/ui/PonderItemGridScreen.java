@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.ScreenOpener;
@@ -144,7 +145,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
 
             for (String itemId : scene.items) {
                 String nf = scene.nbtFilter;
-                String entryKey = itemId + "|" + (nf != null ? nf : "");
+                String entryKey = normalizedEntryKey(itemId, nf);
 
                 packGroups.computeIfAbsent(packKey, k -> new LinkedHashMap<>())
                         .computeIfAbsent(entryKey, k -> new ArrayList<>());
@@ -183,6 +184,8 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                 Item item = BuiltInRegistries.ITEM.get(rl);
                 if (item == null || item == Items.AIR) continue;
 
+                Set<String> seenNormalizedKeys = new HashSet<>();
+
                 for (String nf : itemEntry.getValue()) {
                     ItemStack stack = new ItemStack(item);
                     if (nf != null) {
@@ -197,7 +200,10 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                         } catch (Exception ignored) {
                         }
                     }
-                    String key = itemId + "|" + (nf != null ? nf : "");
+                    String key = normalizedEntryKey(itemId, nf);
+                    if (!seenNormalizedKeys.add(key)) {
+                        continue;
+                    }
                     List<String> sceneKeys = entryMap.getOrDefault(key, List.of());
                     if (!sceneKeys.isEmpty()) {
                         entries.add(new ItemEntry(stack, nf, sceneKeys));
@@ -227,7 +233,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
 
             for (String itemId : scene.items) {
                 String nf = scene.nbtFilter;
-                String key = itemId + "|" + (nf != null ? nf : "");
+                String key = normalizedEntryKey(itemId, nf);
 
                 entryMap.computeIfAbsent(key, k -> new ArrayList<>());
                 List<String> keys = entryMap.get(key);
@@ -251,6 +257,8 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
             Item item = BuiltInRegistries.ITEM.get(rl);
             if (item == null || item == Items.AIR) continue;
 
+            Set<String> seenNormalizedKeys = new HashSet<>();
+
             for (String nf : itemEntry.getValue()) {
                 ItemStack stack = new ItemStack(item);
                 if (nf != null) {
@@ -265,7 +273,10 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                     } catch (Exception ignored) {
                     }
                 }
-                String key = itemId + "|" + (nf != null ? nf : "");
+                String key = normalizedEntryKey(itemId, nf);
+                if (!seenNormalizedKeys.add(key)) {
+                    continue;
+                }
                 List<String> sceneKeys = entryMap.getOrDefault(key, List.of());
                 if (!sceneKeys.isEmpty()) {
                     entries.add(new ItemEntry(stack, nf, sceneKeys));
@@ -511,6 +522,29 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         graphics.fill(x + w - 1, y, x + w, y + h, bdr);
     }
 
+    private static String normalizedEntryKey(String itemId, @Nullable String nbtFilter) {
+        String nf = nbtFilter != null ? nbtFilter : "";
+        if ("minecraft:written_book".equals(itemId) && !nf.isBlank()) {
+            String title = NbtSceneFilter.extractWrittenBookTitleFromFilterSnbt(nf);
+            if (title != null && !title.isBlank()) {
+                return itemId + "|title:" + title;
+            }
+        }
+        return itemId + "|" + nf;
+    }
+
+    private static String formatNbtFilterForTooltip(ItemEntry entry) {
+        if (entry.nbtFilter == null) return "";
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(entry.stack.getItem());
+        if (itemId != null && "minecraft:written_book".equals(itemId.toString())) {
+            String title = NbtSceneFilter.extractWrittenBookTitleFromFilterSnbt(entry.nbtFilter);
+            if (title != null && !title.isBlank()) {
+                return "title: " + title;
+            }
+        }
+        return entry.nbtFilter;
+    }
+
     @Override
     protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         if (sections.isEmpty()) return;
@@ -552,7 +586,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         if (entry.nbtFilter != null) {
             tooltip.add(Component.translatable("ponderer.ui.item_list.nbt_filter")
                     .withStyle(ChatFormatting.GOLD));
-            tooltip.add(Component.literal(entry.nbtFilter)
+            tooltip.add(Component.literal(formatNbtFilterForTooltip(entry))
                     .withStyle(ChatFormatting.GRAY));
         }
 

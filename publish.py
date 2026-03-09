@@ -179,18 +179,27 @@ def _version_candidates(version: str):
     return unique
 
 
-def extract_changelog_from_git(version: str, mc_version: str, max_log: int = 200) -> str:
-    """当 CHANGELOG 缺失时，从 git 提交标题中提取版本说明
+def _clean_commit_body(body: str) -> str:
+    """清理 git 提交正文中的样板行（如 cherry-pick 注记）。"""
+    lines = []
+    for raw in body.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if re.match(r"^\(cherry picked from commit [0-9a-f]{7,40}\)$", line, re.IGNORECASE):
+            continue
+        lines.append(raw.rstrip())
+    return "\n".join(lines).strip()
 
-    期望格式示例：
-    1.6.0 - 1.20.1 feat: 新增 xxx
-    """
+
+def extract_changelog_from_git(version: str, mc_version: str, max_log: int = 200) -> str:
+    """当 CHANGELOG 缺失时，从 git 提交中提取版本说明。"""
     candidates = _version_candidates(version)
     if not candidates:
         return ""
 
     result = subprocess.run(
-        ["git", "log", f"-n{max_log}", "--pretty=format:%s"],
+        ["git", "log", f"-n{max_log}", "--pretty=format:%s%x1f%b%x1e"],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -200,14 +209,22 @@ def extract_changelog_from_git(version: str, mc_version: str, max_log: int = 200
     if result.returncode != 0:
         return ""
 
-    subjects = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    if not subjects:
+    records = [r for r in result.stdout.split("\x1e") if r.strip()]
+    if not records:
         return ""
 
-    # 匹配：<version> - <mc_version> <message>
-    for subject in subjects:
+    # 支持: <version> - <mc_version> <msg> / <version> <msg> / v<version> <msg>
+    for record in records:
+        if "\x1f" in record:
+            subject, body = record.split("\x1f", 1)
+        else:
+            subject, body = record, ""
+        subject = subject.strip()
+        body = _clean_commit_body(body)
+
         for ver in candidates:
-            pattern = rf"^\s*{re.escape(ver)}\s*-\s*{re.escape(mc_version)}\s*(.+)$"
+            # 避免 1.6.3 误匹配到 1.6.3.1
+            pattern = rf"^\s*v?{re.escape(ver)}(?![\.\d])(?:\s*-\s*{re.escape(mc_version)})?\s*([\-:：]?\s*.*)$"
             match = re.match(pattern, subject, re.IGNORECASE)
             if not match:
                 continue
@@ -215,7 +232,14 @@ def extract_changelog_from_git(version: str, mc_version: str, max_log: int = 200
             trimmed = match.group(1).strip()
             # 去掉前置分隔符，保留提交本体（如 feat: xxx）
             trimmed = re.sub(r"^[\-:：\s]+", "", trimmed)
-            return trimmed
+            # 若正文仍以 MC 版本号开头（如 '1.20.1 feat: ...'），去掉该前缀
+            trimmed = re.sub(r"^\d+(?:\.\d+){1,3}\s*[-:：]?\s*", "", trimmed)
+            if body:
+                if trimmed:
+                    return f"{trimmed}\n\n{body}"
+                return body
+            if trimmed:
+                return trimmed
 
     return ""
 
@@ -472,6 +496,12 @@ def main():
             print(f"    ... (共 {len(changelog.splitlines())} 行)")
     else:
         print("  Changelog: (空)")
+
+    print("\n  自定义 changelog (直接回车使用默认提取结果): ", end="")
+    custom_changelog = input()
+    if custom_changelog.strip():
+        changelog = custom_changelog.strip()
+        print("  已使用手动输入的 changelog")
 
     # ── 4. 选择版本类型 ──
     if "--version-type" not in " ".join(sys.argv):

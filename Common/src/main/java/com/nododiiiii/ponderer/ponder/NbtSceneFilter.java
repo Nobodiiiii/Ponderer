@@ -1,5 +1,9 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
 import com.mojang.logging.LogUtils;
 import net.createmod.ponder.foundation.PonderScene;
 import net.minecraft.client.Minecraft;
@@ -9,6 +13,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
@@ -149,6 +154,15 @@ public final class NbtSceneFilter {
         if (filter == null || filter.isEmpty()) return true;
 
         try {
+            // Special-case written books: matching by title is more stable than full payload matching.
+            if (stack.is(Items.WRITTEN_BOOK)) {
+                String requiredTitle = extractWrittenBookTitle(filter);
+                if (requiredTitle != null && !requiredTitle.isBlank()) {
+                    String actualTitle = extractWrittenBookTitle(stack);
+                    return actualTitle != null && requiredTitle.equals(actualTitle);
+                }
+            }
+
             // Check against the item's custom tag (where book data like author/title lives)
             CompoundTag itemTag = stack.getTag();
             if (itemTag != null && isSubset(filter, itemTag)) {
@@ -162,6 +176,136 @@ public final class NbtSceneFilter {
             LOGGER.debug("NBT match check failed", e);
             return false;
         }
+    }
+
+    @Nullable
+    public static String extractWrittenBookTitleFromFilterSnbt(@Nullable String snbt) {
+        CompoundTag parsed = parseNbt(snbt);
+        if (parsed == null) return null;
+        return extractWrittenBookTitle(parsed);
+    }
+
+    @Nullable
+    private static String extractWrittenBookTitle(ItemStack stack) {
+        return extractWrittenBookTitle(stack.getTag());
+    }
+
+    @Nullable
+    private static String extractWrittenBookTitle(@Nullable CompoundTag tag) {
+        if (tag == null || tag.isEmpty()) {
+            return null;
+        }
+
+        if (tag.contains("title")) {
+            String parsed = parseBookTitleTag(tag.get("title"));
+            if (parsed != null && !parsed.isBlank()) return parsed;
+        }
+
+        if (tag.contains("tag", Tag.TAG_COMPOUND)) {
+            String nested = extractWrittenBookTitle(tag.getCompound("tag"));
+            if (nested != null && !nested.isBlank()) return nested;
+        }
+
+        // 兼容 1.21+ 组件化写法: components.minecraft:written_book_content.title
+        if (tag.contains("components", Tag.TAG_COMPOUND)) {
+            CompoundTag components = tag.getCompound("components");
+            if (components.contains("minecraft:written_book_content", Tag.TAG_COMPOUND)) {
+                CompoundTag content = components.getCompound("minecraft:written_book_content");
+                if (content.contains("title")) {
+                    String parsed = parseBookTitleTag(content.get("title"));
+                    if (parsed != null && !parsed.isBlank()) return parsed;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    @Nullable
+    private static String parseBookTitleTag(@Nullable Tag titleTag) {
+        if (titleTag == null) return null;
+
+        if (titleTag instanceof CompoundTag compound) {
+            if (compound.contains("raw", Tag.TAG_STRING)) {
+                return normalizeTitleString(compound.getString("raw"));
+            }
+            if (compound.contains("text", Tag.TAG_STRING)) {
+                return normalizeTitleString(compound.getString("text"));
+            }
+            if (compound.contains("translate", Tag.TAG_STRING)) {
+                return normalizeTitleString(compound.getString("translate"));
+            }
+            return normalizeTitleString(compound.toString());
+        }
+
+        return normalizeTitleString(titleTag.getAsString());
+    }
+
+    private static String normalizeTitleString(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        if (s.isEmpty()) return s;
+
+        // 兼容 title 为 JSON 文本（如 {"text":"xxx"}）的情况。
+        if (s.startsWith("{") || s.startsWith("[")) {
+            try {
+                JsonElement el = JsonParser.parseString(s);
+                String fromJson = extractTextFromJsonComponent(el);
+                if (fromJson != null && !fromJson.isBlank()) {
+                    return fromJson;
+                }
+            } catch (JsonSyntaxException ignored) {
+            }
+        }
+
+        return s;
+    }
+
+    @Nullable
+    private static String extractTextFromJsonComponent(@Nullable JsonElement element) {
+        if (element == null || element.isJsonNull()) return null;
+
+        if (element.isJsonPrimitive()) {
+            try {
+                return element.getAsString();
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+
+        if (element.isJsonObject()) {
+            JsonObject obj = element.getAsJsonObject();
+            if (obj.has("text") && obj.get("text").isJsonPrimitive()) {
+                return obj.get("text").getAsString();
+            }
+            if (obj.has("raw") && obj.get("raw").isJsonPrimitive()) {
+                return obj.get("raw").getAsString();
+            }
+            if (obj.has("translate") && obj.get("translate").isJsonPrimitive()) {
+                return obj.get("translate").getAsString();
+            }
+            if (obj.has("extra") && obj.get("extra").isJsonArray()) {
+                StringBuilder sb = new StringBuilder();
+                for (JsonElement child : obj.getAsJsonArray("extra")) {
+                    String part = extractTextFromJsonComponent(child);
+                    if (part != null) sb.append(part);
+                }
+                String joined = sb.toString();
+                return joined.isBlank() ? null : joined;
+            }
+        }
+
+        if (element.isJsonArray()) {
+            StringBuilder sb = new StringBuilder();
+            for (JsonElement child : element.getAsJsonArray()) {
+                String part = extractTextFromJsonComponent(child);
+                if (part != null) sb.append(part);
+            }
+            String joined = sb.toString();
+            return joined.isBlank() ? null : joined;
+        }
+
+        return null;
     }
 
     /**
