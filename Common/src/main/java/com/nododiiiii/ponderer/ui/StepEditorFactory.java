@@ -40,6 +40,8 @@ public final class StepEditorFactory {
             case "indicate_success" -> new IndicateEffectScreen("indicate_success", scene, sceneIndex, parent);
             case "clear_entities" -> new ClearEntitiesScreen("clear_entities", scene, sceneIndex, parent);
             case "clear_item_entities" -> new ClearEntitiesScreen("clear_item_entities", scene, sceneIndex, parent);
+            case "modify_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_entities_nbt", scene, sceneIndex, parent);
+            case "modify_item_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_item_entities_nbt", scene, sceneIndex, parent);
             default -> null;
         };
     }
@@ -74,6 +76,8 @@ public final class StepEditorFactory {
             case "indicate_success" -> new IndicateEffectScreen("indicate_success", scene, sceneIndex, parent, stepIndex, step);
             case "clear_entities" -> new ClearEntitiesScreen("clear_entities", scene, sceneIndex, parent, stepIndex, step);
             case "clear_item_entities" -> new ClearEntitiesScreen("clear_item_entities", scene, sceneIndex, parent, stepIndex, step);
+            case "modify_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_entities_nbt", scene, sceneIndex, parent, stepIndex, step);
+            case "modify_item_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_item_entities_nbt", scene, sceneIndex, parent, stepIndex, step);
             default -> null;
         };
     }

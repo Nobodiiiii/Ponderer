@@ -675,6 +675,10 @@ public class SceneEditorScreen extends AbstractSimiScreen {
                     stepTypeName("clear_entities"), step.entity != null && !step.entity.isEmpty() ? step.entity : "*");
                 case "clear_item_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
                     stepTypeName("clear_item_entities"), step.item != null && !step.item.isEmpty() ? step.item : "*");
+                case "modify_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
+                    stepTypeName("modify_entities_nbt"), step.entity != null && !step.entity.isEmpty() ? step.entity : "*");
+                case "modify_item_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
+                    stepTypeName("modify_item_entities_nbt"), step.item != null && !step.item.isEmpty() ? step.item : "*");
             case "next_scene" -> UIText.of("ponderer.ui.step.summary.next_scene");
             default -> step.type;
         };

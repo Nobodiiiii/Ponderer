@@ -9,6 +9,7 @@ import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
+import com.nododiiiii.ponderer.ui.NbtPickState;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
@@ -85,6 +86,9 @@ public class PondererNeoForgeClient {
     private static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) return;
+        if (NbtPickState.isActive()) {
+            mc.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
+        }
         if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
             ScreenOpener.transitionTo(new FunctionScreen());
         }
@@ -102,6 +106,12 @@ public class PondererNeoForgeClient {
     }
 
     private static void onMouseInput(InputEvent.MouseButton.Pre event) {
+        if (NbtPickState.isActive() && event.getButton() == 2 && event.getAction() == 1) {
+            NbtPickState.handleUseClick();
+            event.setCanceled(true);
+            return;
+        }
+
         if (blueprintHandler.onMouseInput(event.getButton(), event.getAction() == 1)) {
             event.setCanceled(true);
         }

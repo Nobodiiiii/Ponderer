@@ -19,6 +19,7 @@ import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -43,6 +44,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -407,6 +409,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "indicate_success" -> applyIndicateSuccess(scene, step);
             case "clear_entities" -> applyClearEntities(scene, step);
             case "clear_item_entities" -> applyClearItemEntities(scene, step);
+            case "modify_entities_nbt" -> applyModifyEntitiesNbt(scene, step);
+            case "modify_item_entities_nbt" -> applyModifyItemEntitiesNbt(scene, step);
             case "next_scene" -> {
             }
             default -> LOGGER.warn("Unknown step type '{}' in scene {}", step.type, dsl.id);
@@ -499,6 +503,18 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 entity.setNoGravity(true);
 
                 entity.setDeltaMovement(Vec3.ZERO);
+
+                if (step.nbt != null && !step.nbt.isBlank()) {
+                    try {
+                        CompoundTag patch = TagParser.parseTag(step.nbt);
+                        CompoundTag data = new CompoundTag();
+                        entity.saveWithoutId(data);
+                        data.merge(patch);
+                        entity.load(data);
+                    } catch (Exception e) {
+                        LOGGER.warn("create_entity invalid nbt: {}", step.nbt);
+                    }
+                }
             }
             return entity;
         });
@@ -521,7 +537,32 @@ public class DynamicPonderPlugin implements PonderPlugin {
         Vec3 motion = toPoint(step.motion);
         int count = step.count == null ? 1 : Math.max(1, step.count);
 
-        scene.world().createItemEntity(pos, motion, new ItemStack(item, count));
+        CompoundTag patch = null;
+        if (step.nbt != null && !step.nbt.isBlank()) {
+            try {
+                patch = TagParser.parseTag(step.nbt);
+            } catch (Exception e) {
+                LOGGER.warn("create_item_entity invalid nbt: {}", step.nbt);
+            }
+        }
+
+        final CompoundTag finalPatch = patch;
+        scene.world().createEntity((Level level) -> {
+            ItemStack stack = new ItemStack(item, count);
+            if (finalPatch != null) {
+                stack = applyPatchToItemStack(stack, finalPatch);
+            }
+
+            ItemEntity entity = new ItemEntity(level, pos.x, pos.y, pos.z, stack);
+            entity.setDeltaMovement(motion);
+            if (finalPatch != null && isLikelyEntityPatch(finalPatch)) {
+                CompoundTag data = new CompoundTag();
+                entity.saveWithoutId(data);
+                data.merge(finalPatch.copy());
+                entity.load(data);
+            }
+            return entity;
+        });
     }
 
     private void applyRotateCameraY(SceneBuilder scene, DslScene.DslStep step) {
@@ -545,7 +586,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         if (step.item != null && !step.item.isBlank()) {
-            resolveIngredient(builder, step.item);
+            resolveIngredient(builder, step.item, step.nbt);
         }
 
         if (Boolean.TRUE.equals(step.whileSneaking)) {
@@ -563,16 +604,16 @@ public class DynamicPonderPlugin implements PonderPlugin {
      * This distinction is critical because showing() overwrites the icon field (leftClick/rightClick/scroll),
      * while withItem() uses a separate item field that renders alongside the icon.
      */
-    private void resolveIngredient(InputElementBuilder builder, String id) {
-        ResourceLocation loc = ResourceLocation.tryParse(id);
-        if (loc == null) return;
-
-        // 1. Try item registry first — use withItem() to preserve action icon
-        Item item = BuiltInRegistries.ITEM.getOptional(loc).orElse(null);
-        if (item != null) {
-            builder.withItem(new ItemStack(item));
+    private void resolveIngredient(InputElementBuilder builder, String id, @Nullable String nbt) {
+        // 1. Try parsing as item stack spec first (supports optional NBT)
+        ItemStack stack = parseItemStackSpec(id, nbt);
+        if (stack != null) {
+            builder.withItem(stack);
             return;
         }
+
+        ResourceLocation loc = ResourceLocation.tryParse(id);
+        if (loc == null) return;
 
         // 2. Try fluid registry (requires JEI for rendering)
         net.minecraft.world.level.material.Fluid fluid =
@@ -601,6 +642,46 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         LOGGER.warn("show_controls: unable to resolve ingredient '{}'", id);
+    }
+
+    @Nullable
+    private ItemStack parseItemStackSpec(String raw, @Nullable String nbtOverride) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        String trimmed = raw.trim();
+        String itemIdPart = trimmed;
+        String nbtPart = null;
+
+        int brace = trimmed.indexOf('{');
+        if (brace >= 0) {
+            itemIdPart = trimmed.substring(0, brace).trim();
+            nbtPart = trimmed.substring(brace).trim();
+        }
+
+        ResourceLocation itemLoc = ResourceLocation.tryParse(itemIdPart);
+        if (itemLoc == null) {
+            return null;
+        }
+        Item item = BuiltInRegistries.ITEM.getOptional(itemLoc).orElse(null);
+        if (item == null) {
+            return null;
+        }
+
+        ItemStack stack = new ItemStack(item);
+        String finalNbtPart = (nbtOverride != null && !nbtOverride.isBlank()) ? nbtOverride.trim() : nbtPart;
+        if (finalNbtPart != null && !finalNbtPart.isBlank() && !"{}".equals(finalNbtPart)) {
+            try {
+                CompoundTag tag = TagParser.parseTag(finalNbtPart);
+                if (!tag.isEmpty()) {
+                    stack.setTag(tag);
+                }
+            } catch (Exception e) {
+                LOGGER.warn("show_controls invalid item nbt: {}", finalNbtPart);
+            }
+        }
+        return stack;
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step) {
@@ -679,9 +760,25 @@ public class DynamicPonderPlugin implements PonderPlugin {
             BlockPos pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
             var selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos, pos2);
             scene.world().setBlocks(selection, state, particles);
+            applySetBlockNbtPatch(scene, step, selection);
             return;
         }
         scene.world().setBlock(pos, state, particles);
+        applySetBlockNbtPatch(scene, step, scene.getScene().getSceneBuildingUtil().select().position(pos));
+    }
+
+    private void applySetBlockNbtPatch(SceneBuilder scene, DslScene.DslStep step, Selection selection) {
+        if (step.nbt == null || step.nbt.isBlank()) {
+            return;
+        }
+        CompoundTag patch;
+        try {
+            patch = TagParser.parseTag(step.nbt);
+        } catch (Exception e) {
+            LOGGER.warn("set_block invalid nbt: {}", step.nbt);
+            return;
+        }
+        scene.world().modifyBlockEntityNBT(selection, BlockEntity.class, nbt -> nbt.merge(patch.copy()), true);
     }
 
     private void applyDestroyBlock(SceneBuilder scene, DslScene.DslStep step) {
@@ -828,19 +925,50 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (selection == null) {
             return;
         }
-        if (step.nbt == null || step.nbt.isBlank()) {
-            LOGGER.warn("modify_block_entity_nbt missing nbt");
+        boolean hasProps = step.blockProperties != null && !step.blockProperties.isEmpty();
+        boolean hasNbt = step.nbt != null && !step.nbt.isBlank();
+
+        if (!hasProps && !hasNbt) {
+            LOGGER.warn("modify_block_entity_nbt missing both properties and nbt");
             return;
         }
-        CompoundTag patch;
-        try {
-            patch = TagParser.parseTag(step.nbt);
-        } catch (Exception e) {
-            LOGGER.warn("modify_block_entity_nbt invalid nbt: {}", step.nbt);
-            return;
-        }
+
         boolean redraw = Boolean.TRUE.equals(step.reDrawBlocks);
-        scene.world().modifyBlockEntityNBT(selection, BlockEntity.class, nbt -> nbt.merge(patch.copy()), redraw);
+
+        // Apply block state properties
+        if (hasProps) {
+            BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+            BlockPos pos2 = pos1;
+            if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+                pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+            }
+            for (BlockPos pos : BlockPos.betweenClosed(pos1, pos2)) {
+                BlockPos targetPos = pos.immutable();
+                scene.world().modifyBlock(targetPos, state -> {
+                    var definition = state.getBlock().getStateDefinition();
+                    BlockState result = state;
+                    for (var entry : step.blockProperties.entrySet()) {
+                        Property<?> prop = definition.getProperty(entry.getKey());
+                        if (prop != null) {
+                            result = setPropertyValue(result, prop, entry.getValue());
+                        }
+                    }
+                    return result;
+                }, false);
+            }
+        }
+
+        // Apply NBT patch
+        if (hasNbt) {
+            CompoundTag patch;
+            try {
+                patch = TagParser.parseTag(step.nbt);
+            } catch (Exception e) {
+                LOGGER.warn("modify_block_entity_nbt invalid nbt: {}", step.nbt);
+                return;
+            }
+            scene.world().modifyBlockEntityNBT(selection, BlockEntity.class, nbt -> nbt.merge(patch.copy()), redraw);
+        }
     }
 
     private void applyIndicateRedstone(SceneBuilder scene, DslScene.DslStep step) {
@@ -905,6 +1033,125 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 }
             });
         }
+    }
+
+    private void applyModifyEntitiesNbt(SceneBuilder scene, DslScene.DslStep step) {
+        CompoundTag patch = parseEntityNbtPatch(step, "modify_entities_nbt");
+        if (patch == null) return;
+
+        String filterId = step.entity;
+        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
+        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
+
+        if (isFullScene) {
+            scene.world().modifyEntities(Entity.class, entity -> {
+                if (entity instanceof ItemEntity) return;
+                if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
+                    mergeEntityNbt(entity, patch);
+                }
+            });
+            return;
+        }
+
+        Selection selection = selectionFromStep(scene, step, "modify_entities_nbt");
+        if (selection == null) return;
+        scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
+            if (entity instanceof ItemEntity) return;
+            if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
+                mergeEntityNbt(entity, patch);
+            }
+        });
+    }
+
+    private void applyModifyItemEntitiesNbt(SceneBuilder scene, DslScene.DslStep step) {
+        CompoundTag patch = parseEntityNbtPatch(step, "modify_item_entities_nbt");
+        if (patch == null) return;
+
+        String filterId = step.item;
+        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
+        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
+
+        if (isFullScene) {
+            scene.world().modifyEntities(ItemEntity.class, entity -> {
+                if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
+                    entity.setItem(applyPatchToItemStack(entity.getItem(), patch));
+                    if (isLikelyEntityPatch(patch)) {
+                        mergeEntityNbt(entity, patch);
+                    }
+                }
+            });
+            return;
+        }
+
+        Selection selection = selectionFromStep(scene, step, "modify_item_entities_nbt");
+        if (selection == null) return;
+        scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
+            if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
+                entity.setItem(applyPatchToItemStack(entity.getItem(), patch));
+                if (isLikelyEntityPatch(patch)) {
+                    mergeEntityNbt(entity, patch);
+                }
+            }
+        });
+    }
+
+    private ItemStack applyPatchToItemStack(ItemStack base, CompoundTag patch) {
+        ItemStack copy = base.copy();
+
+        // Support both syntaxes:
+        // 1) Item-level patch: {BlockEntityTag:{...},display:{...}}
+        // 2) Entity-style patch: {Item:{id:"...",Count:1b,tag:{...}}}
+        CompoundTag itemPatch = patch;
+        if (patch.contains("Item", Tag.TAG_COMPOUND)) {
+            CompoundTag entityItem = patch.getCompound("Item");
+            if (entityItem.contains("tag", Tag.TAG_COMPOUND)) {
+                itemPatch = entityItem.getCompound("tag");
+            } else {
+                itemPatch = new CompoundTag();
+            }
+        }
+
+        if (!itemPatch.isEmpty()) {
+            CompoundTag stackTag = copy.getOrCreateTag();
+            stackTag.merge(itemPatch.copy());
+        }
+        return copy;
+    }
+
+    private boolean isLikelyEntityPatch(CompoundTag patch) {
+        return patch.contains("Item", Tag.TAG_COMPOUND)
+                || patch.contains("Age")
+                || patch.contains("PickupDelay")
+                || patch.contains("Health")
+                || patch.contains("Motion")
+                || patch.contains("Pos")
+                || patch.contains("Rotation")
+                || patch.contains("NoGravity")
+                || patch.contains("Glowing")
+                || patch.contains("Invulnerable")
+                || patch.contains("UUID")
+                || patch.contains("Tags");
+    }
+
+    @Nullable
+    private CompoundTag parseEntityNbtPatch(DslScene.DslStep step, String stepName) {
+        if (step.nbt == null || step.nbt.isBlank()) {
+            LOGGER.warn("{} missing nbt", stepName);
+            return null;
+        }
+        try {
+            return TagParser.parseTag(step.nbt);
+        } catch (Exception e) {
+            LOGGER.warn("{} invalid nbt: {}", stepName, step.nbt);
+            return null;
+        }
+    }
+
+    private void mergeEntityNbt(Entity entity, CompoundTag patch) {
+        CompoundTag data = new CompoundTag();
+        entity.saveWithoutId(data);
+        data.merge(patch.copy());
+        entity.load(data);
     }
 
     private Selection selectionFromStep(SceneBuilder scene, DslScene.DslStep step, String stepName) {

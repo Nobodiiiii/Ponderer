@@ -11,6 +11,7 @@ import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.registry.ModItems;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
+import com.nododiiiii.ponderer.ui.NbtPickState;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
@@ -82,6 +83,10 @@ public class PondererFabricClient implements ClientModInitializer {
 
         // Client tick: key bindings + blueprint handler + player join notifications
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.player != null && client.screen == null && NbtPickState.isActive()) {
+                client.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
+            }
+
             // Key binding
             if (client.player != null && client.screen == null) {
                 if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {

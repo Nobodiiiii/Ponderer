@@ -28,7 +28,7 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
             "set_block", "destroy_block", "replace_blocks", "hide_section", "show_section_and_merge", "toggle_redstone_power", "modify_block_entity_nbt"
         },
         {
-            "create_entity", "create_item_entity", "clear_entities", "clear_item_entities", "rotate_section", "move_section", "indicate_redstone", "indicate_success"
+            "create_entity", "create_item_entity", "modify_entities_nbt", "modify_item_entities_nbt", "clear_entities", "clear_item_entities", "rotate_section", "move_section", "indicate_redstone", "indicate_success"
         }
     };
     private static final String[] PAGE_KEYS = {

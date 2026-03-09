@@ -31,7 +31,10 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected int getFormRowCount() { return 4; }
+    protected boolean usesBlockProps() { return true; }
+
+    @Override
+    protected int getFormRowCount() { return 4 + blockPropRowCount(); }
 
     @Override
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.modify_block_entity_nbt"); }
@@ -43,7 +46,9 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
         posXField = pos1.x(); posYField = pos1.y(); posZField = pos1.z(); pickBtn1 = pos1.pickBtn();
         var pos2 = addFormXyzRow("ponderer.ui.modify_block_entity_nbt.pos_to", "ponderer.ui.modify_block_entity_nbt.pos_to.tooltip", PickState.TargetField.POS2);
         pos2XField = pos2.x(); pos2YField = pos2.y(); pos2ZField = pos2.z(); pickBtn2 = pos2.pickBtn();
-        nbtField = addFormTextField("ponderer.ui.modify_block_entity_nbt.nbt", "ponderer.ui.modify_block_entity_nbt.nbt.tooltip", "{CustomName:'\"Demo\"'}", 140);
+        addFormBlockProps("ponderer.ui.modify_block_entity_nbt.properties", "ponderer.ui.modify_block_entity_nbt.properties.tooltip");
+        nbtField = addFormNbtField("ponderer.ui.modify_block_entity_nbt.nbt", "ponderer.ui.modify_block_entity_nbt.nbt.tooltip",
+                "{CustomName:'\"Demo\"'}", 124, "nbt");
         redrawToggle = addFormToggle("ponderer.ui.modify_block_entity_nbt.redraw", "ponderer.ui.modify_block_entity_nbt.redraw.tooltip",
                 () -> redraw, () -> redraw = !redraw);
     }
@@ -70,6 +75,7 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
 
     @Override
     protected Map<String, String> snapshotForm() {
+        syncBlockPropFieldsToEntries();
         Map<String, String> m = new HashMap<>();
         m.put("posX", posXField.getValue());
         m.put("posY", posYField.getValue());
@@ -77,6 +83,7 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
         m.put("pos2X", pos2XField.getValue());
         m.put("pos2Y", pos2YField.getValue());
         m.put("pos2Z", pos2ZField.getValue());
+        snapshotBlockProps(m);
         m.put("nbt", nbtField.getValue());
         m.put("redraw", String.valueOf(redraw));
         return m;
@@ -91,7 +98,9 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
         if (snapshot.containsKey("pos2X")) pos2XField.setValue(snapshot.get("pos2X"));
         if (snapshot.containsKey("pos2Y")) pos2YField.setValue(snapshot.get("pos2Y"));
         if (snapshot.containsKey("pos2Z")) pos2ZField.setValue(snapshot.get("pos2Z"));
+        restoreBlockProps(snapshot);
         if (snapshot.containsKey("nbt")) nbtField.setValue(snapshot.get("nbt"));
+        restoreNbtPickNotice(snapshot);
         if (snapshot.containsKey("redraw")) redraw = Boolean.parseBoolean(snapshot.get("redraw"));
     }
 
@@ -122,22 +131,26 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
         }
 
         String nbt = nbtField.getValue().trim();
-        if (nbt.isEmpty()) {
+        Map<String, String> props = collectBlockProperties();
+        if (nbt.isEmpty() && props == null) {
             errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.required");
             return null;
         }
-        try {
-            TagParser.parseTag(nbt);
-        } catch (Exception e) {
-            errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid");
-            return null;
+        if (!nbt.isEmpty()) {
+            try {
+                TagParser.parseTag(nbt);
+            } catch (Exception e) {
+                errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid");
+                return null;
+            }
         }
 
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = "modify_block_entity_nbt";
         s.blockPos = List.of(px, py, pz);
         if (hasPos2) s.blockPos2 = List.of(px2, py2, pz2);
-        s.nbt = nbt;
+        s.blockProperties = props;
+        if (!nbt.isEmpty()) s.nbt = nbt;
         if (redraw) s.reDrawBlocks = true;
         return s;
     }

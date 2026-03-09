@@ -221,23 +221,32 @@ def extract_changelog_from_git(version: str, mc_version: str, max_log: int = 200
 
 
 def find_jar(jar_dir: str, mc_version: str, loader: str, mod_version: str) -> Path:
-    """查找构建产物 jar 文件"""
+    """查找构建产物 jar 文件，优先选择 -all.jar（包含 jarJar 依赖）"""
     jar_path = PROJECT_ROOT / jar_dir
+
+    # 优先查找 -all.jar（Forge jarJar 产物，包含打包的依赖）
+    all_jar_name = f"ponderer-{mc_version}-{loader}-{mod_version}-all.jar"
+    all_jar = jar_path / all_jar_name
+    if all_jar.exists():
+        return all_jar
+
+    # 回退到不带 -all 的 jar（Fabric 等不使用 jarJar 的平台）
     expected_name = f"ponderer-{mc_version}-{loader}-{mod_version}.jar"
     expected = jar_path / expected_name
-
     if expected.exists():
         return expected
 
-    # 回退: 查找匹配模式的 jar
+    # 最后回退: 查找匹配模式的 jar
     if jar_path.exists():
         jars = list(jar_path.glob(f"ponderer-*-{loader}-{mod_version}*.jar"))
         # 排除 sources jar
         jars = [j for j in jars if "-sources" not in j.name]
+        # 优先选择 -all.jar
+        jars.sort(key=lambda j: "-all" not in j.name)
         if jars:
             return jars[0]
 
-    print(f"错误: 找不到构建产物 {expected}")
+    print(f"错误: 找不到构建产物 {jar_path / all_jar_name} 或 {expected}")
     return None
 
 

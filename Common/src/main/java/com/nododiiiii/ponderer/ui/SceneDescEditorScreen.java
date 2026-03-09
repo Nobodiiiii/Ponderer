@@ -101,7 +101,7 @@ public class SceneDescEditorScreen extends AbstractSimiScreen {
         // Ponder title
         ponderTitleField = new SoftHintTextFieldWidget(font, x, guiTop + y - scrollOffset, fieldW, 18);
         ponderTitleField.setHint(UIText.of("ponderer.ui.scene_desc.hint.ponder_title"));
-        ponderTitleField.setMaxLength(200);
+        ponderTitleField.setMaxLength(32500);
         addRenderableWidget(ponderTitleField);
         formWidgetRecords.add(new FormWidgetRecord(ponderTitleField, y));
 
@@ -120,7 +120,7 @@ public class SceneDescEditorScreen extends AbstractSimiScreen {
         if (hasMultiScene) {
             sceneTitleField = new SoftHintTextFieldWidget(font, x, guiTop + y - scrollOffset, fieldW, 18);
             sceneTitleField.setHint(UIText.of("ponderer.ui.scene_desc.hint.scene_title"));
-            sceneTitleField.setMaxLength(200);
+            sceneTitleField.setMaxLength(32500);
             addRenderableWidget(sceneTitleField);
             formWidgetRecords.add(new FormWidgetRecord(sceneTitleField, y));
 
@@ -139,7 +139,7 @@ public class SceneDescEditorScreen extends AbstractSimiScreen {
         int idFieldW = fieldW + langBtnW + langGap + 3;
         ponderIdField = new SoftHintTextFieldWidget(font, x, guiTop + y - scrollOffset, idFieldW, 18);
         ponderIdField.setHint(UIText.of("ponderer.ui.scene_desc.hint.ponder_id"));
-        ponderIdField.setMaxLength(200);
+        ponderIdField.setMaxLength(32500);
         ponderIdField.setValue(scene.id != null ? scene.id : "");
         addRenderableWidget(ponderIdField);
         formWidgetRecords.add(new FormWidgetRecord(ponderIdField, y));
@@ -150,7 +150,7 @@ public class SceneDescEditorScreen extends AbstractSimiScreen {
         if (hasMultiScene) {
             sceneIdField = new SoftHintTextFieldWidget(font, x, guiTop + y - scrollOffset, idFieldW, 18);
             sceneIdField.setHint(UIText.of("ponderer.ui.scene_desc.hint.scene_id"));
-            sceneIdField.setMaxLength(200);
+            sceneIdField.setMaxLength(32500);
             DslScene.SceneSegment sc = scene.scenes.get(sceneIndex);
             sceneIdField.setValue(sc.id != null ? sc.id : "");
             addRenderableWidget(sceneIdField);

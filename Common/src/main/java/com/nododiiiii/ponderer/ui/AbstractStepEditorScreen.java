@@ -15,6 +15,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
@@ -55,6 +57,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     protected BoxWidget confirmButton;
     protected BoxWidget cancelButton;
     protected String errorMessage = null;
+    protected String infoMessage = null;
 
     /** Common keyframe toggle - available for all step types. */
     protected boolean attachKeyFrame = false;
@@ -365,6 +368,13 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         if (errorMessage != null) {
             graphics.drawString(font, errorMessage, guiLeft + 10, guiTop + wH - 45, UILayoutConstants.COLOR_ERROR);
         }
+        if (infoMessage != null && !infoMessage.isEmpty()) {
+            int y = guiTop + wH - 45;
+            if (errorMessage != null) {
+                y -= 10;
+            }
+            graphics.drawString(font, infoMessage, guiLeft + 10, y, 0x66FF66);
+        }
     }
 
     /** Render a scrollbar track and thumb on the right edge of the form area. */
@@ -443,6 +453,12 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
                     renderJeiButtonLabel(graphics, j.btn);
                 } else if (el instanceof FgPickBtn p) {
                     renderPickButtonLabel(graphics, p.btn);
+                } else if (el instanceof FgNbtBtn n) {
+                    renderNbtButtonLabel(graphics, n.btn);
+                } else if (el instanceof FgBlockPickBtn b) {
+                    renderBlockPickButtonLabel(graphics, b.btn);
+                } else if (el instanceof FgHeldItemBtn h) {
+                    renderHeldItemButtonLabel(graphics, h.btn);
                 } else if (el instanceof FgCycleBtn c) {
                     graphics.drawCenteredString(font, c.labelGetter.get(),
                             c.btn.getX() + c.btn.getWidth() / 2, c.btn.getY() + 2, c.colorGetter.getAsInt());
@@ -658,13 +674,23 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         if (kf != null) attachKeyFrame = Boolean.parseBoolean(kf);
     }
 
+    /** Restore user feedback line for successful NBT capture, with fallback when lang key is missing. */
+    protected void restoreNbtPickNotice(Map<String, String> snapshot) {
+        if (!snapshot.containsKey(NbtPickState.SNAPSHOT_NOTICE_KEY)) return;
+        String pickedName = snapshot.get(NbtPickState.SNAPSHOT_NOTICE_KEY);
+        String translated = UIText.of("ponderer.ui.nbt_pick.filled", pickedName);
+        infoMessage = "ponderer.ui.nbt_pick.filled".equals(translated)
+                ? ("NBT <- " + pickedName)
+                : translated;
+    }
+
     // -- Field creation helpers --
 
     protected HintableTextFieldWidget createTextField(int x, int y, int w, int h, String hint) {
         var font = Minecraft.getInstance().font;
         HintableTextFieldWidget field = new SoftHintTextFieldWidget(font, x, y, w, h);
         field.setHint(hint);
-        field.setMaxLength(200);
+        field.setMaxLength(32500);
         addRenderableWidget(field);
         return field;
     }
@@ -708,6 +734,9 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         return PALETTE_COLORS.getOrDefault(name.toLowerCase(), 0xFFFFFF);
     }
 
+    protected static final int FIELD_TO_BUTTON_GAP = 7;
+    protected static final int BUTTON_TO_BUTTON_GAP = 8;
+
     protected void renderToggleState(GuiGraphics graphics, BoxWidget toggle, boolean state) {
         var font = Minecraft.getInstance().font;
         String label = state ? "V" : "X";
@@ -722,6 +751,100 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         var font = Minecraft.getInstance().font;
         graphics.drawCenteredString(font, "+",
                 pickButton.getX() + 7, pickButton.getY() + 2, 0x80FFFF);
+    }
+
+    /** Create an NBT-capture button that returns to real world and captures target NBT on right-click. */
+    protected PonderButton createNbtPickButton(int x, int y, String nbtSnapshotKey) {
+        PonderButton btn = new PonderButton(x, y + 3, 14, 12);
+        btn.withCallback(() -> {
+            var mc = Minecraft.getInstance();
+            if (mc.player == null) return;
+            errorMessage = null;
+            infoMessage = null;
+
+            Map<String, String> snapshot = snapshotForm();
+            snapshot.put("_keyFrame", String.valueOf(attachKeyFrame));
+            NbtPickState.startPick(
+                    snapshot,
+                    nbtSnapshotKey,
+                    getStepType(),
+                    editIndex,
+                    insertAfterIndex,
+                    scene,
+                    sceneIndex,
+                    parent
+            );
+            mc.setScreen(null);
+        });
+        addRenderableWidget(btn);
+        addTooltip(x, y + 3, 14, 12, UIText.of("ponderer.ui.nbt_pick.tooltip"));
+        return btn;
+    }
+
+    protected PonderButton createBlockPickButton(int x, int y, String nbtSnapshotKey) {
+        PonderButton btn = new PonderButton(x, y + 3, 14, 12);
+        btn.withCallback(() -> {
+            var mc = Minecraft.getInstance();
+            if (mc.player == null) return;
+            errorMessage = null;
+            infoMessage = null;
+
+            Map<String, String> snapshot = snapshotForm();
+            snapshot.put("_keyFrame", String.valueOf(attachKeyFrame));
+            NbtPickState.startPick(
+                    snapshot,
+                    nbtSnapshotKey,
+                    true,
+                    getStepType(),
+                    editIndex,
+                    insertAfterIndex,
+                    scene,
+                    sceneIndex,
+                    parent
+            );
+            mc.setScreen(null);
+        });
+        addRenderableWidget(btn);
+        addTooltip(x, y + 3, 14, 12, UIText.of("ponderer.ui.block_pick.tooltip"));
+        return btn;
+    }
+
+    protected void renderBlockPickButtonLabel(GuiGraphics graphics, PonderButton btn) {
+        var font = Minecraft.getInstance().font;
+        graphics.drawCenteredString(font, "+", btn.getX() + 7, btn.getY() + 2, 0x66FF66);
+    }
+
+    protected PonderButton createHeldItemButton(int x, int y, Consumer<ItemStack> onItemPicked) {
+        PonderButton btn = new PonderButton(x, y + 3, 14, 12);
+        btn.withCallback(() -> {
+            var mc = Minecraft.getInstance();
+            if (mc.player == null) return;
+            ItemStack held = mc.player.getMainHandItem();
+            if (held.isEmpty()) {
+                held = mc.player.getOffhandItem();
+            }
+            if (held.isEmpty()) {
+                errorMessage = UIText.of("ponderer.ui.held_item.error.empty");
+                return;
+            }
+            errorMessage = null;
+            infoMessage = null;
+            onItemPicked.accept(held);
+            infoMessage = UIText.of("ponderer.ui.nbt_pick.filled", held.getHoverName().getString());
+        });
+        addRenderableWidget(btn);
+        addTooltip(x, y + 3, 14, 12, UIText.of("ponderer.ui.held_item.tooltip"));
+        return btn;
+    }
+
+    protected void renderHeldItemButtonLabel(GuiGraphics graphics, PonderButton btn) {
+        var font = Minecraft.getInstance().font;
+        graphics.drawCenteredString(font, "+", btn.getX() + 7, btn.getY() + 2, 0x66FF66);
+    }
+
+    protected void renderNbtButtonLabel(GuiGraphics graphics, PonderButton btn) {
+        var font = Minecraft.getInstance().font;
+        graphics.drawCenteredString(font, "+", btn.getX() + 7, btn.getY() + 2, 0x66FF66);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -747,6 +870,9 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     private record FgToggle(BoxWidget widget, BooleanSupplier state) implements AutoFg {}
     private record FgJeiBtn(@Nullable PonderButton btn) implements AutoFg {}
     private record FgPickBtn(PonderButton btn) implements AutoFg {}
+    private record FgNbtBtn(PonderButton btn) implements AutoFg {}
+    private record FgBlockPickBtn(PonderButton btn) implements AutoFg {}
+    private record FgHeldItemBtn(PonderButton btn) implements AutoFg {}
     private record FgCycleBtn(BoxWidget btn, Supplier<String> labelGetter, IntSupplier colorGetter) implements AutoFg {}
     private record FgLangBtn(BoxWidget btn, Supplier<String> langGetter) implements AutoFg {}
     private final List<AutoFg> autoFgElements = new ArrayList<>();
@@ -804,6 +930,85 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     /** Add a text field with JEI button (standard 124px field width). */
     protected FieldWithJei addFormTextFieldWithJei(String labelKey, @Nullable String tooltipKey, String hint, IdFieldMode mode) {
         return addFormTextFieldWithJei(labelKey, tooltipKey, hint, 124, mode);
+    }
+
+    /** Return value for {@link #addFormTextFieldWithJeiAndBlockPick}. */
+    protected record FieldWithJeiAndBlockPick(HintableTextFieldWidget field, @Nullable PonderButton jeiBtn, PonderButton blockPickBtn) {}
+
+    /** Return value for JEI + secondary-button rows. */
+    protected record FieldWithJeiAndSecondButton(HintableTextFieldWidget field, @Nullable PonderButton jeiBtn, PonderButton secondBtn) {}
+
+    @FunctionalInterface
+    protected interface SecondaryButtonFactory {
+        PonderButton create(int x, int y);
+    }
+
+    /** Add a text field row with JEI button plus a second action button. */
+    protected FieldWithJeiAndSecondButton addFormTextFieldWithJeiAndSecondButton(String labelKey, @Nullable String tooltipKey,
+                                                                                  String hint, IdFieldMode mode,
+                                                                                  SecondaryButtonFactory buttonFactory) {
+        addFormLabel(labelKey, tooltipKey);
+        int fx = fieldX();
+        int fieldW = 105;
+        HintableTextFieldWidget field = createTextField(fx, formCursorY, fieldW, 18, hint);
+        int jeiX = fx + fieldW + FIELD_TO_BUTTON_GAP;
+        PonderButton jeiBtn = createJeiButton(jeiX, formCursorY, field, mode);
+        if (jeiBtn != null) autoFgElements.add(new FgJeiBtn(jeiBtn));
+
+        int secondX = jeiX + 14 + BUTTON_TO_BUTTON_GAP;
+        PonderButton secondBtn = buttonFactory.create(secondX, formCursorY);
+        nextFormRow();
+        return new FieldWithJeiAndSecondButton(field, jeiBtn, secondBtn);
+    }
+
+    /** Add a text field with JEI button and block pick button. */
+    protected FieldWithJeiAndBlockPick addFormTextFieldWithJeiAndBlockPick(String labelKey, @Nullable String tooltipKey, String hint, IdFieldMode mode, String nbtSnapshotKey) {
+        FieldWithJeiAndSecondButton row = addFormTextFieldWithJeiAndSecondButton(
+                labelKey, tooltipKey, hint, mode,
+                (x, y) -> createBlockPickButton(x, y, nbtSnapshotKey));
+        PonderButton blockPickBtn = row.secondBtn();
+        autoFgElements.add(new FgBlockPickBtn(blockPickBtn));
+        return new FieldWithJeiAndBlockPick(row.field(), row.jeiBtn(), blockPickBtn);
+    }
+
+    /** Return value for {@link #addFormTextFieldWithJeiAndHeldItem}. */
+    protected record FieldWithJeiAndHeldItem(HintableTextFieldWidget field, @Nullable PonderButton jeiBtn, PonderButton heldItemBtn) {}
+
+    /** Add a text field with JEI button and held-item pick button. */
+    protected FieldWithJeiAndHeldItem addFormTextFieldWithJeiAndHeldItem(String labelKey, @Nullable String tooltipKey, String hint, IdFieldMode mode, Consumer<ItemStack> onItemPicked) {
+        FieldWithJeiAndSecondButton row = addFormTextFieldWithJeiAndSecondButton(
+            labelKey, tooltipKey, hint, mode,
+            (x, y) -> createHeldItemButton(x, y, onItemPicked));
+        PonderButton heldItemBtn = row.secondBtn();
+        autoFgElements.add(new FgHeldItemBtn(heldItemBtn));
+        return new FieldWithJeiAndHeldItem(row.field(), row.jeiBtn(), heldItemBtn);
+    }
+
+        /** Return value for {@link #addFormTextFieldWithJeiAndNbtPick}. */
+        protected record FieldWithJeiAndNbtPick(HintableTextFieldWidget field, @Nullable PonderButton jeiBtn, PonderButton nbtPickBtn) {}
+
+        /** Add a text field with JEI button and world-NBT pick button. */
+        protected FieldWithJeiAndNbtPick addFormTextFieldWithJeiAndNbtPick(String labelKey, @Nullable String tooltipKey,
+                                           String hint, IdFieldMode mode,
+                                           String nbtSnapshotKey) {
+        FieldWithJeiAndSecondButton row = addFormTextFieldWithJeiAndSecondButton(
+            labelKey, tooltipKey, hint, mode,
+            (x, y) -> createNbtPickButton(x, y, nbtSnapshotKey));
+        PonderButton nbtPickBtn = row.secondBtn();
+        autoFgElements.add(new FgNbtBtn(nbtPickBtn));
+        return new FieldWithJeiAndNbtPick(row.field(), row.jeiBtn(), nbtPickBtn);
+        }
+
+    /** Add an NBT text field row with a world-capture (+) button. */
+    protected HintableTextFieldWidget addFormNbtField(String labelKey, @Nullable String tooltipKey, String hint,
+                                                      int fieldW, String nbtSnapshotKey) {
+        addFormLabel(labelKey, tooltipKey);
+        int fx = fieldX();
+        HintableTextFieldWidget field = createTextField(fx, formCursorY, fieldW, 18, hint);
+        PonderButton nbtBtn = createNbtPickButton(fx + fieldW + 5, formCursorY, nbtSnapshotKey);
+        autoFgElements.add(new FgNbtBtn(nbtBtn));
+        nextFormRow();
+        return field;
     }
 
     /** Add an XYZ coordinate field row with optional pick button. */
@@ -1049,15 +1254,8 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     private void preExtractBlockProps() {
         if (blockPropEntries != null) return;
 
-        if (isEditMode() && existingStep != null
-                && existingStep.blockProperties != null && !existingStep.blockProperties.isEmpty()) {
-            blockPropEntries = new ArrayList<>();
-            for (var entry : existingStep.blockProperties.entrySet()) {
-                blockPropEntries.add(new String[]{entry.getKey(), entry.getValue()});
-            }
-            return;
-        }
-
+        // If this screen was reopened from a pick action, prefer the picked properties.
+        // In edit mode, existingStep props are stale and should not override fresh capture data.
         if (pendingPickRestore != null && pendingPickRestore.containsKey("prop_count")) {
             int count = Integer.parseInt(pendingPickRestore.get("prop_count"));
             blockPropEntries = new ArrayList<>();
@@ -1068,6 +1266,15 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
                 });
             }
             if (blockPropEntries.isEmpty()) blockPropEntries.add(new String[]{"", ""});
+            return;
+        }
+
+        if (isEditMode() && existingStep != null
+                && existingStep.blockProperties != null && !existingStep.blockProperties.isEmpty()) {
+            blockPropEntries = new ArrayList<>();
+            for (var entry : existingStep.blockProperties.entrySet()) {
+                blockPropEntries.add(new String[]{entry.getKey(), entry.getValue()});
+            }
             return;
         }
 
