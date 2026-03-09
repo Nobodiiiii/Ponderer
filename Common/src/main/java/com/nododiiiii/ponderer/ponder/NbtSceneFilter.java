@@ -9,6 +9,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
 import org.slf4j.Logger;
 
@@ -150,6 +151,16 @@ public final class NbtSceneFilter {
         if (filter == null || filter.isEmpty()) return true;
 
         try {
+            // Special-case written books: matching by title is more stable across versions
+            // than full payload comparison and allows "same title => shared scenes".
+            if (stack.is(Items.WRITTEN_BOOK)) {
+                String requiredTitle = extractWrittenBookTitle(filter);
+                if (requiredTitle != null && !requiredTitle.isBlank()) {
+                    String actualTitle = extractWrittenBookTitle(stack);
+                    return actualTitle != null && requiredTitle.equals(actualTitle);
+                }
+            }
+
             CompoundTag customTag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
 
             // 1) Direct match for "raw NBT" filters (legacy/new lightweight filters)
@@ -193,6 +204,84 @@ public final class NbtSceneFilter {
             LOGGER.debug("NBT match check failed", e);
             return false;
         }
+    }
+
+    @Nullable
+    public static String extractWrittenBookTitleFromFilterSnbt(@Nullable String snbt) {
+        CompoundTag parsed = parseNbt(snbt);
+        if (parsed == null) return null;
+        return extractWrittenBookTitle(parsed);
+    }
+
+    @Nullable
+    private static String extractWrittenBookTitle(ItemStack stack) {
+        CompoundTag customTag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        String fromCustom = extractWrittenBookTitle(customTag);
+        if (fromCustom != null && !fromCustom.isBlank()) {
+            return fromCustom;
+        }
+
+        var level = Minecraft.getInstance().level;
+        if (level == null) {
+            return null;
+        }
+
+        Tag savedTag = stack.saveOptional(level.registryAccess());
+        if (!(savedTag instanceof CompoundTag ct)) {
+            return null;
+        }
+
+        return extractWrittenBookTitle(ct);
+    }
+
+    @Nullable
+    private static String extractWrittenBookTitle(CompoundTag tag) {
+        if (tag == null || tag.isEmpty()) {
+            return null;
+        }
+
+        if (tag.contains("title")) {
+            String parsed = parseBookTitleTag(tag.get("title"));
+            if (parsed != null && !parsed.isBlank()) return parsed;
+        }
+
+        if (tag.contains("tag", Tag.TAG_COMPOUND)) {
+            String nested = extractWrittenBookTitle(tag.getCompound("tag"));
+            if (nested != null && !nested.isBlank()) return nested;
+        }
+
+        if (tag.contains("components", Tag.TAG_COMPOUND)) {
+            CompoundTag components = tag.getCompound("components");
+            if (components.contains("minecraft:written_book_content", Tag.TAG_COMPOUND)) {
+                CompoundTag content = components.getCompound("minecraft:written_book_content");
+                if (content.contains("title")) {
+                    String parsed = parseBookTitleTag(content.get("title"));
+                    if (parsed != null && !parsed.isBlank()) return parsed;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    @Nullable
+    private static String parseBookTitleTag(@Nullable Tag titleTag) {
+        if (titleTag == null) return null;
+
+        if (titleTag instanceof CompoundTag compound) {
+            if (compound.contains("raw", Tag.TAG_STRING)) {
+                return compound.getString("raw");
+            }
+            if (compound.contains("text", Tag.TAG_STRING)) {
+                return compound.getString("text");
+            }
+            if (compound.contains("translate", Tag.TAG_STRING)) {
+                return compound.getString("translate");
+            }
+            return compound.toString();
+        }
+
+        return titleTag.getAsString();
     }
 
     /**

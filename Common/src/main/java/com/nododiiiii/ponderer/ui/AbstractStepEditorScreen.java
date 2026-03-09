@@ -13,9 +13,13 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -835,6 +839,49 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         addRenderableWidget(btn);
         addTooltip(x, y + 3, 14, 12, UIText.of("ponderer.ui.held_item.tooltip"));
         return btn;
+    }
+
+    /**
+     * Extract editable SNBT from a held item under 1.21+ components model.
+     * Priority: custom_data -> block_entity_data/banner patterns -> full components.
+     */
+    protected String extractHeldItemNbt(ItemStack stack) {
+        CompoundTag customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        if (!customData.isEmpty()) {
+            return customData.toString();
+        }
+
+        var mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            return "";
+        }
+
+        Tag saved = stack.saveOptional(mc.level.registryAccess());
+        if (!(saved instanceof CompoundTag fullTag) || !fullTag.contains("components", Tag.TAG_COMPOUND)) {
+            return "";
+        }
+
+        CompoundTag components = fullTag.getCompound("components");
+        if (components.contains("minecraft:block_entity_data", Tag.TAG_COMPOUND)) {
+            CompoundTag beData = components.getCompound("minecraft:block_entity_data").copy();
+            if (!beData.isEmpty()) {
+                return beData.toString();
+            }
+        }
+
+        if (components.contains("minecraft:banner_patterns", Tag.TAG_LIST)) {
+            CompoundTag legacyBanner = new CompoundTag();
+            legacyBanner.put("patterns", components.get("minecraft:banner_patterns").copy());
+            return legacyBanner.toString();
+        }
+
+        if (!components.isEmpty()) {
+            CompoundTag wrapped = new CompoundTag();
+            wrapped.put("components", components.copy());
+            return wrapped.toString();
+        }
+
+        return "";
     }
 
     protected void renderHeldItemButtonLabel(GuiGraphics graphics, PonderButton btn) {

@@ -21,8 +21,6 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
     private HintableTextFieldWidget entityField;
     private HintableTextFieldWidget posXField, posYField, posZField;
     private boolean useYawPitch = false;
-    @Nullable
-    private Boolean lastAppliedUseYawPitch = null;
     private BoxWidget orientModeButton;
     private HintableTextFieldWidget lookAtXField, lookAtYField, lookAtZField;
     private HintableTextFieldWidget yawField, pitchField;
@@ -78,16 +76,12 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
     }
 
     private void updateOrientVis() {
-        if (lastAppliedUseYawPitch != null && lastAppliedUseYawPitch == useYawPitch) {
-            return;
-        }
         setWidgetVisible(lookAtXField, !useYawPitch);
         setWidgetVisible(lookAtYField, !useYawPitch);
         setWidgetVisible(lookAtZField, !useYawPitch);
         setWidgetVisible(pickBtnLookAt, !useYawPitch);
         setWidgetVisible(yawField, useYawPitch);
         setWidgetVisible(pitchField, useYawPitch);
-        lastAppliedUseYawPitch = useYawPitch;
     }
 
     private static void setWidgetVisible(net.minecraft.client.gui.components.AbstractWidget widget, boolean visible) {

@@ -4,12 +4,9 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.component.CustomData;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
@@ -60,9 +57,9 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
             var jei = addFormTextFieldWithJeiAndHeldItem("ponderer.ui." + stepType + ".id", "ponderer.ui." + stepType + ".id.tooltip",
                     UIText.of("ponderer.ui." + stepType + ".id.hint"), jeiMode, stack -> {
                         idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
-                        CompoundTag customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
-                        if (nbtField != null && !customData.isEmpty()) {
-                            nbtField.setValue(customData.toString());
+                        String pickedNbt = extractHeldItemNbt(stack);
+                        if (nbtField != null) {
+                            nbtField.setValue(pickedNbt);
                         }
                     });
             idField = jei.field();

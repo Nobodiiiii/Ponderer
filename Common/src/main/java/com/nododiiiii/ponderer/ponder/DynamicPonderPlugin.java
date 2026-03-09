@@ -677,6 +677,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
             try {
                 CompoundTag tag = TagParser.parseTag(finalNbtPart);
                 if (!tag.isEmpty()) {
+                    // 1.21+: Prefer component-aware reconstruction so visual data (e.g. banner patterns)
+                    // affects rendering, instead of storing everything in custom_data.
+                    ItemStack componentStack = tryBuildComponentStack(itemLoc, 1, tag);
+                    if (componentStack != null && !componentStack.isEmpty()) {
+                        return componentStack;
+                    }
+
                     stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag.copy()));
                 }
             } catch (Exception e) {
@@ -684,6 +691,56 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
         }
         return stack;
+    }
+
+    @Nullable
+    private ItemStack tryBuildComponentStack(ResourceLocation itemLoc, int count, CompoundTag tag) {
+        var mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            return null;
+        }
+
+        // Generic bridge: treat incoming SNBT as legacy item tag payload and let
+        // vanilla parser convert it into modern components when possible.
+        CompoundTag legacy = new CompoundTag();
+        legacy.putString("id", itemLoc.toString());
+        legacy.putInt("count", Math.max(1, count));
+        legacy.put("tag", tag.copy());
+        ItemStack fromLegacy = ItemStack.parseOptional(mc.level.registryAccess(), legacy);
+        if (!fromLegacy.isEmpty() && !fromLegacy.getComponentsPatch().isEmpty()) {
+            return fromLegacy;
+        }
+
+        CompoundTag full = new CompoundTag();
+        full.putString("id", itemLoc.toString());
+        full.putInt("count", Math.max(1, count));
+
+        if (tag.contains("components", Tag.TAG_COMPOUND)) {
+            full.put("components", tag.getCompound("components").copy());
+        } else {
+            CompoundTag components = new CompoundTag();
+
+            // Legacy bridge: banner patterns used by prior versions.
+            if (tag.contains("patterns", Tag.TAG_LIST)) {
+                components.put("minecraft:banner_patterns", tag.get("patterns").copy());
+            }
+            if (tag.contains("Patterns", Tag.TAG_LIST)) {
+                components.put("minecraft:banner_patterns", tag.get("Patterns").copy());
+            }
+            // Legacy bridge: block entity tag payload.
+            if (tag.contains("BlockEntityTag", Tag.TAG_COMPOUND)) {
+                components.put("minecraft:block_entity_data", tag.getCompound("BlockEntityTag").copy());
+            }
+
+            if (!components.isEmpty()) {
+                full.put("components", components);
+            } else {
+                return null;
+            }
+        }
+
+        ItemStack parsed = ItemStack.parseOptional(mc.level.registryAccess(), full);
+        return parsed.isEmpty() ? null : parsed;
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step) {
@@ -1114,6 +1171,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         if (!itemPatch.isEmpty()) {
+            ResourceLocation itemLoc = BuiltInRegistries.ITEM.getKey(copy.getItem());
+            ItemStack rebuilt = tryBuildComponentStack(itemLoc, copy.getCount(), itemPatch);
+            if (rebuilt != null && !rebuilt.isEmpty()) {
+                rebuilt.setCount(copy.getCount());
+                return rebuilt;
+            }
+
             CompoundTag stackTag = copy.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
             stackTag.merge(itemPatch.copy());
             copy.set(DataComponents.CUSTOM_DATA, CustomData.of(stackTag));
