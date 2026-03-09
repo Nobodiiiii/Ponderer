@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
+import net.minecraft.nbt.TagParser;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -16,6 +17,7 @@ import java.util.Map;
 public class SetBlockScreen extends AbstractStepEditorScreen {
 
     private HintableTextFieldWidget blockField;
+    private HintableTextFieldWidget nbtField;
     private HintableTextFieldWidget posXField, posYField, posZField;
     private HintableTextFieldWidget pos2XField, pos2YField, pos2ZField;
     private boolean spawnParticles = true;
@@ -23,6 +25,8 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     private PonderButton pickBtn1, pickBtn2;
     @Nullable
     private PonderButton jeiBtn;
+    @Nullable
+    private PonderButton blockPickBtn;
 
     public SetBlockScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.set_block.add"), scene, sceneIndex, parent);
@@ -37,7 +41,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     protected boolean usesBlockProps() { return true; }
 
     @Override
-    protected int getFormRowCount() { return 4 + blockPropRowCount(); }
+    protected int getFormRowCount() { return 5 + blockPropRowCount(); }
 
     @Override
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.set_block"); }
@@ -45,11 +49,14 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     @Override
     protected void buildForm() {
         beginForm();
-        var blk = addFormTextFieldWithJei("ponderer.ui.set_block", "ponderer.ui.set_block.tooltip",
-                UIText.of("ponderer.ui.set_block.hint"), IdFieldMode.BLOCK);
+        var blk = addFormTextFieldWithJeiAndBlockPick("ponderer.ui.set_block", "ponderer.ui.set_block.tooltip",
+                UIText.of("ponderer.ui.set_block.hint"), IdFieldMode.BLOCK, "nbt");
         blockField = blk.field();
         jeiBtn = blk.jeiBtn();
+        blockPickBtn = blk.blockPickBtn();
         addFormBlockProps("ponderer.ui.block_properties", "ponderer.ui.block_properties.tooltip");
+        nbtField = addFormNbtField("ponderer.ui.set_block.nbt", "ponderer.ui.set_block.nbt.tooltip",
+            "{CustomName:'\"Demo\"'}", 124, "nbt");
         var from = addFormXyzRow("ponderer.ui.set_block.pos_from", "ponderer.ui.set_block.pos_from.tooltip", PickState.TargetField.POS1);
         posXField = from.x(); posYField = from.y(); posZField = from.z(); pickBtn1 = from.pickBtn();
         var to = addFormXyzRow("ponderer.ui.set_block.pos_to", "ponderer.ui.set_block.pos_to.tooltip", PickState.TargetField.POS2);
@@ -75,6 +82,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
         if (step.spawnParticles != null) {
             spawnParticles = step.spawnParticles;
         }
+        if (step.nbt != null) nbtField.setValue(step.nbt);
     }
 
 
@@ -94,6 +102,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
         m.put("pos2X", pos2XField.getValue());
         m.put("pos2Y", pos2YField.getValue());
         m.put("pos2Z", pos2ZField.getValue());
+        m.put("nbt", nbtField.getValue());
         m.put("particles", String.valueOf(spawnParticles));
         return m;
     }
@@ -101,7 +110,11 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     @Override
     protected void restoreFromSnapshot(Map<String, String> snapshot) {
         restoreKeyFrame(snapshot);
-        if (snapshot.containsKey("block")) blockField.setValue(snapshot.get("block"));
+        if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_ID_KEY)) {
+            blockField.setValue(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_ID_KEY));
+        } else if (snapshot.containsKey("block")) {
+            blockField.setValue(snapshot.get("block"));
+        }
         restoreBlockProps(snapshot);
         if (snapshot.containsKey("posX")) posXField.setValue(snapshot.get("posX"));
         if (snapshot.containsKey("posY")) posYField.setValue(snapshot.get("posY"));
@@ -109,6 +122,8 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
         if (snapshot.containsKey("pos2X")) pos2XField.setValue(snapshot.get("pos2X"));
         if (snapshot.containsKey("pos2Y")) pos2YField.setValue(snapshot.get("pos2Y"));
         if (snapshot.containsKey("pos2Z")) pos2ZField.setValue(snapshot.get("pos2Z"));
+        if (snapshot.containsKey("nbt")) nbtField.setValue(snapshot.get("nbt"));
+        restoreNbtPickNotice(snapshot);
         if (snapshot.containsKey("particles")) spawnParticles = Boolean.parseBoolean(snapshot.get("particles"));
     }
 
@@ -151,6 +166,16 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
         s.blockProperties = collectBlockProperties();
         s.blockPos = List.of(px, py, pz);
         if (hasPos2) s.blockPos2 = List.of(px2, py2, pz2);
+        String nbt = nbtField.getValue().trim();
+        if (!nbt.isEmpty()) {
+            try {
+                TagParser.parseTag(nbt);
+            } catch (Exception e) {
+                errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid");
+                return null;
+            }
+            s.nbt = nbt;
+        }
         if (!spawnParticles) s.spawnParticles = false;
         return s;
     }

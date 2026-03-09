@@ -3,9 +3,11 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
+import net.minecraft.nbt.TagParser;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
@@ -18,9 +20,12 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
     private HintableTextFieldWidget countField;
     private HintableTextFieldWidget posXField, posYField, posZField;
     private HintableTextFieldWidget motionXField, motionYField, motionZField;
+    private HintableTextFieldWidget nbtField;
     private PonderButton pickBtnPos;
     @Nullable
     private PonderButton jeiBtn;
+    @Nullable
+    private PonderButton heldItemBtn;
 
     public CreateItemEntityScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.create_item_entity.add"), scene, sceneIndex, parent);
@@ -32,7 +37,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected int getFormRowCount() { return 5; }
+    protected int getFormRowCount() { return 6; }
 
     @Override
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.create_item_entity"); }
@@ -40,14 +45,21 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
     @Override
     protected void buildForm() {
         beginForm();
-        var jei = addFormTextFieldWithJei("ponderer.ui.create_item_entity.item", "ponderer.ui.create_item_entity.item.tooltip",
-                UIText.of("ponderer.ui.create_item_entity.hint"), IdFieldMode.ITEM);
-        itemField = jei.field(); jeiBtn = jei.jeiBtn();
+        var jei = addFormTextFieldWithJeiAndHeldItem("ponderer.ui.create_item_entity.item", "ponderer.ui.create_item_entity.item.tooltip",
+                UIText.of("ponderer.ui.create_item_entity.hint"), IdFieldMode.ITEM, stack -> {
+                    itemField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+                    if (nbtField != null && stack.getTag() != null && !stack.getTag().isEmpty()) {
+                        nbtField.setValue(stack.getTag().toString());
+                    }
+                });
+        itemField = jei.field(); jeiBtn = jei.jeiBtn(); heldItemBtn = jei.heldItemBtn();
         countField = addFormNumberField("ponderer.ui.create_item_entity.count", "ponderer.ui.create_item_entity.count.tooltip", "1", 50);
         var pos = addFormXyzRow("ponderer.ui.create_item_entity.pos", "ponderer.ui.create_item_entity.pos.tooltip", PickState.TargetField.POS1, true);
         posXField = pos.x(); posYField = pos.y(); posZField = pos.z(); pickBtnPos = pos.pickBtn();
         var motion = addFormXyzRow("ponderer.ui.create_item_entity.motion", "ponderer.ui.create_item_entity.motion.tooltip");
         motionXField = motion.x(); motionYField = motion.y(); motionZField = motion.z();
+        nbtField = addFormNbtField("ponderer.ui.create_item_entity.nbt", "ponderer.ui.create_item_entity.nbt.tooltip",
+            "{PickupDelay:40s}", 124, "nbt");
     }
 
     @Override
@@ -65,6 +77,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             motionYField.setValue(String.valueOf(step.motion.get(1)));
             motionZField.setValue(String.valueOf(step.motion.get(2)));
         }
+        if (step.nbt != null) nbtField.setValue(step.nbt);
     }
 
     @Override
@@ -81,6 +94,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
         m.put("motionX", motionXField.getValue());
         m.put("motionY", motionYField.getValue());
         m.put("motionZ", motionZField.getValue());
+        m.put("nbt", nbtField.getValue());
         return m;
     }
 
@@ -95,6 +109,8 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
         if (snapshot.containsKey("motionX")) motionXField.setValue(snapshot.get("motionX"));
         if (snapshot.containsKey("motionY")) motionYField.setValue(snapshot.get("motionY"));
         if (snapshot.containsKey("motionZ")) motionZField.setValue(snapshot.get("motionZ"));
+        if (snapshot.containsKey("nbt")) nbtField.setValue(snapshot.get("nbt"));
+        restoreNbtPickNotice(snapshot);
     }
 
     @Nullable
@@ -133,6 +149,16 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
         s.count = Math.max(1, parseIntOr(countField.getValue(), 1));
         s.pos = List.of(px, py, pz);
         s.motion = List.of(mx, my, mz);
+        String nbt = nbtField.getValue().trim();
+        if (!nbt.isEmpty()) {
+            try {
+                TagParser.parseTag(nbt);
+            } catch (Exception e) {
+                errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid");
+                return null;
+            }
+            s.nbt = nbt;
+        }
         return s;
     }
 }

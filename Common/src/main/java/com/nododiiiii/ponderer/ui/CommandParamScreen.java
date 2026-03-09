@@ -341,7 +341,7 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
                 HintableTextFieldWidget field = new SoftHintTextFieldWidget(font, fieldX, fieldY + 2, actualFieldW,
                         FIELD_H);
                 field.setHint(UIText.of(tf.hintKey));
-                field.setMaxLength(256);
+                field.setMaxLength(32500);
                 addRenderableWidget(field);
                 textInputs.put(tf.id, field);
 

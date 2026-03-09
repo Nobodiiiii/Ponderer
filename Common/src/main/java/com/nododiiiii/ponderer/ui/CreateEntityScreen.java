@@ -6,6 +6,7 @@ import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.nbt.TagParser;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -20,9 +21,12 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
     private HintableTextFieldWidget entityField;
     private HintableTextFieldWidget posXField, posYField, posZField;
     private boolean useYawPitch = false;
+    @Nullable
+    private Boolean lastAppliedUseYawPitch = null;
     private BoxWidget orientModeButton;
     private HintableTextFieldWidget lookAtXField, lookAtYField, lookAtZField;
     private HintableTextFieldWidget yawField, pitchField;
+    private HintableTextFieldWidget nbtField;
     private PonderButton pickBtnPos, pickBtnLookAt;
     @Nullable
     private PonderButton jeiBtn;
@@ -37,16 +41,16 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected int getFormRowCount() { return 4; }
+    protected int getFormRowCount() { return 5; }
     @Override
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.create_entity"); }
 
     @Override
     protected void buildForm() {
         beginForm();
-        // Row 1: entity + JEI
-        var ent = addFormTextFieldWithJei("ponderer.ui.create_entity", "ponderer.ui.create_entity.tooltip",
-                UIText.of("ponderer.ui.create_entity.hint"), IdFieldMode.ENTITY);
+        // Row 1: entity + JEI + world-pick
+        var ent = addFormTextFieldWithJeiAndNbtPick("ponderer.ui.create_entity", "ponderer.ui.create_entity.tooltip",
+            UIText.of("ponderer.ui.create_entity.hint"), IdFieldMode.ENTITY, "nbt");
         entityField = ent.field();
         jeiBtn = ent.jeiBtn();
         // Row 2: position XYZ + pick
@@ -67,16 +71,28 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
         pitchField = createSmallNumberField(fieldX() + sw + 20, formY(), sw + 15, "0.0");
         nextFormRow();
 
+        nbtField = addFormNbtField("ponderer.ui.create_entity.nbt", "ponderer.ui.create_entity.nbt.tooltip",
+            "{NoAI:1b}", 124, "nbt");
+
         updateOrientVis();
     }
 
     private void updateOrientVis() {
-        lookAtXField.visible = !useYawPitch;
-        lookAtYField.visible = !useYawPitch;
-        lookAtZField.visible = !useYawPitch;
-        pickBtnLookAt.visible = !useYawPitch;
-        yawField.visible = useYawPitch;
-        pitchField.visible = useYawPitch;
+        if (lastAppliedUseYawPitch != null && lastAppliedUseYawPitch == useYawPitch) {
+            return;
+        }
+        setWidgetVisible(lookAtXField, !useYawPitch);
+        setWidgetVisible(lookAtYField, !useYawPitch);
+        setWidgetVisible(lookAtZField, !useYawPitch);
+        setWidgetVisible(pickBtnLookAt, !useYawPitch);
+        setWidgetVisible(yawField, useYawPitch);
+        setWidgetVisible(pitchField, useYawPitch);
+        lastAppliedUseYawPitch = useYawPitch;
+    }
+
+    private static void setWidgetVisible(net.minecraft.client.gui.components.AbstractWidget widget, boolean visible) {
+        widget.visible = visible;
+        widget.active = visible;
     }
 
     @Override
@@ -97,11 +113,13 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             lookAtYField.setValue(String.valueOf(step.lookAt.get(1)));
             lookAtZField.setValue(String.valueOf(step.lookAt.get(2)));
         }
+        if (step.nbt != null) nbtField.setValue(step.nbt);
         updateOrientVis();
     }
 
     @Override
     protected void renderForm(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        updateOrientVis();
         super.renderForm(graphics, mouseX, mouseY, partialTicks);
         // Row 4: dynamic label based on orient mode
         var font = Minecraft.getInstance().font;
@@ -114,6 +132,7 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        updateOrientVis();
         super.renderFormForeground(graphics, mouseX, mouseY, partialTicks);
         // Row 4: pick button for lookAt mode
         if (!useYawPitch) renderPickButtonLabel(graphics, pickBtnLookAt);
@@ -135,13 +154,18 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
         m.put("lookAtZ", lookAtZField.getValue());
         m.put("yaw", yawField.getValue());
         m.put("pitch", pitchField.getValue());
+        m.put("nbt", nbtField.getValue());
         return m;
     }
 
     @Override
     protected void restoreFromSnapshot(Map<String, String> snapshot) {
         restoreKeyFrame(snapshot);
-        if (snapshot.containsKey("entity")) entityField.setValue(snapshot.get("entity"));
+        if (snapshot.containsKey(NbtPickState.SNAPSHOT_ENTITY_ID_KEY)) {
+            entityField.setValue(snapshot.get(NbtPickState.SNAPSHOT_ENTITY_ID_KEY));
+        } else if (snapshot.containsKey("entity")) {
+            entityField.setValue(snapshot.get("entity"));
+        }
         if (snapshot.containsKey("posX")) posXField.setValue(snapshot.get("posX"));
         if (snapshot.containsKey("posY")) posYField.setValue(snapshot.get("posY"));
         if (snapshot.containsKey("posZ")) posZField.setValue(snapshot.get("posZ"));
@@ -151,6 +175,8 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
         if (snapshot.containsKey("lookAtZ")) lookAtZField.setValue(snapshot.get("lookAtZ"));
         if (snapshot.containsKey("yaw")) yawField.setValue(snapshot.get("yaw"));
         if (snapshot.containsKey("pitch")) pitchField.setValue(snapshot.get("pitch"));
+        if (snapshot.containsKey("nbt")) nbtField.setValue(snapshot.get("nbt"));
+        restoreNbtPickNotice(snapshot);
         updateOrientVis();
     }
 
@@ -182,6 +208,16 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             Double ly2 = parseDouble(lookAtYField.getValue(), "Y");
             Double lz2 = parseDouble(lookAtZField.getValue(), "Z");
             if (lx2 != null && ly2 != null && lz2 != null) s.lookAt = List.of(lx2, ly2, lz2);
+        }
+        String nbt = nbtField.getValue().trim();
+        if (!nbt.isEmpty()) {
+            try {
+                TagParser.parseTag(nbt);
+            } catch (Exception e) {
+                errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid");
+                return null;
+            }
+            s.nbt = nbt;
         }
         return s;
     }

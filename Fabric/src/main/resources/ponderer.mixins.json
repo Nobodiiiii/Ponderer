@@ -9,6 +9,7 @@
     "PonderLocalizationMixin",
     "PonderSceneRegistryMixinFabric",
     "PonderSceneRegistryNbtMixinFabric",
+    "MinecraftNbtPickMixin",
     "WorldSectionElementImplMixin",
     "PonderUIAccessor",
     "PonderUIMixin",
