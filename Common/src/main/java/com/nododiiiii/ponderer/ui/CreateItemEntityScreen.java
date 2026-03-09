@@ -4,10 +4,13 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.nbt.TagParser;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
@@ -48,8 +51,9 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
         var jei = addFormTextFieldWithJeiAndHeldItem("ponderer.ui.create_item_entity.item", "ponderer.ui.create_item_entity.item.tooltip",
                 UIText.of("ponderer.ui.create_item_entity.hint"), IdFieldMode.ITEM, stack -> {
                     itemField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
-                    if (nbtField != null && stack.getTag() != null && !stack.getTag().isEmpty()) {
-                        nbtField.setValue(stack.getTag().toString());
+                    CompoundTag customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+                    if (nbtField != null && !customData.isEmpty()) {
+                        nbtField.setValue(customData.toString());
                     }
                 });
         itemField = jei.field(); jeiBtn = jei.jeiBtn(); heldItemBtn = jei.heldItemBtn();

@@ -18,6 +18,7 @@ import net.createmod.ponder.api.scene.PonderStoryBoard;
 import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
@@ -35,6 +36,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.Block;
@@ -675,7 +677,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             try {
                 CompoundTag tag = TagParser.parseTag(finalNbtPart);
                 if (!tag.isEmpty()) {
-                    stack.setTag(tag);
+                    stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag.copy()));
                 }
             } catch (Exception e) {
                 LOGGER.warn("show_controls invalid item nbt: {}", finalNbtPart);
@@ -1112,8 +1114,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         if (!itemPatch.isEmpty()) {
-            CompoundTag stackTag = copy.getOrCreateTag();
+            CompoundTag stackTag = copy.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
             stackTag.merge(itemPatch.copy());
+            copy.set(DataComponents.CUSTOM_DATA, CustomData.of(stackTag));
         }
         return copy;
     }

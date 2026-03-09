@@ -158,7 +158,7 @@ public final class NbtPickState {
             }
 
             // Capture block entity NBT if present
-            CompoundTag nbt = be != null ? be.saveWithoutMetadata() : new CompoundTag();
+            CompoundTag nbt = be != null ? be.saveWithoutMetadata(level.registryAccess()) : new CompoundTag();
             String name = state.getBlock().getName().getString();
             String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
             return new CaptureResult(nbt, name, props.isEmpty() ? null : props, blockId, null);

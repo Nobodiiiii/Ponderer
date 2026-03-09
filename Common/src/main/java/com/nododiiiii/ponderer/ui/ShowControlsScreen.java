@@ -4,9 +4,12 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.component.CustomData;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
@@ -69,8 +72,9 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
                     String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                     itemField.setValue(itemId);
                     if (nbtField != null) {
-                        if (stack.getTag() != null && !stack.getTag().isEmpty()) {
-                            nbtField.setValue(stack.getTag().toString());
+                        CompoundTag customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+                        if (!customData.isEmpty()) {
+                            nbtField.setValue(customData.toString());
                         } else {
                             nbtField.setValue("");
                         }
