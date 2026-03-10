@@ -140,7 +140,11 @@ public final class PonderJsEmitters {
 
     private static String emitRotateCameraY(DslScene.DslStep step, EmitContext ctx) {
         float deg = step.degrees == null ? 90f : step.degrees;
-        return "scene.rotateCameraY(" + fmtFloat(deg) + ");";
+        int duration = step.durationOrDefault(20);
+        if (duration <= 0) {
+            return "scene.rotateCameraY(" + fmtFloat(deg) + ");";
+        }
+        return "scene.rotateCameraY(" + fmtFloat(deg) + ");\nscene.idle(" + duration + ");";
     }
 
     private static String emitShowControls(DslScene.DslStep step, EmitContext ctx) {
