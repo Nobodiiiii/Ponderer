@@ -399,6 +399,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "create_item_entity" -> applyCreateItemEntity(scene, step);
             case "rotate_camera_y" -> applyRotateCameraY(scene, step);
             case "zoom_scene" -> applyZoomScene(scene, step);
+            case "highlight_section" -> applyHighlightSection(scene, step);
             case "show_controls" -> applyShowControls(scene, step);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
@@ -599,6 +600,23 @@ public class DynamicPonderPlugin implements PonderPlugin {
         Vec3 center = useDefaultCenter ? Vec3.ZERO : toPoint(step.point);
         int duration = step.durationOrDefault(20);
         scene.addInstruction(new AdjustViewInstruction(center, useDefaultCenter, multiplier, duration));
+    }
+
+    private void applyHighlightSection(SceneBuilder scene, DslScene.DslStep step) {
+        if (step.blockPos == null || step.blockPos.size() < 3) {
+            LOGGER.warn("highlight_section missing blockPos");
+            return;
+        }
+        BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+        BlockPos pos2 = pos1;
+        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+            pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+        }
+        int duration = step.durationOrDefault(40);
+        PonderPalette palette = parsePalette(step.color);
+        if (palette == null) palette = PonderPalette.BLUE;
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        scene.overlay().showOutline(palette, new Object(), selection, duration);
     }
 
     private void applyShowControls(SceneBuilder scene, DslScene.DslStep step) {

@@ -28,8 +28,8 @@ public class SceneTransformOffsetMixin {
     }
 
     @Redirect(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;",
-            at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;scale(FFF)V"),
-            remap = false)
+            at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;scale(FFF)V", remap = true),
+            require = 0, remap = false)
     private void ponderer$redirectScale(PoseStack ms, float sx, float sy, float sz) {
         PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) this$0;
         if (access.ponderer$isScaleOverrideActive()) {

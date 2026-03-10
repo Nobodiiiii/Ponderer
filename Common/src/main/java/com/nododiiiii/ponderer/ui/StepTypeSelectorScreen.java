@@ -22,18 +22,26 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
     private static final int ROW_H = 22;
     private static final String[][] PAGE_TYPES = {
         {
-            "show_structure", "idle", "text", "shared_text", "rotate_camera_y", "zoom_scene", "show_controls", "play_sound", "encapsulate_bounds"
+            "idle", "text", "show_controls", "rotate_camera_y", "zoom_scene"
         },
         {
-            "set_block", "destroy_block", "replace_blocks", "hide_section", "show_section_and_merge", "toggle_redstone_power", "modify_block_entity_nbt"
+            "set_block", "destroy_block", "replace_blocks", "modify_block_entity_nbt"
         },
         {
-            "create_entity", "create_item_entity", "modify_entities_nbt", "modify_item_entities_nbt", "clear_entities", "clear_item_entities", "rotate_section", "move_section", "indicate_redstone", "indicate_success"
+            "show_section_and_merge", "hide_section", "rotate_section", "move_section"
+        },
+        {
+            "create_entity", "create_item_entity", "clear_entities", "clear_item_entities", "modify_entities_nbt", "modify_item_entities_nbt"
+        },
+        {
+            "highlight_section", "indicate_success", "indicate_redstone", "toggle_redstone_power", "play_sound"
         }
     };
     private static final String[] PAGE_KEYS = {
         "ponderer.ui.step.page.story",
-        "ponderer.ui.step.page.world",
+        "ponderer.ui.step.page.block",
+        "ponderer.ui.step.page.section",
+        "ponderer.ui.step.page.entity",
         "ponderer.ui.step.page.effect"
     };
 
@@ -75,7 +83,8 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
     protected void init() {
         typeButtons.clear();
         String[] types = PAGE_TYPES[pageIndex];
-        int fullH = 52 + types.length * ROW_H + 34;
+        int fixedRows = 6;
+        int fullH = 52 + fixedRows * ROW_H + 34;
         displayH = Math.min(fullH, height - UILayoutConstants.SCREEN_MARGIN * 2);
         maxScroll = Math.max(0, fullH - displayH);
         scrollOffset = Math.min(scrollOffset, maxScroll);

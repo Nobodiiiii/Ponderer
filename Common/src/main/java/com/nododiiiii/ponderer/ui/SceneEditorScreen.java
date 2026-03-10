@@ -651,6 +651,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             case "rotate_camera_y" -> UIText.of("ponderer.ui.step.summary.rotate_camera",
                     stepTypeName("rotate_camera_y"), step.degrees != null ? step.degrees : 90);
                 case "zoom_scene" -> stepTypeName("zoom_scene");
+                case "highlight_section" -> stepTypeName("highlight_section");
             case "show_controls" -> UIText.of(
                     "ponderer.ui.step.summary.show_controls_action_item",
                     stepTypeName("show_controls"),
