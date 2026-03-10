@@ -11,6 +11,7 @@ import java.util.Map;
 public class RotateCameraScreen extends AbstractStepEditorScreen {
 
     private HintableTextFieldWidget degreesField;
+    private HintableTextFieldWidget durationField;
 
     public RotateCameraScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.rotate_camera.add"), scene, sceneIndex, parent);
@@ -22,7 +23,7 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected int getFormRowCount() { return 1; }
+    protected int getFormRowCount() { return 2; }
 
     @Override
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.rotate_camera"); }
@@ -31,6 +32,7 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
     protected void buildForm() {
         beginForm();
         degreesField = addFormNumberField("ponderer.ui.rotate_camera.degrees", "ponderer.ui.rotate_camera.degrees.tooltip", "90", 60, "ponderer.ui.rotate_camera.degrees.unit");
+        durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.rotate_camera.duration.tooltip", "20", 60, "ponderer.ui.ticks");
     }
 
     @Override
@@ -38,6 +40,9 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
         super.populateFromStep(step);
         if (step.degrees != null) {
             degreesField.setValue(String.valueOf(step.degrees));
+        }
+        if (step.duration != null) {
+            durationField.setValue(String.valueOf(step.duration));
         }
     }
 
@@ -48,6 +53,7 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
     protected Map<String, String> snapshotForm() {
         Map<String, String> m = new HashMap<>();
         m.put("degrees", degreesField.getValue());
+        m.put("duration", durationField.getValue());
         return m;
     }
 
@@ -55,6 +61,7 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
     protected void restoreFromSnapshot(Map<String, String> snapshot) {
         restoreKeyFrame(snapshot);
         if (snapshot.containsKey("degrees")) degreesField.setValue(snapshot.get("degrees"));
+        if (snapshot.containsKey("duration")) durationField.setValue(snapshot.get("duration"));
     }
 
     @Nullable
@@ -75,6 +82,11 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = "rotate_camera_y";
         s.degrees = degrees;
+        s.duration = parseIntOr(durationField.getValue(), 20);
+        if (s.duration < 0) {
+            errorMessage = UIText.of("ponderer.ui.rotate_camera.error.duration");
+            return null;
+        }
         return s;
     }
 }

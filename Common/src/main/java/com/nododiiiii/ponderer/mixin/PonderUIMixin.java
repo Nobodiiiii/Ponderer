@@ -2,14 +2,19 @@ package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.SceneEditorScreen;
 
 import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.VertexSorting;
+import org.joml.Matrix4f;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
@@ -21,6 +26,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 
 import java.util.List;
 import org.spongepowered.asm.mixin.injection.At;
@@ -30,6 +36,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PonderUI.class)
 public abstract class PonderUIMixin extends Screen {
+
+    @Unique
+    private PonderButton ponderer$editButton;
 
     protected PonderUIMixin() {
         super(CommonComponents.EMPTY);
@@ -71,7 +80,50 @@ public abstract class PonderUIMixin extends Screen {
             }
         });
 
+        ponderer$editButton = editButton;
         addRenderableWidget(editButton);
+    }
+
+    @Inject(method = "renderWindow", at = @At("TAIL"), remap = false)
+    private void ponderer$renderWidgetsOnTop(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 1200);
+        for (GuiEventListener child : this.children()) {
+            if (child instanceof PonderButton button && button.visible) {
+                button.render(graphics, mouseX, mouseY, partialTicks);
+            }
+        }
+        graphics.pose().popPose();
+    }
+
+    @Inject(method = "replay", at = @At("TAIL"), remap = false)
+    private void ponderer$resetViewOnReplay(CallbackInfo ci) {
+        PonderUI self = (PonderUI) (Object) this;
+        ponderer$resetCustomView(self.getActiveScene());
+    }
+
+    @Inject(method = "scroll", at = @At("RETURN"), remap = false)
+    private void ponderer$resetViewOnScroll(boolean forward, CallbackInfoReturnable<Boolean> cir) {
+        if (!cir.getReturnValue()) {
+            return;
+        }
+        PonderUI self = (PonderUI) (Object) this;
+        ponderer$resetCustomView(self.getActiveScene());
+    }
+
+    private static void ponderer$resetCustomView(PonderScene scene) {
+        if (!(scene instanceof PonderSceneViewOffsetAccess viewOffset)) {
+            return;
+        }
+        viewOffset.ponderer$resetViewOffset();
+
+        if (scene instanceof PonderSceneAccessor accessor) {
+            float defaultScale = viewOffset.ponderer$getDefaultScale();
+            if (!Float.isNaN(defaultScale)) {
+                accessor.ponderer$setScaleFactor(defaultScale);
+            }
+        }
+        viewOffset.ponderer$setDefaultScale(Float.NaN);
     }
 
     private static boolean canEdit(Player player) {
@@ -274,6 +326,29 @@ public abstract class PonderUIMixin extends Screen {
         }
 
         graphics.pose().popPose();
+    }
+
+    /**
+     * Force Ponder overlay elements (controls, text pointers, etc.) to render on
+     * top of the scene, even with large structures in front.
+     */
+    @Inject(method = "renderOverlay", at = @At("HEAD"), remap = false)
+    private void ponderer$overlayNoDepthPre(GuiGraphics graphics, int i, float partialTicks, CallbackInfo ci) {
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+    }
+
+    @Inject(method = "renderScene", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;setProjectionMatrix(Lorg/joml/Matrix4f;Lcom/mojang/blaze3d/vertex/VertexSorting;)V", shift = At.Shift.AFTER), remap = false)
+    private void ponderer$extendProjectionDepth(GuiGraphics graphics, int mouseX, int mouseY, int i, float partialTicks, CallbackInfo ci) {
+        Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
+        projection.translate(0, 0, 400);
+        RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
+    }
+
+    @Inject(method = "renderOverlay", at = @At("RETURN"), remap = false)
+    private void ponderer$overlayNoDepthPost(GuiGraphics graphics, int i, float partialTicks, CallbackInfo ci) {
+        RenderSystem.depthMask(true);
+        RenderSystem.enableDepthTest();
     }
 
     /**

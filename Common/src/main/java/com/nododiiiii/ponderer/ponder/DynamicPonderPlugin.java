@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ponder;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
@@ -17,6 +18,8 @@ import net.createmod.ponder.api.scene.Selection;
 import net.createmod.ponder.api.scene.PonderStoryBoard;
 import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
+import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstruction;
+import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -393,6 +396,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "create_entity" -> applyCreateEntity(scene, step);
             case "create_item_entity" -> applyCreateItemEntity(scene, step);
             case "rotate_camera_y" -> applyRotateCameraY(scene, step);
+            case "zoom_scene" -> applyZoomScene(scene, step);
             case "show_controls" -> applyShowControls(scene, step);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
@@ -567,7 +571,32 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private void applyRotateCameraY(SceneBuilder scene, DslScene.DslStep step) {
         float degrees = step.degrees == null ? 90f : step.degrees;
-        scene.rotateCameraY(degrees);
+        int duration = step.durationOrDefault(20);
+        scene.addInstruction(ponderScene -> {
+            var yRotation = ponderScene.getTransform().yRotation;
+            float target = yRotation.getChaseTarget() + degrees;
+            if (duration == 0) {
+                yRotation.startWithValue(target);
+            } else {
+                yRotation.chaseTimed(target, duration);
+            }
+        });
+        if (duration > 0) {
+            scene.idle(duration);
+        }
+    }
+
+    private void applyZoomScene(SceneBuilder scene, DslScene.DslStep step) {
+        float multiplier = step.scale == null ? Float.NaN : step.scale;
+        if (multiplier <= 0) {
+            LOGGER.warn("zoom_scene scale must be > 0, got {}", multiplier);
+            return;
+        }
+
+        boolean useDefaultCenter = step.point == null || step.point.size() < 3;
+        Vec3 center = useDefaultCenter ? Vec3.ZERO : toPoint(step.point);
+        int duration = step.durationOrDefault(20);
+        scene.addInstruction(new AdjustViewInstruction(center, useDefaultCenter, multiplier, duration));
     }
 
     private void applyShowControls(SceneBuilder scene, DslScene.DslStep step) {
@@ -686,12 +715,27 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step) {
-        // Always show everything – height is auto-detected from the structure bounds
-        var selection = scene.getScene().getSceneBuildingUtil().select().everywhere();
+        Selection selection;
+        if (step.blockPos != null && step.blockPos.size() >= 3) {
+            BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+            BlockPos pos2 = pos1;
+            if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+                pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+            }
+            selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        } else {
+            // Default behavior: show full structure when no region is provided.
+            selection = scene.getScene().getSceneBuildingUtil().select().everywhere();
+        }
         scene.world().showSection(selection, Direction.UP);
         if (step.scale != null) {
             scene.scaleSceneView(step.scale);
         }
+        scene.addInstruction(ps -> {
+            if (ps instanceof PonderSceneAccessor accessor && ps instanceof PonderSceneViewOffsetAccess viewOffset) {
+                viewOffset.ponderer$setDefaultScale(accessor.ponderer$getScaleFactor());
+            }
+        });
     }
 
     private void applyEncapsulateBounds(SceneBuilder scene, DslScene.DslStep step) {
@@ -854,6 +898,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (selection == null) {
             return;
         }
+        int duration = step.durationOrDefault(20);
         // Safety: ensure the base world section has been initialized before hiding.
         // If show_structure was somehow skipped, the base section's internal Selection is null,
         // and hideSection's erase() would NPE. This pre-instruction prevents that.
@@ -867,8 +912,24 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 ps.getBaseWorldSection().queueRedraw();
             }
         });
-        scene.idle(20);
-        scene.world().hideSection(selection, parseDirection(step.direction));
+        Direction direction = parseDirection(step.direction);
+
+        ElementLink<WorldSectionElement> link = scene.world().makeSectionIndependent(selection);
+        if (duration <= 0) {
+            scene.addInstruction(ps -> {
+                WorldSectionElement element = ps.resolve(link);
+                if (element != null) {
+                    element.setVisible(false);
+                    element.setFade(0);
+                }
+            });
+            return;
+        }
+        if (duration == 15) {
+            scene.world().hideIndependentSection(link, direction);
+            return;
+        }
+        scene.addInstruction(new FadeOutOfSceneInstruction<>(duration, direction, link));
     }
 
     private void applyShowSectionAndMerge(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
@@ -876,22 +937,49 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (selection == null) {
             return;
         }
-        String linkId = step.linkId == null || step.linkId.isBlank() ? "default" : step.linkId;
+        String linkId = step.linkId == null ? "" : step.linkId.trim();
+        if (linkId.isEmpty()) {
+            linkId = autoLinkId(context);
+        }
+        int duration = step.durationOrDefault(20);
         Direction direction = parseDirection(step.direction);
         ElementLink<WorldSectionElement> existing = context.sectionLinks.get(linkId);
         if (existing == null) {
-            ElementLink<WorldSectionElement> created = scene.world().showIndependentSection(selection, direction);
+            ElementLink<WorldSectionElement> created;
+            if (duration <= 0) {
+                created = scene.world().showIndependentSectionImmediately(selection);
+            } else if (duration == 15) {
+                created = scene.world().showIndependentSection(selection, direction);
+            } else {
+                DisplayWorldSectionInstruction instruction = new DisplayWorldSectionInstruction(duration, direction, selection, null);
+                scene.addInstruction(instruction);
+                created = instruction.createLink(scene.getScene());
+            }
             context.sectionLinks.put(linkId, created);
             return;
         }
-        scene.world().showSectionAndMerge(selection, direction, existing);
+        if (duration <= 0) {
+            ElementLink<WorldSectionElement> target = existing;
+            scene.addInstruction(ps -> {
+                WorldSectionElement element = ps.resolve(target);
+                if (element != null) {
+                    element.add(selection);
+                    element.queueRedraw();
+                }
+            });
+            return;
+        }
+        if (duration == 15) {
+            scene.world().showSectionAndMerge(selection, direction, existing);
+            return;
+        }
+        scene.addInstruction(new DisplayWorldSectionInstruction(duration, direction, selection,
+                () -> scene.getScene().resolve(existing)));
     }
 
     private void applyRotateSection(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        String linkId = step.linkId == null || step.linkId.isBlank() ? "default" : step.linkId;
-        ElementLink<WorldSectionElement> link = context.sectionLinks.get(linkId);
+        ElementLink<WorldSectionElement> link = resolveSectionLink(scene, step, context, "rotate_section");
         if (link == null) {
-            LOGGER.warn("rotate_section missing linkId: {}", linkId);
             return;
         }
         double x = step.rotX == null ? 0.0 : step.rotX;
@@ -902,10 +990,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyMoveSection(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        String linkId = step.linkId == null || step.linkId.isBlank() ? "default" : step.linkId;
-        ElementLink<WorldSectionElement> link = context.sectionLinks.get(linkId);
+        ElementLink<WorldSectionElement> link = resolveSectionLink(scene, step, context, "move_section");
         if (link == null) {
-            LOGGER.warn("move_section missing linkId: {}", linkId);
             return;
         }
         Vec3 offset = toPoint(step.offset);
@@ -1166,6 +1252,37 @@ public class DynamicPonderPlugin implements PonderPlugin {
             pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
         return scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+    }
+
+    @Nullable
+    private ElementLink<WorldSectionElement> resolveSectionLink(SceneBuilder scene, DslScene.DslStep step,
+                                                                StepContext context, String stepName) {
+        String linkId = step.linkId == null ? "" : step.linkId.trim();
+        if (!linkId.isEmpty()) {
+            ElementLink<WorldSectionElement> existing = context.sectionLinks.get(linkId);
+            if (existing != null) {
+                return existing;
+            }
+        }
+
+        Selection selection = selectionFromStep(scene, step, stepName);
+        if (selection == null) {
+            if (linkId.isEmpty()) {
+                LOGGER.warn("{} requires linkId or blockPos/blockPos2 selection", stepName);
+            } else {
+                LOGGER.warn("{} missing linkId: {} and no selection to create one", stepName, linkId);
+            }
+            return null;
+        }
+
+        ElementLink<WorldSectionElement> created = scene.world().showIndependentSectionImmediately(selection);
+        String key = linkId.isEmpty() ? autoLinkId(context) : linkId;
+        context.sectionLinks.put(key, created);
+        return created;
+    }
+
+    private String autoLinkId(StepContext context) {
+        return "section_" + (context.sectionLinks.size() + 1);
     }
 
     private Direction parseDirection(String raw) {

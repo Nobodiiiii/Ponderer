@@ -19,29 +19,44 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     private final String stepType;
     private final boolean withDirection;
     private final boolean withLinkId;
+    private final boolean withDuration;
 
     private HintableTextFieldWidget posXField, posYField, posZField;
     private HintableTextFieldWidget pos2XField, pos2YField, pos2ZField;
     private BoxWidget directionButton;
     private HintableTextFieldWidget linkIdField;
+    private HintableTextFieldWidget durationField;
     private int directionIndex = 0;
     private PonderButton pickBtn1, pickBtn2;
 
     public SelectionOperationScreen(String stepType, boolean withDirection, boolean withLinkId,
                                     DslScene scene, int sceneIndex, SceneEditorScreen parent) {
+        this(stepType, withDirection, withLinkId, false, scene, sceneIndex, parent);
+    }
+
+    public SelectionOperationScreen(String stepType, boolean withDirection, boolean withLinkId, boolean withDuration,
+                                    DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui." + stepType + ".add"), scene, sceneIndex, parent);
         this.stepType = stepType;
         this.withDirection = withDirection;
         this.withLinkId = withLinkId;
+        this.withDuration = withDuration;
     }
 
     public SelectionOperationScreen(String stepType, boolean withDirection, boolean withLinkId,
+                                    DslScene scene, int sceneIndex, SceneEditorScreen parent,
+                                    int editIndex, DslScene.DslStep step) {
+        this(stepType, withDirection, withLinkId, false, scene, sceneIndex, parent, editIndex, step);
+    }
+
+    public SelectionOperationScreen(String stepType, boolean withDirection, boolean withLinkId, boolean withDuration,
                                     DslScene scene, int sceneIndex, SceneEditorScreen parent,
                                     int editIndex, DslScene.DslStep step) {
         super(Component.translatable("ponderer.ui." + stepType + ".edit"), scene, sceneIndex, parent, editIndex, step);
         this.stepType = stepType;
         this.withDirection = withDirection;
         this.withLinkId = withLinkId;
+        this.withDuration = withDuration;
     }
 
     @Override
@@ -49,6 +64,7 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         int rows = 2;
         if (withDirection) rows++;
         if (withLinkId) rows++;
+        if (withDuration) rows++;
         return rows;
     }
 
@@ -70,7 +86,10 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
                     () -> optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[directionIndex]));
         }
         if (withLinkId) {
-            linkIdField = addFormTextField("ponderer.ui." + stepType + ".link", "ponderer.ui." + stepType + ".link.tooltip", "default", 140);
+            linkIdField = addFormTextField("ponderer.ui." + stepType + ".link", "ponderer.ui." + stepType + ".link.tooltip", "", 140);
+        }
+        if (withDuration) {
+            durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.duration.tooltip.section_animation", "20", 60);
         }
     }
 
@@ -98,6 +117,9 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         }
         if (withLinkId && step.linkId != null) {
             linkIdField.setValue(step.linkId);
+        }
+        if (withDuration && step.duration != null) {
+            durationField.setValue(String.valueOf(step.duration));
         }
     }
 
@@ -135,6 +157,7 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         m.put("pos2Z", pos2ZField.getValue());
         if (withDirection) m.put("direction", String.valueOf(directionIndex));
         if (withLinkId && linkIdField != null) m.put("linkId", linkIdField.getValue());
+        if (withDuration && durationField != null) m.put("duration", durationField.getValue());
         return m;
     }
 
@@ -151,6 +174,7 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
             try { directionIndex = Integer.parseInt(snapshot.get("direction")); } catch (NumberFormatException ignored) {}
         }
         if (withLinkId && linkIdField != null && snapshot.containsKey("linkId")) linkIdField.setValue(snapshot.get("linkId"));
+        if (withDuration && durationField != null && snapshot.containsKey("duration")) durationField.setValue(snapshot.get("duration"));
     }
 
     @Nullable
@@ -190,7 +214,11 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
 
         if (withLinkId) {
             String linkId = linkIdField.getValue().trim();
-            s.linkId = linkId.isEmpty() ? "default" : linkId;
+            if (!linkId.isEmpty()) s.linkId = linkId;
+        }
+
+        if (withDuration) {
+            s.duration = Math.max(0, parseIntOr(durationField.getValue(), 20));
         }
 
         return s;

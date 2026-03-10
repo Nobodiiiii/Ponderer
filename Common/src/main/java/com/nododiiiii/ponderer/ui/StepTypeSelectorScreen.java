@@ -22,7 +22,7 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
     private static final int ROW_H = 22;
     private static final String[][] PAGE_TYPES = {
         {
-            "show_structure", "idle", "text", "shared_text", "rotate_camera_y", "show_controls", "play_sound", "encapsulate_bounds"
+            "show_structure", "idle", "text", "shared_text", "rotate_camera_y", "zoom_scene", "show_controls", "play_sound", "encapsulate_bounds"
         },
         {
             "set_block", "destroy_block", "replace_blocks", "hide_section", "show_section_and_merge", "toggle_redstone_power", "modify_block_entity_nbt"

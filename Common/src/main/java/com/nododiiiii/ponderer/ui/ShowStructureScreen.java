@@ -25,6 +25,8 @@ import java.util.concurrent.CompletableFuture;
 public class ShowStructureScreen extends AbstractStepEditorScreen {
 
     private HintableTextFieldWidget scaleField;
+    private HintableTextFieldWidget posXField, posYField, posZField;
+    private HintableTextFieldWidget pos2XField, pos2YField, pos2ZField;
     private HintableTextFieldWidget structureField;
     private PonderButton browseButton;
     private boolean waitingDownload;
@@ -40,25 +42,43 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         super(Component.translatable("ponderer.ui.show_structure"), scene, sceneIndex, parent, editIndex, step);
     }
 
-    @Override protected int getFormRowCount() { return 2; }
+    @Override protected int getFormRowCount() { return 4; }
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.show_structure"); }
 
     @Override
     protected void buildForm() {
         beginForm();
-        scaleField = addFormNumberField("ponderer.ui.show_structure.scale", "ponderer.ui.show_structure.scale.tooltip", "1.0", 60);
         addFormLabel("ponderer.ui.show_structure.structure", "ponderer.ui.show_structure.structure.tooltip");
-        structureField = createTextField(fieldX(), formY(), 95, 18, UIText.of("ponderer.ui.show_structure.structure.hint"));
-        browseButton = new PonderButton(fieldX() + 100, formY(), 30, 18);
-        browseButton.withCallback(this::openFilePicker);
-        addRenderableWidget(browseButton);
+        int fx = fieldX();
+        structureField = createTextField(fx, formY(), 105, 18, UIText.of("ponderer.ui.show_structure.structure.hint"));
+        browseButton = createStructureBrowseButton(fx + 105 + FIELD_TO_BUTTON_GAP, formY());
         nextFormRow();
+
+        scaleField = addFormNumberField("ponderer.ui.show_structure.scale", "ponderer.ui.show_structure.scale.tooltip", "1.0", 60);
+        var from = addFormXyzRow("ponderer.ui.show_structure.pos_from", "ponderer.ui.show_structure.pos_from.tooltip", PickState.TargetField.POS1);
+        posXField = from.x();
+        posYField = from.y();
+        posZField = from.z();
+        var to = addFormXyzRow("ponderer.ui.show_structure.pos_to", "ponderer.ui.show_structure.pos_to.tooltip", PickState.TargetField.POS2);
+        pos2XField = to.x();
+        pos2YField = to.y();
+        pos2ZField = to.z();
     }
 
     @Override
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         if (step.scale != null) scaleField.setValue(String.valueOf(step.scale));
+        if (step.blockPos != null && step.blockPos.size() >= 3) {
+            posXField.setValue(String.valueOf(step.blockPos.get(0)));
+            posYField.setValue(String.valueOf(step.blockPos.get(1)));
+            posZField.setValue(String.valueOf(step.blockPos.get(2)));
+        }
+        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+            pos2XField.setValue(String.valueOf(step.blockPos2.get(0)));
+            pos2YField.setValue(String.valueOf(step.blockPos2.get(1)));
+            pos2ZField.setValue(String.valueOf(step.blockPos2.get(2)));
+        }
         if (step.structure != null && !step.structure.isBlank()) structureField.setValue(step.structure);
     }
 
@@ -66,8 +86,8 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.renderFormForeground(graphics, mouseX, mouseY, partialTicks);
         var font = Minecraft.getInstance().font;
-        graphics.drawCenteredString(font, UIText.of("ponderer.ui.show_structure.browse"),
-                browseButton.getX() + 15, browseButton.getY() + 5, 0xFFFFFF);
+        graphics.drawCenteredString(font, "S",
+            browseButton.getX() + browseButton.getWidth() / 2, browseButton.getY() + 2, 0xFFFFFF);
     }
 
     private void openFilePicker() {
@@ -122,6 +142,14 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         }, Minecraft.getInstance());
     }
 
+    private PonderButton createStructureBrowseButton(int x, int y) {
+        PonderButton btn = new PonderButton(x, y + 3, 14, 12);
+        btn.withCallback(this::openFilePicker);
+        addRenderableWidget(btn);
+        addTooltip(x, y + 3, 14, 12, UIText.of("ponderer.ui.show_structure.browse.tooltip"));
+        return btn;
+    }
+
     @Override
     protected String getStepType() { return "show_structure"; }
 
@@ -129,6 +157,12 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     protected Map<String, String> snapshotForm() {
         Map<String, String> m = new HashMap<>();
         m.put("scale", scaleField.getValue());
+        m.put("posX", posXField.getValue());
+        m.put("posY", posYField.getValue());
+        m.put("posZ", posZField.getValue());
+        m.put("pos2X", pos2XField.getValue());
+        m.put("pos2Y", pos2YField.getValue());
+        m.put("pos2Z", pos2ZField.getValue());
         m.put("structure", structureField.getValue());
         return m;
     }
@@ -137,6 +171,12 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     protected void restoreFromSnapshot(Map<String, String> snapshot) {
         restoreKeyFrame(snapshot);
         if (snapshot.containsKey("scale")) scaleField.setValue(snapshot.get("scale"));
+        if (snapshot.containsKey("posX")) posXField.setValue(snapshot.get("posX"));
+        if (snapshot.containsKey("posY")) posYField.setValue(snapshot.get("posY"));
+        if (snapshot.containsKey("posZ")) posZField.setValue(snapshot.get("posZ"));
+        if (snapshot.containsKey("pos2X")) pos2XField.setValue(snapshot.get("pos2X"));
+        if (snapshot.containsKey("pos2Y")) pos2YField.setValue(snapshot.get("pos2Y"));
+        if (snapshot.containsKey("pos2Z")) pos2ZField.setValue(snapshot.get("pos2Z"));
         if (snapshot.containsKey("structure")) structureField.setValue(snapshot.get("structure"));
     }
 
@@ -156,6 +196,40 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
             if (sc == null) return null;
             s.scale = sc;
         }
+
+        Integer px = parseOptionalInt(posXField.getValue(), "From X");
+        Integer py = parseOptionalInt(posYField.getValue(), "From Y");
+        Integer pz = parseOptionalInt(posZField.getValue(), "From Z");
+        boolean hasPos1 = px != null || py != null || pz != null;
+        if (hasPos1 && (px == null || py == null || pz == null)) {
+            errorMessage = UIText.of("ponderer.ui.show_structure.error.partial_from");
+            return null;
+        }
+
+        String pos2X = pos2XField.getValue().trim();
+        String pos2Y = pos2YField.getValue().trim();
+        String pos2Z = pos2ZField.getValue().trim();
+        boolean hasPos2 = !pos2X.isEmpty() || !pos2Y.isEmpty() || !pos2Z.isEmpty();
+        Integer px2 = null;
+        Integer py2 = null;
+        Integer pz2 = null;
+        if (hasPos2) {
+            if (pos2X.isEmpty() || pos2Y.isEmpty() || pos2Z.isEmpty()) {
+                errorMessage = UIText.of("ponderer.ui.show_structure.error.partial_to");
+                return null;
+            }
+            px2 = parseInt(pos2X, "To X");
+            py2 = parseInt(pos2Y, "To Y");
+            pz2 = parseInt(pos2Z, "To Z");
+            if (px2 == null || py2 == null || pz2 == null) return null;
+        }
+        if (hasPos2 && !hasPos1) {
+            errorMessage = UIText.of("ponderer.ui.show_structure.error.partial_from");
+            return null;
+        }
+        if (hasPos1) s.blockPos = java.util.List.of(px, py, pz);
+        if (hasPos2) s.blockPos2 = java.util.List.of(px2, py2, pz2);
+
         String structure = structureField.getValue().trim();
         if (!structure.isEmpty()) {
             if (isNumeric(structure)) {
@@ -203,6 +277,13 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
             s.structure = structure;
         }
         return s;
+    }
+
+    @Nullable
+    private Integer parseOptionalInt(String raw, String label) {
+        String trimmed = raw == null ? "" : raw.trim();
+        if (trimmed.isEmpty()) return null;
+        return parseInt(trimmed, label);
     }
 
     public static void onDownloadResult(String sourceId, String targetId, boolean success, String message) {
