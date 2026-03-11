@@ -13,7 +13,7 @@
     "WorldSectionElementImplMixin",
     "PonderSceneAccessor",
     "PonderSceneViewOffsetMixin",
-    "SceneTransformOffsetMixin",
+    "SceneTransformOffsetMixinFabric",
     "PonderUIAccessor",
     "PonderUIMixin",
     "PonderUINbtMixinFabric",
