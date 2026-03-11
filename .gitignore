@@ -42,3 +42,5 @@ hs_err_pid*
 
 # Reference projects (remove if you want to track them)
 ref/
+
+.minecraft/

@@ -337,7 +337,7 @@ public abstract class PonderUIMixin extends Screen {
         RenderSystem.depthMask(false);
     }
 
-    @Inject(method = "renderScene", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;setProjectionMatrix(Lorg/joml/Matrix4f;Lcom/mojang/blaze3d/vertex/VertexSorting;)V", shift = At.Shift.AFTER), remap = false)
+    @Inject(method = "renderScene", at = @At("TAIL"), remap = false)
     private void ponderer$extendProjectionDepth(GuiGraphics graphics, int mouseX, int mouseY, int i, float partialTicks, CallbackInfo ci) {
         Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
         projection.translate(0, 0, 400);
