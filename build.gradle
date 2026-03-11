@@ -102,12 +102,12 @@ tasks.register('testFabric', Exec) {
 tasks.register('testForge', Exec) {
     group = 'test'
     description = 'Build Forge and launch test.py for Forge/NeoForge instance'
-    dependsOn ':Forge:build'
+    dependsOn ':NeoForge:build'
     commandLine 'python', 'test.py', 'forge', '--skip-build'
 }
 tasks.register('testBoth', Exec) {
     group = 'test'
-    description = 'Build Fabric and Forge then launch both instances'
-    dependsOn ':Fabric:build', ':Forge:build'
+    description = 'Build Fabric and NeoForge then launch both instances'
+    dependsOn ':Fabric:build', ':NeoForge:build'
     commandLine 'python', 'test.py', 'both', '--skip-build'
 }
