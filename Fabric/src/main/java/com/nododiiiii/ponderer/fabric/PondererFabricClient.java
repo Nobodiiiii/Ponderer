@@ -9,8 +9,10 @@ import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.registry.ModItems;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
+import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
@@ -44,7 +46,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
     private final BlueprintHandler blueprintHandler = new BlueprintHandler();
     private boolean hasNotified = false;
-    private boolean wasRightMouseDown = false;
+    private boolean triggerKeyWasDown = false;
 
     @Override
     public void onInitializeClient() {
@@ -52,6 +54,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
         // Key bindings
         KeyBindingHelper.registerKeyBinding(ModKeyBindings.OPEN_FUNCTION_PAGE);
+        KeyBindingHelper.registerKeyBinding(ModKeyBindings.TRIGGER_PONDER);
 
         // Ponder init
         SceneStore.extractDefaultsIfNeeded();
@@ -83,7 +86,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
         // Client tick: key bindings + blueprint handler + player join notifications
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.player != null && client.screen == null && NbtPickState.isActive()) {
+            if (client.player != null && client.screen == null && (NbtPickState.isActive() || CoordPickState.isActive())) {
                 client.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
             }
 
@@ -92,11 +95,29 @@ public class PondererFabricClient implements ClientModInitializer {
                 if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
                     ScreenOpener.transitionTo(new FunctionScreen());
                 }
+
             }
 
             // Blueprint handler tick
             blueprintHandler.tick();
             handleBlueprintMouseInput(client);
+
+            // Trigger manager tick
+            TriggerManager.tick();
+
+            // Trigger key: process after TriggerManager.tick() so activeScene is fresh.
+            if (client.player != null && client.screen == null) {
+                boolean triggerByBinding = ModKeyBindings.TRIGGER_PONDER.isDown();
+                boolean triggerByRawC = GLFW.glfwGetKey(client.getWindow().getWindow(), GLFW.GLFW_KEY_C) == GLFW.GLFW_PRESS;
+                boolean triggerPressed = triggerByBinding || triggerByRawC;
+
+                if (triggerPressed && !triggerKeyWasDown) {
+                    boolean opened = TriggerManager.onTriggerKeyPressed();
+                }
+                triggerKeyWasDown = triggerPressed;
+            } else {
+                triggerKeyWasDown = false;
+            }
 
             // Player login notification (check once)
             if (!hasNotified && client.player != null) {

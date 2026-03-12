@@ -67,6 +67,9 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     protected boolean attachKeyFrame = false;
     private BoxWidget keyFrameToggle;
 
+    /** Subclasses override to hide the keyframe toggle row. */
+    protected boolean showsKeyFrame() { return true; }
+
     /** Index after which to insert the new step. -1 means append. */
     protected int insertAfterIndex = -1;
 
@@ -185,12 +188,16 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         addRenderableWidget(cancelButton);
 
         // KeyFrame toggle (common to all step types), placed above confirm/cancel
-        int kfY = guiTop + wH - 58;
-        keyFrameToggle = createToggle(guiLeft + 70, kfY);
-        keyFrameToggle.withCallback(() -> attachKeyFrame = !attachKeyFrame);
-        addRenderableWidget(keyFrameToggle);
-        addLabelTooltip(guiLeft + 10, kfY + 3, UIText.of("ponderer.ui.key_frame"),
-                UIText.of("ponderer.ui.key_frame.tooltip"), false);
+        if (showsKeyFrame()) {
+            int kfY = guiTop + wH - 58;
+            keyFrameToggle = createToggle(guiLeft + 70, kfY);
+            keyFrameToggle.withCallback(() -> attachKeyFrame = !attachKeyFrame);
+            addRenderableWidget(keyFrameToggle);
+            addLabelTooltip(guiLeft + 10, kfY + 3, UIText.of("ponderer.ui.key_frame"),
+                    UIText.of("ponderer.ui.key_frame.tooltip"), false);
+        } else {
+            keyFrameToggle = null;
+        }
 
         // Record child count before buildForm so we can track form-specific widgets
         int childCountBeforeForm = children().size();
@@ -229,7 +236,8 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
 
     /** Computes window height from form row count, clamped to screen height. */
     protected int getWindowHeight() {
-        int contentH = FORM_TOP + getFormRowCount() * ROW_HEIGHT + BOTTOM_SECTION;
+        int bottomH = showsKeyFrame() ? BOTTOM_SECTION : 38;
+        int contentH = FORM_TOP + getFormRowCount() * ROW_HEIGHT + bottomH;
         if (height <= 0) {
             maxScroll = 0;
             return contentH;
@@ -256,7 +264,8 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
 
     /** Viewport bottom Y (last pixel of the scrollable form area, just above bottom section). */
     private int viewportBottom() {
-        return guiTop + getWindowHeight() - BOTTOM_SECTION;
+        int bottomH = showsKeyFrame() ? BOTTOM_SECTION : 38;
+        return guiTop + getWindowHeight() - bottomH;
     }
 
     /** Reposition all tracked form widgets based on current scrollOffset and update visibility. */
@@ -319,7 +328,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     }
 
     /** Navigate back to the parent SceneEditorScreen. */
-    private void returnToParent() {
+    protected void returnToParent() {
         Minecraft.getInstance().setScreen(returnScreen != null ? returnScreen : parent);
     }
 
@@ -366,8 +375,10 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         }
 
         // KeyFrame label (fixed, not scrolled)
-        int kfY = guiTop + wH - 58;
-        graphics.drawString(font, UIText.of("ponderer.ui.key_frame"), guiLeft + 10, kfY + 3, UILayoutConstants.COLOR_LABEL);
+        if (showsKeyFrame()) {
+            int kfY = guiTop + wH - 58;
+            graphics.drawString(font, UIText.of("ponderer.ui.key_frame"), guiLeft + 10, kfY + 3, UILayoutConstants.COLOR_LABEL);
+        }
 
         if (errorMessage != null) {
             graphics.drawString(font, errorMessage, guiLeft + 10, guiTop + wH - 45, UILayoutConstants.COLOR_ERROR);
@@ -415,7 +426,9 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         graphics.pose().translate(0, 0, 500);
 
         // KeyFrame toggle V/X
-        renderToggleState(graphics, keyFrameToggle, attachKeyFrame);
+        if (showsKeyFrame() && keyFrameToggle != null) {
+            renderToggleState(graphics, keyFrameToggle, attachKeyFrame);
+        }
 
         // Confirm / Cancel button labels
         graphics.drawCenteredString(font,
@@ -945,9 +958,14 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
 
     /** Register a label + tooltip at the current row. Called by addFormXxx helpers. */
     protected void addFormLabel(String labelKey, @Nullable String tooltipKey) {
+        addFormLabel(labelKey, tooltipKey, UILayoutConstants.COLOR_LABEL);
+    }
+
+    /** Register a label + tooltip at the current row with a custom color. */
+    protected void addFormLabel(String labelKey, @Nullable String tooltipKey, int color) {
         int lx = guiLeft + 10;
         String label = UIText.of(labelKey);
-        autoLabels.add(new AutoLabel(label, lx, formCursorY + 3, UILayoutConstants.COLOR_LABEL));
+        autoLabels.add(new AutoLabel(label, lx, formCursorY + 3, color));
         if (tooltipKey != null) {
             addLabelTooltip(lx, formCursorY + 3, label, UIText.of(tooltipKey));
         }

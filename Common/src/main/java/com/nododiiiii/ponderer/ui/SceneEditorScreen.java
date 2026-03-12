@@ -67,12 +67,11 @@ public class SceneEditorScreen extends AbstractSimiScreen {
     /** Temp field to track which row the hovered action button belongs to. */
     private int hoveredActionRow = -1;
 
-    private BoxWidget addStepButton;
+    private BoxWidget triggerButton;
     private BoxWidget pasteButton;
     private BoxWidget splitButton;
     private BoxWidget backButton;
     private BoxWidget descButton;
-    private BoxWidget deleteSceneButton;
     private BoxWidget prevSceneBtn;
     private BoxWidget nextSceneBtn;
 
@@ -113,8 +112,8 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         setWindowSize(WINDOW_W, WINDOW_H);
         super.init();
 
-        // Bottom bar: 6 buttons (Desc, Add, Paste, Split, Del, Back)
-        int btnW = 38, btnH = 18;
+        // Bottom bar: 5 buttons (Desc, Trigger, Paste, Split, Back)
+        int btnW = 46, btnH = 18;
         int btnY = guiTop + WINDOW_H - 45;
         int gap = 6;
         int bx = guiLeft + 6;
@@ -125,10 +124,10 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         addRenderableWidget(descButton);
         bx += btnW + gap;
 
-        // "+ Add Step" opens the type-selector popup (append mode)
-        addStepButton = new PonderButton(bx, btnY, btnW, btnH);
-        addStepButton.withCallback(() -> ScreenOpener.open(new StepTypeSelectorScreen(scene, sceneIndex, this)));
-        addRenderableWidget(addStepButton);
+        // "Trigger" opens the trigger settings editor
+        triggerButton = new PonderButton(bx, btnY, btnW, btnH);
+        triggerButton.withCallback(() -> ScreenOpener.open(new TriggerEditorScreen(scene, sceneIndex, this)));
+        addRenderableWidget(triggerButton);
         bx += btnW + gap;
 
         // "Paste" inserts the clipboard step
@@ -147,12 +146,6 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         splitButton = new PonderButton(bx, btnY, btnW, btnH);
         splitButton.withCallback(this::insertSplitStep);
         addRenderableWidget(splitButton);
-        bx += btnW + gap;
-
-        // "Delete" - delete entire scene with confirmation
-        deleteSceneButton = new PonderButton(bx, btnY, btnW, btnH);
-        deleteSceneButton.withCallback(this::confirmDeleteScene);
-        addRenderableWidget(deleteSceneButton);
 
         // "Back" - reload Ponder scenes and exit
         backButton = new PonderButton(guiLeft + WINDOW_W - btnW - 6, btnY, btnW, btnH);
@@ -333,18 +326,16 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         }
 
         // Button labels
-        int btnHalfW = 19;
+        int btnHalfW = 23;
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.desc"),
                 descButton.getX() + btnHalfW, descButton.getY() + 5, 0xFFFFFF);
-        graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.add"),
-                addStepButton.getX() + btnHalfW, addStepButton.getY() + 5, 0xFFFFFF);
+        graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.trigger"),
+                triggerButton.getX() + btnHalfW, triggerButton.getY() + 5, 0xFFFFFF);
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.paste"),
                 pasteButton.getX() + btnHalfW, pasteButton.getY() + 5,
                 clipboard != null ? 0xFFFFFF : 0x808080);
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.split"),
                 splitButton.getX() + btnHalfW, splitButton.getY() + 5, 0xFFFFFF);
-        graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.delete_scene"),
-                deleteSceneButton.getX() + btnHalfW, deleteSceneButton.getY() + 5, 0xFF5555);
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.back"),
                 backButton.getX() + btnHalfW, backButton.getY() + 5, 0xFFFFFF);
 
