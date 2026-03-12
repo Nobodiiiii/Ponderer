@@ -8,7 +8,9 @@ import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
+import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
@@ -78,6 +80,7 @@ public class PondererForgeClient {
 
     private static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(ModKeyBindings.OPEN_FUNCTION_PAGE);
+        event.register(ModKeyBindings.TRIGGER_PONDER);
     }
 
     private static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
@@ -89,7 +92,7 @@ public class PondererForgeClient {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) return;
-        if (NbtPickState.isActive()) {
+        if (NbtPickState.isActive() || CoordPickState.isActive()) {
             mc.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
         }
         if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
@@ -101,6 +104,7 @@ public class PondererForgeClient {
     private static void onBlueprintClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             blueprintHandler.tick();
+            TriggerManager.tick();
         }
     }
 

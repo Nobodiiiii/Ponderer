@@ -35,6 +35,58 @@ public class DslScene {
     public String pack;
 
     /**
+     * Trigger mode: null or "none" = normal (item hover), "structure" = near a structure,
+     * "coordinate" = within coordinate range.
+     */
+    @Nullable
+    public String triggerMode;
+
+    /**
+     * Hint display style: null or "subtitle" = action bar text (persistent),
+     * "title" = title text (fades after 1s).
+     * Legacy field — superseded by hintAuto/hintTitle/hintSubtitle.
+     */
+    @Nullable
+    public String hintStyle;
+
+    /** Structure id for "structure" trigger mode. e.g. "minecraft:village_plains" */
+    @Nullable
+    public String triggerStructure;
+
+    /** Maximum range (in blocks) from structure boundary for "structure" trigger. */
+    @Nullable
+    public Integer triggerStructureRange;
+
+    /** First corner coordinate for "coordinate" trigger mode. */
+    @Nullable
+    public List<Integer> triggerCoord1;
+
+    /** Second corner coordinate for "coordinate" trigger mode. */
+    @Nullable
+    public List<Integer> triggerCoord2;
+
+    /** Legacy: if true, the trigger hint is only shown on the first entry (per session). */
+    @Nullable
+    public Boolean onlyFirstTime;
+
+    /** Legacy control for hint display frequency. Superseded by per-style fields. */
+    @Nullable
+    public String hintFrequency;
+
+    /**
+     * Per-hint-style frequency. null = disabled, "always" / "first_time" / "until_read".
+     * These 3 fields can be independently enabled, allowing multiple hint styles at once.
+     */
+    @Nullable public String hintAuto;
+    @Nullable public String hintTitle;
+    @Nullable public String hintSubtitle;
+
+    /** Custom display text for title hint. If null/empty, uses default key-name hint. */
+    @Nullable public String hintTitleText;
+    /** Custom display text for subtitle hint. If null/empty, uses default key-name hint. */
+    @Nullable public String hintSubtitleText;
+
+    /**
      * Transient field set by SceneStore.reloadFromDisk().
      * Stores the source filename (e.g. "example.json" or "[my_pack] example.json").
      * Not serialized by GSON.

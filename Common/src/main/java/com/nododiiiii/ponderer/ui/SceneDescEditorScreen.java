@@ -5,69 +5,46 @@ import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
-import net.createmod.catnip.gui.AbstractSimiScreen;
-import net.createmod.catnip.gui.element.BoxElement;
-import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.catnip.theme.Color;
-import net.createmod.ponder.foundation.ui.PonderButton;
+import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 
-import java.util.ArrayList;
+import javax.annotation.Nullable;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Editor screen for ponder title and scene title.
- * Supports multi-language editing with a toggle button per text field.
+ * Editor screen for ponder scene description: item, NBT, titles, IDs.
+ * Trigger settings are handled by {@link TriggerEditorScreen}.
  */
-public class SceneDescEditorScreen extends AbstractSimiScreen {
-
-    private static final int WINDOW_W = 240;
-    private static final int WINDOW_H = 200;
-    private static final int HEADER_H = 22;
-    private static final int FOOTER_H = 50;
-
-    private int scrollOffset = 0;
-    private int maxScroll = 0;
-    private int displayH = WINDOW_H;
-    private record FormWidgetRecord(AbstractWidget widget, int contentOffsetY) {}
-    private final List<FormWidgetRecord> formWidgetRecords = new ArrayList<>();
-
-    private final DslScene scene;
-    private final int sceneIndex;
-    private final SceneEditorScreen parent;
+public class SceneDescEditorScreen extends AbstractStepEditorScreen {
 
     // Ponder title
-    private HintableTextFieldWidget ponderTitleField;
-    private BoxWidget ponderTitleLangBtn;
+    private FieldWithLang ponderTitleRow;
     private String ponderTitleLang;
     private LocalizedText workingPonderTitle;
 
     // Scene title (only when scene.scenes[] mode)
     private boolean hasMultiScene;
-    private HintableTextFieldWidget sceneTitleField;
-    private BoxWidget sceneTitleLangBtn;
+    private FieldWithLang sceneTitleRow;
     private String sceneTitleLang;
     private LocalizedText workingSceneTitle;
 
-    // Ponder ID
-    private HintableTextFieldWidget ponderIdField;
+    // Item fields
+    private FieldWithJeiAndHeldItem itemRow;
+    private HintableTextFieldWidget itemNbtField;
 
-    // Scene segment ID (only when scene.scenes[] mode)
+    // IDs
+    private HintableTextFieldWidget ponderIdField;
     private HintableTextFieldWidget sceneIdField;
 
-    private BoxWidget confirmButton;
-    private BoxWidget cancelButton;
-
-    private String errorMessage;
+    private boolean pendingItemDuplicateConfirm = false;
 
     public SceneDescEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
-        super(Component.translatable("ponderer.ui.scene_desc"));
-        this.scene = scene;
-        this.sceneIndex = sceneIndex;
-        this.parent = parent;
+        super(Component.translatable("ponderer.ui.scene_desc"), scene, sceneIndex, parent);
 
         this.ponderTitleLang = getCurrentLang();
         this.workingPonderTitle = scene.title != null ? scene.title : LocalizedText.of("");
@@ -82,243 +59,240 @@ public class SceneDescEditorScreen extends AbstractSimiScreen {
     }
 
     @Override
+    protected boolean showsKeyFrame() { return false; }
+
+    @Override
+    protected String getHeaderTitle() {
+        return UIText.of("ponderer.ui.scene_desc");
+    }
+
+    @Override
+    protected int getFormRowCount() {
+        int rows = 2; // item ID + item NBT
+        rows += 1; // ponder title
+        if (hasMultiScene) rows += 1; // scene title
+        rows += 1; // ponder ID
+        if (hasMultiScene) rows += 1; // scene ID
+        return rows;
+    }
+
+    @Override
     protected void init() {
-        formWidgetRecords.clear();
-        displayH = Math.min(WINDOW_H, height - UILayoutConstants.SCREEN_MARGIN * 2);
-        maxScroll = Math.max(0, WINDOW_H - displayH);
-        scrollOffset = Math.min(scrollOffset, maxScroll);
-
-        setWindowSize(WINDOW_W, displayH);
         super.init();
+        confirmButton.withCallback(this::doConfirm);
+    }
 
-        var font = Minecraft.getInstance().font;
-        int x = guiLeft + 80, lx = guiLeft + 10;
-        int y = 30; // content offset from guiTop
-        int fieldW = 104;
-        int langBtnW = 28;
-        int langGap = 6;
+    @Override
+    protected void buildForm() {
+        beginForm();
 
-        // Ponder title
-        ponderTitleField = new SoftHintTextFieldWidget(font, x, guiTop + y - scrollOffset, fieldW, 18);
-        ponderTitleField.setHint(UIText.of("ponderer.ui.scene_desc.hint.ponder_title"));
-        ponderTitleField.setMaxLength(32500);
-        addRenderableWidget(ponderTitleField);
-        formWidgetRecords.add(new FormWidgetRecord(ponderTitleField, y));
+        // ---- Item ID with JEI + held-item button ----
+        itemRow = addFormTextFieldWithJeiAndHeldItem(
+                "ponderer.ui.scene_desc.item_id", null,
+                UIText.of("ponderer.ui.scene_desc.hint.item_id"),
+                IdFieldMode.ITEM,
+                stack -> {
+                    String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+                    itemRow.field().setValue(itemId);
+                    if (itemNbtField != null && stack.getTag() != null && !stack.getTag().isEmpty()) {
+                        itemNbtField.setValue(stack.getTag().toString());
+                    } else if (itemNbtField != null) {
+                        itemNbtField.setValue("");
+                    }
+                });
+        String currentItem = (scene.items != null && !scene.items.isEmpty()) ? scene.items.get(0) : "";
+        itemRow.field().setValue(currentItem);
 
-        ponderTitleLangBtn = new PonderButton(x + fieldW + langGap + 3, guiTop + y + 3 - scrollOffset, langBtnW, 12);
-        ponderTitleLangBtn.withCallback(this::togglePonderTitleLang);
-        addRenderableWidget(ponderTitleLangBtn);
-        formWidgetRecords.add(new FormWidgetRecord(ponderTitleLangBtn, y + 3));
+        // ---- Item NBT field ----
+        itemNbtField = addFormNbtField(
+                "ponderer.ui.scene_desc.item_nbt", null,
+                UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
+                124, "nbt");
+        itemNbtField.setValue(scene.nbtFilter != null ? scene.nbtFilter : "");
 
-        // Populate ponder title
+        // ---- Ponder title with lang toggle ----
+        ponderTitleRow = addFormTextFieldWithLang(
+                "ponderer.ui.scene_desc.ponder_title", null,
+                UIText.of("ponderer.ui.scene_desc.hint.ponder_title"),
+                104,
+                () -> ponderTitleLang,
+                this::togglePonderTitleLang);
         String val = workingPonderTitle.getExact(ponderTitleLang);
-        ponderTitleField.setValue(val != null ? val : workingPonderTitle.resolve());
+        ponderTitleRow.field().setValue(val != null ? val : workingPonderTitle.resolve());
 
-        y += 26;
-
-        // Scene title (only if applicable)
+        // ---- Scene title with lang toggle ----
         if (hasMultiScene) {
-            sceneTitleField = new SoftHintTextFieldWidget(font, x, guiTop + y - scrollOffset, fieldW, 18);
-            sceneTitleField.setHint(UIText.of("ponderer.ui.scene_desc.hint.scene_title"));
-            sceneTitleField.setMaxLength(32500);
-            addRenderableWidget(sceneTitleField);
-            formWidgetRecords.add(new FormWidgetRecord(sceneTitleField, y));
-
-            sceneTitleLangBtn = new PonderButton(x + fieldW + langGap + 3, guiTop + y + 3 - scrollOffset, langBtnW, 12);
-            sceneTitleLangBtn.withCallback(this::toggleSceneTitleLang);
-            addRenderableWidget(sceneTitleLangBtn);
-            formWidgetRecords.add(new FormWidgetRecord(sceneTitleLangBtn, y + 3));
-
+            sceneTitleRow = addFormTextFieldWithLang(
+                    "ponderer.ui.scene_desc.scene_title", null,
+                    UIText.of("ponderer.ui.scene_desc.hint.scene_title"),
+                    104,
+                    () -> sceneTitleLang,
+                    this::toggleSceneTitleLang);
             String scVal = workingSceneTitle.getExact(sceneTitleLang);
-            sceneTitleField.setValue(scVal != null ? scVal : workingSceneTitle.resolve());
-
-            y += 26;
+            sceneTitleRow.field().setValue(scVal != null ? scVal : workingSceneTitle.resolve());
         }
 
-        // Ponder ID
-        int idFieldW = fieldW + langBtnW + langGap + 3;
-        ponderIdField = new SoftHintTextFieldWidget(font, x, guiTop + y - scrollOffset, idFieldW, 18);
-        ponderIdField.setHint(UIText.of("ponderer.ui.scene_desc.hint.ponder_id"));
-        ponderIdField.setMaxLength(32500);
+        // ---- Ponder ID (warning-colored label) ----
+        addFormLabel("ponderer.ui.scene_desc.ponder_id", "ponderer.ui.scene_desc.id_hint", 0xFFFF00);
+        ponderIdField = createTextField(fieldX(), formY(), 141, 18,
+                UIText.of("ponderer.ui.scene_desc.hint.ponder_id"));
         ponderIdField.setValue(scene.id != null ? scene.id : "");
-        addRenderableWidget(ponderIdField);
-        formWidgetRecords.add(new FormWidgetRecord(ponderIdField, y));
+        nextFormRow();
 
-        y += 26;
-
-        // Scene segment ID (only if applicable)
+        // ---- Scene segment ID (warning-colored label) ----
         if (hasMultiScene) {
-            sceneIdField = new SoftHintTextFieldWidget(font, x, guiTop + y - scrollOffset, idFieldW, 18);
-            sceneIdField.setHint(UIText.of("ponderer.ui.scene_desc.hint.scene_id"));
-            sceneIdField.setMaxLength(32500);
+            addFormLabel("ponderer.ui.scene_desc.scene_id", null, 0xFFFF00);
+            sceneIdField = createTextField(fieldX(), formY(), 141, 18,
+                    UIText.of("ponderer.ui.scene_desc.hint.scene_id"));
             DslScene.SceneSegment sc = scene.scenes.get(sceneIndex);
             sceneIdField.setValue(sc.id != null ? sc.id : "");
-            addRenderableWidget(sceneIdField);
-            formWidgetRecords.add(new FormWidgetRecord(sceneIdField, y));
-        }
-
-        // Buttons (fixed at bottom)
-        int btnW = 80, btnH = 20;
-        confirmButton = new PonderButton(guiLeft + 15, guiTop + displayH - 30, btnW, btnH);
-        confirmButton.withCallback(this::onConfirm);
-        addRenderableWidget(confirmButton);
-
-        cancelButton = new PonderButton(guiLeft + WINDOW_W - btnW - 15, guiTop + displayH - 30, btnW, btnH);
-        cancelButton.withCallback(this::returnToParent);
-        addRenderableWidget(cancelButton);
-
-        updateWidgetPositions();
-    }
-
-    @Override
-    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        // Background
-        new BoxElement()
-            .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
-            .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
-            .at(guiLeft, guiTop, 0)
-            .withBounds(WINDOW_W, displayH)
-            .render(graphics);
-
-        var font = Minecraft.getInstance().font;
-
-        // Header
-        graphics.drawString(font, UIText.of("ponderer.ui.scene_desc"), guiLeft + 10, guiTop + 8, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WINDOW_W - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
-
-        // Scrollable labels
-        int vpTop = guiTop + HEADER_H;
-        int vpBot = guiTop + displayH - FOOTER_H;
-        if (maxScroll > 0) {
-            graphics.enableScissor(guiLeft, vpTop, guiLeft + WINDOW_W, vpBot);
-            graphics.pose().pushPose();
-            graphics.pose().translate(0, -scrollOffset, 0);
-        }
-
-        int lx = guiLeft + 10;
-        int y = guiTop + 33;
-        int lc = UILayoutConstants.COLOR_LABEL;
-        int warnColor = 0xFFFF00;
-
-        // Ponder title label
-        graphics.drawString(font, UIText.of("ponderer.ui.scene_desc.ponder_title"), lx, y, lc);
-        y += 26;
-
-        // Scene title label
-        if (hasMultiScene) {
-            graphics.drawString(font, UIText.of("ponderer.ui.scene_desc.scene_title"), lx, y, lc);
-            y += 26;
-        }
-
-        // Ponder ID label
-        graphics.drawString(font, UIText.of("ponderer.ui.scene_desc.ponder_id"), lx, y, warnColor);
-        y += 26;
-
-        // Scene segment ID label
-        if (hasMultiScene) {
-            graphics.drawString(font, UIText.of("ponderer.ui.scene_desc.scene_id"), lx, y, warnColor);
-        }
-
-        if (maxScroll > 0) {
-            graphics.pose().popPose();
-            graphics.disableScissor();
-            renderScrollbar(graphics);
+            nextFormRow();
         }
     }
 
     @Override
-    protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        var font = Minecraft.getInstance().font;
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 500);
-
-        // Lang button labels (scrollable)
-        if (maxScroll > 0) {
-            graphics.enableScissor(guiLeft, guiTop + HEADER_H, guiLeft + WINDOW_W, guiTop + displayH - FOOTER_H);
-        }
-        drawLangLabel(graphics, ponderTitleLangBtn, ponderTitleLang);
-        if (hasMultiScene) {
-            drawLangLabel(graphics, sceneTitleLangBtn, sceneTitleLang);
-        }
-        if (maxScroll > 0) {
-            graphics.disableScissor();
-        }
-
-        // ID warning hint or error message (fixed footer)
-        int hintY = guiTop + displayH - 46;
-        if (errorMessage != null) {
-            graphics.drawCenteredString(font, errorMessage,
-                guiLeft + WINDOW_W / 2, hintY, 0xFF5555);
-        } else {
-            graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_desc.id_hint"),
-                guiLeft + WINDOW_W / 2, hintY, 0xAAAA00);
-        }
-
-        // Confirm / Cancel
-        graphics.drawCenteredString(font, UIText.of("ponderer.ui.save"),
-            confirmButton.getX() + 40, confirmButton.getY() + 6, 0xFFFFFF);
-        graphics.drawCenteredString(font, UIText.of("ponderer.ui.cancel"),
-            cancelButton.getX() + 40, cancelButton.getY() + 6, 0xFFFFFF);
-
-        graphics.pose().popPose();
+    protected String getStepType() {
+        return "scene_desc";
     }
 
-    private void drawLangLabel(GuiGraphics graphics, BoxWidget btn, String lang) {
-        var font = Minecraft.getInstance().font;
-        String label = lang.length() > 5 ? lang.substring(0, 5) : lang;
-        graphics.drawCenteredString(font, label, btn.getX() + btn.getWidth() / 2, btn.getY() + 2, 0xAAFFAA);
+    @Nullable
+    @Override
+    protected DslScene.DslStep buildStep() {
+        return null;
     }
 
-    private void onConfirm() {
+    @Override
+    protected void restoreFromSnapshot(Map<String, String> snapshot) {
+        if (snapshot.containsKey("itemId") && itemRow != null)
+            itemRow.field().setValue(snapshot.get("itemId"));
+        if (snapshot.containsKey("itemNbt") && itemNbtField != null)
+            itemNbtField.setValue(snapshot.get("itemNbt"));
+        if (snapshot.containsKey("ponderTitle") && ponderTitleRow != null)
+            ponderTitleRow.field().setValue(snapshot.get("ponderTitle"));
+        if (snapshot.containsKey("ponderTitleLang"))
+            ponderTitleLang = snapshot.get("ponderTitleLang");
+        if (hasMultiScene && sceneTitleRow != null && snapshot.containsKey("sceneTitle"))
+            sceneTitleRow.field().setValue(snapshot.get("sceneTitle"));
+        if (snapshot.containsKey("sceneTitleLang"))
+            sceneTitleLang = snapshot.get("sceneTitleLang");
+        if (snapshot.containsKey("ponderId") && ponderIdField != null)
+            ponderIdField.setValue(snapshot.get("ponderId"));
+        if (hasMultiScene && sceneIdField != null && snapshot.containsKey("sceneId"))
+            sceneIdField.setValue(snapshot.get("sceneId"));
+    }
+
+    @Override
+    protected Map<String, String> snapshotForm() {
+        Map<String, String> m = new HashMap<>();
+        if (itemRow != null) m.put("itemId", itemRow.field().getValue());
+        if (itemNbtField != null) m.put("itemNbt", itemNbtField.getValue());
+        if (ponderTitleRow != null) m.put("ponderTitle", ponderTitleRow.field().getValue());
+        m.put("ponderTitleLang", ponderTitleLang);
+        if (hasMultiScene && sceneTitleRow != null) {
+            m.put("sceneTitle", sceneTitleRow.field().getValue());
+            m.put("sceneTitleLang", sceneTitleLang);
+        }
+        if (ponderIdField != null) m.put("ponderId", ponderIdField.getValue());
+        if (hasMultiScene && sceneIdField != null) m.put("sceneId", sceneIdField.getValue());
+        return m;
+    }
+
+    // ---- Confirm / Save ----
+
+    private void doConfirm() {
         errorMessage = null;
 
-        // Validate ponder ID
+        String newItemId = itemRow.field().getValue().trim();
+        if (newItemId.isEmpty()) {
+            errorMessage = UIText.of("ponderer.ui.scene_desc.empty_item");
+            return;
+        }
+
+        String oldItemId = (scene.items != null && !scene.items.isEmpty()) ? scene.items.get(0) : "";
+        if (!newItemId.equals(oldItemId) && !pendingItemDuplicateConfirm) {
+            for (DslScene s : SceneRuntime.getScenes()) {
+                if (s != scene && s.items != null && s.items.contains(newItemId)) {
+                    Minecraft.getInstance().setScreen(new net.minecraft.client.gui.screens.ConfirmScreen(
+                            confirmed -> {
+                                if (confirmed) {
+                                    pendingItemDuplicateConfirm = true;
+                                    Minecraft.getInstance().setScreen(this);
+                                    doConfirm();
+                                } else {
+                                    Minecraft.getInstance().setScreen(this);
+                                }
+                            },
+                            Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"),
+                            Component.translatable("ponderer.ui.scene_desc.error.item_exists", newItemId)));
+                    return;
+                }
+            }
+        }
+        pendingItemDuplicateConfirm = false;
+
         String newPonderId = ponderIdField.getValue().trim();
         if (!newPonderId.isEmpty() && !newPonderId.equals(scene.id)) {
             for (DslScene s : SceneRuntime.getScenes()) {
                 if (s != scene && newPonderId.equals(s.id)) {
-                    errorMessage = Component.translatable("ponderer.ui.scene_desc.error.ponder_id_exists", newPonderId).getString();
+                    errorMessage = Component.translatable("ponderer.ui.scene_desc.error.ponder_id_exists",
+                            newPonderId).getString();
                     return;
                 }
             }
         }
 
-        // Validate scene segment ID
         if (hasMultiScene && sceneIdField != null) {
             String newSceneId = sceneIdField.getValue().trim();
             DslScene.SceneSegment currentSeg = scene.scenes.get(sceneIndex);
             if (!newSceneId.isEmpty() && !newSceneId.equals(currentSeg.id)) {
                 for (int i = 0; i < scene.scenes.size(); i++) {
                     if (i != sceneIndex && newSceneId.equals(scene.scenes.get(i).id)) {
-                        errorMessage = Component.translatable("ponderer.ui.scene_desc.error.scene_id_exists", newSceneId).getString();
+                        errorMessage = Component.translatable("ponderer.ui.scene_desc.error.scene_id_exists",
+                                newSceneId).getString();
                         return;
                     }
                 }
             }
         }
 
-        // Save ponder title
-        String pTitle = ponderTitleField.getValue();
+        // ---- Save all fields ----
+
+        boolean itemChanged = !newItemId.equals(oldItemId);
+        scene.items = List.of(newItemId);
+
+        String nbt = itemNbtField.getValue().trim();
+        scene.nbtFilter = nbt.isEmpty() ? null : nbt;
+
+        String pTitle = ponderTitleRow.field().getValue();
         if (!pTitle.isEmpty()) {
             workingPonderTitle.setForLang(ponderTitleLang, pTitle);
         }
         scene.title = workingPonderTitle;
 
-        // Save scene title
-        if (hasMultiScene && sceneTitleField != null) {
-            String scTitle = sceneTitleField.getValue();
+        if (hasMultiScene && sceneTitleRow != null) {
+            String scTitle = sceneTitleRow.field().getValue();
             if (!scTitle.isEmpty()) {
                 workingSceneTitle.setForLang(sceneTitleLang, scTitle);
             }
             scene.scenes.get(sceneIndex).title = workingSceneTitle;
         }
 
-        // Save ponder ID
-        if (!newPonderId.isEmpty()) {
+        if (itemChanged && (newPonderId.isEmpty() || newPonderId.equals(scene.id))) {
+            ResourceLocation itemLoc = ResourceLocation.tryParse(newItemId);
+            if (itemLoc != null) {
+                String baseId = "ponderer:" + itemLoc.getPath();
+                String derivedId = baseId;
+                int suffix = 0;
+                while (idExistsElsewhere(derivedId)) {
+                    suffix++;
+                    derivedId = baseId + "_" + suffix;
+                }
+                scene.id = derivedId;
+            }
+        } else if (!newPonderId.isEmpty()) {
             scene.id = newPonderId;
         }
 
-        // Save scene segment ID
         if (hasMultiScene && sceneIdField != null) {
             String newSceneId = sceneIdField.getValue().trim();
             if (!newSceneId.isEmpty()) {
@@ -327,103 +301,44 @@ public class SceneDescEditorScreen extends AbstractSimiScreen {
         }
 
         SceneStore.saveSceneToLocal(scene);
+        SceneStore.reloadFromDisk();
+        Minecraft.getInstance().execute(PonderIndex::reload);
         returnToParent();
     }
 
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (maxScroll > 0) {
-            scrollOffset = (int) Math.max(0, Math.min(maxScroll, scrollOffset - delta * UILayoutConstants.SCROLL_SPEED));
-            updateWidgetPositions();
-            return true;
+    // ---- Helpers ----
+
+    private boolean idExistsElsewhere(String id) {
+        for (DslScene s : SceneRuntime.getScenes()) {
+            if (s != scene && id.equals(s.id)) return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
-    }
-
-    private void updateWidgetPositions() {
-        int vpTop = guiTop + HEADER_H;
-        int vpBot = guiTop + displayH - FOOTER_H;
-        for (FormWidgetRecord rec : formWidgetRecords) {
-            int newY = guiTop + rec.contentOffsetY - scrollOffset;
-            rec.widget.setY(newY);
-            if (maxScroll > 0) {
-                rec.widget.visible = (newY + rec.widget.getHeight() > vpTop) && (newY < vpBot);
-            } else {
-                rec.widget.visible = true;
-            }
-        }
-    }
-
-    private void renderScrollbar(GuiGraphics graphics) {
-        if (maxScroll <= 0) return;
-        int barX = guiLeft + WINDOW_W - UILayoutConstants.SCROLLBAR_W - 2;
-        int vpTop = guiTop + HEADER_H;
-        int vpBot = guiTop + displayH - FOOTER_H;
-        int trackH = vpBot - vpTop;
-        graphics.fill(barX, vpTop, barX + UILayoutConstants.SCROLLBAR_W, vpBot, UILayoutConstants.COLOR_SCROLLBAR_BG);
-        int contentH = WINDOW_H - HEADER_H - FOOTER_H;
-        if (contentH <= 0) return;
-        int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * trackH / contentH);
-        int thumbY = vpTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
-        graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
-    }
-
-    private void returnToParent() {
-        Minecraft.getInstance().setScreen(parent);
-    }
-
-    @Override
-    public void onClose() {
-        returnToParent();
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE)
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        if (getFocused() != null && getFocused().keyPressed(keyCode, scanCode, modifiers))
-            return true;
-        if (getFocused() instanceof net.minecraft.client.gui.components.EditBox)
-            return true;
-        return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        if (getFocused() != null && getFocused().charTyped(codePoint, modifiers))
-            return true;
-        return super.charTyped(codePoint, modifiers);
+        return false;
     }
 
     // ---- Language toggle logic ----
 
     private void togglePonderTitleLang() {
-        String currentText = ponderTitleField.getValue();
+        if (ponderTitleRow == null) return;
+        String currentText = ponderTitleRow.field().getValue();
         if (!currentText.isEmpty()) {
             workingPonderTitle.setForLang(ponderTitleLang, currentText);
         }
         ponderTitleLang = nextLang(ponderTitleLang);
         String val = workingPonderTitle.getExact(ponderTitleLang);
-        ponderTitleField.setValue(val != null ? val : "");
+        ponderTitleRow.field().setValue(val != null ? val : "");
     }
 
     private void toggleSceneTitleLang() {
-        if (sceneTitleField == null) return;
-        String currentText = sceneTitleField.getValue();
+        if (sceneTitleRow == null) return;
+        String currentText = sceneTitleRow.field().getValue();
         if (!currentText.isEmpty()) {
             workingSceneTitle.setForLang(sceneTitleLang, currentText);
         }
         sceneTitleLang = nextLang(sceneTitleLang);
         String val = workingSceneTitle.getExact(sceneTitleLang);
-        sceneTitleField.setValue(val != null ? val : "");
+        sceneTitleRow.field().setValue(val != null ? val : "");
     }
 
-    /** Toggle between MC current language and en_us. */
     private String nextLang(String current) {
         String mcLang = getCurrentLang();
         if (current.equals("en_us") && !"en_us".equals(mcLang)) {

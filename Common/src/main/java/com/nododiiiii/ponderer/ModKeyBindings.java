@@ -17,5 +17,12 @@ public final class ModKeyBindings {
         "key.categories.ponderer"
     );
 
+    public static final KeyMapping TRIGGER_PONDER = new KeyMapping(
+        "key.ponderer.trigger_ponder",
+        InputConstants.Type.KEYSYM,
+        GLFW.GLFW_KEY_C,
+        "key.categories.ponderer"
+    );
+
     private ModKeyBindings() {}
 }
