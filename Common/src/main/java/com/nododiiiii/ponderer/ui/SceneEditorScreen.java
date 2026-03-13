@@ -68,9 +68,9 @@ public class SceneEditorScreen extends AbstractSimiScreen {
     private int hoveredActionRow = -1;
 
     private BoxWidget triggerButton;
-    private BoxWidget pasteButton;
     private BoxWidget splitButton;
     private BoxWidget backButton;
+    private BoxWidget deleteSceneButton;
     private BoxWidget descButton;
     private BoxWidget prevSceneBtn;
     private BoxWidget nextSceneBtn;
@@ -112,10 +112,10 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         setWindowSize(WINDOW_W, WINDOW_H);
         super.init();
 
-        // Bottom bar: 5 buttons (Desc, Trigger, Paste, Split, Back)
+        // Bottom bar: 5 buttons (Desc, Trigger, Split, Delete Scene, Back)
         int btnW = 46, btnH = 18;
         int btnY = guiTop + WINDOW_H - 45;
-        int gap = 6;
+        int gap = 8;
         int bx = guiLeft + 6;
 
         // "Desc" opens the scene description editor
@@ -130,25 +130,19 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         addRenderableWidget(triggerButton);
         bx += btnW + gap;
 
-        // "Paste" inserts the clipboard step
-        pasteButton = new PonderButton(bx, btnY, btnW, btnH);
-        pasteButton.withCallback(() -> {
-            if (clipboard != null) {
-                DslScene.DslStep pasted = deepCopy(clipboard);
-                insertStepAndSave(-1, pasted);
-                this.init(Minecraft.getInstance(), this.width, this.height);
-            }
-        });
-        addRenderableWidget(pasteButton);
-        bx += btnW + gap;
-
         // "Split" inserts a next_scene step at the end
         splitButton = new PonderButton(bx, btnY, btnW, btnH);
         splitButton.withCallback(this::insertSplitStep);
         addRenderableWidget(splitButton);
 
+        // Right side actions: Delete Scene + Back
+        int rightGroupStart = guiLeft + WINDOW_W - (btnW * 2 + gap) - 6;
+        deleteSceneButton = new PonderButton(rightGroupStart, btnY, btnW, btnH);
+        deleteSceneButton.withCallback(this::confirmDeleteScene);
+        addRenderableWidget(deleteSceneButton);
+
         // "Back" - reload Ponder scenes and exit
-        backButton = new PonderButton(guiLeft + WINDOW_W - btnW - 6, btnY, btnW, btnH);
+        backButton = new PonderButton(rightGroupStart + btnW + gap, btnY, btnW, btnH);
         backButton.withCallback(this::reloadAndExit);
         addRenderableWidget(backButton);
 
@@ -331,11 +325,17 @@ public class SceneEditorScreen extends AbstractSimiScreen {
                 descButton.getX() + btnHalfW, descButton.getY() + 5, 0xFFFFFF);
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.trigger"),
                 triggerButton.getX() + btnHalfW, triggerButton.getY() + 5, 0xFFFFFF);
-        graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.paste"),
-                pasteButton.getX() + btnHalfW, pasteButton.getY() + 5,
-                clipboard != null ? 0xFFFFFF : 0x808080);
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.split"),
                 splitButton.getX() + btnHalfW, splitButton.getY() + 5, 0xFFFFFF);
+
+        // Red accent to make delete action visually distinct.
+        graphics.fill(deleteSceneButton.getX() + 1, deleteSceneButton.getY() + 1,
+            deleteSceneButton.getX() + deleteSceneButton.getWidth() - 1,
+            deleteSceneButton.getY() + deleteSceneButton.getHeight() - 1,
+            0x70AA2222);
+        graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.delete_scene"),
+            deleteSceneButton.getX() + btnHalfW, deleteSceneButton.getY() + 5, 0xFFFF8080);
+
         graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.back"),
                 backButton.getX() + btnHalfW, backButton.getY() + 5, 0xFFFFFF);
 

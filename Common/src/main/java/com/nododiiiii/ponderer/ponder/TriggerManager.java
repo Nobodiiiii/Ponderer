@@ -311,8 +311,6 @@ public final class TriggerManager {
         String sceneKey = sceneToOpen.id != null ? sceneToOpen.id : "";
         openPonderFor(sceneToOpen, sceneKey);
         activeScene = null;
-        wasInZone = false;
-        titleShownThisEntry = false;
         return true;
     }
 

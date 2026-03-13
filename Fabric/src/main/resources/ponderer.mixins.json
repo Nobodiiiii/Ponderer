@@ -10,6 +10,7 @@
     "PonderSceneRegistryMixinFabric",
     "PonderSceneRegistryNbtMixinFabric",
     "MinecraftNbtPickMixin",
+    "MinecraftCoordPickScrollMixin",
     "WorldSectionElementImplMixin",
     "PonderSceneAccessor",
     "PonderSceneViewOffsetMixin",

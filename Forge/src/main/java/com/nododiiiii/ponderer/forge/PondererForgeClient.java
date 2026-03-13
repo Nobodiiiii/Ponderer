@@ -92,7 +92,7 @@ public class PondererForgeClient {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) return;
-        if (NbtPickState.isActive() || CoordPickState.isActive()) {
+        if (NbtPickState.isActive()) {
             mc.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
         }
         if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {

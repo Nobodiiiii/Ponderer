@@ -135,9 +135,18 @@ public class PondererJeiPlugin implements IModPlugin {
      * Called by platform-specific screen event handlers (Forge ScreenEvent / Fabric ScreenEvents).
      */
     public static boolean handleMouseClick(Screen screen, double mouseX, double mouseY, int button) {
-        if (!(screen instanceof JeiAwareScreen aware)) return false;
         if (activeMode == null || runtime == null) return false;
-        if (activeScreen != aware) return false;
+
+        // Fabric can report screen click events with wrappers/indirections.
+        // Prefer the explicitly activated editor screen when available.
+        JeiAwareScreen aware;
+        if (activeScreen != null) {
+            aware = activeScreen;
+        } else if (screen instanceof JeiAwareScreen s) {
+            aware = s;
+        } else {
+            return false;
+        }
 
         IIngredientListOverlay overlay = runtime.getIngredientListOverlay();
         IBookmarkOverlay bookmarks = runtime.getBookmarkOverlay();
