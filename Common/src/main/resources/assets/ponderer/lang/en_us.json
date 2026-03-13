@@ -592,6 +592,7 @@
   "ponderer.ui.trigger_editor.error.invalid_structure": "Invalid structure ID",
   "ponderer.ui.trigger_editor.pick_prompt.first": "Middle-click to set first corner",
   "ponderer.ui.trigger_editor.pick_prompt.second": "Middle-click to set second corner",
+  "ponderer.ui.trigger_editor.pick_prompt.third": "Hold Ctrl+Scroll to adjust along highlighted face, then middle-click to confirm",
   "key.categories.ponderer": "Ponderer",
   "ponderer.ui.function_page.title": "Ponderer Function Page",
   "ponderer.ui.function_page.scene_management": "Scene Management",

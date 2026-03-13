@@ -573,6 +573,7 @@
   "ponderer.ui.trigger_editor.error.invalid_structure": "无效的结构 ID",
   "ponderer.ui.trigger_editor.pick_prompt.first": "中键点击设置第一个角",
   "ponderer.ui.trigger_editor.pick_prompt.second": "中键点击设置第二个角",
+  "ponderer.ui.trigger_editor.pick_prompt.third": "按住Ctrl+滚轮沿高亮面调整，完成后中键确认",
   "key.categories.ponderer": "Ponderer",
   "ponderer.ui.function_page.title": "Ponderer 功能页面",
   "ponderer.ui.function_page.scene_management": "场景管理",

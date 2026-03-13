@@ -204,9 +204,9 @@ public class StructureListScreen extends AbstractSimiScreen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         int maxOff = Math.max(0, filtered.size() - maxVisible());
-        scrollOffset = (int) Math.max(0, Math.min(maxOff, scrollOffset - delta * 3));
+        scrollOffset = (int) Math.max(0, Math.min(maxOff, scrollOffset - scrollY * 3));
         return true;
     }
 

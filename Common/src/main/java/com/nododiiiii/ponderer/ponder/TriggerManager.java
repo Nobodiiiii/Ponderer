@@ -13,11 +13,13 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
@@ -311,8 +313,7 @@ public final class TriggerManager {
         String sceneKey = sceneToOpen.id != null ? sceneToOpen.id : "";
         openPonderFor(sceneToOpen, sceneKey);
         activeScene = null;
-        wasInZone = false;
-        titleShownThisEntry = false;
+        // Keep in-zone state so "always" modes only retrigger after leave -> re-enter.
         return true;
     }
 
@@ -364,7 +365,7 @@ public final class TriggerManager {
             var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
             ItemStack stack = new ItemStack(item);
             var tag = net.minecraft.nbt.TagParser.parseTag(nbtFilter);
-            stack.setTag(tag);
+            stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
             return stack;
         } catch (Exception e) {
             var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);

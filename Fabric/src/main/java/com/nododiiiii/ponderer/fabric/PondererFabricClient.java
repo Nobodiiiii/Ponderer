@@ -47,6 +47,7 @@ public class PondererFabricClient implements ClientModInitializer {
     private final BlueprintHandler blueprintHandler = new BlueprintHandler();
     private boolean hasNotified = false;
     private boolean triggerKeyWasDown = false;
+    private boolean jeiLeftMouseWasDown = false;
 
     @Override
     public void onInitializeClient() {
@@ -86,7 +87,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
         // Client tick: key bindings + blueprint handler + player join notifications
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.player != null && client.screen == null && (NbtPickState.isActive() || CoordPickState.isActive())) {
+            if (client.player != null && client.screen == null && NbtPickState.isActive()) {
                 client.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
             }
 
@@ -100,7 +101,6 @@ public class PondererFabricClient implements ClientModInitializer {
 
             // Blueprint handler tick
             blueprintHandler.tick();
-            handleBlueprintMouseInput(client);
 
             // Trigger manager tick
             TriggerManager.tick();
@@ -124,14 +124,27 @@ public class PondererFabricClient implements ClientModInitializer {
                 hasNotified = true;
                 showPendingNotifications();
             }
+
+            // JEI click fallback for Fabric: catches clicks that may bypass screen mouse callbacks.
+            if (JeiCompat.isAvailable() && client.screen != null) {
+                long window = client.getWindow().getWindow();
+                boolean leftDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+                if (leftDown && !jeiLeftMouseWasDown) {
+                    double mouseX = client.mouseHandler.xpos() * client.getWindow().getGuiScaledWidth() / client.getWindow().getScreenWidth();
+                    double mouseY = client.mouseHandler.ypos() * client.getWindow().getGuiScaledHeight() / client.getWindow().getScreenHeight();
+                    PondererJeiPlugin.handleMouseClick(client.screen, mouseX, mouseY, 0);
+                }
+                jeiLeftMouseWasDown = leftDown;
+            } else {
+                jeiLeftMouseWasDown = false;
+            }
         });
 
         // JEI click interception on screen open
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
             if (JeiCompat.isAvailable()) {
-                ScreenMouseEvents.beforeMouseClick(screen).register((scr, mouseX, mouseY, button) -> {
-                    PondererJeiPlugin.handleMouseClick(scr, mouseX, mouseY, button);
-                });
+                ScreenMouseEvents.allowMouseClick(screen).register((scr, mouseX, mouseY, button) ->
+                        !PondererJeiPlugin.handleMouseClick(scr, mouseX, mouseY, button));
             }
         });
     }
@@ -198,15 +211,4 @@ public class PondererFabricClient implements ClientModInitializer {
         });
     }
 
-    private void handleBlueprintMouseInput(Minecraft client) {
-        if (client.getWindow() == null) {
-            return;
-        }
-        long window = client.getWindow().getWindow();
-        boolean rightMouseDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS;
-        if (rightMouseDown && !wasRightMouseDown) {
-            blueprintHandler.onMouseInput(1, true);
-        }
-        wasRightMouseDown = rightMouseDown;
-    }
 }

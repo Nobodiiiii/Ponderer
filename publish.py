@@ -160,23 +160,10 @@ def extract_changelog(version: str) -> str:
 
 
 def _version_candidates(version: str):
-    """生成可匹配的版本候选（例如 1.6.0.1 -> 1.6.0.1 / 1.6.0）"""
-    candidates = []
-    if version:
-        candidates.append(version)
-
-    parts = version.split(".") if version else []
-    if len(parts) >= 4:
-        candidates.append(".".join(parts[:3]))
-
-    # 去重并保序
-    seen = set()
-    unique = []
-    for v in candidates:
-        if v not in seen:
-            seen.add(v)
-            unique.append(v)
-    return unique
+    """生成可匹配的版本候选（保持完整版本号，避免 1.7.0.1 被降级为 1.7.0）。"""
+    if not version:
+        return []
+    return [version]
 
 
 def _clean_commit_body(body: str) -> str:

@@ -7,17 +7,14 @@ import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
- * Editor screen for ponder scene description: item, NBT, titles, IDs.
+ * Editor screen for ponder scene description: titles and IDs.
  * Trigger settings are handled by {@link TriggerEditorScreen}.
  */
 public class SceneDescEditorScreen extends AbstractStepEditorScreen {
@@ -33,15 +30,9 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
     private String sceneTitleLang;
     private LocalizedText workingSceneTitle;
 
-    // Item fields
-    private FieldWithJeiAndHeldItem itemRow;
-    private HintableTextFieldWidget itemNbtField;
-
     // IDs
     private HintableTextFieldWidget ponderIdField;
     private HintableTextFieldWidget sceneIdField;
-
-    private boolean pendingItemDuplicateConfirm = false;
 
     public SceneDescEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.scene_desc"), scene, sceneIndex, parent);
@@ -68,8 +59,7 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
 
     @Override
     protected int getFormRowCount() {
-        int rows = 2; // item ID + item NBT
-        rows += 1; // ponder title
+        int rows = 1; // ponder title
         if (hasMultiScene) rows += 1; // scene title
         rows += 1; // ponder ID
         if (hasMultiScene) rows += 1; // scene ID
@@ -85,30 +75,6 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
     @Override
     protected void buildForm() {
         beginForm();
-
-        // ---- Item ID with JEI + held-item button ----
-        itemRow = addFormTextFieldWithJeiAndHeldItem(
-                "ponderer.ui.scene_desc.item_id", null,
-                UIText.of("ponderer.ui.scene_desc.hint.item_id"),
-                IdFieldMode.ITEM,
-                stack -> {
-                    String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-                    itemRow.field().setValue(itemId);
-                    if (itemNbtField != null && stack.getTag() != null && !stack.getTag().isEmpty()) {
-                        itemNbtField.setValue(stack.getTag().toString());
-                    } else if (itemNbtField != null) {
-                        itemNbtField.setValue("");
-                    }
-                });
-        String currentItem = (scene.items != null && !scene.items.isEmpty()) ? scene.items.get(0) : "";
-        itemRow.field().setValue(currentItem);
-
-        // ---- Item NBT field ----
-        itemNbtField = addFormNbtField(
-                "ponderer.ui.scene_desc.item_nbt", null,
-                UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
-                124, "nbt");
-        itemNbtField.setValue(scene.nbtFilter != null ? scene.nbtFilter : "");
 
         // ---- Ponder title with lang toggle ----
         ponderTitleRow = addFormTextFieldWithLang(
@@ -163,10 +129,6 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        if (snapshot.containsKey("itemId") && itemRow != null)
-            itemRow.field().setValue(snapshot.get("itemId"));
-        if (snapshot.containsKey("itemNbt") && itemNbtField != null)
-            itemNbtField.setValue(snapshot.get("itemNbt"));
         if (snapshot.containsKey("ponderTitle") && ponderTitleRow != null)
             ponderTitleRow.field().setValue(snapshot.get("ponderTitle"));
         if (snapshot.containsKey("ponderTitleLang"))
@@ -184,8 +146,6 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
     @Override
     protected Map<String, String> snapshotForm() {
         Map<String, String> m = new HashMap<>();
-        if (itemRow != null) m.put("itemId", itemRow.field().getValue());
-        if (itemNbtField != null) m.put("itemNbt", itemNbtField.getValue());
         if (ponderTitleRow != null) m.put("ponderTitle", ponderTitleRow.field().getValue());
         m.put("ponderTitleLang", ponderTitleLang);
         if (hasMultiScene && sceneTitleRow != null) {
@@ -201,34 +161,6 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
 
     private void doConfirm() {
         errorMessage = null;
-
-        String newItemId = itemRow.field().getValue().trim();
-        if (newItemId.isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.scene_desc.empty_item");
-            return;
-        }
-
-        String oldItemId = (scene.items != null && !scene.items.isEmpty()) ? scene.items.get(0) : "";
-        if (!newItemId.equals(oldItemId) && !pendingItemDuplicateConfirm) {
-            for (DslScene s : SceneRuntime.getScenes()) {
-                if (s != scene && s.items != null && s.items.contains(newItemId)) {
-                    Minecraft.getInstance().setScreen(new net.minecraft.client.gui.screens.ConfirmScreen(
-                            confirmed -> {
-                                if (confirmed) {
-                                    pendingItemDuplicateConfirm = true;
-                                    Minecraft.getInstance().setScreen(this);
-                                    doConfirm();
-                                } else {
-                                    Minecraft.getInstance().setScreen(this);
-                                }
-                            },
-                            Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"),
-                            Component.translatable("ponderer.ui.scene_desc.error.item_exists", newItemId)));
-                    return;
-                }
-            }
-        }
-        pendingItemDuplicateConfirm = false;
 
         String newPonderId = ponderIdField.getValue().trim();
         if (!newPonderId.isEmpty() && !newPonderId.equals(scene.id)) {
@@ -257,12 +189,6 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
 
         // ---- Save all fields ----
 
-        boolean itemChanged = !newItemId.equals(oldItemId);
-        scene.items = List.of(newItemId);
-
-        String nbt = itemNbtField.getValue().trim();
-        scene.nbtFilter = nbt.isEmpty() ? null : nbt;
-
         String pTitle = ponderTitleRow.field().getValue();
         if (!pTitle.isEmpty()) {
             workingPonderTitle.setForLang(ponderTitleLang, pTitle);
@@ -277,19 +203,7 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
             scene.scenes.get(sceneIndex).title = workingSceneTitle;
         }
 
-        if (itemChanged && (newPonderId.isEmpty() || newPonderId.equals(scene.id))) {
-            ResourceLocation itemLoc = ResourceLocation.tryParse(newItemId);
-            if (itemLoc != null) {
-                String baseId = "ponderer:" + itemLoc.getPath();
-                String derivedId = baseId;
-                int suffix = 0;
-                while (idExistsElsewhere(derivedId)) {
-                    suffix++;
-                    derivedId = baseId + "_" + suffix;
-                }
-                scene.id = derivedId;
-            }
-        } else if (!newPonderId.isEmpty()) {
+        if (!newPonderId.isEmpty()) {
             scene.id = newPonderId;
         }
 
@@ -304,85 +218,6 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
         returnToParent();
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (maxScroll > 0) {
-            scrollOffset = (int) Math.max(0, Math.min(maxScroll, scrollOffset - scrollY * UILayoutConstants.SCROLL_SPEED));
-            updateWidgetPositions();
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-    }
-
-    private void updateWidgetPositions() {
-        int vpTop = guiTop + HEADER_H;
-        int vpBot = guiTop + displayH - FOOTER_H;
-        for (FormWidgetRecord rec : formWidgetRecords) {
-            int newY = guiTop + rec.contentOffsetY - scrollOffset;
-            rec.widget.setY(newY);
-            if (maxScroll > 0) {
-                rec.widget.visible = (newY + rec.widget.getHeight() > vpTop) && (newY < vpBot);
-            } else {
-                rec.widget.visible = true;
-            }
-        }
-    }
-
-    private void renderScrollbar(GuiGraphics graphics) {
-        if (maxScroll <= 0) return;
-        int barX = guiLeft + WINDOW_W - UILayoutConstants.SCROLLBAR_W - 2;
-        int vpTop = guiTop + HEADER_H;
-        int vpBot = guiTop + displayH - FOOTER_H;
-        int trackH = vpBot - vpTop;
-        graphics.fill(barX, vpTop, barX + UILayoutConstants.SCROLLBAR_W, vpBot, UILayoutConstants.COLOR_SCROLLBAR_BG);
-        int contentH = WINDOW_H - HEADER_H - FOOTER_H;
-        if (contentH <= 0) return;
-        int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * trackH / contentH);
-        int thumbY = vpTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
-        graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
-    }
-
-    private void returnToParent() {
-        Minecraft.getInstance().setScreen(parent);
-    }
-
-    @Override
-    public void onClose() {
-        returnToParent();
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE)
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        if (getFocused() != null && getFocused().keyPressed(keyCode, scanCode, modifiers))
-            return true;
-        if (getFocused() instanceof net.minecraft.client.gui.components.EditBox)
-            return true;
-        return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        if (getFocused() != null && getFocused().charTyped(codePoint, modifiers))
-            return true;
-        return super.charTyped(codePoint, modifiers);
-    }
-
-    // ---- Helpers ----
-
-    private boolean idExistsElsewhere(String id) {
-        for (DslScene s : SceneRuntime.getScenes()) {
-            if (s != scene && id.equals(s.id)) return true;
-        }
-        return false;
     }
 
     // ---- Language toggle logic ----

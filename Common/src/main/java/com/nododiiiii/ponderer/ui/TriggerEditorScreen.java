@@ -1,16 +1,20 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.component.CustomData;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
@@ -38,6 +42,11 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     // Custom hint text fields (for title/subtitle)
     private HintableTextFieldWidget titleTextField;
     private HintableTextFieldWidget subtitleTextField;
+
+    // Carrier item + NBT (always visible at the top)
+    private FieldWithJeiAndHeldItem itemRow;
+    private HintableTextFieldWidget itemNbtField;
+    private boolean pendingItemDuplicateConfirm = false;
 
     // Structure trigger
     private HintableTextFieldWidget structureField;
@@ -118,8 +127,9 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
 
     @Override
     protected int getFormRowCount() {
-        if (triggerModeIndex == 0) return 1;
-        int rows = 4; // trigger mode + auto + title + subtitle
+        int rows = 3; // item ID + item NBT + trigger mode
+        if (triggerModeIndex == 0) return rows;
+        rows += 3; // auto + title + subtitle
         if (titleFreqIndex != 0) rows++; // title custom text
         if (subtitleFreqIndex != 0) rows++; // subtitle custom text
         String mode = TRIGGER_MODES[triggerModeIndex];
@@ -144,8 +154,34 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
         pickBtn1 = null;
         titleTextField = null;
         subtitleTextField = null;
+        itemRow = null;
+        itemNbtField = null;
 
         beginForm();
+
+        // ---- Carrier item ID + NBT (always shown) ----
+        itemRow = addFormTextFieldWithJeiAndHeldItem(
+                "ponderer.ui.scene_desc.item_id", null,
+                UIText.of("ponderer.ui.scene_desc.hint.item_id"),
+                IdFieldMode.ITEM,
+                stack -> {
+                    String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+                    itemRow.field().setValue(itemId);
+                    var custom = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+                    if (itemNbtField != null && !custom.isEmpty()) {
+                        itemNbtField.setValue(custom.toString());
+                    } else if (itemNbtField != null) {
+                        itemNbtField.setValue("");
+                    }
+                });
+        String currentItem = (scene.items != null && !scene.items.isEmpty()) ? scene.items.get(0) : "";
+        itemRow.field().setValue(currentItem);
+
+        itemNbtField = addFormNbtField(
+                "ponderer.ui.scene_desc.item_nbt", null,
+                UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
+                124, "nbt");
+        itemNbtField.setValue(scene.nbtFilter != null ? scene.nbtFilter : "");
 
         // ---- Trigger mode cycle button ----
         addFormCycleButton(
@@ -303,6 +339,10 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
         if (snapshot.containsKey("subtitleFreq")) {
             try { subtitleFreqIndex = Integer.parseInt(snapshot.get("subtitleFreq")); } catch (NumberFormatException ignored) {}
         }
+        if (snapshot.containsKey("itemId") && itemRow != null)
+            itemRow.field().setValue(snapshot.get("itemId"));
+        if (snapshot.containsKey("itemNbt") && itemNbtField != null)
+            itemNbtField.setValue(snapshot.get("itemNbt"));
         if (titleTextField != null && snapshot.containsKey("titleText"))
             titleTextField.setValue(snapshot.get("titleText"));
         if (subtitleTextField != null && snapshot.containsKey("subtitleText"))
@@ -335,7 +375,7 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
             renderPickButtonLabel(graphics, pickBtn1);
         }
         // Red warning above confirm/cancel when auto-trigger is enabled
-        if (autoFreqIndex != 0) {
+        if (triggerModeIndex != 0 && autoFreqIndex != 0) {
             String warning = UIText.of("ponderer.ui.trigger_editor.auto_warning");
             int warnY = confirmButton.getY() - 12;
             graphics.drawCenteredString(font, warning, guiLeft + WINDOW_W / 2, warnY, 0xFF5555);
@@ -349,6 +389,8 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
         m.put("autoFreq", String.valueOf(autoFreqIndex));
         m.put("titleFreq", String.valueOf(titleFreqIndex));
         m.put("subtitleFreq", String.valueOf(subtitleFreqIndex));
+        if (itemRow != null) m.put("itemId", itemRow.field().getValue());
+        if (itemNbtField != null) m.put("itemNbt", itemNbtField.getValue());
 
         if (titleTextField != null) m.put("titleText", titleTextField.getValue());
         if (subtitleTextField != null) m.put("subtitleText", subtitleTextField.getValue());
@@ -376,6 +418,38 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     /** Validate and save form data. Returns false if validation failed. */
     private boolean doSave() {
         errorMessage = null;
+
+        String newItemId = itemRow != null ? itemRow.field().getValue().trim() : "";
+        if (newItemId.isEmpty()) {
+            errorMessage = UIText.of("ponderer.ui.scene_desc.empty_item");
+            return false;
+        }
+
+        String oldItemId = (scene.items != null && !scene.items.isEmpty()) ? scene.items.get(0) : "";
+        if (!newItemId.equals(oldItemId) && !pendingItemDuplicateConfirm) {
+            for (DslScene s : SceneRuntime.getScenes()) {
+                if (s != scene && s.items != null && s.items.contains(newItemId)) {
+                    Minecraft.getInstance().setScreen(new net.minecraft.client.gui.screens.ConfirmScreen(
+                            confirmed -> {
+                                if (confirmed) {
+                                    pendingItemDuplicateConfirm = true;
+                                    Minecraft.getInstance().setScreen(this);
+                                    doConfirm();
+                                } else {
+                                    Minecraft.getInstance().setScreen(this);
+                                }
+                            },
+                            Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"),
+                            Component.translatable("ponderer.ui.scene_desc.error.item_exists", newItemId)));
+                    return false;
+                }
+            }
+        }
+        pendingItemDuplicateConfirm = false;
+
+        scene.items = List.of(newItemId);
+        String nbt = itemNbtField != null ? itemNbtField.getValue().trim() : "";
+        scene.nbtFilter = nbt.isEmpty() ? null : nbt;
 
         String triggerMode = TRIGGER_MODES[triggerModeIndex];
 
