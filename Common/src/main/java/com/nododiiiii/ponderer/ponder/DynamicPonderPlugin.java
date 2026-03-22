@@ -89,65 +89,64 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
         helper.forComponents(carrier)
             .addStoryBoard(
-                new ResourceLocation("ponder", "debug/scene_1"),
+                new ResourceLocation("ponderer", "basic"),
                 (scene, util) -> {
                     scene.title("blueprint_usage", I18n.get("ponderer.guide.blueprint.title"));
                     scene.showBasePlate();
 
-                    Vec3 target = util.vector().centerOf(util.grid().at(2, 1, 2));
+                    scene.addKeyframe();
+                    scene.idle(20);
+
+                    Vec3 firstPoint = new Vec3(1.5, 1.0, 1.5);
+                    Vec3 secondPoint = new Vec3(3.5, 4.0, 3.5);
+                    Vec3 resizePoint = new Vec3(2.5, 2.5, 1.5);
+                    Selection firstSelection = util.select().fromTo(1, 1, 1, 3, 3, 3);
+                    Selection resizedSelection = util.select().fromTo(1, 1, 2, 3, 3, 3);
                     ItemStack carrierStack = BlueprintFeature.getCarrierStack();
 
-                    // Step 1: first right-click to set the start position
-                    scene.overlay().showText(80)
+                    scene.overlay().showControls(firstPoint, Pointing.DOWN, 40)
+                        .rightClick()
+                        .withItem(carrierStack);
+                    scene.addKeyframe();
+                    scene.overlay().showText(40)
                         .text(I18n.get("ponderer.guide.blueprint.step1"))
-                        .pointAt(target)
+                        .pointAt(firstPoint)
                         .placeNearTarget();
-                    scene.overlay().showControls(target, Pointing.DOWN, 40)
+                    scene.idle(50);
+
+                    scene.overlay().showControls(secondPoint, Pointing.UP, 40)
                         .rightClick()
                         .withItem(carrierStack);
-                    scene.idle(90);
-
-                    // Step 2: second right-click to set the end position
-                    scene.overlay().showText(80)
+                    scene.addKeyframe();
+                    scene.overlay().showText(40)
                         .text(I18n.get("ponderer.guide.blueprint.step2"))
-                        .pointAt(target)
+                        .pointAt(secondPoint)
                         .placeNearTarget();
-                    scene.overlay().showControls(target, Pointing.DOWN, 40)
-                        .rightClick()
-                        .withItem(carrierStack);
-                    scene.idle(90);
+                    scene.overlay().showOutline(PonderPalette.BLUE, new Object(), firstSelection, 50);
+                    scene.idle(50);
 
-                    // Step 3: ctrl+scroll to resize the selected face
-                    scene.overlay().showText(80)
-                        .text(I18n.get("ponderer.guide.blueprint.step3_resize"))
-                        .pointAt(target)
-                        .placeNearTarget();
-                    scene.overlay().showControls(target, Pointing.DOWN, 40)
+                    scene.overlay().showControls(resizePoint, Pointing.RIGHT, 40)
                         .scroll()
                         .whileCTRL()
                         .withItem(carrierStack);
-                    scene.idle(90);
-
-                    // Step 4: third right-click to open save prompt
-                    scene.overlay().showText(80)
-                        .text(I18n.get("ponderer.guide.blueprint.step4_save"))
-                        .pointAt(target)
+                    scene.addKeyframe();
+                    scene.overlay().showText(40)
+                        .text(I18n.get("ponderer.guide.blueprint.step3_resize"))
+                        .pointAt(resizePoint)
                         .placeNearTarget();
-                    scene.overlay().showControls(target, Pointing.DOWN, 40)
-                        .rightClick()
-                        .withItem(carrierStack);
-                    scene.idle(90);
+                    scene.overlay().showOutline(PonderPalette.BLUE, new Object(), resizedSelection, 50);
+                    scene.idle(50);
 
-                    // Step 5: shift+right-click to discard
-                    scene.overlay().showText(80)
-                        .text(I18n.get("ponderer.guide.blueprint.step5_discard"))
-                        .pointAt(target)
-                        .placeNearTarget();
-                    scene.overlay().showControls(target, Pointing.DOWN, 40)
+                    scene.overlay().showControls(resizePoint, Pointing.RIGHT, 40)
                         .rightClick()
                         .whileSneaking()
                         .withItem(carrierStack);
-                    scene.idle(90);
+                    scene.addKeyframe();
+                    scene.overlay().showText(40)
+                        .text(I18n.get("ponderer.guide.blueprint.step5_discard"))
+                        .pointAt(resizePoint)
+                        .placeNearTarget();
+                    scene.overlay().showOutline(PonderPalette.RED, new Object(), resizedSelection, 40);
                 });
     }
 
