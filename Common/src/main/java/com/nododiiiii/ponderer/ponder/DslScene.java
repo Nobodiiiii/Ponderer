@@ -178,6 +178,11 @@ public class DslScene {
         public Boolean reDrawBlocks;
         public Boolean destroyParticles;
         public Boolean spawnParticles;
+        public Boolean immediateDisplay;
+        public Boolean smartDisplay;
+        public String entranceAnimation;
+        public Integer entranceDuration;
+        public Integer entranceInterval;
         public Boolean placeNearTarget;
         public Boolean attachKeyFrame;
         public Boolean whileSneaking;
