@@ -15,6 +15,7 @@ import java.util.Map;
 public class SelectionOperationScreen extends AbstractStepEditorScreen {
 
     private static final String[] DIRECTIONS = {"down", "up", "north", "south", "west", "east"};
+    private static final String[] ENTRANCE_ANIMATIONS = {"none", "simultaneous", "down", "up", "south", "north", "east", "west"};
 
     private final String stepType;
     private final boolean withDirection;
@@ -26,7 +27,12 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     private BoxWidget directionButton;
     private HintableTextFieldWidget linkIdField;
     private HintableTextFieldWidget durationField;
+    private HintableTextFieldWidget intervalField;
+    private BoxWidget entranceAnimationButton;
+    private BoxWidget smartDisplayToggle;
     private int directionIndex = 0;
+    private int entranceAnimationIndex = 0;
+    private boolean smartDisplay = true;
     private PonderButton pickBtn1, pickBtn2;
 
     public SelectionOperationScreen(String stepType, boolean withDirection, boolean withLinkId,
@@ -64,8 +70,15 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         int rows = 2;
         if (withDirection) rows++;
         if (withLinkId) rows++;
+        if (supportsEntranceAnimation()) rows++;
         if (withDuration) rows++;
+        if (supportsEntranceAnimation()) rows++;
+        if (supportsEntranceAnimation()) rows++;
         return rows;
+    }
+
+    private boolean supportsEntranceAnimation() {
+        return "show_section_and_merge".equals(stepType);
     }
 
     @Override
@@ -80,6 +93,14 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         posXField = from.x(); posYField = from.y(); posZField = from.z(); pickBtn1 = from.pickBtn();
         var to = addFormXyzRow("ponderer.ui." + stepType + ".pos_to", "ponderer.ui." + stepType + ".pos_to.tooltip", PickState.TargetField.POS2);
         pos2XField = to.x(); pos2YField = to.y(); pos2ZField = to.z(); pickBtn2 = to.pickBtn();
+        if (supportsEntranceAnimation()) {
+            entranceAnimationButton = addFormCycleButton("ponderer.ui.entrance_animation", "ponderer.ui.entrance_animation.tooltip",
+                    140, () -> {
+                        entranceAnimationIndex = (entranceAnimationIndex + 1) % ENTRANCE_ANIMATIONS.length;
+                        updateTickFieldsEnabledState();
+                    },
+                    () -> entranceAnimationLabel(ENTRANCE_ANIMATIONS[entranceAnimationIndex]));
+        }
         if (withDirection) {
             directionButton = addFormCycleButton("ponderer.ui." + stepType + ".direction", "ponderer.ui." + stepType + ".direction.tooltip",
                     140, () -> directionIndex = (directionIndex + 1) % DIRECTIONS.length,
@@ -90,6 +111,12 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         }
         if (withDuration) {
             durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.duration.tooltip.section_animation", "20", 60);
+        }
+        if (supportsEntranceAnimation()) {
+            intervalField = addFormNumberField("ponderer.ui.entrance_interval", "ponderer.ui.entrance_interval.tooltip", "1", 60);
+            smartDisplayToggle = addFormToggle("ponderer.ui.smart_display", "ponderer.ui.smart_display.tooltip",
+                    () -> smartDisplay, () -> smartDisplay = !smartDisplay);
+            updateTickFieldsEnabledState();
         }
     }
 
@@ -118,9 +145,29 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         if (withLinkId && step.linkId != null) {
             linkIdField.setValue(step.linkId);
         }
-        if (withDuration && step.duration != null) {
-            durationField.setValue(String.valueOf(step.duration));
+        if (supportsEntranceAnimation() && step.entranceAnimation != null && !step.entranceAnimation.isBlank()) {
+            String normalized = normalizeEntranceAnimation(step.entranceAnimation);
+            for (int i = 0; i < ENTRANCE_ANIMATIONS.length; i++) {
+                if (ENTRANCE_ANIMATIONS[i].equals(normalized)) {
+                    entranceAnimationIndex = i;
+                    break;
+                }
+            }
         }
+        if (withDuration) {
+            if (step.entranceDuration != null) {
+                durationField.setValue(String.valueOf(step.entranceDuration));
+            } else if (step.duration != null) {
+                durationField.setValue(String.valueOf(step.duration));
+            }
+        }
+        if (supportsEntranceAnimation() && intervalField != null && step.entranceInterval != null) {
+            intervalField.setValue(String.valueOf(step.entranceInterval));
+        }
+        if (supportsEntranceAnimation() && step.smartDisplay != null) {
+            smartDisplay = step.smartDisplay;
+        }
+        updateTickFieldsEnabledState();
     }
 
 
@@ -143,6 +190,40 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         };
     }
 
+    private String normalizeEntranceAnimation(String raw) {
+        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "从上到下", "上到下", "top_to_bottom", "top-down", "down" -> "down";
+            case "从下到上", "下到上", "bottom_to_top", "bottom-up", "up" -> "up";
+            case "从北到南", "北到南", "north_to_south", "north-south", "south" -> "south";
+            case "从南到北", "南到北", "south_to_north", "south-north", "north" -> "north";
+            case "从西到东", "西到东", "west_to_east", "west-east", "east" -> "east";
+            case "从东到西", "东到西", "east_to_west", "east-west", "west" -> "west";
+            case "同时", "simultaneous" -> "simultaneous";
+            default -> "none";
+        };
+    }
+
+    private String entranceAnimationLabel(String value) {
+        return UIText.of("ponderer.ui.entrance_animation.option." + value);
+    }
+
+    private void updateTickFieldsEnabledState() {
+        if (!supportsEntranceAnimation()) {
+            return;
+        }
+        String mode = ENTRANCE_ANIMATIONS[entranceAnimationIndex];
+        boolean durationEnabled = !"none".equals(mode);
+        boolean intervalEnabled = !("none".equals(mode) || "simultaneous".equals(mode));
+
+        if (durationField != null) {
+            durationField.active = durationEnabled;
+        }
+        if (intervalField != null) {
+            intervalField.active = intervalEnabled;
+        }
+    }
+
     @Override
     protected String getStepType() { return stepType; }
 
@@ -158,6 +239,9 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         if (withDirection) m.put("direction", String.valueOf(directionIndex));
         if (withLinkId && linkIdField != null) m.put("linkId", linkIdField.getValue());
         if (withDuration && durationField != null) m.put("duration", durationField.getValue());
+        if (supportsEntranceAnimation() && intervalField != null) m.put("entranceInterval", intervalField.getValue());
+        if (supportsEntranceAnimation()) m.put("entranceAnimation", String.valueOf(entranceAnimationIndex));
+        if (supportsEntranceAnimation()) m.put("smartDisplay", String.valueOf(smartDisplay));
         return m;
     }
 
@@ -175,6 +259,23 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         }
         if (withLinkId && linkIdField != null && snapshot.containsKey("linkId")) linkIdField.setValue(snapshot.get("linkId"));
         if (withDuration && durationField != null && snapshot.containsKey("duration")) durationField.setValue(snapshot.get("duration"));
+        if (supportsEntranceAnimation() && intervalField != null && snapshot.containsKey("entranceInterval")) {
+            intervalField.setValue(snapshot.get("entranceInterval"));
+        }
+        if (supportsEntranceAnimation() && snapshot.containsKey("entranceAnimation")) {
+            try {
+                entranceAnimationIndex = Integer.parseInt(snapshot.get("entranceAnimation"));
+            } catch (NumberFormatException ignored) {
+                entranceAnimationIndex = 0;
+            }
+            if (entranceAnimationIndex < 0 || entranceAnimationIndex >= ENTRANCE_ANIMATIONS.length) {
+                entranceAnimationIndex = 0;
+            }
+        }
+        if (supportsEntranceAnimation() && snapshot.containsKey("smartDisplay")) {
+            smartDisplay = Boolean.parseBoolean(snapshot.get("smartDisplay"));
+        }
+        updateTickFieldsEnabledState();
     }
 
     @Nullable
@@ -217,7 +318,20 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
             if (!linkId.isEmpty()) s.linkId = linkId;
         }
 
-        if (withDuration) {
+        if (supportsEntranceAnimation()) {
+            String entranceAnimation = ENTRANCE_ANIMATIONS[entranceAnimationIndex];
+            if ("none".equals(entranceAnimation)) {
+                s.entranceAnimation = "none";
+                s.duration = 0;
+            } else {
+                s.entranceAnimation = entranceAnimation;
+                s.entranceDuration = Math.max(0, parseIntOr(durationField != null ? durationField.getValue() : "20", 20));
+                s.entranceInterval = Math.max(0, parseIntOr(intervalField != null ? intervalField.getValue() : "1", 1));
+            }
+            s.smartDisplay = smartDisplay;
+        }
+
+        if (withDuration && s.entranceAnimation == null) {
             s.duration = Math.max(0, parseIntOr(durationField.getValue(), 20));
         }
 

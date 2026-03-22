@@ -49,16 +49,21 @@ import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public class DynamicPonderPlugin implements PonderPlugin {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static class StepContext {
         final Map<String, ElementLink<WorldSectionElement>> sectionLinks = new HashMap<>();
+        final Set<Long> visibleBlockKeys = new java.util.HashSet<>();
+        final Set<Long> hiddenBlockKeys = new java.util.HashSet<>();
+        boolean allBlocksVisible;
     }
 
     @Override
@@ -362,12 +367,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
                     return;
                 }
 
+                StepContext context = new StepContext();
+
                 if (!firstStepIsShowStructure(sc)) {
-                    applyShowStructure(builder, new DslScene.DslStep());
+                    applyShowStructure(builder, new DslScene.DslStep(), context);
                     builder.idle(20);
                 }
-
-                StepContext context = new StepContext();
 
                 for (DslScene.DslStep step : sc.steps) {
                     if (step == null || step.type == null) {
@@ -389,7 +394,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             scene.addKeyframe();
         }
         switch (step.type.toLowerCase(Locale.ROOT)) {
-            case "show_structure" -> applyShowStructure(scene, step);
+            case "show_structure" -> applyShowStructure(scene, step, context);
             case "idle" -> scene.idle(step.durationOrDefault(20));
             case "text" -> applyText(scene, step);
             case "shared_text" -> applySharedText(scene, step);
@@ -401,10 +406,10 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "show_controls" -> applyShowControls(scene, step);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
-            case "set_block" -> applySetBlock(scene, step);
-            case "destroy_block" -> applyDestroyBlock(scene, step);
-            case "replace_blocks" -> applyReplaceBlocks(scene, step);
-            case "hide_section" -> applyHideSection(scene, step);
+            case "set_block" -> applySetBlock(scene, step, context);
+            case "destroy_block" -> applyDestroyBlock(scene, step, context);
+            case "replace_blocks" -> applyReplaceBlocks(scene, step, context);
+            case "hide_section" -> applyHideSection(scene, step, context);
             case "show_section_and_merge" -> applyShowSectionAndMerge(scene, step, context);
             case "rotate_section" -> applyRotateSection(scene, step, context);
             case "move_section" -> applyMoveSection(scene, step, context);
@@ -732,8 +737,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         return stack;
     }
 
-    private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         Selection selection;
+        boolean isEverywhere;
         if (step.blockPos != null && step.blockPos.size() >= 3) {
             BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
             BlockPos pos2 = pos1;
@@ -741,11 +747,20 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
             }
             selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+            isEverywhere = false;
         } else {
             // Default behavior: show full structure when no region is provided.
             selection = scene.getScene().getSceneBuildingUtil().select().everywhere();
+            isEverywhere = true;
         }
         scene.world().showSection(selection, Direction.UP);
+        if (isEverywhere) {
+            context.allBlocksVisible = true;
+            context.visibleBlockKeys.clear();
+            context.hiddenBlockKeys.clear();
+        } else {
+            updateVisibleRange(context, step, true);
+        }
         if (step.scale != null) {
             scene.scaleSceneView(step.scale);
         }
@@ -794,7 +809,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         });
     }
 
-    private void applySetBlock(SceneBuilder scene, DslScene.DslStep step) {
+    private void applySetBlock(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         if (step.block == null || step.block.isBlank()) {
             LOGGER.warn("set_block missing block id");
             return;
@@ -819,8 +834,21 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
         boolean particles = !Boolean.FALSE.equals(step.spawnParticles);
+        boolean immediateDisplay = !Boolean.FALSE.equals(step.immediateDisplay);
+        BlockPos pos2 = pos;
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
-            BlockPos pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+            pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+        }
+
+        String entranceAnimation = normalizeEntranceAnimation(step.entranceAnimation);
+        if (entranceAnimation != null && !"none".equals(entranceAnimation)) {
+            applyAnimatedSetBlock(scene, step, context, state, pos, pos2, particles, immediateDisplay, entranceAnimation);
+            return;
+        }
+
+        ensureSceneCanShowRange(scene, pos, pos2, immediateDisplay);
+        updateVisibleRange(context, step, immediateDisplay);
+        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
             var selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos, pos2);
             scene.world().setBlocks(selection, state, particles);
             applySetBlockNbtPatch(scene, step, selection);
@@ -828,6 +856,67 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
         scene.world().setBlock(pos, state, particles);
         applySetBlockNbtPatch(scene, step, scene.getScene().getSceneBuildingUtil().select().position(pos));
+    }
+
+    private void applyAnimatedSetBlock(SceneBuilder scene, DslScene.DslStep step, StepContext context, BlockState state,
+                                       BlockPos pos1, BlockPos pos2, boolean particles,
+                                       boolean immediateDisplay, String entranceAnimation) {
+        List<List<BlockPos>> groups = orderedLayerGroups(pos1, pos2, entranceAnimation);
+        if (groups.isEmpty()) {
+            return;
+        }
+
+        if (!immediateDisplay) {
+            ensureSceneCanShowRange(scene, pos1, pos2, false);
+        }
+
+        for (List<BlockPos> group : groups) {
+            for (BlockPos current : group) {
+                if (immediateDisplay) {
+                    ensureSceneCanShowRange(scene, current, current, true);
+                }
+                scene.world().setBlock(current, state, particles);
+                applySetBlockNbtPatch(scene, step, scene.getScene().getSceneBuildingUtil().select().position(current));
+            }
+            scene.idle(1);
+        }
+        updateVisibleRange(context, step, immediateDisplay);
+    }
+
+    /**
+     * Ensure scene bounds and the base visible world section cover the target range.
+     * This prevents newly placed blocks from being clipped when initial structure height is too small.
+     * Only Y limit is expanded; XZ bounds are intentionally left unchanged.
+     */
+    private void ensureSceneCanShowRange(SceneBuilder scene, BlockPos pos1, BlockPos pos2, boolean forceVisibleNow) {
+        int maxY = Math.max(pos1.getY(), pos2.getY());
+
+        // Bounds in ponder are effectively size-based for this use, so +1 keeps the max block included.
+        BlockPos requiredBounds = new BlockPos(0, maxY + 1, 0);
+        Selection targetSelection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+
+        scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(requiredBounds);
+
+            if (!forceVisibleNow) {
+                if (!ps.getBaseWorldSection().isEmpty()) {
+                    ps.getBaseWorldSection().erase(targetSelection);
+                    ps.getBaseWorldSection().queueRedraw();
+                }
+                return;
+            }
+
+            if (ps.getBaseWorldSection().isEmpty()) {
+                Selection all = ps.getSceneBuildingUtil().select().everywhere();
+                ps.getBaseWorldSection().set(all);
+                ps.getBaseWorldSection().setVisible(true);
+                ps.getBaseWorldSection().setFade(1);
+            } else {
+                ps.getBaseWorldSection().add(targetSelection);
+            }
+
+            ps.getBaseWorldSection().queueRedraw();
+        });
     }
 
     private void applySetBlockNbtPatch(SceneBuilder scene, DslScene.DslStep step, Selection selection) {
@@ -844,7 +933,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         scene.world().modifyBlockEntityNBT(selection, BlockEntity.class, nbt -> nbt.merge(patch.copy()), true);
     }
 
-    private void applyDestroyBlock(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyDestroyBlock(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         if (step.blockPos == null || step.blockPos.size() < 3) {
             LOGGER.warn("destroy_block missing blockPos");
             return;
@@ -853,12 +942,14 @@ public class DynamicPonderPlugin implements PonderPlugin {
         boolean particles = !Boolean.FALSE.equals(step.destroyParticles);
         if (particles) {
             scene.world().destroyBlock(pos);
+            updateVisibleRange(context, step, false);
             return;
         }
         scene.world().setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), false);
+        updateVisibleRange(context, step, false);
     }
 
-    private void applyReplaceBlocks(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyReplaceBlocks(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         if (step.block == null || step.block.isBlank()) {
             LOGGER.warn("replace_blocks missing block id");
             return;
@@ -884,10 +975,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
             pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
         boolean particles = !Boolean.FALSE.equals(step.spawnParticles);
+        ensureSceneCanShowRange(scene, pos1, pos2, true);
         var selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
         BlockState state = block.defaultBlockState();
         state = applyBlockProperties(state, step);
         scene.world().replaceBlocks(selection, state, particles);
+        updateVisibleRange(context, step, true);
     }
 
     private BlockState applyBlockProperties(BlockState state, DslScene.DslStep step) {
@@ -911,11 +1004,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 .orElse(state);
     }
 
-    private void applyHideSection(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyHideSection(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         Selection selection = selectionFromStep(scene, step, "hide_section");
         if (selection == null) {
             return;
         }
+        updateVisibleRange(context, step, false);
         int duration = step.durationOrDefault(20);
         // Safety: ensure the base world section has been initialized before hiding.
         // If show_structure was somehow skipped, the base section's internal Selection is null,
@@ -962,6 +1056,26 @@ public class DynamicPonderPlugin implements PonderPlugin {
         int duration = step.durationOrDefault(20);
         Direction direction = parseDirection(step.direction);
         ElementLink<WorldSectionElement> existing = context.sectionLinks.get(linkId);
+
+        String entranceAnimation = normalizeEntranceAnimation(step.entranceAnimation);
+        boolean smartDisplay = !Boolean.FALSE.equals(step.smartDisplay);
+        if ("none".equals(entranceAnimation)) {
+            duration = 0;
+        }
+        if (entranceAnimation != null && !"none".equals(entranceAnimation)) {
+            BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+            BlockPos pos2 = pos1;
+            if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+                pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+            }
+            int rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+            int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
+            applyAnimatedShowSectionAndMerge(scene, context, linkId, existing, pos1, pos2,
+                    entranceAnimation, direction, rowDuration, rowInterval, smartDisplay);
+                updateVisibleRange(context, step, true);
+            return;
+        }
+
         if (existing == null) {
             ElementLink<WorldSectionElement> created;
             if (duration <= 0) {
@@ -974,6 +1088,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 created = instruction.createLink(scene.getScene());
             }
             context.sectionLinks.put(linkId, created);
+            updateVisibleRange(context, step, true);
             return;
         }
         if (duration <= 0) {
@@ -985,14 +1100,78 @@ public class DynamicPonderPlugin implements PonderPlugin {
                     element.queueRedraw();
                 }
             });
+            updateVisibleRange(context, step, true);
             return;
         }
         if (duration == 15) {
             scene.world().showSectionAndMerge(selection, direction, existing);
+            updateVisibleRange(context, step, true);
             return;
         }
         scene.addInstruction(new DisplayWorldSectionInstruction(duration, direction, selection,
                 () -> scene.getScene().resolve(existing)));
+        updateVisibleRange(context, step, true);
+    }
+
+    private void applyAnimatedShowSectionAndMerge(SceneBuilder scene, StepContext context,
+                                                  String linkId,
+                                                  @Nullable ElementLink<WorldSectionElement> existing,
+                                                  BlockPos pos1, BlockPos pos2,
+                                                  String entranceAnimation,
+                                                  Direction entryDirection,
+                                                  int rowDuration,
+                                                  int rowInterval,
+                                                  boolean smartDisplay) {
+        List<List<BlockPos>> groups = orderedLayerGroups(pos1, pos2, entranceAnimation);
+        if (smartDisplay) {
+            groups = filterVisibleGroups(groups, context);
+        }
+        if (groups.isEmpty()) {
+            return;
+        }
+
+        ElementLink<WorldSectionElement> working = existing;
+        for (List<BlockPos> group : groups) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            Selection groupSelection = selectionForGroup(scene, group);
+            if (working == null) {
+                DisplayWorldSectionInstruction instruction = new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection, null);
+                scene.addInstruction(instruction);
+                working = instruction.createLink(scene.getScene());
+                context.sectionLinks.put(linkId, working);
+            } else {
+                ElementLink<WorldSectionElement> target = working;
+                scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection,
+                        () -> scene.getScene().resolve(target)));
+            }
+            scene.idle(rowInterval);
+        }
+    }
+
+    private Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
+        BlockPos first = group.get(0);
+        int minX = first.getX();
+        int minY = first.getY();
+        int minZ = first.getZ();
+        int maxX = first.getX();
+        int maxY = first.getY();
+        int maxZ = first.getZ();
+
+        for (int i = 1; i < group.size(); i++) {
+            BlockPos pos = group.get(i);
+            if (pos.getX() < minX) minX = pos.getX();
+            if (pos.getY() < minY) minY = pos.getY();
+            if (pos.getZ() < minZ) minZ = pos.getZ();
+            if (pos.getX() > maxX) maxX = pos.getX();
+            if (pos.getY() > maxY) maxY = pos.getY();
+            if (pos.getZ() > maxZ) maxZ = pos.getZ();
+        }
+
+        return scene.getScene().getSceneBuildingUtil().select().fromTo(
+                new BlockPos(minX, minY, minZ),
+                new BlockPos(maxX, maxY, maxZ));
     }
 
     private void applyRotateSection(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
@@ -1296,11 +1475,149 @@ public class DynamicPonderPlugin implements PonderPlugin {
         ElementLink<WorldSectionElement> created = scene.world().showIndependentSectionImmediately(selection);
         String key = linkId.isEmpty() ? autoLinkId(context) : linkId;
         context.sectionLinks.put(key, created);
+        updateVisibleRange(context, step, true);
         return created;
     }
 
     private String autoLinkId(StepContext context) {
         return "section_" + (context.sectionLinks.size() + 1);
+    }
+
+    @Nullable
+    private String normalizeEntranceAnimation(@Nullable String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "none", "(无)", "无" -> "none";
+            case "simultaneous", "同时" -> "simultaneous";
+            case "down", "从上到下", "上到下", "top_to_bottom", "top-down" -> "down";
+            case "up", "从下到上", "下到上", "bottom_to_top", "bottom-up" -> "up";
+            case "south", "从北到南", "北到南", "north_to_south", "north-south" -> "south";
+            case "north", "从南到北", "南到北", "south_to_north", "south-north" -> "north";
+            case "east", "从西到东", "西到东", "west_to_east", "west-east" -> "east";
+            case "west", "从东到西", "东到西", "east_to_west", "east-west" -> "west";
+            default -> null;
+        };
+    }
+
+    private List<List<BlockPos>> orderedLayerGroups(BlockPos pos1, BlockPos pos2, String entranceAnimation) {
+        int minX = Math.min(pos1.getX(), pos2.getX());
+        int minY = Math.min(pos1.getY(), pos2.getY());
+        int minZ = Math.min(pos1.getZ(), pos2.getZ());
+        int maxX = Math.max(pos1.getX(), pos2.getX());
+        int maxY = Math.max(pos1.getY(), pos2.getY());
+        int maxZ = Math.max(pos1.getZ(), pos2.getZ());
+
+        List<BlockPos> positions = new ArrayList<>((maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1));
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    positions.add(new BlockPos(x, y, z));
+                }
+            }
+        }
+
+        Comparator<BlockPos> tieBreaker = Comparator
+                .comparingInt((BlockPos p) -> p.getY())
+                .thenComparingInt((BlockPos p) -> p.getZ())
+                .thenComparingInt((BlockPos p) -> p.getX());
+
+        Comparator<BlockPos> comparator = switch (entranceAnimation) {
+            case "down" -> Comparator.comparingInt((BlockPos p) -> p.getY()).reversed().thenComparing(tieBreaker);
+            case "up" -> Comparator.comparingInt((BlockPos p) -> p.getY()).thenComparing(tieBreaker);
+            case "south" -> Comparator.comparingInt((BlockPos p) -> p.getZ()).thenComparing(tieBreaker);
+            case "north" -> Comparator.comparingInt((BlockPos p) -> p.getZ()).reversed().thenComparing(tieBreaker);
+            case "east" -> Comparator.comparingInt((BlockPos p) -> p.getX()).thenComparing(tieBreaker);
+            case "west" -> Comparator.comparingInt((BlockPos p) -> p.getX()).reversed().thenComparing(tieBreaker);
+            default -> tieBreaker;
+        };
+
+        positions.sort(comparator);
+
+        java.util.function.ToIntFunction<BlockPos> layerKey = switch (entranceAnimation) {
+            case "simultaneous" -> (BlockPos p) -> 0;
+            case "south", "north" -> (BlockPos p) -> p.getZ();
+            case "east", "west" -> (BlockPos p) -> p.getX();
+            case "down", "up" -> (BlockPos p) -> p.getY();
+            default -> (BlockPos p) -> p.getY();
+        };
+
+        List<List<BlockPos>> groups = new ArrayList<>();
+        List<BlockPos> currentGroup = null;
+        int currentKey = Integer.MIN_VALUE;
+        for (BlockPos pos : positions) {
+            int key = layerKey.applyAsInt(pos);
+            if (currentGroup == null || key != currentKey) {
+                currentGroup = new ArrayList<>();
+                groups.add(currentGroup);
+                currentKey = key;
+            }
+            currentGroup.add(pos);
+        }
+        return groups;
+    }
+
+    private List<List<BlockPos>> filterVisibleGroups(List<List<BlockPos>> groups, StepContext context) {
+        List<List<BlockPos>> filtered = new ArrayList<>();
+        for (List<BlockPos> group : groups) {
+            List<BlockPos> pending = new ArrayList<>();
+            for (BlockPos pos : group) {
+                if (!isBlockVisible(context, pos.asLong())) {
+                    pending.add(pos);
+                }
+            }
+            if (!pending.isEmpty()) {
+                filtered.add(pending);
+            }
+        }
+        return filtered;
+    }
+
+    private void updateVisibleRange(StepContext context, DslScene.DslStep step, boolean visible) {
+        if (step.blockPos == null || step.blockPos.size() < 3) {
+            return;
+        }
+        BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+        BlockPos pos2 = pos1;
+        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+            pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+        }
+
+        int minX = Math.min(pos1.getX(), pos2.getX());
+        int minY = Math.min(pos1.getY(), pos2.getY());
+        int minZ = Math.min(pos1.getZ(), pos2.getZ());
+        int maxX = Math.max(pos1.getX(), pos2.getX());
+        int maxY = Math.max(pos1.getY(), pos2.getY());
+        int maxZ = Math.max(pos1.getZ(), pos2.getZ());
+
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    long key = BlockPos.asLong(x, y, z);
+                    if (context.allBlocksVisible) {
+                        if (visible) {
+                            context.hiddenBlockKeys.remove(key);
+                        } else {
+                            context.hiddenBlockKeys.add(key);
+                        }
+                    } else {
+                        if (visible) {
+                            context.visibleBlockKeys.add(key);
+                        } else {
+                            context.visibleBlockKeys.remove(key);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isBlockVisible(StepContext context, long key) {
+        if (context.allBlocksVisible) {
+            return !context.hiddenBlockKeys.contains(key);
+        }
+        return context.visibleBlockKeys.contains(key);
     }
 
     private Direction parseDirection(String raw) {
