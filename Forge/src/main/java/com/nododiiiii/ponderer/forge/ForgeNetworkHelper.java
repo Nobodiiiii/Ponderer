@@ -26,7 +26,11 @@ public class ForgeNetworkHelper implements NetworkHelper {
     public void registerPackets() {
         CHANNEL = NetworkRegistry.newSimpleChannel(
                 new ResourceLocation(Ponderer.MODID, "main"),
-                () -> VERSION, VERSION::equals, VERSION::equals
+            () -> VERSION,
+            VERSION::equals,
+            remoteVersion -> VERSION.equals(remoteVersion)
+                || NetworkRegistry.ABSENT.equals(remoteVersion)
+                || NetworkRegistry.ACCEPTVANILLA.equals(remoteVersion)
         );
 
         // Client -> Server

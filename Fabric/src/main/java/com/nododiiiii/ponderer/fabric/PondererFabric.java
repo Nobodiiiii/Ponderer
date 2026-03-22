@@ -6,12 +6,18 @@ import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.registry.ModItems;
 import fuzs.forgeconfigapiport.api.config.v2.ForgeConfigRegistry;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.fml.config.ModConfig;
 
 /**
  * Fabric main entrypoint.
  */
 public class PondererFabric implements ModInitializer {
+
+    private static final ResourceLocation REQUIRED_CLIENT_CHANNEL = new ResourceLocation(Ponderer.MODID, "sync_response");
 
     @Override
     public void onInitialize() {
@@ -23,5 +29,12 @@ public class PondererFabric implements ModInitializer {
 
         // Register network
         PondererServices.NETWORK.registerPackets();
+
+        // If server has this mod, connecting clients must expose our clientbound channel.
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            if (!ServerPlayNetworking.canSend(handler.player, REQUIRED_CLIENT_CHANNEL)) {
+                handler.disconnect(Component.literal("Ponderer is required on client when installed on this server."));
+            }
+        });
     }
 }

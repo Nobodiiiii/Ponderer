@@ -79,6 +79,9 @@ public class FabricNetworkHelper implements NetworkHelper {
         net.minecraft.network.FriendlyByteBuf buf = new net.minecraft.network.FriendlyByteBuf(
                 io.netty.buffer.Unpooled.buffer());
         ResourceLocation channelId = getChannelId(packet);
+        if (!ClientPlayNetworking.canSend(channelId)) {
+            return;
+        }
         encodePacket(packet, buf);
         ClientPlayNetworking.send(channelId, buf);
     }

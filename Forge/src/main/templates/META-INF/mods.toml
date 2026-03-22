@@ -6,6 +6,7 @@ license="${mod_license}"
 modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
+displayTest="IGNORE_SERVER_VERSION"
 authors="${mod_authors}"
 description='''${mod_description}'''
 
