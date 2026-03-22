@@ -891,8 +891,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             LOGGER.warn("set_block missing blockPos");
             return;
         }
-        boolean particles = !Boolean.FALSE.equals(step.spawnParticles);
         boolean immediateDisplay = !Boolean.FALSE.equals(step.immediateDisplay);
+        boolean particles = immediateDisplay && !Boolean.FALSE.equals(step.spawnParticles);
         BlockPos pos2 = pos;
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
             pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
@@ -900,7 +900,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
         String entranceAnimation = normalizeEntranceAnimation(step.entranceAnimation);
         if (entranceAnimation != null && !"none".equals(entranceAnimation)) {
-            applyAnimatedSetBlock(scene, step, context, state, pos, pos2, particles, immediateDisplay, entranceAnimation);
+            applyAnimatedSetBlock(scene, step, context, state, pos, pos2, entranceAnimation);
             return;
         }
 
@@ -917,28 +917,26 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyAnimatedSetBlock(SceneBuilder scene, DslScene.DslStep step, StepContext context, BlockState state,
-                                       BlockPos pos1, BlockPos pos2, boolean particles,
-                                       boolean immediateDisplay, String entranceAnimation) {
-        List<List<BlockPos>> groups = orderedLayerGroups(pos1, pos2, entranceAnimation);
-        if (groups.isEmpty()) {
-            return;
-        }
+                                       BlockPos pos1, BlockPos pos2, String entranceAnimation) {
+        // Equivalent flow: hidden set_block, then animated show_section_and_merge reveal in one step.
+        ensureSceneCanShowRange(scene, pos1, pos2, false);
 
-        if (!immediateDisplay) {
-            ensureSceneCanShowRange(scene, pos1, pos2, false);
-        }
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        scene.world().setBlocks(selection, state, false);
+        applySetBlockNbtPatch(scene, step, selection);
 
-        for (List<BlockPos> group : groups) {
-            for (BlockPos current : group) {
-                if (immediateDisplay) {
-                    ensureSceneCanShowRange(scene, current, current, true);
-                }
-                scene.world().setBlock(current, state, particles);
-                applySetBlockNbtPatch(scene, step, scene.getScene().getSceneBuildingUtil().select().position(current));
-            }
-            scene.idle(1);
+        String linkId = step.linkId == null ? "" : step.linkId.trim();
+        if (linkId.isEmpty()) {
+            linkId = autoLinkId(context);
         }
-        updateVisibleRange(context, step, immediateDisplay);
+        Direction direction = parseDirection(step.direction);
+        ElementLink<WorldSectionElement> existing = context.sectionLinks.get(linkId);
+        int rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+        int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
+        boolean smartDisplay = !Boolean.FALSE.equals(step.smartDisplay);
+        applyAnimatedShowSectionAndMerge(scene, context, linkId, existing, pos1, pos2,
+                entranceAnimation, direction, rowDuration, rowInterval, smartDisplay);
+        updateVisibleRange(context, step, true);
     }
 
     /**
