@@ -160,6 +160,9 @@ public final class CoordPickState {
             if (firstPos == null || secondPos == null) {
                 return true;
             }
+            formSnapshot.put("coord1_x", String.valueOf(firstPos.getX()));
+            formSnapshot.put("coord1_y", String.valueOf(firstPos.getY()));
+            formSnapshot.put("coord1_z", String.valueOf(firstPos.getZ()));
             formSnapshot.put("coord2_x", String.valueOf(secondPos.getX()));
             formSnapshot.put("coord2_y", String.valueOf(secondPos.getY()));
             formSnapshot.put("coord2_z", String.valueOf(secondPos.getZ()));
