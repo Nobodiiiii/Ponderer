@@ -48,6 +48,7 @@ public class PondererFabricClient implements ClientModInitializer {
     private boolean hasNotified = false;
     private boolean triggerKeyWasDown = false;
     private boolean jeiLeftMouseWasDown = false;
+    private boolean blueprintRightMouseWasDown = false;
 
     @Override
     public void onInitializeClient() {
@@ -101,6 +102,18 @@ public class PondererFabricClient implements ClientModInitializer {
 
             // Blueprint handler tick
             blueprintHandler.tick();
+
+            // Fabric has no Forge-style mouse button event here; route right-click edge to blueprint handler.
+            if (client.player != null && client.screen == null) {
+                long window = client.getWindow().getWindow();
+                boolean rightDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS;
+                if (rightDown && !blueprintRightMouseWasDown) {
+                    blueprintHandler.onMouseInput(1, true);
+                }
+                blueprintRightMouseWasDown = rightDown;
+            } else {
+                blueprintRightMouseWasDown = false;
+            }
 
             // Trigger manager tick
             TriggerManager.tick();
