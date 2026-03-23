@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
+import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -18,6 +19,10 @@ public class MinecraftCoordPickScrollMixin {
     private void ponderer$interceptCoordPickScroll(long windowPointer, double xOffset, double yOffset, CallbackInfo ci) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) {
+            return;
+        }
+        if (BlueprintHandler.INSTANCE != null && BlueprintHandler.INSTANCE.mouseScrolled(yOffset)) {
+            ci.cancel();
             return;
         }
         if (CoordPickState.isActive() && CoordPickState.handleMouseScrolled(yOffset)) {

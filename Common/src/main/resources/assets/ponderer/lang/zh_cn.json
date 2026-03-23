@@ -168,6 +168,8 @@
   "ponderer.ui.show_structure.height.tooltip": "结构显示高度(留空为自动)",
   "ponderer.ui.show_structure.scale": "缩放",
   "ponderer.ui.show_structure.scale.tooltip": "场景缩放倍率。>1 放大，<1 缩小，留空为默认(1.0)",
+  "ponderer.ui.show_structure.rotation": "旋转",
+  "ponderer.ui.show_structure.rotation.tooltip": "在当前初始角度上增加旋转偏移（度）。不播放旋转动画，0 为不偏移",
   "ponderer.ui.show_structure.pos_from": "起点",
   "ponderer.ui.show_structure.pos_from.tooltip": "可选：入场动画只显示该选区。起点 X Y Z",
   "ponderer.ui.show_structure.pos_to": "终点",

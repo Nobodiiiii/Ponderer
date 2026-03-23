@@ -156,6 +156,7 @@ public class DslScene {
         public Float pitch;
         public Float degrees;
         public Float scale;
+        public Float rotation;
         public Integer count;
         public List<Integer> bounds;
         public String direction;

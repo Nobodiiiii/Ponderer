@@ -763,9 +763,15 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (step.scale != null) {
             scene.scaleSceneView(step.scale);
         }
+        final float rotationOffset = step.rotation == null ? 0f : step.rotation;
         scene.addInstruction(ps -> {
             if (ps instanceof PonderSceneAccessor accessor && ps instanceof PonderSceneViewOffsetAccess viewOffset) {
                 viewOffset.ponderer$setDefaultScale(accessor.ponderer$getScaleFactor());
+            }
+            if (rotationOffset != 0f) {
+                var yRotation = ps.getTransform().yRotation;
+                float target = yRotation.getChaseTarget() + rotationOffset;
+                yRotation.startWithValue(target);
             }
         });
     }
