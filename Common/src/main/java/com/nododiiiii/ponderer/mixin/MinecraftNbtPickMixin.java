@@ -15,7 +15,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Minecraft.class)
 public class MinecraftNbtPickMixin {
 
-    @Inject(method = "handleKeybinds", at = @At("HEAD"))
+    // Optional injection: avoid hard crash when runtime mapping cannot resolve target method.
+    @Inject(method = "handleKeybinds", at = @At("HEAD"), require = 0)
     private void ponderer$interceptMiddlePickForNbtCapture(CallbackInfo ci) {
         Minecraft mc = (Minecraft) (Object) this;
         if (mc.player == null || mc.screen != null) {

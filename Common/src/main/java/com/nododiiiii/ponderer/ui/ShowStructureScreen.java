@@ -25,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 public class ShowStructureScreen extends AbstractStepEditorScreen {
 
     private HintableTextFieldWidget scaleField;
+    private HintableTextFieldWidget rotationField;
     private HintableTextFieldWidget posXField, posYField, posZField;
     private HintableTextFieldWidget pos2XField, pos2YField, pos2ZField;
     private HintableTextFieldWidget structureField;
@@ -42,7 +43,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         super(Component.translatable("ponderer.ui.show_structure"), scene, sceneIndex, parent, editIndex, step);
     }
 
-    @Override protected int getFormRowCount() { return 4; }
+    @Override protected int getFormRowCount() { return 5; }
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.show_structure"); }
 
     @Override
@@ -55,6 +56,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         nextFormRow();
 
         scaleField = addFormNumberField("ponderer.ui.show_structure.scale", "ponderer.ui.show_structure.scale.tooltip", "1.0", 60);
+        rotationField = addFormNumberField("ponderer.ui.show_structure.rotation", "ponderer.ui.show_structure.rotation.tooltip", "0", 60);
         var from = addFormXyzRow("ponderer.ui.show_structure.pos_from", "ponderer.ui.show_structure.pos_from.tooltip", PickState.TargetField.POS1);
         posXField = from.x();
         posYField = from.y();
@@ -69,6 +71,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         if (step.scale != null) scaleField.setValue(String.valueOf(step.scale));
+        if (step.rotation != null) rotationField.setValue(String.valueOf(step.rotation));
         if (step.blockPos != null && step.blockPos.size() >= 3) {
             posXField.setValue(String.valueOf(step.blockPos.get(0)));
             posYField.setValue(String.valueOf(step.blockPos.get(1)));
@@ -157,6 +160,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     protected Map<String, String> snapshotForm() {
         Map<String, String> m = new HashMap<>();
         m.put("scale", scaleField.getValue());
+        m.put("rotation", rotationField.getValue());
         m.put("posX", posXField.getValue());
         m.put("posY", posYField.getValue());
         m.put("posZ", posZField.getValue());
@@ -171,6 +175,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     protected void restoreFromSnapshot(Map<String, String> snapshot) {
         restoreKeyFrame(snapshot);
         if (snapshot.containsKey("scale")) scaleField.setValue(snapshot.get("scale"));
+        if (snapshot.containsKey("rotation")) rotationField.setValue(snapshot.get("rotation"));
         if (snapshot.containsKey("posX")) posXField.setValue(snapshot.get("posX"));
         if (snapshot.containsKey("posY")) posYField.setValue(snapshot.get("posY"));
         if (snapshot.containsKey("posZ")) posZField.setValue(snapshot.get("posZ"));
@@ -195,6 +200,12 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
             Float sc = parseFloat(sv, "Scale");
             if (sc == null) return null;
             s.scale = sc;
+        }
+        String rv = rotationField.getValue().trim();
+        if (!rv.isEmpty()) {
+            Float rotation = parseFloat(rv, "Rotation");
+            if (rotation == null) return null;
+            s.rotation = rotation;
         }
 
         Integer px = parseOptionalInt(posXField.getValue(), "From X");

@@ -168,6 +168,8 @@
   "ponderer.ui.show_structure.height.tooltip": "Structure display height (leave empty for auto)",
   "ponderer.ui.show_structure.scale": "Scale",
   "ponderer.ui.show_structure.scale.tooltip": "Scene scale factor. >1 = zoom in, <1 = zoom out, leave empty for default (1.0)",
+  "ponderer.ui.show_structure.rotation": "Rotation",
+  "ponderer.ui.show_structure.rotation.tooltip": "Rotation offset in degrees added to the current initial angle. Applies instantly with no rotation animation; 0 means no offset",
   "ponderer.ui.show_structure.pos_from": "From",
   "ponderer.ui.show_structure.pos_from.tooltip": "Optional: only this selected region is shown during entrance animation. Start X Y Z",
   "ponderer.ui.show_structure.pos_to": "To",
