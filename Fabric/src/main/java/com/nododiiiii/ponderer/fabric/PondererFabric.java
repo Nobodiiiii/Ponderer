@@ -17,7 +17,8 @@ import net.minecraft.resources.ResourceLocation;
  */
 public class PondererFabric implements ModInitializer {
 
-    private static final ResourceLocation REQUIRED_CLIENT_CHANNEL = new ResourceLocation(Ponderer.MODID, "sync_response");
+    private static final ResourceLocation REQUIRED_CLIENT_CHANNEL =
+        ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, "sync_response");
 
     @Override
     public void onInitialize() {
