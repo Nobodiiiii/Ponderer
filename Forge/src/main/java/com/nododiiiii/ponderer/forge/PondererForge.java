@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.forge;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
+import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.registry.ModItems;
@@ -54,6 +55,7 @@ public class PondererForge {
 
     private void onCommonSetup(FMLCommonSetupEvent event) {
         PondererServices.NETWORK.registerPackets();
+        StickSnapshotFeature.onCommonSetup(event);
     }
 
     private void onBuildCreativeTab(BuildCreativeModeTabContentsEvent event) {

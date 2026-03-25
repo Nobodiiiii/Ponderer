@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
+import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -45,6 +46,7 @@ public class PondererForgeClient {
 
     static void init(IEventBus modEventBus) {
         BlueprintHandler.INSTANCE = blueprintHandler;
+        StickSnapshotFeature.onClientInit();
 
         modEventBus.addListener(PondererForgeClient::onClientSetup);
         modEventBus.addListener(PondererForgeClient::onRegisterKeyMappings);
