@@ -8,6 +8,7 @@ import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.Connection;
@@ -353,6 +354,19 @@ public class SnapshotReplayer {
                 }
             }
 
+            if (!hasForgePlayPayload && packet instanceof ClientboundOpenScreenPacket openPacket) {
+                int mappedWindowId = remapContainerId(openPacket.getContainerId(), sourceContainerId, targetContainerId);
+                MirrorForgeOpenPacket vanillaMirrorOpen = createVanillaMirrorOpenPacket(openPacket, snapshot,
+                        clientVirtualPos, mappedWindowId);
+                ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> realPlayer), vanillaMirrorOpen);
+                StickSnapshotFeature.LOGGER.debug(
+                        "[server][mirror-debug] forwarding vanilla-open via mod channel player={} windowId={} menuTypeId={} virtualPos={} stateId={} title={}",
+                        realPlayer.getScoreboardName(), vanillaMirrorOpen.windowId(), vanillaMirrorOpen.menuTypeId(),
+                        clientVirtualPos, vanillaMirrorOpen.snapshotStateId(), vanillaMirrorOpen.title().getString());
+                mirrored++;
+                continue;
+            }
+
             Packet<?> packetToSend = remapMenuPacketContainerId(packet, sourceContainerId, targetContainerId);
             if (packetToSend != null) {
                 StickSnapshotFeature.LOGGER.debug("[server][mirror-debug] forwarding packet player={} mapped={} -> {}",
@@ -585,6 +599,25 @@ public class SnapshotReplayer {
         }
         FriendlyByteBuf input = new FriendlyByteBuf(Unpooled.wrappedBuffer(extraData));
         return BlockPos.of(input.readLong());
+    }
+
+    private static MirrorForgeOpenPacket createVanillaMirrorOpenPacket(ClientboundOpenScreenPacket openPacket,
+            BlockSnapshot snapshot, BlockPos clientVirtualPos, int mappedWindowId) {
+        int menuTypeId = BuiltInRegistries.MENU.getId(openPacket.getType());
+        byte[] extraData = encodeVirtualPos(clientVirtualPos);
+        BlockState contextState = Block.stateById(snapshot.getStateId());
+        CompoundTag normalizedSnapshotBeTag = normalizeBlockEntityTagForPos(
+                snapshot.getBlockEntityTag(), snapshot.getPos(), clientVirtualPos, "client-virtual-vanilla");
+        return new MirrorForgeOpenPacket(menuTypeId, mappedWindowId, openPacket.getTitle(), extraData,
+                Block.getId(contextState), normalizedSnapshotBeTag);
+    }
+
+    private static byte[] encodeVirtualPos(BlockPos pos) {
+        FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.buffer(Long.BYTES));
+        data.writeLong(pos.asLong());
+        byte[] out = new byte[data.readableBytes()];
+        data.readBytes(out);
+        return out;
     }
 
     private static int remapContainerId(int id, int sourceContainerId, int targetContainerId) {

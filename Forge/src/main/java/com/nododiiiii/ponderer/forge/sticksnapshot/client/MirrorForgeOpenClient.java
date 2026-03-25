@@ -3,12 +3,13 @@ package com.nododiiiii.ponderer.forge.sticksnapshot.client;
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.MirrorForgeOpenPacket;
 import io.netty.buffer.Unpooled;
+import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.MenuAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.block.Block;
@@ -16,9 +17,16 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.entity.player.Inventory;
+
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 public class MirrorForgeOpenClient {
     private static InjectedClientBlock injectedClientBlock;
+    private static final UUID SHADOW_PLAYER_UUID = UUID.nameUUIDFromBytes(
+            "ponderer:mirror-shadow-player".getBytes(StandardCharsets.UTF_8));
+    private static final GameProfile SHADOW_PROFILE = new GameProfile(SHADOW_PLAYER_UUID, "PondererShadow");
 
     private MirrorForgeOpenClient() {
     }
@@ -47,7 +55,8 @@ public class MirrorForgeOpenClient {
 
             FriendlyByteBuf extraData = new FriendlyByteBuf(Unpooled.wrappedBuffer(msg.extraData()));
             MenuScreens.getScreenFactory(menuType, mc, msg.windowId(), msg.title()).ifPresentOrElse(screenFactory -> {
-                AbstractContainerMenu menu = menuType.create(msg.windowId(), mc.player.getInventory(), extraData);
+                Inventory shadowInventory = createShadowInventory(mc);
+                AbstractContainerMenu menu = menuType.create(msg.windowId(), shadowInventory, extraData);
                 if (menu == null) {
                     StickSnapshotFeature.LOGGER.debug(
                             "[client][mirror-debug] forge-open failed: menu factory returned null windowId={} key={}",
@@ -57,8 +66,7 @@ public class MirrorForgeOpenClient {
 
                 @SuppressWarnings("unchecked")
                 Screen screen = ((MenuScreens.ScreenConstructor<AbstractContainerMenu, ?>) screenFactory)
-                        .create(menu, mc.player.getInventory(), msg.title());
-                mc.player.containerMenu = ((MenuAccess<?>) screen).getMenu();
+                    .create(menu, shadowInventory, msg.title());
                 mc.setScreen(screen);
                 StickSnapshotFeature.LOGGER.debug(
                         "[client][mirror-debug] forge-open success windowId={} key={} screen={} extraBytes={}",
@@ -157,6 +165,14 @@ public class MirrorForgeOpenClient {
         }
         FriendlyByteBuf data = new FriendlyByteBuf(Unpooled.wrappedBuffer(extraData));
         return BlockPos.of(data.readLong());
+    }
+
+    private static Inventory createShadowInventory(Minecraft mc) {
+        RemotePlayer shadowPlayer = new RemotePlayer(mc.level, SHADOW_PROFILE);
+        shadowPlayer.setPos(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        shadowPlayer.setYRot(mc.player.getYRot());
+        shadowPlayer.setXRot(mc.player.getXRot());
+        return new Inventory(shadowPlayer);
     }
 
     private record InjectedClientBlock(BlockPos pos, BlockState originalState, CompoundTag originalBlockEntityTag) {

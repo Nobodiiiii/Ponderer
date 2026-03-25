@@ -33,6 +33,7 @@ public final class NbtPickState {
     public static final String SNAPSHOT_BLOCK_POS_KEY = "_block_pos";
     public static final String SNAPSHOT_BLOCK_FACE_KEY = "_block_face";
     public static final String SNAPSHOT_BLOCK_HIT_KEY = "_block_hit";
+    public static final String SNAPSHOT_BLOCK_INSIDE_KEY = "_block_inside";
 
     private static boolean active = false;
     private static String targetKey;
@@ -122,6 +123,9 @@ public final class NbtPickState {
             formSnapshot.put(SNAPSHOT_BLOCK_HIT_KEY,
                 result.hitLocation.x + "," + result.hitLocation.y + "," + result.hitLocation.z);
         }
+        if (result.hitInside != null) {
+            formSnapshot.put(SNAPSHOT_BLOCK_INSIDE_KEY, String.valueOf(result.hitInside));
+        }
         if (result.entityId != null) {
             formSnapshot.put(SNAPSHOT_ENTITY_ID_KEY, result.entityId);
         }
@@ -159,7 +163,7 @@ public final class NbtPickState {
             sanitizeCapturedEntityNbt(nbt);
             String name = entity.getDisplayName().getString();
             String entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
-            return new CaptureResult(nbt, name, null, null, entityId, null, null, null);
+            return new CaptureResult(nbt, name, null, null, entityId, null, null, null, null);
         }
 
         if (hit instanceof BlockHitResult bhr) {
@@ -178,7 +182,7 @@ public final class NbtPickState {
             String name = state.getBlock().getName().getString();
             String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
             return new CaptureResult(nbt, name, props.isEmpty() ? null : props, blockId, null,
-                pos.immutable(), bhr.getDirection(), bhr.getLocation());
+                pos.immutable(), bhr.getDirection(), bhr.getLocation(), bhr.isInside());
         }
 
         return null;
@@ -242,5 +246,5 @@ public final class NbtPickState {
     private record CaptureResult(CompoundTag nbt, String name, @Nullable Map<String, String> blockProperties,
                                  @Nullable String blockId, @Nullable String entityId,
                                  @Nullable BlockPos blockPos, @Nullable Direction blockFace,
-                                 @Nullable Vec3 hitLocation) {}
+                                 @Nullable Vec3 hitLocation, @Nullable Boolean hitInside) {}
 }

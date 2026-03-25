@@ -60,7 +60,7 @@ public final class ForgeShowInterfaceClient {
             pos.immutable(),
             face,
             hit,
-            false);
+            Boolean.TRUE.equals(step.whileSneaking));
 
         ClientInputHandler.prepareMirrorReplay(Math.max(1, durationTicks));
         ModNetworking.CHANNEL.sendToServer(new SaveSnapshotPacket(snapshot));

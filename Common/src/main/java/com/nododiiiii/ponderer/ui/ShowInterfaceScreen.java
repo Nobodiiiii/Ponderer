@@ -20,6 +20,8 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     private String contextFace;
     @Nullable
     private List<Double> contextHit;
+    @Nullable
+    private Boolean contextInside;
 
     public ShowInterfaceScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.show_interface"), scene, sceneIndex, parent);
@@ -77,6 +79,8 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         contextPos = step.blockPos;
         contextFace = step.direction;
         contextHit = step.point;
+        // show_interface does not use whileSneaking semantics; reuse it to carry hit-inside parity.
+        contextInside = step.whileSneaking;
     }
 
     @Override
@@ -97,6 +101,9 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         }
         if (contextHit != null && contextHit.size() >= 3) {
             snapshot.put("ctx_hit", contextHit.get(0) + "," + contextHit.get(1) + "," + contextHit.get(2));
+        }
+        if (contextInside != null) {
+            snapshot.put("ctx_inside", String.valueOf(contextInside));
         }
         return snapshot;
     }
@@ -129,6 +136,11 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         } else if (snapshot.containsKey("ctx_hit")) {
             contextHit = parseDouble3(snapshot.get("ctx_hit"));
         }
+        if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_INSIDE_KEY)) {
+            contextInside = parseBoolean(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_INSIDE_KEY));
+        } else if (snapshot.containsKey("ctx_inside")) {
+            contextInside = parseBoolean(snapshot.get("ctx_inside"));
+        }
     }
 
     @Nullable
@@ -157,6 +169,10 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         }
         if (contextHit != null && contextHit.size() >= 3) {
             step.point = List.of(contextHit.get(0), contextHit.get(1), contextHit.get(2));
+        }
+        if (contextInside != null) {
+            // Transport BlockHitResult#isInside parity without adding a new DSL schema dependency.
+            step.whileSneaking = contextInside;
         }
         return step;
     }
@@ -187,5 +203,17 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    @Nullable
+    private static Boolean parseBoolean(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String v = raw.trim();
+        if (v.isEmpty()) {
+            return null;
+        }
+        return Boolean.parseBoolean(v);
     }
 }
