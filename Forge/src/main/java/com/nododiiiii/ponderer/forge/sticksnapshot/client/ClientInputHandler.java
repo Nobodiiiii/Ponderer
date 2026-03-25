@@ -6,7 +6,9 @@ import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplaySnapshotPacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.SaveSnapshotPacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.BlockSnapshot;
+import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -24,6 +26,8 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.network.NetworkEvent;
 import org.lwjgl.glfw.GLFW;
 
+import javax.annotation.Nullable;
+
 @Mod.EventBusSubscriber(value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ClientInputHandler {
     private static BlockSnapshot localSnapshot;
@@ -32,6 +36,8 @@ public class ClientInputHandler {
     private static boolean mirrorScreenActive = false;
     private static int lastObservedContainerId = -999;
     private static int mirrorAutoCloseTicks = -1;
+    @Nullable
+    private static Screen embeddedMirrorScreen;
 
     private ClientInputHandler() {
     }
@@ -43,10 +49,38 @@ public class ClientInputHandler {
     public static void prepareMirrorReplay(int autoCloseTicks) {
         Minecraft mc = Minecraft.getInstance();
         awaitingMirrorOpen = true;
+        mirrorScreenActive = false;
+        embeddedMirrorScreen = null;
         mirrorAutoCloseTicks = autoCloseTicks > 0 ? autoCloseTicks : -1;
         if (mc.player != null && mc.player.containerMenu != null) {
             lastObservedContainerId = mc.player.containerMenu.containerId;
         }
+    }
+
+    public static void attachMirrorToPonder(Screen mirrorScreen) {
+        Minecraft mc = Minecraft.getInstance();
+        embeddedMirrorScreen = mirrorScreen;
+        awaitingMirrorOpen = false;
+        mirrorScreenActive = true;
+        mirrorScreen.init(mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+        StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] mirror attached to ponder screen: {}",
+                mirrorScreen.getClass().getName());
+    }
+
+    @Nullable
+    public static Screen getEmbeddedMirrorScreen() {
+        return embeddedMirrorScreen;
+    }
+
+    public static boolean hasEmbeddedMirrorScreen() {
+        return embeddedMirrorScreen != null;
+    }
+
+    public static void closeEmbeddedMirrorFromPonder(String reason) {
+        if (embeddedMirrorScreen == null) {
+            return;
+        }
+        closeMirrorSession(reason);
     }
 
     @SubscribeEvent
@@ -119,7 +153,11 @@ public class ClientInputHandler {
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || !awaitingMirrorOpen) {
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
+
+        if (!awaitingMirrorOpen && !mirrorScreenActive) {
             return;
         }
 
@@ -137,8 +175,12 @@ public class ClientInputHandler {
 
         if (mirrorScreenActive && mirrorAutoCloseTicks > 0) {
             mirrorAutoCloseTicks--;
-            if (mirrorAutoCloseTicks <= 0 && mc.screen != null) {
-                mc.setScreen(null);
+            if (mirrorAutoCloseTicks <= 0) {
+                if (embeddedMirrorScreen != null) {
+                    closeMirrorSession("auto-close-embedded");
+                } else if (mc.screen != null) {
+                    mc.setScreen(null);
+                }
             }
         }
     }
@@ -163,7 +205,7 @@ public class ClientInputHandler {
 
     @SubscribeEvent
     public static void onScreenOpening(ScreenEvent.Opening event) {
-        if (!awaitingMirrorOpen || event.getNewScreen() == null) {
+        if (!awaitingMirrorOpen || event.getNewScreen() == null || embeddedMirrorScreen != null) {
             return;
         }
 
@@ -178,11 +220,57 @@ public class ClientInputHandler {
             return;
         }
 
+        closeMirrorSession("screen-event-closing");
+    }
+
+    @SubscribeEvent
+    public static void onPonderMousePressed(ScreenEvent.MouseButtonPressed.Pre event) {
+        Screen mirror = embeddedMirrorScreen;
+        if (mirror == null || !(event.getScreen() instanceof PonderUI)) {
+            return;
+        }
+
+        if (mirror.mouseClicked(event.getMouseX(), event.getMouseY(), event.getButton())) {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onPonderMouseReleased(ScreenEvent.MouseButtonReleased.Pre event) {
+        Screen mirror = embeddedMirrorScreen;
+        if (mirror == null || !(event.getScreen() instanceof PonderUI)) {
+            return;
+        }
+
+        if (mirror.mouseReleased(event.getMouseX(), event.getMouseY(), event.getButton())) {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onPonderMouseScrolled(ScreenEvent.MouseScrolled.Pre event) {
+        Screen mirror = embeddedMirrorScreen;
+        if (mirror == null || !(event.getScreen() instanceof PonderUI)) {
+            return;
+        }
+
+        if (mirror.mouseScrolled(event.getMouseX(), event.getMouseY(), event.getScrollDelta())) {
+            event.setCanceled(true);
+        }
+    }
+
+    private static void closeMirrorSession(String reason) {
+        if (!mirrorScreenActive) {
+            return;
+        }
+
         mirrorScreenActive = false;
+        awaitingMirrorOpen = false;
         mirrorAutoCloseTicks = -1;
+        embeddedMirrorScreen = null;
         MirrorForgeOpenClient.restoreInjectedBlock();
         ModNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
-        StickSnapshotFeature.LOGGER.debug("[client] mirror screen closed, requested inventory restore");
+        StickSnapshotFeature.LOGGER.debug("[client] mirror screen closed, requested inventory restore, reason={}", reason);
     }
 
     private static String toHex(byte[] bytes) {

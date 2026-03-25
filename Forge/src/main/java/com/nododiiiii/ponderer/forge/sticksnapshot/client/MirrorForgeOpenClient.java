@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.Screen;
+import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.block.Block;
@@ -67,7 +68,11 @@ public class MirrorForgeOpenClient {
                 @SuppressWarnings("unchecked")
                 Screen screen = ((MenuScreens.ScreenConstructor<AbstractContainerMenu, ?>) screenFactory)
                     .create(menu, shadowInventory, msg.title());
-                mc.setScreen(screen);
+                if (mc.screen instanceof PonderUI) {
+                    ClientInputHandler.attachMirrorToPonder(screen);
+                } else {
+                    mc.setScreen(screen);
+                }
                 StickSnapshotFeature.LOGGER.debug(
                         "[client][mirror-debug] forge-open success windowId={} key={} screen={} extraBytes={}",
                         msg.windowId(), menuKey, screen.getClass().getName(), msg.extraData().length);

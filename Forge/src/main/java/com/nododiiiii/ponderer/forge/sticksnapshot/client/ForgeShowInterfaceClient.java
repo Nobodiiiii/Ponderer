@@ -10,15 +10,18 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 public final class ForgeShowInterfaceClient {
 
@@ -37,25 +40,16 @@ public final class ForgeShowInterfaceClient {
             return;
         }
 
-        BlockState state = mc.level.getBlockState(pos);
+        BlockState state = resolveSnapshotState(step, mc.level.getBlockState(pos));
         ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-        if (step.block != null) {
-            ResourceLocation expected = ResourceLocation.tryParse(step.block);
-            if (expected != null && !expected.equals(blockId)) {
-                StickSnapshotFeature.LOGGER.debug(
-                    "show_interface context block mismatch at {} expected={} actual={}",
-                    pos, expected, blockId);
-            }
-        }
-
-        BlockEntity blockEntity = mc.level.getBlockEntity(pos);
+        CompoundTag blockEntityTag = parseBlockEntityTag(step.nbt, pos);
         Direction face = parseDirection(step.direction);
         Vec3 hit = parseHit(step.point, pos);
 
         BlockSnapshot snapshot = new BlockSnapshot(
             Block.getId(state),
             blockId,
-            blockEntity != null ? blockEntity.saveWithFullMetadata() : null,
+            blockEntityTag,
             mc.level.dimension().location(),
             pos.immutable(),
             face,
@@ -91,5 +85,53 @@ public final class ForgeShowInterfaceClient {
             return Vec3.atCenterOf(pos);
         }
         return new Vec3(point.get(0), point.get(1), point.get(2));
+    }
+
+    private static BlockState resolveSnapshotState(DslScene.DslStep step, BlockState fallbackState) {
+        ResourceLocation expected = step.block == null ? null : ResourceLocation.tryParse(step.block);
+        if (expected == null) {
+            return fallbackState;
+        }
+
+        Block block = BuiltInRegistries.BLOCK.get(expected);
+        if (block == null || block.defaultBlockState().isAir() && !"minecraft:air".equals(expected.toString())) {
+            StickSnapshotFeature.LOGGER.debug("show_interface block registry miss, fallback to world state id={}", expected);
+            return fallbackState;
+        }
+
+        BlockState resolved = block.defaultBlockState();
+        if (step.blockProperties != null && !step.blockProperties.isEmpty()) {
+            for (var entry : step.blockProperties.entrySet()) {
+                Property<?> property = block.getStateDefinition().getProperty(entry.getKey());
+                if (property == null) {
+                    continue;
+                }
+                resolved = applyProperty(resolved, property, entry.getValue());
+            }
+        }
+        return resolved;
+    }
+
+    private static <T extends Comparable<T>> BlockState applyProperty(BlockState state, Property<T> property, String rawValue) {
+        return property.getValue(rawValue)
+                .map(value -> state.setValue(property, value))
+                .orElse(state);
+    }
+
+    @Nullable
+    private static CompoundTag parseBlockEntityTag(@Nullable String rawNbt, BlockPos pos) {
+        if (rawNbt == null || rawNbt.isBlank()) {
+            return null;
+        }
+        try {
+            CompoundTag parsed = TagParser.parseTag(rawNbt);
+            parsed.putInt("x", pos.getX());
+            parsed.putInt("y", pos.getY());
+            parsed.putInt("z", pos.getZ());
+            return parsed;
+        } catch (CommandSyntaxException ex) {
+            StickSnapshotFeature.LOGGER.debug("show_interface nbt parse failed, ignore nbt: {}", ex.getMessage());
+            return null;
+        }
     }
 }
