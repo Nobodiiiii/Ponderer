@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
@@ -13,6 +14,7 @@ import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -28,6 +30,9 @@ public final class NbtPickState {
     public static final String SNAPSHOT_NOTICE_KEY = "_nbt_pick_notice";
     public static final String SNAPSHOT_BLOCK_ID_KEY = "_block_id";
     public static final String SNAPSHOT_ENTITY_ID_KEY = "_entity_id";
+    public static final String SNAPSHOT_BLOCK_POS_KEY = "_block_pos";
+    public static final String SNAPSHOT_BLOCK_FACE_KEY = "_block_face";
+    public static final String SNAPSHOT_BLOCK_HIT_KEY = "_block_hit";
 
     private static boolean active = false;
     private static String targetKey;
@@ -106,6 +111,17 @@ public final class NbtPickState {
         if (captureBlockId && result.blockId != null) {
             formSnapshot.put(SNAPSHOT_BLOCK_ID_KEY, result.blockId);
         }
+        if (result.blockPos != null) {
+            formSnapshot.put(SNAPSHOT_BLOCK_POS_KEY,
+                result.blockPos.getX() + "," + result.blockPos.getY() + "," + result.blockPos.getZ());
+        }
+        if (result.blockFace != null) {
+            formSnapshot.put(SNAPSHOT_BLOCK_FACE_KEY, result.blockFace.getName());
+        }
+        if (result.hitLocation != null) {
+            formSnapshot.put(SNAPSHOT_BLOCK_HIT_KEY,
+                result.hitLocation.x + "," + result.hitLocation.y + "," + result.hitLocation.z);
+        }
         if (result.entityId != null) {
             formSnapshot.put(SNAPSHOT_ENTITY_ID_KEY, result.entityId);
         }
@@ -143,7 +159,7 @@ public final class NbtPickState {
             sanitizeCapturedEntityNbt(nbt);
             String name = entity.getDisplayName().getString();
             String entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
-            return new CaptureResult(nbt, name, null, null, entityId);
+            return new CaptureResult(nbt, name, null, null, entityId, null, null, null);
         }
 
         if (hit instanceof BlockHitResult bhr) {
@@ -161,13 +177,13 @@ public final class NbtPickState {
             CompoundTag nbt = be != null ? be.saveWithoutMetadata() : new CompoundTag();
             String name = state.getBlock().getName().getString();
             String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-            return new CaptureResult(nbt, name, props.isEmpty() ? null : props, blockId, null);
+            return new CaptureResult(nbt, name, props.isEmpty() ? null : props, blockId, null,
+                pos.immutable(), bhr.getDirection(), bhr.getLocation());
         }
 
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     private static <T extends Comparable<T>> String getPropertyValueString(BlockState state, Property<T> prop) {
         return prop.getName(state.getValue(prop));
     }
@@ -224,5 +240,7 @@ public final class NbtPickState {
     }
 
     private record CaptureResult(CompoundTag nbt, String name, @Nullable Map<String, String> blockProperties,
-                                 @Nullable String blockId, @Nullable String entityId) {}
+                                 @Nullable String blockId, @Nullable String entityId,
+                                 @Nullable BlockPos blockPos, @Nullable Direction blockFace,
+                                 @Nullable Vec3 hitLocation) {}
 }

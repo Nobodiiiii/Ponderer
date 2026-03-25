@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.platform.services;
 
+import com.nododiiiii.ponderer.ponder.DslScene;
+
 import java.nio.file.Path;
 import java.util.function.Supplier;
 
@@ -28,4 +30,11 @@ public interface PlatformHelper {
 
     /** Execute a runnable only on the client side (avoids class-loading issues). */
     void executeOnClient(Supplier<Runnable> runnable);
+
+    /**
+     * Open a mirrored block interface for a scene step on the client.
+     * Default is no-op for platforms without this feature.
+     */
+    default void showInterfaceStep(DslScene.DslStep step, int durationTicks) {
+    }
 }

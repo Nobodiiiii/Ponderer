@@ -31,12 +31,22 @@ public class ClientInputHandler {
     private static boolean awaitingMirrorOpen = false;
     private static boolean mirrorScreenActive = false;
     private static int lastObservedContainerId = -999;
+    private static int mirrorAutoCloseTicks = -1;
 
     private ClientInputHandler() {
     }
 
     public static void register() {
         MinecraftForge.EVENT_BUS.register(ClientInputHandler.class);
+    }
+
+    public static void prepareMirrorReplay(int autoCloseTicks) {
+        Minecraft mc = Minecraft.getInstance();
+        awaitingMirrorOpen = true;
+        mirrorAutoCloseTicks = autoCloseTicks > 0 ? autoCloseTicks : -1;
+        if (mc.player != null && mc.player.containerMenu != null) {
+            lastObservedContainerId = mc.player.containerMenu.containerId;
+        }
     }
 
     @SubscribeEvent
@@ -103,8 +113,7 @@ public class ClientInputHandler {
 
         event.setCanceled(true);
         StickSnapshotFeature.LOGGER.debug("[client] request replay with stick, localSnapshotPresent={}", localSnapshot != null);
-        awaitingMirrorOpen = true;
-        lastObservedContainerId = mc.player.containerMenu != null ? mc.player.containerMenu.containerId : -1;
+        prepareMirrorReplay(-1);
         ModNetworking.CHANNEL.sendToServer(new ReplaySnapshotPacket());
     }
 
@@ -124,6 +133,13 @@ public class ClientInputHandler {
             StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] containerMenu changed old={} new={} class={}",
                     lastObservedContainerId, currentId, mc.player.containerMenu.getClass().getName());
             lastObservedContainerId = currentId;
+        }
+
+        if (mirrorScreenActive && mirrorAutoCloseTicks > 0) {
+            mirrorAutoCloseTicks--;
+            if (mirrorAutoCloseTicks <= 0 && mc.screen != null) {
+                mc.setScreen(null);
+            }
         }
     }
 
@@ -163,6 +179,7 @@ public class ClientInputHandler {
         }
 
         mirrorScreenActive = false;
+        mirrorAutoCloseTicks = -1;
         MirrorForgeOpenClient.restoreInjectedBlock();
         ModNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
         StickSnapshotFeature.LOGGER.debug("[client] mirror screen closed, requested inventory restore");

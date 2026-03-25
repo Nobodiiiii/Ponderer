@@ -27,6 +27,7 @@ public final class StepEditorFactory {
             case "zoom_scene" -> new ZoomSceneScreen(scene, sceneIndex, parent);
             case "highlight_section" -> new HighlightSectionScreen(scene, sceneIndex, parent);
             case "show_controls" -> new ShowControlsScreen(scene, sceneIndex, parent);
+            case "show_interface" -> new ShowInterfaceScreen(scene, sceneIndex, parent);
             case "encapsulate_bounds" -> new EncapsulateBoundsScreen(scene, sceneIndex, parent);
             case "play_sound" -> new PlaySoundScreen(scene, sceneIndex, parent);
             case "set_block" -> new SetBlockScreen(scene, sceneIndex, parent);
@@ -65,6 +66,7 @@ public final class StepEditorFactory {
             case "zoom_scene" -> new ZoomSceneScreen(scene, sceneIndex, parent, stepIndex, step);
             case "highlight_section" -> new HighlightSectionScreen(scene, sceneIndex, parent, stepIndex, step);
             case "show_controls" -> new ShowControlsScreen(scene, sceneIndex, parent, stepIndex, step);
+            case "show_interface" -> new ShowInterfaceScreen(scene, sceneIndex, parent, stepIndex, step);
             case "encapsulate_bounds" -> new EncapsulateBoundsScreen(scene, sceneIndex, parent, stepIndex, step);
             case "play_sound" -> new PlaySoundScreen(scene, sceneIndex, parent, stepIndex, step);
             case "set_block" -> new SetBlockScreen(scene, sceneIndex, parent, stepIndex, step);

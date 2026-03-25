@@ -403,6 +403,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "zoom_scene" -> applyZoomScene(scene, step);
             case "highlight_section" -> applyHighlightSection(scene, step);
             case "show_controls" -> applyShowControls(scene, step);
+            case "show_interface" -> applyShowInterface(scene, step);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
             case "set_block" -> applySetBlock(scene, step, context);
@@ -646,6 +647,21 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (Boolean.TRUE.equals(step.whileCTRL)) {
             builder.whileCTRL();
         }
+    }
+
+    private void applyShowInterface(SceneBuilder scene, DslScene.DslStep step) {
+        if (step.block == null || step.block.isBlank()) {
+            LOGGER.warn("show_interface missing block id");
+            return;
+        }
+
+        if (step.blockPos == null || step.blockPos.size() < 3) {
+            LOGGER.warn("show_interface missing block context position");
+            return;
+        }
+
+        int duration = step.durationOrDefault(60);
+        scene.addInstruction(new ShowInterfaceInstruction(step, duration));
     }
 
     /**

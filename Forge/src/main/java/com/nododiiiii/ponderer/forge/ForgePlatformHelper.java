@@ -1,7 +1,10 @@
 package com.nododiiiii.ponderer.forge;
 
+import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.forge.sticksnapshot.client.ForgeShowInterfaceClient;
 import com.nododiiiii.ponderer.platform.services.PlatformHelper;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
@@ -49,5 +52,11 @@ public class ForgePlatformHelper implements PlatformHelper {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             runnable.get().run();
         }
+    }
+
+    @Override
+    public void showInterfaceStep(DslScene.DslStep step, int durationTicks) {
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            () -> () -> ForgeShowInterfaceClient.showInterfaceStep(step, durationTicks));
     }
 }

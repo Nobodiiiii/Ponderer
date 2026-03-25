@@ -22,7 +22,7 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
     private static final int ROW_H = 22;
     private static final String[][] PAGE_TYPES = {
         {
-            "idle", "text", "show_controls", "rotate_camera_y", "zoom_scene"
+            "idle", "text", "show_controls", "show_interface", "rotate_camera_y", "zoom_scene"
         },
         {
             "set_block", "destroy_block", "replace_blocks", "modify_block_entity_nbt"
