@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
+import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import com.nododiiiii.ponderer.ui.SceneEditorScreen;
 
 import com.mojang.blaze3d.platform.Window;
@@ -208,8 +209,9 @@ public abstract class PonderUIMixin extends Screen {
 
         if (PickState.isUiPointPickActive()) {
             if (button == 0) {
-                double nx = UiAnchorCoords.normalizeX(x, this.width);
-                double ny = UiAnchorCoords.normalizeY(y, this.height);
+                UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(Minecraft.getInstance());
+                double nx = UiAnchorCoords.normalizeX(x - viewport.left(), (int) Math.max(1, viewport.width()));
+                double ny = UiAnchorCoords.normalizeY(y - viewport.top(), (int) Math.max(1, viewport.height()));
                 PickState.completeUiPick(nx, ny);
                 cir.setReturnValue(true);
             }
@@ -276,8 +278,9 @@ public abstract class PonderUIMixin extends Screen {
         graphics.pose().translate(0, 0, 800);
 
         if (PickState.isUiPointPickActive()) {
-            double nx = UiAnchorCoords.normalizeX(mouseX, this.width);
-            double ny = UiAnchorCoords.normalizeY(mouseY, this.height);
+            UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(Minecraft.getInstance());
+            double nx = UiAnchorCoords.normalizeX(mouseX - viewport.left(), (int) Math.max(1, viewport.width()));
+            double ny = UiAnchorCoords.normalizeY(mouseY - viewport.top(), (int) Math.max(1, viewport.height()));
             String line1 = String.format("UI锚点 [%.3f, %.3f] 左键选取",
                 nx, ny);
             String line2 = "ESC/Backspace 返回";

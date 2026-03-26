@@ -7,6 +7,7 @@ import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.registry.ModItems;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
+import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.ElementLink;
@@ -664,8 +665,26 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
+        // Build-time pointAt() conversion for UI-anchored overlays happens after this step.
+        // Reset immediately so subsequent resolveOverlayPoint() uses a clean baseline.
+        ponderer$resetSceneViewState(scene.getScene());
+        // Keep a runtime reset as a safety net for replay/scene lifecycle paths.
+        scene.addInstruction(this::ponderer$resetSceneViewState);
         scene.addInstruction(new ShowInterfaceInstruction(step));
         context.uiAnchorMode = true;
+    }
+
+    private void ponderer$resetSceneViewState(net.createmod.ponder.foundation.PonderScene ps) {
+        if (!(ps instanceof PonderSceneViewOffsetAccess viewOffset)) {
+            return;
+        }
+
+        viewOffset.ponderer$resetViewOffset();
+        float defaultScale = viewOffset.ponderer$getDefaultScale();
+        if (ps instanceof PonderSceneAccessor accessor && !Float.isNaN(defaultScale)) {
+            accessor.ponderer$setScaleFactor(defaultScale);
+        }
+        viewOffset.ponderer$setDefaultScale(Float.NaN);
     }
 
     /**
@@ -821,8 +840,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         // where (0,0) is the UI center.
         int guiW = Math.max(1, mc.getWindow().getGuiScaledWidth());
         int guiH = Math.max(1, mc.getWindow().getGuiScaledHeight());
-        double xTopLeft = UiAnchorCoords.decodeToPixelX(u, guiW);
-        double yTopLeft = UiAnchorCoords.decodeToPixelYTopLeft(v, guiH);
+        UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(mc);
+        double xTopLeft = viewport.left() + UiAnchorCoords.decodeToPixelX(u, (int) Math.max(1, viewport.width()));
+        double yTopLeft = viewport.top() + UiAnchorCoords.decodeToPixelYTopLeft(v, (int) Math.max(1, viewport.height()));
         double screenX = UiAnchorCoords.topLeftToTransformX(xTopLeft, guiW);
         double screenY = UiAnchorCoords.topLeftToTransformY(yTopLeft, guiH);
         return scene.getScene().getTransform().screenToScene(screenX, screenY, 0, 0);
