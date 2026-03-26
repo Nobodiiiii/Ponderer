@@ -30,12 +30,17 @@ import javax.annotation.Nullable;
 
 @Mod.EventBusSubscriber(value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ClientInputHandler {
+    private static final int SHOW_INTERFACE_AUTO_REPLAY_DELAY_TICKS = 20;
+
     private static BlockSnapshot localSnapshot;
     private static long lastReplayMillis = 0L;
     private static boolean awaitingMirrorOpen = false;
     private static boolean mirrorScreenActive = false;
     private static int lastObservedContainerId = -999;
     private static int mirrorAutoCloseTicks = -1;
+    private static int autoReplayTicks = -1;
+    private static boolean autoReplayArmed = false;
+    private static boolean suppressNextAutoReplay = false;
     @Nullable
     private static Screen embeddedMirrorScreen;
 
@@ -47,11 +52,19 @@ public class ClientInputHandler {
     }
 
     public static void prepareMirrorReplay(int autoCloseTicks) {
+        prepareMirrorReplay(autoCloseTicks, false);
+    }
+
+    public static void prepareMirrorReplay(int autoCloseTicks, boolean scheduleAutoReplay) {
         Minecraft mc = Minecraft.getInstance();
         awaitingMirrorOpen = true;
         mirrorScreenActive = false;
         embeddedMirrorScreen = null;
         mirrorAutoCloseTicks = autoCloseTicks > 0 ? autoCloseTicks : -1;
+        boolean shouldAutoReplay = scheduleAutoReplay && !suppressNextAutoReplay;
+        suppressNextAutoReplay = false;
+        autoReplayArmed = shouldAutoReplay;
+        autoReplayTicks = shouldAutoReplay ? SHOW_INTERFACE_AUTO_REPLAY_DELAY_TICKS : -1;
         if (mc.player != null && mc.player.containerMenu != null) {
             lastObservedContainerId = mc.player.containerMenu.containerId;
         }
@@ -74,6 +87,13 @@ public class ClientInputHandler {
 
     public static boolean hasEmbeddedMirrorScreen() {
         return embeddedMirrorScreen != null;
+    }
+
+    public static boolean shouldRenderEmbeddedMirror() {
+        if (embeddedMirrorScreen == null) {
+            return false;
+        }
+        return !(autoReplayArmed && autoReplayTicks > 0);
     }
 
     public static void closeEmbeddedMirrorFromPonder(String reason) {
@@ -183,6 +203,19 @@ public class ClientInputHandler {
                 }
             }
         }
+
+        if (autoReplayArmed && autoReplayTicks >= 0 && embeddedMirrorScreen != null && mc.screen instanceof PonderUI ponder) {
+            if (autoReplayTicks > 0) {
+                autoReplayTicks--;
+            }
+            if (autoReplayTicks == 0) {
+                autoReplayArmed = false;
+                autoReplayTicks = -1;
+                suppressNextAutoReplay = true;
+                StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] trigger delayed ponder replay after show_interface");
+                callPonderReplay(ponder);
+            }
+        }
     }
 
     @SubscribeEvent
@@ -226,7 +259,7 @@ public class ClientInputHandler {
     @SubscribeEvent
     public static void onPonderMousePressed(ScreenEvent.MouseButtonPressed.Pre event) {
         Screen mirror = embeddedMirrorScreen;
-        if (mirror == null || !(event.getScreen() instanceof PonderUI)) {
+        if (mirror == null || !shouldRenderEmbeddedMirror() || !(event.getScreen() instanceof PonderUI)) {
             return;
         }
 
@@ -236,7 +269,7 @@ public class ClientInputHandler {
     @SubscribeEvent
     public static void onPonderMouseReleased(ScreenEvent.MouseButtonReleased.Pre event) {
         Screen mirror = embeddedMirrorScreen;
-        if (mirror == null || !(event.getScreen() instanceof PonderUI)) {
+        if (mirror == null || !shouldRenderEmbeddedMirror() || !(event.getScreen() instanceof PonderUI)) {
             return;
         }
 
@@ -246,7 +279,7 @@ public class ClientInputHandler {
     @SubscribeEvent
     public static void onPonderMouseScrolled(ScreenEvent.MouseScrolled.Pre event) {
         Screen mirror = embeddedMirrorScreen;
-        if (mirror == null || !(event.getScreen() instanceof PonderUI)) {
+        if (mirror == null || !shouldRenderEmbeddedMirror() || !(event.getScreen() instanceof PonderUI)) {
             return;
         }
 
@@ -261,6 +294,8 @@ public class ClientInputHandler {
         mirrorScreenActive = false;
         awaitingMirrorOpen = false;
         mirrorAutoCloseTicks = -1;
+        autoReplayArmed = false;
+        autoReplayTicks = -1;
         embeddedMirrorScreen = null;
         MirrorForgeOpenClient.restoreInjectedBlock();
         ModNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
@@ -280,5 +315,15 @@ public class ClientInputHandler {
             sb.append(Integer.toHexString(v));
         }
         return sb.toString();
+    }
+
+    private static void callPonderReplay(PonderUI ponder) {
+        try {
+            java.lang.reflect.Method replay = PonderUI.class.getDeclaredMethod("replay");
+            replay.setAccessible(true);
+            replay.invoke(ponder);
+        } catch (Throwable t) {
+            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] delayed replay invoke failed: {}", t.toString());
+        }
     }
 }

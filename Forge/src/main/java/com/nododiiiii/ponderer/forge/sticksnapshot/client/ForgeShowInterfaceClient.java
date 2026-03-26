@@ -56,7 +56,7 @@ public final class ForgeShowInterfaceClient {
             hit,
             Boolean.TRUE.equals(step.whileSneaking));
 
-        ClientInputHandler.prepareMirrorReplay(-1);
+        ClientInputHandler.prepareMirrorReplay(-1, true);
         ModNetworking.CHANNEL.sendToServer(new SaveSnapshotPacket(snapshot));
         ModNetworking.CHANNEL.sendToServer(new ReplaySnapshotPacket());
     }

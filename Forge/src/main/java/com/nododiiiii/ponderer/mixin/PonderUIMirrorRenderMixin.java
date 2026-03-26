@@ -20,6 +20,9 @@ public abstract class PonderUIMirrorRenderMixin {
         if (mirror == null) {
             return;
         }
+        if (!ClientInputHandler.shouldRenderEmbeddedMirror()) {
+            return;
+        }
         mirror.render(graphics, mouseX, mouseY, partialTicks);
         ci.cancel();
     }
