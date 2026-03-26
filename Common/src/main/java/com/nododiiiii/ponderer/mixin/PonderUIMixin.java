@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
+import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.SceneEditorScreen;
 
 import com.mojang.blaze3d.platform.Window;
@@ -171,6 +172,8 @@ public abstract class PonderUIMixin extends Screen {
     private void ponderer$tickPickModeReset(CallbackInfo ci) {
         if (!PickState.isActive())
             return;
+        if (PickState.isUiPointPickActive())
+            return;
         PonderUIAccessor accessor = (PonderUIAccessor) this;
         accessor.ponderer$setIdentifyMode(false);
     }
@@ -186,6 +189,8 @@ public abstract class PonderUIMixin extends Screen {
     private void ponderer$tickPickModeEnable(CallbackInfo ci) {
         if (!PickState.isActive())
             return;
+        if (PickState.isUiPointPickActive())
+            return;
         PonderUIAccessor accessor = (PonderUIAccessor) this;
         accessor.ponderer$setIdentifyMode(true);
     }
@@ -200,6 +205,16 @@ public abstract class PonderUIMixin extends Screen {
     private void ponderer$onPickClick(double x, double y, int button, CallbackInfoReturnable<Boolean> cir) {
         if (!PickState.isActive())
             return;
+
+        if (PickState.isUiPointPickActive()) {
+            if (button == 0) {
+                double nx = UiAnchorCoords.normalizeX(x, this.width);
+                double ny = UiAnchorCoords.normalizeY(y, this.height);
+                PickState.completeUiPick(nx, ny);
+                cir.setReturnValue(true);
+            }
+            return;
+        }
 
         // Both left-click and right-click try to pick a block
         if (button == 0 || button == 1) {
@@ -259,6 +274,34 @@ public abstract class PonderUIMixin extends Screen {
         // tooltips
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 800);
+
+        if (PickState.isUiPointPickActive()) {
+            double nx = UiAnchorCoords.normalizeX(mouseX, this.width);
+            double ny = UiAnchorCoords.normalizeY(mouseY, this.height);
+            String line1 = String.format("UI锚点 [%.3f, %.3f] 左键选取",
+                nx, ny);
+            String line2 = "ESC/Backspace 返回";
+
+            int w1 = font.width(line1);
+            int w2 = font.width(line2);
+            int boxW = Math.max(w1, w2) + 8;
+            int boxH = 26;
+
+            int tx = mouseX + 10;
+            int ty = mouseY - boxH - 17;
+            if (tx < 2) tx = 2;
+            if (tx + boxW > this.width - 2) tx = this.width - boxW - 2;
+            if (ty < 2) ty = 2;
+
+            graphics.fill(tx - 2, ty - 2, tx + boxW + 2, ty + boxH + 2, 0xF0_100020);
+            graphics.fill(tx - 1, ty - 1, tx + boxW + 1, ty + boxH + 1, 0xC0_5040a0);
+            graphics.fill(tx, ty, tx + boxW, ty + boxH, 0xF0_100020);
+            graphics.drawString(font, line1, tx + 4, ty + 3, 0x66FF66);
+            graphics.drawString(font, line2, tx + 4, ty + 15, 0x808080);
+
+            graphics.pose().popPose();
+            return;
+        }
 
         PonderUIAccessor accessor = (PonderUIAccessor) this;
         BlockPos pos = accessor.ponderer$getHoveredBlockPos();

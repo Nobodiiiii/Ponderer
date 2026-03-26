@@ -6,6 +6,7 @@ import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.registry.ModItems;
+import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.ElementLink;
@@ -65,6 +66,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         final Set<Long> visibleBlockKeys = new java.util.HashSet<>();
         final Set<Long> hiddenBlockKeys = new java.util.HashSet<>();
         boolean allBlocksVisible;
+        boolean uiAnchorMode;
     }
 
     @Override
@@ -396,15 +398,15 @@ public class DynamicPonderPlugin implements PonderPlugin {
         switch (step.type.toLowerCase(Locale.ROOT)) {
             case "show_structure" -> applyShowStructure(scene, step, context);
             case "idle" -> scene.idle(step.durationOrDefault(20));
-            case "text" -> applyText(scene, step);
-            case "shared_text" -> applySharedText(scene, step);
+            case "text" -> applyText(scene, step, context);
+            case "shared_text" -> applySharedText(scene, step, context);
             case "create_entity" -> applyCreateEntity(scene, step);
             case "create_item_entity" -> applyCreateItemEntity(scene, step);
             case "rotate_camera_y" -> applyRotateCameraY(scene, step);
             case "zoom_scene" -> applyZoomScene(scene, step);
             case "highlight_section" -> applyHighlightSection(scene, step);
-            case "show_controls" -> applyShowControls(scene, step);
-            case "show_interface" -> applyShowInterface(scene, step);
+            case "show_controls" -> applyShowControls(scene, step, context);
+            case "show_interface" -> applyShowInterface(scene, step, context);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
             case "set_block" -> applySetBlock(scene, step, context);
@@ -428,9 +430,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
-    private void applyText(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyText(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         String text = step.text == null ? "" : step.text.resolve();
-        Vec3 point = toPoint(step.point);
+        Vec3 point = resolveOverlayPoint(scene, step, context);
         int duration = step.durationOrDefault(60);
 
         TextElementBuilder builder = scene.overlay()
@@ -448,7 +450,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
-    private void applySharedText(SceneBuilder scene, DslScene.DslStep step) {
+    private void applySharedText(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         String key = step.key;
         if (key == null || key.isBlank()) {
             LOGGER.warn("shared_text missing key");
@@ -462,7 +464,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        Vec3 point = toPoint(step.point);
+        Vec3 point = resolveOverlayPoint(scene, step, context);
         int duration = step.durationOrDefault(60);
         TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc).pointAt(point);
 
@@ -623,8 +625,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
         scene.overlay().showOutline(palette, new Object(), selection, duration);
     }
 
-    private void applyShowControls(SceneBuilder scene, DslScene.DslStep step) {
-        Vec3 point = toPoint(step.point);
+    private void applyShowControls(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        Vec3 point = resolveOverlayPoint(scene, step, context);
         Pointing pointing = parsePointing(step.direction);
         int duration = step.durationOrDefault(60);
 
@@ -650,7 +652,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
-    private void applyShowInterface(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyShowInterface(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         if (step.block == null || step.block.isBlank()) {
             LOGGER.warn("show_interface missing block id");
             return;
@@ -663,6 +665,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
         PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
         scene.addInstruction(new ShowInterfaceInstruction(step));
+        context.uiAnchorMode = true;
     }
 
     /**
@@ -755,6 +758,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_structure");
+        context.uiAnchorMode = false;
         Selection selection;
         boolean isEverywhere;
         if (step.blockPos != null && step.blockPos.size() >= 3) {
@@ -792,6 +796,36 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 yRotation.startWithValue(target);
             }
         });
+    }
+
+    private Vec3 resolveOverlayPoint(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        if (!context.uiAnchorMode) {
+            return toPoint(step.point);
+        }
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null || scene.getScene() == null) {
+            return toPoint(step.point);
+        }
+
+        double u = 0.0;
+        double v = 0.0;
+        if (step.point != null && !step.point.isEmpty()) {
+            u = step.point.get(0);
+            if (step.point.size() >= 2) {
+                v = step.point.get(1);
+            }
+        }
+
+        // Shared conversion with picker: centered UI anchor is canonical,
+        // where (0,0) is the UI center.
+        int guiW = Math.max(1, mc.getWindow().getGuiScaledWidth());
+        int guiH = Math.max(1, mc.getWindow().getGuiScaledHeight());
+        double xTopLeft = UiAnchorCoords.decodeToPixelX(u, guiW);
+        double yTopLeft = UiAnchorCoords.decodeToPixelYTopLeft(v, guiH);
+        double screenX = UiAnchorCoords.topLeftToTransformX(xTopLeft, guiW);
+        double screenY = UiAnchorCoords.topLeftToTransformY(yTopLeft, guiH);
+        return scene.getScene().getTransform().screenToScene(screenX, screenY, 0, 0);
     }
 
     private void applyEncapsulateBounds(SceneBuilder scene, DslScene.DslStep step) {

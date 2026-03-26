@@ -13,6 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -32,7 +33,9 @@ public final class PickState {
         /** Entity lookAt target */
         LOOK_AT,
         /** Display point (text/controls) */
-        POINT
+        POINT,
+        /** Display point anchored to UI space (normalized 0..1). */
+        UI_POINT
     }
 
     // -- state fields --
@@ -52,6 +55,10 @@ public final class PickState {
     private static BlockPos pickedPos;
     @Nullable
     private static Direction pickedFace;
+    @Nullable
+    private static Double pickedUiX;
+    @Nullable
+    private static Double pickedUiY;
 
     private PickState() {}
 
@@ -97,6 +104,17 @@ public final class PickState {
         if (!active) return;
         pickedPos = pos;
         pickedFace = face;
+        pickedUiX = null;
+        pickedUiY = null;
+        reopenEditor();
+    }
+
+    public static void completeUiPick(double normalizedX, double normalizedY) {
+        if (!active) return;
+        pickedPos = null;
+        pickedFace = null;
+        pickedUiX = normalizedX;
+        pickedUiY = normalizedY;
         reopenEditor();
     }
 
@@ -106,6 +124,8 @@ public final class PickState {
     public static void cancelPick() {
         if (!active) return;
         pickedPos = null;
+        pickedUiX = null;
+        pickedUiY = null;
         reopenEditor();
     }
 
@@ -118,12 +138,16 @@ public final class PickState {
         switch (targetField) {
             case POS2 -> { xKey = "pos2X"; yKey = "pos2Y"; zKey = "pos2Z"; }
             case LOOK_AT -> { xKey = "lookAtX"; yKey = "lookAtY"; zKey = "lookAtZ"; }
-            case POINT -> { xKey = "pointX"; yKey = "pointY"; zKey = "pointZ"; }
+            case POINT, UI_POINT -> { xKey = "pointX"; yKey = "pointY"; zKey = "pointZ"; }
             default -> { xKey = "posX"; yKey = "posY"; zKey = "posZ"; }
         }
 
         // Write picked coordinate into the snapshot
-        if (pickedPos != null) {
+        if (targetField == TargetField.UI_POINT && pickedUiX != null && pickedUiY != null) {
+            formSnapshot.put(xKey, formatUiCoord(pickedUiX));
+            formSnapshot.put(yKey, formatUiCoord(pickedUiY));
+            formSnapshot.put(zKey, "0.000");
+        } else if (pickedPos != null) {
             if (useHalfOffset && pickedFace != null) {
                 // Offset only the two axes parallel to the face, not the perpendicular one.
                 // E.g. clicking the top face (UP, axis=Y): offset X+0.5, Z+0.5, Y unchanged.
@@ -161,12 +185,16 @@ public final class PickState {
             active = false;
             pickedPos = null;
             pickedFace = null;
+            pickedUiX = null;
+            pickedUiY = null;
             Minecraft.getInstance().setScreen(editor);
         } else {
             // Reset state
             active = false;
             pickedPos = null;
             pickedFace = null;
+            pickedUiX = null;
+            pickedUiY = null;
         }
     }
 
@@ -233,6 +261,10 @@ public final class PickState {
         return targetField;
     }
 
+    public static boolean isUiPointPickActive() {
+        return active && targetField == TargetField.UI_POINT;
+    }
+
     public static boolean isHalfOffset() {
         return useHalfOffset;
     }
@@ -244,6 +276,16 @@ public final class PickState {
         active = false;
         pickedPos = null;
         pickedFace = null;
+        pickedUiX = null;
+        pickedUiY = null;
         formSnapshot.clear();
+    }
+
+    private static String formatUiCoord(double value) {
+        double rounded = Math.round(value * 1000.0) / 1000.0;
+        if (Math.abs(rounded) < 0.0005) {
+            rounded = 0.0;
+        }
+        return String.format(Locale.ROOT, "%.3f", rounded);
     }
 }

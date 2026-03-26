@@ -634,8 +634,16 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         btn.withCallback(() -> {
             Map<String, String> snapshot = snapshotForm();
             snapshot.put("_keyFrame", String.valueOf(attachKeyFrame));
+
+            PickState.TargetField effectiveTarget = target;
+            boolean effectiveHalfOffset = halfOffset;
+            if (target == PickState.TargetField.POINT && isInterfaceStartScene()) {
+                effectiveTarget = PickState.TargetField.UI_POINT;
+                effectiveHalfOffset = false;
+            }
+
             PickState.startPick(
-                    target,
+                    effectiveTarget,
                     snapshot,
                     getStepType(),
                     editIndex,
@@ -643,7 +651,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
                     scene,
                     sceneIndex,
                     parent,
-                    halfOffset
+                        effectiveHalfOffset
             );
             // Navigate to PonderUI for coordinate picking
             PickState.openPonderUIForPick();
@@ -651,6 +659,26 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         addRenderableWidget(btn);
         addTooltip(x, y + 3, 14, 12, UIText.of("ponderer.ui.pick.tooltip"));
         return btn;
+    }
+
+    private boolean isInterfaceStartScene() {
+        if (scene == null || scene.scenes == null || scene.scenes.isEmpty()) {
+            return false;
+        }
+        if (sceneIndex < 0 || sceneIndex >= scene.scenes.size()) {
+            return false;
+        }
+        List<DslScene.DslStep> steps = scene.scenes.get(sceneIndex).steps;
+        if (steps == null) {
+            return false;
+        }
+        for (DslScene.DslStep step : steps) {
+            if (step == null || step.type == null || step.type.isBlank()) {
+                continue;
+            }
+            return "show_interface".equalsIgnoreCase(step.type);
+        }
+        return false;
     }
 
     /**
