@@ -1,13 +1,16 @@
 package com.nododiiiii.ponderer.forge.sticksnapshot.client;
 
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
+import com.nododiiiii.ponderer.mixin.PonderProgressBarAccessorMixin;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.MirrorClosePacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplaySnapshotPacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.SaveSnapshotPacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.BlockSnapshot;
+import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -30,7 +33,7 @@ import javax.annotation.Nullable;
 
 @Mod.EventBusSubscriber(value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ClientInputHandler {
-    private static final int SHOW_INTERFACE_AUTO_REPLAY_DELAY_TICKS = 20;
+    private static final int SHOW_INTERFACE_AUTO_REPLAY_DELAY_TICKS = 1;
 
     private static BlockSnapshot localSnapshot;
     private static long lastReplayMillis = 0L;
@@ -94,6 +97,10 @@ public class ClientInputHandler {
             return false;
         }
         return !(autoReplayArmed && autoReplayTicks > 0);
+    }
+
+    public static boolean isAutoReplayWaitActive() {
+        return autoReplayArmed && autoReplayTicks > 0;
     }
 
     public static void closeEmbeddedMirrorFromPonder(String reason) {
@@ -213,6 +220,7 @@ public class ClientInputHandler {
                 autoReplayTicks = -1;
                 suppressNextAutoReplay = true;
                 StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] trigger delayed ponder replay after show_interface");
+                resetProgressBarBeforeReplay(ponder);
                 callPonderReplay(ponder);
             }
         }
@@ -325,5 +333,18 @@ public class ClientInputHandler {
         } catch (Throwable t) {
             StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] delayed replay invoke failed: {}", t.toString());
         }
+    }
+
+    private static void resetProgressBarBeforeReplay(PonderUI ponder) {
+        Screen screen = (Screen) (Object) ponder;
+        for (GuiEventListener child : screen.children()) {
+            if (child instanceof PonderProgressBar bar) {
+                LerpedFloatReset((PonderProgressBarAccessorMixin) (Object) bar);
+            }
+        }
+    }
+
+    private static void LerpedFloatReset(PonderProgressBarAccessorMixin accessor) {
+        accessor.ponderer$getProgress().startWithValue(0);
     }
 }

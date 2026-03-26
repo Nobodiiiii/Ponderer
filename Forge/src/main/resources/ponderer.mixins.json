@@ -19,7 +19,8 @@
     "PonderUIMixin",
     "PonderUINbtMixin",
     "PonderTooltipNbtMixin",
-    "PonderUIMirrorRenderMixin"
+    "PonderUIMirrorRenderMixin",
+    "PonderProgressBarAccessorMixin"
   ],
   "server": [],
   "injectors": {

@@ -1,8 +1,13 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler;
+import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
+import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import net.createmod.ponder.foundation.PonderScene;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -29,6 +34,14 @@ public abstract class PonderUIMirrorRenderMixin {
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void ponderer$tickEmbeddedMirror(CallbackInfo ci) {
+        boolean hideProgress = ClientInputHandler.isAutoReplayWaitActive();
+        Screen self = (Screen) (Object) this;
+        for (GuiEventListener child : self.children()) {
+            if (child instanceof PonderProgressBar bar) {
+                bar.visible = !hideProgress;
+            }
+        }
+
         Screen mirror = ClientInputHandler.getEmbeddedMirrorScreen();
         if (mirror != null) {
             mirror.tick();
@@ -44,7 +57,17 @@ public abstract class PonderUIMirrorRenderMixin {
 
     @Inject(method = "scroll", at = @At("RETURN"), remap = false)
     private void ponderer$closeEmbeddedOnSceneSwitch(boolean forward, CallbackInfoReturnable<Boolean> cir) {
-        if (cir.getReturnValue() && ClientInputHandler.hasEmbeddedMirrorScreen()) {
+        if (!cir.getReturnValue()) {
+            return;
+        }
+
+        PonderUI self = (PonderUI) (Object) this;
+        if (ponderer$isShowInterfaceScene(self, self.getActiveScene())) {
+            ((PonderUIAccessor) (Object) self).ponderer$getLazyIndex()
+                .startWithValue(((PonderUIAccessor) (Object) self).ponderer$getIndex());
+        }
+
+        if (ClientInputHandler.hasEmbeddedMirrorScreen()) {
             ClientInputHandler.closeEmbeddedMirrorFromPonder("ponder-scene-switch");
         }
     }
@@ -54,5 +77,46 @@ public abstract class PonderUIMirrorRenderMixin {
         if (ClientInputHandler.hasEmbeddedMirrorScreen()) {
             ClientInputHandler.closeEmbeddedMirrorFromPonder("ponder-removed");
         }
+    }
+
+    private static boolean ponderer$isShowInterfaceScene(PonderUI ui, PonderScene target) {
+        PonderUIAccessor accessor = (PonderUIAccessor) (Object) ui;
+        int occurrence = ponderer$computeOccurrenceIndex(accessor, target);
+        SceneRuntime.SceneMatch match = SceneRuntime.findBySceneId(target.getId(), occurrence);
+        if (match == null) {
+            return false;
+        }
+
+        DslScene scene = match.scene();
+        int index = match.sceneIndex();
+        if (scene == null || scene.scenes == null || index < 0 || index >= scene.scenes.size()) {
+            return false;
+        }
+
+        DslScene.SceneSegment segment = scene.scenes.get(index);
+        if (segment == null || segment.steps == null) {
+            return false;
+        }
+
+        for (DslScene.DslStep step : segment.steps) {
+            if (step == null || step.type == null || step.type.isBlank()) {
+                continue;
+            }
+            return "show_interface".equalsIgnoreCase(step.type);
+        }
+        return false;
+    }
+
+    private static int ponderer$computeOccurrenceIndex(PonderUIAccessor accessor, PonderScene target) {
+        int occurrence = 0;
+        for (PonderScene scene : accessor.ponderer$getScenes()) {
+            if (scene == target) {
+                return occurrence;
+            }
+            if (scene.getId().equals(target.getId())) {
+                occurrence++;
+            }
+        }
+        return 0;
     }
 }
