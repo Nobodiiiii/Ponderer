@@ -39,6 +39,13 @@ public interface PlatformHelper {
     }
 
     /**
+     * Simulate a click on the mirrored interface for a scene step.
+     * Default is no-op for platforms without this feature.
+     */
+    default void clickInterfaceStep(DslScene.DslStep step) {
+    }
+
+    /**
      * Close the currently mirrored interface, if any.
      * Default is no-op for platforms without this feature.
      */

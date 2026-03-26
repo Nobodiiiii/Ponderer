@@ -71,6 +71,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         contextHit = step.point;
         // show_interface does not use whileSneaking semantics; reuse it to carry hit-inside parity.
         contextInside = step.whileSneaking;
+
     }
 
     @Override
@@ -158,6 +159,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
             // Transport BlockHitResult#isInside parity without adding a new DSL schema dependency.
             step.whileSneaking = contextInside;
         }
+
         return step;
     }
 

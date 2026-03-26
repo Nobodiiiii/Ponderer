@@ -408,6 +408,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "highlight_section" -> applyHighlightSection(scene, step);
             case "show_controls" -> applyShowControls(scene, step, context);
             case "show_interface" -> applyShowInterface(scene, step, context);
+            case "click_interface" -> applyClickInterface(scene, step);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
             case "set_block" -> applySetBlock(scene, step, context);
@@ -672,6 +673,18 @@ public class DynamicPonderPlugin implements PonderPlugin {
         scene.addInstruction(this::ponderer$resetSceneViewState);
         scene.addInstruction(new ShowInterfaceInstruction(step));
         context.uiAnchorMode = true;
+    }
+
+    private void applyClickInterface(SceneBuilder scene, DslScene.DslStep step) {
+        if (step.pos == null || step.pos.size() < 2) {
+            LOGGER.warn("click_interface missing point");
+            return;
+        }
+        if (step.action == null || step.action.isBlank()) {
+            LOGGER.warn("click_interface missing action");
+            return;
+        }
+        scene.addInstruction(new ClickInterfaceInstruction(step));
     }
 
     private void ponderer$resetSceneViewState(net.createmod.ponder.foundation.PonderScene ps) {

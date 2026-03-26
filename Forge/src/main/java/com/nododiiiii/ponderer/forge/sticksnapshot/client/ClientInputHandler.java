@@ -9,6 +9,8 @@ import com.nododiiiii.ponderer.forge.sticksnapshot.network.SaveSnapshotPacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.BlockSnapshot;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
+import com.nododiiiii.ponderer.ui.UiAnchorCoords;
+import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
@@ -44,6 +46,10 @@ public class ClientInputHandler {
     private static int autoReplayTicks = -1;
     private static boolean autoReplayArmed = false;
     private static boolean suppressNextAutoReplay = false;
+    private static boolean pendingAutoClick = false;
+    private static double pendingAutoClickNormX = 0.0;
+    private static double pendingAutoClickNormY = 0.0;
+    private static int pendingAutoClickButton = GLFW.GLFW_MOUSE_BUTTON_LEFT;
     @Nullable
     private static Screen embeddedMirrorScreen;
 
@@ -68,8 +74,21 @@ public class ClientInputHandler {
         suppressNextAutoReplay = false;
         autoReplayArmed = shouldAutoReplay;
         autoReplayTicks = shouldAutoReplay ? SHOW_INTERFACE_AUTO_REPLAY_DELAY_TICKS : -1;
+        pendingAutoClick = false;
         if (mc.player != null && mc.player.containerMenu != null) {
             lastObservedContainerId = mc.player.containerMenu.containerId;
+        }
+    }
+
+    public static void clickEmbeddedMirrorAt(double normalizedX, double normalizedY, int button) {
+        pendingAutoClick = true;
+        pendingAutoClickNormX = normalizedX;
+        pendingAutoClickNormY = normalizedY;
+        pendingAutoClickButton = button;
+
+        Minecraft mc = Minecraft.getInstance();
+        if (embeddedMirrorScreen != null && mc.screen instanceof PonderUI && (!autoReplayArmed || autoReplayTicks <= 0)) {
+            runPendingAutoClick(mc);
         }
     }
 
@@ -216,6 +235,7 @@ public class ClientInputHandler {
                 autoReplayTicks--;
             }
             if (autoReplayTicks == 0) {
+                runPendingAutoClick(mc);
                 autoReplayArmed = false;
                 autoReplayTicks = -1;
                 suppressNextAutoReplay = true;
@@ -223,6 +243,11 @@ public class ClientInputHandler {
                 resetProgressBarBeforeReplay(ponder);
                 callPonderReplay(ponder);
             }
+        }
+
+        if (pendingAutoClick && embeddedMirrorScreen != null && mc.screen instanceof PonderUI
+            && (!autoReplayArmed || autoReplayTicks <= 0)) {
+            runPendingAutoClick(mc);
         }
     }
 
@@ -304,10 +329,29 @@ public class ClientInputHandler {
         mirrorAutoCloseTicks = -1;
         autoReplayArmed = false;
         autoReplayTicks = -1;
+        pendingAutoClick = false;
         embeddedMirrorScreen = null;
         MirrorForgeOpenClient.restoreInjectedBlock();
         ModNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
         StickSnapshotFeature.LOGGER.debug("[client] mirror screen closed, requested inventory restore, reason={}", reason);
+    }
+
+    private static void runPendingAutoClick(Minecraft mc) {
+        if (!pendingAutoClick || embeddedMirrorScreen == null) {
+            return;
+        }
+
+        UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(mc);
+        double localX = UiAnchorCoords.decodeToPixelX(pendingAutoClickNormX, (int) Math.max(1, viewport.width()));
+        double localY = UiAnchorCoords.decodeToPixelYTopLeft(pendingAutoClickNormY, (int) Math.max(1, viewport.height()));
+        double mouseX = viewport.left() + localX;
+        double mouseY = viewport.top() + localY;
+
+        embeddedMirrorScreen.mouseClicked(mouseX, mouseY, pendingAutoClickButton);
+        embeddedMirrorScreen.mouseReleased(mouseX, mouseY, pendingAutoClickButton);
+        StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] auto click at norm=({}, {}) mouse=({}, {}) button={}",
+                pendingAutoClickNormX, pendingAutoClickNormY, mouseX, mouseY, pendingAutoClickButton);
+        pendingAutoClick = false;
     }
 
     private static String toHex(byte[] bytes) {

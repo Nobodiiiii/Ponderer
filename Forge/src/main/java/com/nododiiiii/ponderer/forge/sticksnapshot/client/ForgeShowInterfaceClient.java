@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import org.lwjgl.glfw.GLFW;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
@@ -61,6 +62,20 @@ public final class ForgeShowInterfaceClient {
         ModNetworking.CHANNEL.sendToServer(new ReplaySnapshotPacket());
     }
 
+    public static void clickInterfaceStep(DslScene.DslStep step) {
+        if (step.pos == null || step.pos.size() < 2) {
+            StickSnapshotFeature.LOGGER.warn("click_interface skipped: missing point");
+            return;
+        }
+        Integer clickButton = parseClickButton(step.action);
+        if (clickButton == null) {
+            StickSnapshotFeature.LOGGER.warn("click_interface skipped: unsupported action={} ", step.action);
+            return;
+        }
+
+        ClientInputHandler.clickEmbeddedMirrorAt(step.pos.get(0), step.pos.get(1), clickButton);
+    }
+
     @Nullable
     private static BlockPos parseBlockPos(@Nullable List<Integer> pos) {
         if (pos == null || pos.size() < 3) {
@@ -78,6 +93,19 @@ public final class ForgeShowInterfaceClient {
         } catch (Exception ignored) {
             return Direction.UP;
         }
+    }
+
+    @Nullable
+    private static Integer parseClickButton(@Nullable String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "left" -> GLFW.GLFW_MOUSE_BUTTON_LEFT;
+            case "right" -> GLFW.GLFW_MOUSE_BUTTON_RIGHT;
+            default -> null;
+        };
     }
 
     private static Vec3 parseHit(@Nullable List<Double> point, BlockPos pos) {

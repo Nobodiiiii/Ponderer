@@ -61,6 +61,12 @@ public class ForgePlatformHelper implements PlatformHelper {
     }
 
     @Override
+    public void clickInterfaceStep(DslScene.DslStep step) {
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+            () -> () -> ForgeShowInterfaceClient.clickInterfaceStep(step));
+    }
+
+    @Override
     public void closeInterfaceStep(String reason) {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
             () -> () -> com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler.closeEmbeddedMirrorFromPonder(reason));
