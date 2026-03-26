@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.forge.sticksnapshot.client;
 
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.mixin.PonderProgressBarAccessorMixin;
+import com.nododiiiii.ponderer.compat.jei.JeiOverlaySuppressor;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.MirrorClosePacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplaySnapshotPacket;
@@ -32,6 +33,7 @@ import net.minecraftforge.network.NetworkEvent;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
+import java.util.List;
 
 @Mod.EventBusSubscriber(value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ClientInputHandler {
@@ -97,7 +99,9 @@ public class ClientInputHandler {
         embeddedMirrorScreen = mirrorScreen;
         awaitingMirrorOpen = false;
         mirrorScreenActive = true;
+        JeiOverlaySuppressor.push();
         mirrorScreen.init(mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+        stripJeiWidgets(mirrorScreen);
         StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] mirror attached to ponder screen: {}",
                 mirrorScreen.getClass().getName());
     }
@@ -331,6 +335,7 @@ public class ClientInputHandler {
         autoReplayTicks = -1;
         pendingAutoClick = false;
         embeddedMirrorScreen = null;
+        JeiOverlaySuppressor.pop();
         MirrorForgeOpenClient.restoreInjectedBlock();
         ModNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
         StickSnapshotFeature.LOGGER.debug("[client] mirror screen closed, requested inventory restore, reason={}", reason);
@@ -367,6 +372,45 @@ public class ClientInputHandler {
             sb.append(Integer.toHexString(v));
         }
         return sb.toString();
+    }
+
+    private static void stripJeiWidgets(Screen screen) {
+        int removed = 0;
+        removed += removeJeiEntries(screen.children());
+        removed += removeJeiEntries(readListField(screen, "renderables"));
+        removed += removeJeiEntries(readListField(screen, "narratables"));
+        if (removed > 0) {
+            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] stripped {} JEI widgets from {}",
+                    removed, screen.getClass().getName());
+        }
+    }
+
+    private static int removeJeiEntries(@Nullable List<?> list) {
+        if (list == null || list.isEmpty()) {
+            return 0;
+        }
+        int before = list.size();
+        list.removeIf(ClientInputHandler::isJeiOwned);
+        return before - list.size();
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    private static List<?> readListField(Screen screen, String fieldName) {
+        try {
+            java.lang.reflect.Field field = Screen.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            Object value = field.get(screen);
+            if (value instanceof List<?> list) {
+                return (List<Object>) list;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static boolean isJeiOwned(Object obj) {
+        return obj != null && obj.getClass().getName().startsWith("mezz.jei.");
     }
 
     private static void callPonderReplay(PonderUI ponder) {
