@@ -34,7 +34,7 @@ public final class PickState {
         LOOK_AT,
         /** Display point (text/controls) */
         POINT,
-        /** Display point anchored to UI space (normalized 0..1). */
+        /** Display point anchored to UI space (normalized -2..2). */
         UI_POINT
     }
 
@@ -282,7 +282,8 @@ public final class PickState {
     }
 
     private static String formatUiCoord(double value) {
-        double rounded = Math.round(value * 1000.0) / 1000.0;
+        double clamped = Math.max(-2.0, Math.min(2.0, value));
+        double rounded = Math.round(clamped * 1000.0) / 1000.0;
         if (Math.abs(rounded) < 0.0005) {
             rounded = 0.0;
         }

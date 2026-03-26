@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 /**
  * Shared conversions for UI anchor coordinates.
- * Canonical format is centered normalized coordinates in [-1, 1],
+ * Canonical format is centered normalized coordinates in [-2, 2],
  * where (0, 0) is the center of the UI.
  */
 public final class UiAnchorCoords {
@@ -15,7 +15,7 @@ public final class UiAnchorCoords {
             return 0.0;
         }
         double centered = (mouseX / (double) width - 0.5) * 2.0;
-        return clamp(centered, -1.0, 1.0);
+        return clamp(centered, -2.0, 2.0);
     }
 
     public static double normalizeY(double mouseY, int height) {
@@ -23,33 +23,25 @@ public final class UiAnchorCoords {
             return 0.0;
         }
         double centered = (0.5 - mouseY / (double) height) * 2.0;
-        return clamp(centered, -1.0, 1.0);
+        return clamp(centered, -2.0, 2.0);
     }
 
     /**
      * Decode a centered anchor X value into GUI pixel space (top-left origin).
-     * Supports normalized [-1..1], percentage [-100..100], and raw centered pixels.
+     * Uses normalized range [-2..2]. Values outside this range are clamped.
      */
     public static double decodeToPixelX(double anchorX, int guiWidth) {
         if (guiWidth <= 0) {
             return 0;
         }
 
-        double xTopLeft;
-        if (anchorX >= -1.0 && anchorX <= 1.0) {
-            xTopLeft = (anchorX * 0.5 + 0.5) * guiWidth;
-        } else if (anchorX >= -100.0 && anchorX <= 100.0) {
-            xTopLeft = (anchorX / 200.0 + 0.5) * guiWidth;
-        } else {
-            // Raw centered pixel offset (positive to the right).
-            xTopLeft = guiWidth * 0.5 + anchorX;
-        }
-        return clamp(xTopLeft, 0, guiWidth);
+        double normalized = clamp(anchorX, -2.0, 2.0);
+        return (normalized * 0.5 + 0.5) * guiWidth;
     }
 
     /**
     * Decode a centered anchor Y value into GUI pixel space (top-left origin).
-     * Supports normalized [-1..1], percentage [-100..100], and raw centered pixels.
+     * Uses normalized range [-2..2]. Values outside this range are clamped.
     * Positive values move upward.
      */
     public static double decodeToPixelYTopLeft(double anchorY, int guiHeight) {
@@ -57,16 +49,8 @@ public final class UiAnchorCoords {
             return 0;
         }
 
-        double yTopLeft;
-        if (anchorY >= -1.0 && anchorY <= 1.0) {
-            yTopLeft = (0.5 - anchorY * 0.5) * guiHeight;
-        } else if (anchorY >= -100.0 && anchorY <= 100.0) {
-            yTopLeft = (0.5 - anchorY / 200.0) * guiHeight;
-        } else {
-            // Raw centered pixel offset (positive upward).
-            yTopLeft = guiHeight * 0.5 - anchorY;
-        }
-        return clamp(yTopLeft, 0, guiHeight);
+        double normalized = clamp(anchorY, -2.0, 2.0);
+        return (0.5 - normalized * 0.5) * guiHeight;
     }
 
     /**

@@ -10,9 +10,12 @@ import java.lang.reflect.Method;
 
 /**
  * Resolve the UI viewport used by embedded mirror screens in Ponder.
- * Falls back to full GUI size when mirror bounds are unavailable.
+ * Falls back to a centered container viewport when mirror bounds are unavailable.
  */
 public final class UiAnchorViewport {
+
+    private static final int DEFAULT_CONTAINER_WIDTH = 176;
+    private static final int DEFAULT_CONTAINER_HEIGHT = 166;
 
     private UiAnchorViewport() {
     }
@@ -35,7 +38,15 @@ public final class UiAnchorViewport {
             }
         }
 
-        return new Rect(0.0, 0.0, guiW, guiH);
+        return centeredContainerFallback(guiW, guiH);
+    }
+
+    private static Rect centeredContainerFallback(int guiW, int guiH) {
+        double width = Math.min(guiW, DEFAULT_CONTAINER_WIDTH);
+        double height = Math.min(guiH, DEFAULT_CONTAINER_HEIGHT);
+        double left = Math.floor((guiW - width) * 0.5);
+        double top = Math.floor((guiH - height) * 0.5);
+        return new Rect(left, top, width, height);
     }
 
     @Nullable
