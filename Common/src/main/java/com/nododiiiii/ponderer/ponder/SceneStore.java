@@ -576,8 +576,9 @@ public final class SceneStore {
     }
 
     /**
-     * Ensure every scene segment starts with a "show_structure" step.
-     * If the first meaningful step is not show_structure, prepend one.
+     * Ensure every scene segment starts with a valid scene-start step.
+     * If the first meaningful step is neither show_structure nor show_interface,
+     * prepend show_structure + idle(20).
      * This prevents crashes when operations like hide_section come first.
      */
     public static void sanitizeScene(DslScene scene) {
@@ -592,8 +593,10 @@ public final class SceneStore {
         if (seg.steps == null || seg.steps.isEmpty()) return;
         for (DslScene.DslStep step : seg.steps) {
             if (step == null || step.type == null) continue;
-            if ("show_structure".equalsIgnoreCase(step.type)) return; // already correct
-            break; // first meaningful step is not show_structure
+            if ("show_structure".equalsIgnoreCase(step.type) || "show_interface".equalsIgnoreCase(step.type)) {
+                return; // already correct
+            }
+            break; // first meaningful step is not a valid scene-start step
         }
         // Prepend show_structure + idle(20t)
         List<DslScene.DslStep> fixed = new ArrayList<>();

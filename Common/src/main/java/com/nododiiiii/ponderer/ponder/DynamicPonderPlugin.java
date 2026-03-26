@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
+import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
@@ -660,8 +661,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        int duration = step.durationOrDefault(60);
-        scene.addInstruction(new ShowInterfaceInstruction(step, duration));
+        PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
+        scene.addInstruction(new ShowInterfaceInstruction(step));
     }
 
     /**
@@ -753,6 +754,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_structure");
         Selection selection;
         boolean isEverywhere;
         if (step.blockPos != null && step.blockPos.size() >= 3) {
@@ -1721,8 +1723,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
             if (step == null || step.type == null) {
                 continue;
             }
-            // Return whether the first meaningful step is show_structure
-            return "show_structure".equalsIgnoreCase(step.type);
+            // Return whether the first meaningful step is a valid scene-start step
+            return "show_structure".equalsIgnoreCase(step.type)
+                    || "show_interface".equalsIgnoreCase(step.type);
         }
         return false;
     }

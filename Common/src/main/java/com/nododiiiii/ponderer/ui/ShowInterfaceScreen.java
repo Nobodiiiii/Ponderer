@@ -12,7 +12,6 @@ import java.util.Map;
 public class ShowInterfaceScreen extends AbstractStepEditorScreen {
 
     private HintableTextFieldWidget blockField;
-    private HintableTextFieldWidget durationField;
 
     @Nullable
     private List<Integer> contextPos;
@@ -34,7 +33,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
 
     @Override
     protected int getFormRowCount() {
-        return 2;
+        return 1;
     }
 
     @Override
@@ -59,12 +58,6 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
             blockPick.jeiBtn().active = false;
         }
 
-        durationField = addFormNumberField(
-            "ponderer.ui.duration",
-            "ponderer.ui.duration.tooltip.show_interface",
-            "60",
-            60,
-            "ponderer.ui.ticks");
     }
 
     @Override
@@ -72,9 +65,6 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         super.populateFromStep(step);
         if (step.block != null) {
             blockField.setValue(step.block);
-        }
-        if (step.duration != null) {
-            durationField.setValue(String.valueOf(step.duration));
         }
         contextPos = step.blockPos;
         contextFace = step.direction;
@@ -92,7 +82,6 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     protected Map<String, String> snapshotForm() {
         Map<String, String> snapshot = new HashMap<>();
         snapshot.put("block", blockField.getValue());
-        snapshot.put("duration", durationField.getValue());
         if (contextPos != null && contextPos.size() >= 3) {
             snapshot.put("ctx_pos", contextPos.get(0) + "," + contextPos.get(1) + "," + contextPos.get(2));
         }
@@ -114,10 +103,6 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         if (snapshot.containsKey("block")) {
             blockField.setValue(snapshot.get("block"));
         }
-        if (snapshot.containsKey("duration")) {
-            durationField.setValue(snapshot.get("duration"));
-        }
-
         if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_ID_KEY)) {
             blockField.setValue(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_ID_KEY));
         }
@@ -153,7 +138,6 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
             return null;
         }
 
-        int duration = Math.max(1, parseIntOr(durationField.getValue(), 60));
         if (contextPos == null || contextPos.size() < 3) {
             errorMessage = UIText.of("ponderer.ui.show_interface.error.no_context");
             return null;
@@ -162,7 +146,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         DslScene.DslStep step = new DslScene.DslStep();
         step.type = "show_interface";
         step.block = blockId;
-        step.duration = duration;
+        step.duration = null;
         step.blockPos = List.of(contextPos.get(0), contextPos.get(1), contextPos.get(2));
         if (contextFace != null && !contextFace.isBlank()) {
             step.direction = contextFace;

@@ -28,7 +28,7 @@ public final class ForgeShowInterfaceClient {
     private ForgeShowInterfaceClient() {
     }
 
-    public static void showInterfaceStep(DslScene.DslStep step, int durationTicks) {
+    public static void showInterfaceStep(DslScene.DslStep step) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) {
             return;
@@ -56,7 +56,7 @@ public final class ForgeShowInterfaceClient {
             hit,
             Boolean.TRUE.equals(step.whileSneaking));
 
-        ClientInputHandler.prepareMirrorReplay(Math.max(1, durationTicks));
+        ClientInputHandler.prepareMirrorReplay(-1);
         ModNetworking.CHANNEL.sendToServer(new SaveSnapshotPacket(snapshot));
         ModNetworking.CHANNEL.sendToServer(new ReplaySnapshotPacket());
     }

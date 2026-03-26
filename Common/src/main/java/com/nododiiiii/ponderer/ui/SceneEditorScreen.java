@@ -130,9 +130,9 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         addRenderableWidget(triggerButton);
         bx += btnW + gap;
 
-        // "Split" inserts a next_scene step at the end
+        // "Split" inserts a new scene segment with a selectable start type
         splitButton = new PonderButton(bx, btnY, btnW, btnH);
-        splitButton.withCallback(this::insertSplitStep);
+        splitButton.withCallback(this::openSplitTypeSelector);
         addRenderableWidget(splitButton);
 
         // Right side actions: Delete Scene + Back
@@ -445,7 +445,10 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         if (steps.isEmpty()) return false;
 
         DslScene.DslStep first = steps.get(0);
-        if (first == null || !"show_structure".equalsIgnoreCase(first.type)) return false;
+        if (first == null || first.type == null) return false;
+        boolean firstIsSceneStart = "show_structure".equalsIgnoreCase(first.type)
+            || "show_interface".equalsIgnoreCase(first.type);
+        if (!firstIsSceneStart) return false;
 
         // First step: disable delete, move-up, move-down
         if (rowIndex == 0 && (actionId == 5 || actionId == 0 || actionId == 1)) {
@@ -765,11 +768,18 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         }
     }
 
-    /**
-     * Split: creates a new scene in scenes[] or inserts next_scene marker for flat
-     * steps.
-     */
-    private void insertSplitStep() {
+    private void openSplitTypeSelector() {
+        ScreenOpener.open(new SceneTypeSelectorScreen(this));
+    }
+
+    public void insertSplitStep(String startStepType) {
+        String normalizedType = (startStepType != null && !startStepType.isBlank())
+                ? startStepType.toLowerCase(Locale.ROOT)
+                : "show_structure";
+        if (!"show_structure".equals(normalizedType) && !"show_interface".equals(normalizedType)) {
+            normalizedType = "show_structure";
+        }
+
         undoManager.saveState(getSteps());
         int newSceneIndex = -1;
 
@@ -778,10 +788,10 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             // scenes[] mode: create a new scene after the current one
             DslScene.SceneSegment newScene = new DslScene.SceneSegment();
             newScene.steps = new ArrayList<>();
-            // Auto-populate with show_structure + idle(20t)
-            DslScene.DslStep showStep = new DslScene.DslStep();
-            showStep.type = "show_structure";
-            newScene.steps.add(showStep);
+            // Auto-populate with start-type step + idle(20t)
+            DslScene.DslStep startStep = new DslScene.DslStep();
+            startStep.type = normalizedType;
+            newScene.steps.add(startStep);
             DslScene.DslStep idleStep = new DslScene.DslStep();
             idleStep.type = "idle";
             idleStep.duration = 20;
@@ -793,13 +803,13 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             scene.scenes.add(sceneIndex + 1, newScene);
             newSceneIndex = sceneIndex + 1;
         } else {
-            // Flat steps mode: insert a next_scene marker + show_structure + idle(20t)
+            // Flat steps mode: insert a next_scene marker + start-type step + idle(20t)
             DslScene.DslStep ns = new DslScene.DslStep();
             ns.type = "next_scene";
             getMutableSteps().add(ns);
-            DslScene.DslStep showStep = new DslScene.DslStep();
-            showStep.type = "show_structure";
-            getMutableSteps().add(showStep);
+            DslScene.DslStep startStep = new DslScene.DslStep();
+            startStep.type = normalizedType;
+            getMutableSteps().add(startStep);
             DslScene.DslStep idleStep = new DslScene.DslStep();
             idleStep.type = "idle";
             idleStep.duration = 20;

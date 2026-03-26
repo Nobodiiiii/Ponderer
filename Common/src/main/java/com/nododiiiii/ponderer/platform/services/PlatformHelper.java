@@ -35,6 +35,13 @@ public interface PlatformHelper {
      * Open a mirrored block interface for a scene step on the client.
      * Default is no-op for platforms without this feature.
      */
-    default void showInterfaceStep(DslScene.DslStep step, int durationTicks) {
+    default void showInterfaceStep(DslScene.DslStep step) {
+    }
+
+    /**
+     * Close the currently mirrored interface, if any.
+     * Default is no-op for platforms without this feature.
+     */
+    default void closeInterfaceStep(String reason) {
     }
 }

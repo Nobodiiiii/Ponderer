@@ -12,6 +12,7 @@ import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Popup screen for choosing which step type to add.
@@ -22,7 +23,7 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
     private static final int ROW_H = 22;
     private static final String[][] PAGE_TYPES = {
         {
-            "idle", "text", "show_controls", "show_interface", "rotate_camera_y", "zoom_scene"
+            "idle", "text", "show_controls", "rotate_camera_y", "zoom_scene"
         },
         {
             "set_block", "destroy_block", "replace_blocks", "modify_block_entity_nbt"
@@ -44,6 +45,14 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
         "ponderer.ui.step.page.entity",
         "ponderer.ui.step.page.effect"
     };
+    private static final String[][] INTERFACE_SCENE_PAGE_TYPES = {
+        {
+            "idle", "text", "show_controls", "play_sound"
+        }
+    };
+    private static final String[] INTERFACE_SCENE_PAGE_KEYS = {
+        "ponderer.ui.step.page.story"
+    };
 
     private PonderButton backButton;
     private PonderButton prevPageButton;
@@ -58,6 +67,8 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
     private final DslScene scene;
     private final int sceneIndex;
     private final SceneEditorScreen parent;
+    private final String[][] pageTypes;
+    private final String[] pageKeys;
     private final int pageIndex;
     /** Index after which to insert the new step. -1 means append. */
     private final int insertAfterIndex;
@@ -75,14 +86,21 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
         this.scene = scene;
         this.sceneIndex = sceneIndex;
         this.parent = parent;
-        this.pageIndex = Math.max(0, Math.min(pageIndex, PAGE_TYPES.length - 1));
+        if (isInterfaceStartScene(scene, sceneIndex)) {
+            this.pageTypes = INTERFACE_SCENE_PAGE_TYPES;
+            this.pageKeys = INTERFACE_SCENE_PAGE_KEYS;
+        } else {
+            this.pageTypes = PAGE_TYPES;
+            this.pageKeys = PAGE_KEYS;
+        }
+        this.pageIndex = Math.max(0, Math.min(pageIndex, this.pageTypes.length - 1));
         this.insertAfterIndex = insertAfterIndex;
     }
 
     @Override
     protected void init() {
         typeButtons.clear();
-        String[] types = PAGE_TYPES[pageIndex];
+        String[] types = pageTypes[pageIndex];
         int fixedRows = 6;
         int fullH = 52 + fixedRows * ROW_H + 34;
         displayH = Math.min(fullH, height - UILayoutConstants.SCREEN_MARGIN * 2);
@@ -97,7 +115,7 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
         addRenderableWidget(prevPageButton);
 
         nextPageButton = new PonderButton(guiLeft + W - 26, guiTop + 25, 16, 16);
-        nextPageButton.withCallback(() -> Minecraft.getInstance().setScreen(new StepTypeSelectorScreen(scene, sceneIndex, parent, Math.min(PAGE_TYPES.length - 1, pageIndex + 1), insertAfterIndex)));
+        nextPageButton.withCallback(() -> Minecraft.getInstance().setScreen(new StepTypeSelectorScreen(scene, sceneIndex, parent, Math.min(pageTypes.length - 1, pageIndex + 1), insertAfterIndex)));
         addRenderableWidget(nextPageButton);
 
         for (int i = 0; i < types.length; i++) {
@@ -121,7 +139,7 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
         var font = Minecraft.getInstance().font;
         graphics.drawString(font, UIText.of("ponderer.ui.step_selector.title"), guiLeft + 10, guiTop + 8, 0xFFFFFF);
         graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + W - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
-        graphics.drawCenteredString(font, UIText.of(PAGE_KEYS[pageIndex]), guiLeft + W / 2, guiTop + 30, 0xCCCCFF);
+        graphics.drawCenteredString(font, UIText.of(pageKeys[pageIndex]), guiLeft + W / 2, guiTop + 30, 0xCCCCFF);
 
         // Scrollable type buttons
         int vpTop = guiTop + 44;
@@ -162,7 +180,7 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 500);
         graphics.drawCenteredString(font, "<", prevPageButton.getX() + 8, prevPageButton.getY() + 4, pageIndex > 0 ? 0xFFFFFF : 0x666666);
-        graphics.drawCenteredString(font, ">", nextPageButton.getX() + 8, nextPageButton.getY() + 4, pageIndex < PAGE_TYPES.length - 1 ? 0xFFFFFF : 0x666666);
+        graphics.drawCenteredString(font, ">", nextPageButton.getX() + 8, nextPageButton.getY() + 4, pageIndex < pageTypes.length - 1 ? 0xFFFFFF : 0x666666);
         if (backButton != null) {
             graphics.drawCenteredString(font, UIText.of("ponderer.ui.scene_editor.back"),
                 backButton.getX() + 23, backButton.getY() + 4, 0xFFFFFF);
@@ -203,12 +221,32 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
         int vpBot = guiTop + displayH - 26;
         int trackH = vpBot - vpTop;
         graphics.fill(barX, vpTop, barX + UILayoutConstants.SCROLLBAR_W, vpBot, UILayoutConstants.COLOR_SCROLLBAR_BG);
-        String[] types = PAGE_TYPES[pageIndex];
+        String[] types = pageTypes[pageIndex];
         int contentH = types.length * ROW_H;
         if (contentH <= 0) return;
         int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * trackH / contentH);
         int thumbY = vpTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
         graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
+    }
+
+    private static boolean isInterfaceStartScene(DslScene scene, int sceneIndex) {
+        if (scene == null || scene.scenes == null || scene.scenes.isEmpty()) {
+            return false;
+        }
+        if (sceneIndex < 0 || sceneIndex >= scene.scenes.size()) {
+            return false;
+        }
+        List<DslScene.DslStep> steps = scene.scenes.get(sceneIndex).steps;
+        if (steps == null) {
+            return false;
+        }
+        for (DslScene.DslStep step : steps) {
+            if (step == null || step.type == null || step.type.isBlank()) {
+                continue;
+            }
+            return "show_interface".equals(step.type.toLowerCase(Locale.ROOT));
+        }
+        return false;
     }
 
     private void openEditorForType(String type) {

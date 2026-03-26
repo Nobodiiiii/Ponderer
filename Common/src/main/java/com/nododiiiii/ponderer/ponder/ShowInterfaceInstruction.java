@@ -7,16 +7,14 @@ import net.createmod.ponder.foundation.instruction.TickingInstruction;
 public class ShowInterfaceInstruction extends TickingInstruction {
 
     private final DslScene.DslStep step;
-    private final int durationTicks;
 
-    public ShowInterfaceInstruction(DslScene.DslStep step, int durationTicks) {
-        super(true, Math.max(1, durationTicks));
+    public ShowInterfaceInstruction(DslScene.DslStep step) {
+        super(true, 1);
         this.step = step;
-        this.durationTicks = Math.max(1, durationTicks);
     }
 
     @Override
     protected void firstTick(PonderScene scene) {
-        PondererServices.PLATFORM.showInterfaceStep(step, durationTicks);
+        PondererServices.PLATFORM.showInterfaceStep(step);
     }
 }

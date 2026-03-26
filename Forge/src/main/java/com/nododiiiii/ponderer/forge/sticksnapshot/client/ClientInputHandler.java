@@ -230,9 +230,7 @@ public class ClientInputHandler {
             return;
         }
 
-        if (mirror.mouseClicked(event.getMouseX(), event.getMouseY(), event.getButton())) {
-            event.setCanceled(true);
-        }
+        mirror.mouseClicked(event.getMouseX(), event.getMouseY(), event.getButton());
     }
 
     @SubscribeEvent
@@ -242,9 +240,7 @@ public class ClientInputHandler {
             return;
         }
 
-        if (mirror.mouseReleased(event.getMouseX(), event.getMouseY(), event.getButton())) {
-            event.setCanceled(true);
-        }
+        mirror.mouseReleased(event.getMouseX(), event.getMouseY(), event.getButton());
     }
 
     @SubscribeEvent
@@ -254,9 +250,7 @@ public class ClientInputHandler {
             return;
         }
 
-        if (mirror.mouseScrolled(event.getMouseX(), event.getMouseY(), event.getScrollDelta())) {
-            event.setCanceled(true);
-        }
+        mirror.mouseScrolled(event.getMouseX(), event.getMouseY(), event.getScrollDelta());
     }
 
     private static void closeMirrorSession(String reason) {
