@@ -23,9 +23,11 @@ public class FabricNetworkHelper implements NetworkHelper {
     private static final ResourceLocation UPLOAD_SCENE = new ResourceLocation(Ponderer.MODID, "upload_scene");
     private static final ResourceLocation SYNC_REQUEST = new ResourceLocation(Ponderer.MODID, "sync_request");
     private static final ResourceLocation DOWNLOAD_STRUCTURE = new ResourceLocation(Ponderer.MODID, "download_structure");
+    private static final ResourceLocation CAPTURE_BLOCK_ENTITY_NBT_REQUEST = new ResourceLocation(Ponderer.MODID, "capture_block_entity_nbt_request");
     private static final ResourceLocation SYNC_RESPONSE = new ResourceLocation(Ponderer.MODID, "sync_response");
     private static final ResourceLocation DOWNLOAD_STRUCTURE_RESULT = new ResourceLocation(Ponderer.MODID, "download_result");
     private static final ResourceLocation UPLOAD_RESPONSE = new ResourceLocation(Ponderer.MODID, "upload_response");
+    private static final ResourceLocation CAPTURE_BLOCK_ENTITY_NBT_RESPONSE = new ResourceLocation(Ponderer.MODID, "capture_block_entity_nbt_response");
 
     @Override
     public void registerPackets() {
@@ -49,6 +51,11 @@ public class FabricNetworkHelper implements NetworkHelper {
             server.execute(() -> DownloadStructurePayload.handle(msg, player));
         });
 
+        ServerPlayNetworking.registerGlobalReceiver(CAPTURE_BLOCK_ENTITY_NBT_REQUEST, (server, player, handler, buf, responseSender) -> {
+            CaptureBlockEntityNbtRequestPayload msg = CaptureBlockEntityNbtRequestPayload.decode(buf);
+            server.execute(() -> CaptureBlockEntityNbtRequestPayload.handle(msg, player));
+        });
+
         // Clientbound handlers
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
             registerClientboundHandlers();
@@ -70,6 +77,11 @@ public class FabricNetworkHelper implements NetworkHelper {
         ClientPlayNetworking.registerGlobalReceiver(UPLOAD_RESPONSE, (client, handler, buf, responseSender) -> {
             UploadResponsePayload msg = UploadResponsePayload.decode(buf);
             client.execute(() -> UploadResponsePayload.handle(msg));
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(CAPTURE_BLOCK_ENTITY_NBT_RESPONSE, (client, handler, buf, responseSender) -> {
+            CaptureBlockEntityNbtResponsePayload msg = CaptureBlockEntityNbtResponsePayload.decode(buf);
+            client.execute(() -> CaptureBlockEntityNbtResponsePayload.handle(msg));
         });
     }
 
@@ -99,9 +111,11 @@ public class FabricNetworkHelper implements NetworkHelper {
         if (packet instanceof UploadScenePayload) return UPLOAD_SCENE;
         if (packet instanceof SyncRequestPayload) return SYNC_REQUEST;
         if (packet instanceof DownloadStructurePayload) return DOWNLOAD_STRUCTURE;
+        if (packet instanceof CaptureBlockEntityNbtRequestPayload) return CAPTURE_BLOCK_ENTITY_NBT_REQUEST;
         if (packet instanceof SyncResponsePayload) return SYNC_RESPONSE;
         if (packet instanceof DownloadStructureResultPayload) return DOWNLOAD_STRUCTURE_RESULT;
         if (packet instanceof UploadResponsePayload) return UPLOAD_RESPONSE;
+        if (packet instanceof CaptureBlockEntityNbtResponsePayload) return CAPTURE_BLOCK_ENTITY_NBT_RESPONSE;
         throw new IllegalArgumentException("Unknown packet type: " + packet.getClass().getName());
     }
 
@@ -110,9 +124,11 @@ public class FabricNetworkHelper implements NetworkHelper {
         if (packet instanceof UploadScenePayload p) p.encode(buf);
         else if (packet instanceof SyncRequestPayload p) p.encode(buf);
         else if (packet instanceof DownloadStructurePayload p) p.encode(buf);
+        else if (packet instanceof CaptureBlockEntityNbtRequestPayload p) p.encode(buf);
         else if (packet instanceof SyncResponsePayload p) p.encode(buf);
         else if (packet instanceof DownloadStructureResultPayload p) p.encode(buf);
         else if (packet instanceof UploadResponsePayload p) p.encode(buf);
+        else if (packet instanceof CaptureBlockEntityNbtResponsePayload p) p.encode(buf);
         else throw new IllegalArgumentException("Unknown packet type: " + packet.getClass().getName());
     }
 }

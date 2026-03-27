@@ -78,8 +78,6 @@ public class SnapshotReplayer {
         }
         List<SandboxInjectedBlock> sandboxInjectedBlocks = injectReferencedContextBlocks(level, snapshot, pos);
         List<SandboxInjectedBlock> sandboxClearedAirBlocks = clearSandboxNeighborsToAir(level, pos);
-        List<GuardedBlock> sourceGuard = captureSourceGuard(level, snapshot);
-
         boolean keepSandbox = false;
         try {
             level.setBlock(pos, snapshotState, 0);
@@ -107,9 +105,6 @@ public class SnapshotReplayer {
                         player.getScoreboardName(), capturedPackets.packets.size());
             }
         } finally {
-            if (!sourceGuard.isEmpty()) {
-                logGuardedAreaMutations(level, sourceGuard, player.getScoreboardName());
-            }
             if (!sandboxClearedAirBlocks.isEmpty()) {
                 restoreInjectedContextBlocks(level, sandboxClearedAirBlocks);
             }
@@ -546,18 +541,20 @@ public class SnapshotReplayer {
         BlockState contextState = Block.stateById(snapshot.getStateId());
         CompoundTag contextBeTag = snapshot.getBlockEntityTag();
         BlockPos contextPos = snapshot.getPos();
-        if (menuSourcePos != null && level.hasChunkAt(menuSourcePos)) {
+        boolean usingSnapshotContext = contextBeTag != null;
+        if (!usingSnapshotContext && menuSourcePos != null && level.hasChunkAt(menuSourcePos)) {
             contextPos = menuSourcePos;
             contextState = level.getBlockState(menuSourcePos);
             BlockEntity contextBe = level.getBlockEntity(menuSourcePos);
             contextBeTag = contextBe != null ? contextBe.saveWithFullMetadata() : null;
             StickSnapshotFeature.LOGGER.debug(
-                    "[server][mirror-debug] forge-open context from menuSourcePos={} state={} hasBeTag={}",
+                    "[server][mirror-debug] forge-open context fell back to menuSourcePos={} state={} hasBeTag={}",
                     menuSourcePos, contextState, contextBeTag != null);
         } else {
             StickSnapshotFeature.LOGGER.debug(
-                    "[server][mirror-debug] forge-open fallback to snapshot context snapshotPos={} menuSourcePos={} chunkLoaded={}",
-                    snapshot.getPos(), menuSourcePos, menuSourcePos != null && level.hasChunkAt(menuSourcePos));
+                    "[server][mirror-debug] forge-open context kept snapshot snapshotPos={} menuSourcePos={} hasSnapshotBeTag={} chunkLoaded={}",
+                    snapshot.getPos(), menuSourcePos, usingSnapshotContext,
+                    menuSourcePos != null && level.hasChunkAt(menuSourcePos));
         }
 
         CompoundTag normalizedSnapshotBeTag = normalizeBlockEntityTagForPos(

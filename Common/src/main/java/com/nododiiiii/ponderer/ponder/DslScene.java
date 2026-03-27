@@ -188,6 +188,7 @@ public class DslScene {
         public Boolean attachKeyFrame;
         public Boolean whileSneaking;
         public Boolean whileCTRL;
+        public Boolean enableNbt;
         public Boolean fullScene;
         public List<InterfaceSlotBinding> interfaceSlots;
 
@@ -198,6 +199,10 @@ public class DslScene {
 
     public static class InterfaceSlotBinding {
         public Integer slotIndex;
+        @Nullable
+        public Integer slotX;
+        @Nullable
+        public Integer slotY;
         public String ingredientId;
         @Nullable
         public String ingredientKind;
@@ -206,7 +211,14 @@ public class DslScene {
         }
 
         public InterfaceSlotBinding(int slotIndex, String ingredientId, @Nullable String ingredientKind) {
+            this(slotIndex, null, null, ingredientId, ingredientKind);
+        }
+
+        public InterfaceSlotBinding(int slotIndex, @Nullable Integer slotX, @Nullable Integer slotY,
+                                    String ingredientId, @Nullable String ingredientKind) {
             this.slotIndex = slotIndex;
+            this.slotX = slotX;
+            this.slotY = slotY;
             this.ingredientId = ingredientId;
             this.ingredientKind = ingredientKind;
         }

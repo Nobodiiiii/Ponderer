@@ -42,7 +42,7 @@ public class InterfaceSlotGhostHandler<T extends AbstractContainerScreen<?>> imp
 
                 @Override
                 public void accept(I ignored) {
-                    InterfaceSlotEditState.putBinding(finalSlotIndex, descriptor.id(), descriptor.kind());
+                    InterfaceSlotEditState.putBinding(finalSlotIndex, slot.x, slot.y, descriptor.id(), descriptor.kind());
                 }
             });
         }

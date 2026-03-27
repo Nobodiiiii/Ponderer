@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.network.CaptureBlockEntityNbtRequestPayload;
+import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -45,6 +47,9 @@ public final class NbtPickState {
     private static DslScene scene;
     private static int sceneIndex;
     private static SceneEditorScreen parent;
+    @Nullable
+    private static BlockPos pendingServerBlockPos;
+    private static boolean awaitingServerBlockEntityNbt = false;
 
     private NbtPickState() {}
 
@@ -69,6 +74,8 @@ public final class NbtPickState {
                                  int sceneIndex,
                                  SceneEditorScreen parent) {
         NbtPickState.active = true;
+        NbtPickState.awaitingServerBlockEntityNbt = false;
+        NbtPickState.pendingServerBlockPos = null;
         NbtPickState.targetKey = targetKey;
         NbtPickState.captureBlockId = captureBlockId;
         NbtPickState.formSnapshot = new HashMap<>(snapshot);
@@ -86,6 +93,7 @@ public final class NbtPickState {
 
     public static boolean handleUseClick() {
         if (!active) return false;
+        if (awaitingServerBlockEntityNbt) return true;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return false;
         if (mc.screen != null) return false;
@@ -95,20 +103,98 @@ public final class NbtPickState {
             return true;
         }
 
+        if (hit instanceof BlockHitResult bhr) {
+            CaptureResult localResult = captureClientBlockContext(mc.level, bhr);
+            if (localResult == null) {
+                return true;
+            }
+
+            applyCaptureMetadata(localResult, false);
+            if (mc.level.getBlockEntity(bhr.getBlockPos()) == null) {
+                applyCapturedNbt(localResult.nbt);
+                reopenEditor();
+            } else {
+                awaitingServerBlockEntityNbt = true;
+                pendingServerBlockPos = bhr.getBlockPos().immutable();
+                PondererServices.NETWORK.sendToServer(new CaptureBlockEntityNbtRequestPayload(pendingServerBlockPos));
+            }
+            return true;
+        }
+
         CaptureResult result = captureFromHit(mc.level, hit);
         if (result == null) {
             return true;
         }
 
-        if (!result.nbt.isEmpty()) {
-            formSnapshot.put(targetKey, result.nbt.toString());
-        } else {
-            // Explicitly clear the target field when capture result has empty NBT ({}).
-            formSnapshot.put(targetKey, "");
+        applyCaptureMetadata(result, true);
+        applyCapturedNbt(result.nbt);
+        reopenEditor();
+        return true;
+    }
+
+    public static void cancelPick() {
+        if (!active) return;
+        reopenEditor();
+    }
+
+    public static void reset() {
+        active = false;
+        awaitingServerBlockEntityNbt = false;
+        pendingServerBlockPos = null;
+        formSnapshot.clear();
+    }
+
+    public static void handleServerBlockEntityCapture(BlockPos pos, @Nullable CompoundTag nbt) {
+        if (!active || !awaitingServerBlockEntityNbt || pendingServerBlockPos == null || !pendingServerBlockPos.equals(pos)) {
+            return;
         }
+
+        awaitingServerBlockEntityNbt = false;
+        pendingServerBlockPos = null;
+        applyCapturedNbt(nbt == null ? new CompoundTag() : nbt);
+        reopenEditor();
+    }
+
+    @Nullable
+    private static CaptureResult captureFromHit(Level level, HitResult hit) {
+        if (hit instanceof EntityHitResult ehr) {
+            Entity entity = ehr.getEntity();
+            CompoundTag nbt = new CompoundTag();
+            entity.saveWithoutId(nbt);
+            sanitizeCapturedEntityNbt(nbt);
+            String name = entity.getDisplayName().getString();
+            String entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+            return new CaptureResult(nbt, name, null, null, entityId, null, null, null, null);
+        }
+
+        if (hit instanceof BlockHitResult bhr) {
+            return captureClientBlockContext(level, bhr);
+        }
+
+        return null;
+    }
+
+    @Nullable
+    private static CaptureResult captureClientBlockContext(Level level, BlockHitResult bhr) {
+        BlockPos pos = bhr.getBlockPos();
+        BlockState state = level.getBlockState(pos);
+        BlockEntity be = level.getBlockEntity(pos);
+
+        Map<String, String> props = new HashMap<>();
+        for (Property<?> prop : state.getProperties()) {
+            props.put(prop.getName(), getPropertyValueString(state, prop));
+        }
+
+        CompoundTag nbt = be != null ? be.saveWithoutMetadata() : new CompoundTag();
+        String name = state.getBlock().getName().getString();
+        String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+        return new CaptureResult(nbt, name, props.isEmpty() ? null : props, blockId, null,
+            pos.immutable(), bhr.getDirection(), bhr.getLocation(), bhr.isInside());
+    }
+
+    private static void applyCaptureMetadata(CaptureResult result, boolean includeEntityId) {
         formSnapshot.put(SNAPSHOT_NOTICE_KEY, result.name);
 
-        // If block ID was captured, fill it into the snapshot
         if (captureBlockId && result.blockId != null) {
             formSnapshot.put(SNAPSHOT_BLOCK_ID_KEY, result.blockId);
         }
@@ -126,11 +212,10 @@ public final class NbtPickState {
         if (result.hitInside != null) {
             formSnapshot.put(SNAPSHOT_BLOCK_INSIDE_KEY, String.valueOf(result.hitInside));
         }
-        if (result.entityId != null) {
+        if (includeEntityId && result.entityId != null) {
             formSnapshot.put(SNAPSHOT_ENTITY_ID_KEY, result.entityId);
         }
 
-        // If properties were captured, fill them into the snapshot
         if (result.blockProperties != null) {
             List<Map.Entry<String, String>> entries = new ArrayList<>(result.blockProperties.entrySet());
             formSnapshot.put("prop_count", String.valueOf(entries.size()));
@@ -139,53 +224,14 @@ public final class NbtPickState {
                 formSnapshot.put("prop_val_" + i, entries.get(i).getValue());
             }
         }
-
-        reopenEditor();
-        return true;
     }
 
-    public static void cancelPick() {
-        if (!active) return;
-        reopenEditor();
-    }
-
-    public static void reset() {
-        active = false;
-        formSnapshot.clear();
-    }
-
-    @Nullable
-    private static CaptureResult captureFromHit(Level level, HitResult hit) {
-        if (hit instanceof EntityHitResult ehr) {
-            Entity entity = ehr.getEntity();
-            CompoundTag nbt = new CompoundTag();
-            entity.saveWithoutId(nbt);
-            sanitizeCapturedEntityNbt(nbt);
-            String name = entity.getDisplayName().getString();
-            String entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
-            return new CaptureResult(nbt, name, null, null, entityId, null, null, null, null);
+    private static void applyCapturedNbt(@Nullable CompoundTag nbt) {
+        if (nbt != null && !nbt.isEmpty()) {
+            formSnapshot.put(targetKey, nbt.toString());
+        } else {
+            formSnapshot.put(targetKey, "");
         }
-
-        if (hit instanceof BlockHitResult bhr) {
-            BlockPos pos = bhr.getBlockPos();
-            BlockState state = level.getBlockState(pos);
-            BlockEntity be = level.getBlockEntity(pos);
-
-            // Always capture block state properties
-            Map<String, String> props = new HashMap<>();
-            for (Property<?> prop : state.getProperties()) {
-                props.put(prop.getName(), getPropertyValueString(state, prop));
-            }
-
-            // Capture block entity NBT if present
-            CompoundTag nbt = be != null ? be.saveWithoutMetadata() : new CompoundTag();
-            String name = state.getBlock().getName().getString();
-            String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-            return new CaptureResult(nbt, name, props.isEmpty() ? null : props, blockId, null,
-                pos.immutable(), bhr.getDirection(), bhr.getLocation(), bhr.isInside());
-        }
-
-        return null;
     }
 
     private static <T extends Comparable<T>> String getPropertyValueString(BlockState state, Property<T> prop) {
@@ -222,6 +268,8 @@ public final class NbtPickState {
         }
 
         active = false;
+        awaitingServerBlockEntityNbt = false;
+        pendingServerBlockPos = null;
 
         if (editor != null) {
             editor.setInsertAfterIndex(insertAfterIndex);

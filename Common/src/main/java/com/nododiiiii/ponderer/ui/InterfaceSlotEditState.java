@@ -88,15 +88,34 @@ public final class InterfaceSlotEditState {
         return slotBindings.size();
     }
 
-    public static void putBinding(int slotIndex, String ingredientId, @Nullable String ingredientKind) {
+    public static void putBinding(int slotIndex, @Nullable Integer slotX, @Nullable Integer slotY,
+                                  String ingredientId, @Nullable String ingredientKind) {
         if (!active || ingredientId == null || ingredientId.isBlank()) {
             return;
         }
-        slotBindings.put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, ingredientId, ingredientKind));
+        slotBindings.put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, slotX, slotY, ingredientId, ingredientKind));
     }
 
     public static LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> getBindingsForRender() {
         return copyBindings(slotBindings);
+    }
+
+    @Nullable
+    public static DslScene.InterfaceSlotBinding getBinding(int slotIndex) {
+        DslScene.InterfaceSlotBinding binding = slotBindings.get(slotIndex);
+        if (binding == null) {
+            return null;
+        }
+        return new DslScene.InterfaceSlotBinding(
+            binding.slotIndex,
+            binding.slotX,
+            binding.slotY,
+            binding.ingredientId,
+            binding.ingredientKind);
+    }
+
+    public static boolean removeBinding(int slotIndex) {
+        return slotBindings.remove(slotIndex) != null;
     }
 
     public static void finishAndReopenEditor() {
@@ -154,6 +173,12 @@ public final class InterfaceSlotEditState {
                 continue;
             }
             snapshot.put("slot_" + i + "_index", String.valueOf(binding.slotIndex));
+            if (binding.slotX != null) {
+                snapshot.put("slot_" + i + "_x", String.valueOf(binding.slotX));
+            }
+            if (binding.slotY != null) {
+                snapshot.put("slot_" + i + "_y", String.valueOf(binding.slotY));
+            }
             snapshot.put("slot_" + i + "_id", binding.ingredientId);
             if (binding.ingredientKind != null && !binding.ingredientKind.isBlank()) {
                 snapshot.put("slot_" + i + "_kind", binding.ingredientKind);
@@ -184,8 +209,10 @@ public final class InterfaceSlotEditState {
             }
             try {
                 int slotIndex = Integer.parseInt(indexRaw);
+                Integer slotX = parseOptionalInt(snapshot.get("slot_" + i + "_x"));
+                Integer slotY = parseOptionalInt(snapshot.get("slot_" + i + "_y"));
                 String kind = snapshot.get("slot_" + i + "_kind");
-                result.put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, id, kind));
+                result.put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, slotX, slotY, id, kind));
             } catch (NumberFormatException ignored) {
             }
         }
@@ -230,8 +257,25 @@ public final class InterfaceSlotEditState {
                 continue;
             }
             copy.put(binding.slotIndex,
-                new DslScene.InterfaceSlotBinding(binding.slotIndex, binding.ingredientId, binding.ingredientKind));
+                new DslScene.InterfaceSlotBinding(
+                    binding.slotIndex,
+                    binding.slotX,
+                    binding.slotY,
+                    binding.ingredientId,
+                    binding.ingredientKind));
         }
         return copy;
+    }
+
+    @Nullable
+    private static Integer parseOptionalInt(@Nullable String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }

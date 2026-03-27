@@ -67,6 +67,16 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 })
                 .add();
 
+        CHANNEL.messageBuilder(CaptureBlockEntityNbtRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(CaptureBlockEntityNbtRequestPayload::encode)
+                .decoder(CaptureBlockEntityNbtRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    CaptureBlockEntityNbtRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
         // Server -> Client
         CHANNEL.messageBuilder(SyncResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SyncResponsePayload::encode)
@@ -91,6 +101,15 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .decoder(UploadResponsePayload::decode)
                 .consumerMainThread((msg, ctx) -> {
                     UploadResponsePayload.handle(msg);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(CaptureBlockEntityNbtResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(CaptureBlockEntityNbtResponsePayload::encode)
+                .decoder(CaptureBlockEntityNbtResponsePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    CaptureBlockEntityNbtResponsePayload.handle(msg);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();

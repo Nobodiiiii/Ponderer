@@ -8,17 +8,22 @@ import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplaySnapshotPacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.SaveSnapshotPacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.BlockSnapshot;
+import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
+import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -55,6 +60,12 @@ public class ClientInputHandler {
     private static int pendingAutoClickButton = GLFW.GLFW_MOUSE_BUTTON_LEFT;
     private static boolean jeiGhostDragActive = false;
     @Nullable
+    private static DslScene.InterfaceSlotBinding draggedSlotBinding;
+    @Nullable
+    private static Integer draggedSlotOriginIndex;
+    @Nullable
+    private static AbstractContainerMenu previousPlayerMenu;
+    @Nullable
     private static Screen embeddedMirrorScreen;
 
     private ClientInputHandler() {
@@ -80,6 +91,8 @@ public class ClientInputHandler {
         autoReplayTicks = shouldAutoReplay ? SHOW_INTERFACE_AUTO_REPLAY_DELAY_TICKS : -1;
         pendingAutoClick = false;
         jeiGhostDragActive = false;
+        draggedSlotBinding = null;
+        draggedSlotOriginIndex = null;
         JeiCompat.cancelGhostIngredientDrag();
         if (mc.player != null && mc.player.containerMenu != null) {
             lastObservedContainerId = mc.player.containerMenu.containerId;
@@ -127,6 +140,31 @@ public class ClientInputHandler {
 
     public static boolean isAutoReplayWaitActive() {
         return autoReplayArmed && autoReplayTicks > 0;
+    }
+
+    public static void renderDraggedSlotBinding(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (draggedSlotBinding == null) {
+            return;
+        }
+        var element = JeiCompat.resolveIngredientById(draggedSlotBinding.ingredientId, draggedSlotBinding.ingredientKind);
+        if (element == null) {
+            return;
+        }
+        element.render(graphics, mouseX - 8, mouseY - 8);
+    }
+
+    public static void bindMirrorMenu(AbstractContainerMenu menu) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) {
+            return;
+        }
+        if (previousPlayerMenu == null) {
+            previousPlayerMenu = mc.player.containerMenu;
+        }
+        mc.player.containerMenu = menu;
+        lastObservedContainerId = menu.containerId;
+        StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] bound mirror menu containerId={} class={}",
+                menu.containerId, menu.getClass().getName());
     }
 
     public static void closeEmbeddedMirrorFromPonder(String reason) {
@@ -303,14 +341,10 @@ public class ClientInputHandler {
             return;
         }
 
-        if (event.getButton() == GLFW.GLFW_MOUSE_BUTTON_LEFT
-            && JeiCompat.startGhostIngredientDrag(mirror, event.getMouseX(), event.getMouseY())) {
-            jeiGhostDragActive = true;
+        if (handleMirrorMousePressed(mirror, event.getMouseX(), event.getMouseY(), event.getButton())) {
             event.setCanceled(true);
             return;
         }
-
-        mirror.mouseClicked(event.getMouseX(), event.getMouseY(), event.getButton());
     }
 
     @SubscribeEvent
@@ -320,15 +354,10 @@ public class ClientInputHandler {
             return;
         }
 
-        if (jeiGhostDragActive) {
-            boolean accepted = JeiCompat.completeGhostIngredientDrag(mirror, event.getMouseX(), event.getMouseY());
-            jeiGhostDragActive = false;
+        if (handleMirrorMouseReleased(mirror, event.getMouseX(), event.getMouseY(), event.getButton())) {
             event.setCanceled(true);
-            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] jei ghost drag completed accepted={}", accepted);
             return;
         }
-
-        mirror.mouseReleased(event.getMouseX(), event.getMouseY(), event.getButton());
     }
 
     @SubscribeEvent
@@ -353,12 +382,27 @@ public class ClientInputHandler {
         autoReplayTicks = -1;
         pendingAutoClick = false;
         jeiGhostDragActive = false;
+        draggedSlotBinding = null;
+        draggedSlotOriginIndex = null;
         JeiCompat.cancelGhostIngredientDrag();
         InterfaceSlotOverlayRenderer.clearRuntimeBindings();
         embeddedMirrorScreen = null;
+        restorePlayerMenu();
         MirrorForgeOpenClient.restoreInjectedBlock();
         ModNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
         StickSnapshotFeature.LOGGER.debug("[client] mirror screen closed, requested inventory restore, reason={}", reason);
+    }
+
+    private static void restorePlayerMenu() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) {
+            previousPlayerMenu = null;
+            return;
+        }
+
+        mc.player.containerMenu = previousPlayerMenu != null ? previousPlayerMenu : mc.player.inventoryMenu;
+        lastObservedContainerId = mc.player.containerMenu.containerId;
+        previousPlayerMenu = null;
     }
 
     private static void runPendingAutoClick(Minecraft mc) {
@@ -372,11 +416,64 @@ public class ClientInputHandler {
         double mouseX = viewport.left() + localX;
         double mouseY = viewport.top() + localY;
 
-        embeddedMirrorScreen.mouseClicked(mouseX, mouseY, pendingAutoClickButton);
-        embeddedMirrorScreen.mouseReleased(mouseX, mouseY, pendingAutoClickButton);
+        handleMirrorMousePressed(embeddedMirrorScreen, mouseX, mouseY, pendingAutoClickButton);
+        handleMirrorMouseReleased(embeddedMirrorScreen, mouseX, mouseY, pendingAutoClickButton);
         StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] auto click at norm=({}, {}) mouse=({}, {}) button={}",
                 pendingAutoClickNormX, pendingAutoClickNormY, mouseX, mouseY, pendingAutoClickButton);
         pendingAutoClick = false;
+    }
+
+    private static boolean handleMirrorMousePressed(Screen mirror, double mouseX, double mouseY, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
+            && JeiCompat.startGhostIngredientDrag(mirror, mouseX, mouseY)) {
+            jeiGhostDragActive = true;
+            return true;
+        }
+
+        Slot slot = InterfaceSlotOverlayRenderer.findSlotAt(mirror, mouseX, mouseY);
+        if (InterfaceSlotEditState.isActive() && slot != null) {
+            if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && InterfaceSlotEditState.removeBinding(slot.index)) {
+                return true;
+            }
+            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+                DslScene.InterfaceSlotBinding binding = InterfaceSlotEditState.getBinding(slot.index);
+                if (binding != null) {
+                    draggedSlotBinding = binding;
+                    draggedSlotOriginIndex = binding.slotIndex;
+                    InterfaceSlotEditState.removeBinding(slot.index);
+                    return true;
+                }
+            }
+        }
+
+        mirror.mouseClicked(mouseX, mouseY, button);
+        return false;
+    }
+
+    private static boolean handleMirrorMouseReleased(Screen mirror, double mouseX, double mouseY, int button) {
+        if (jeiGhostDragActive) {
+            boolean accepted = JeiCompat.completeGhostIngredientDrag(mirror, mouseX, mouseY);
+            jeiGhostDragActive = false;
+            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] jei ghost drag completed accepted={}", accepted);
+            return true;
+        }
+
+        if (draggedSlotBinding != null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            Slot target = InterfaceSlotOverlayRenderer.findSlotAt(mirror, mouseX, mouseY);
+            if (target != null) {
+                InterfaceSlotEditState.putBinding(target.index, target.x, target.y,
+                    draggedSlotBinding.ingredientId, draggedSlotBinding.ingredientKind);
+            } else if (draggedSlotOriginIndex != null) {
+                InterfaceSlotEditState.putBinding(draggedSlotOriginIndex, draggedSlotBinding.slotX, draggedSlotBinding.slotY,
+                    draggedSlotBinding.ingredientId, draggedSlotBinding.ingredientKind);
+            }
+            draggedSlotBinding = null;
+            draggedSlotOriginIndex = null;
+            return true;
+        }
+
+        mirror.mouseReleased(mouseX, mouseY, button);
+        return false;
     }
 
     private static String toHex(byte[] bytes) {

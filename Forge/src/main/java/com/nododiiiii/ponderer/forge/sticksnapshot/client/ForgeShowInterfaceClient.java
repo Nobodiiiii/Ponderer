@@ -15,6 +15,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.Vec3;
@@ -41,9 +43,15 @@ public final class ForgeShowInterfaceClient {
             return;
         }
 
-        BlockState state = resolveSnapshotState(step, mc.level.getBlockState(pos));
+        BlockState state = resolveSnapshotState(step);
+        if (state == null) {
+            StickSnapshotFeature.LOGGER.warn("show_interface skipped: invalid block state for block={}", step.block);
+            return;
+        }
         ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-        CompoundTag blockEntityTag = parseBlockEntityTag(step.nbt, pos);
+        CompoundTag blockEntityTag = Boolean.FALSE.equals(step.enableNbt)
+                ? null
+                : parseBlockEntityTag(step.nbt, pos, state);
         Direction face = parseDirection(step.direction);
         Vec3 hit = parseHit(step.point, pos);
 
@@ -115,16 +123,17 @@ public final class ForgeShowInterfaceClient {
         return new Vec3(point.get(0), point.get(1), point.get(2));
     }
 
-    private static BlockState resolveSnapshotState(DslScene.DslStep step, BlockState fallbackState) {
+    @Nullable
+    private static BlockState resolveSnapshotState(DslScene.DslStep step) {
         ResourceLocation expected = step.block == null ? null : ResourceLocation.tryParse(step.block);
         if (expected == null) {
-            return fallbackState;
+            return null;
         }
 
         Block block = BuiltInRegistries.BLOCK.get(expected);
         if (block == null || block.defaultBlockState().isAir() && !"minecraft:air".equals(expected.toString())) {
-            StickSnapshotFeature.LOGGER.debug("show_interface block registry miss, fallback to world state id={}", expected);
-            return fallbackState;
+            StickSnapshotFeature.LOGGER.debug("show_interface block registry miss id={}", expected);
+            return null;
         }
 
         BlockState resolved = block.defaultBlockState();
@@ -147,12 +156,18 @@ public final class ForgeShowInterfaceClient {
     }
 
     @Nullable
-    private static CompoundTag parseBlockEntityTag(@Nullable String rawNbt, BlockPos pos) {
+    private static CompoundTag parseBlockEntityTag(@Nullable String rawNbt, BlockPos pos, BlockState state) {
         if (rawNbt == null || rawNbt.isBlank()) {
             return null;
         }
         try {
             CompoundTag parsed = TagParser.parseTag(rawNbt);
+            if (!parsed.contains("id") && state.getBlock() instanceof EntityBlock entityBlock) {
+                BlockEntity blockEntity = entityBlock.newBlockEntity(pos, state);
+                if (blockEntity != null) {
+                    BlockEntity.addEntityType(parsed, blockEntity.getType());
+                }
+            }
             parsed.putInt("x", pos.getX());
             parsed.putInt("y", pos.getY());
             parsed.putInt("z", pos.getZ());

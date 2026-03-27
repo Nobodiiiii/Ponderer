@@ -50,7 +50,12 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
                     continue;
                 }
                 slotBindings.put(binding.slotIndex,
-                    new DslScene.InterfaceSlotBinding(binding.slotIndex, binding.ingredientId, binding.ingredientKind));
+                    new DslScene.InterfaceSlotBinding(
+                        binding.slotIndex,
+                        binding.slotX,
+                        binding.slotY,
+                        binding.ingredientId,
+                        binding.ingredientKind));
             }
         }
         initialBindingsLoaded = true;
@@ -134,7 +139,12 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
                     continue;
                 }
                 slotBindings.put(binding.slotIndex,
-                    new DslScene.InterfaceSlotBinding(binding.slotIndex, binding.ingredientId, binding.ingredientKind));
+                    new DslScene.InterfaceSlotBinding(
+                        binding.slotIndex,
+                        binding.slotX,
+                        binding.slotY,
+                        binding.ingredientId,
+                        binding.ingredientKind));
             }
         } else {
             slotBindings.putAll(deriveInitialBindings());
@@ -174,7 +184,12 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
                     continue;
                 }
                 result.put(binding.slotIndex,
-                    new DslScene.InterfaceSlotBinding(binding.slotIndex, binding.ingredientId, binding.ingredientKind));
+                    new DslScene.InterfaceSlotBinding(
+                        binding.slotIndex,
+                        binding.slotX,
+                        binding.slotY,
+                        binding.ingredientId,
+                        binding.ingredientKind));
             }
         }
         return result;

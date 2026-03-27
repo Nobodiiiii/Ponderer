@@ -64,6 +64,7 @@ public class MirrorForgeOpenClient {
                             msg.windowId(), menuKey);
                     return;
                 }
+                ClientInputHandler.bindMirrorMenu(menu);
 
                 @SuppressWarnings("unchecked")
                 Screen screen = ((MenuScreens.ScreenConstructor<AbstractContainerMenu, ?>) screenFactory)

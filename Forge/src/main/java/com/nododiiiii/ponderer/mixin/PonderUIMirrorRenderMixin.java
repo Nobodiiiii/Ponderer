@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
+import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
 import com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
@@ -31,6 +32,8 @@ public abstract class PonderUIMirrorRenderMixin {
         }
         mirror.render(graphics, mouseX, mouseY, partialTicks);
         InterfaceSlotOverlayRenderer.render(graphics, mirror);
+        ClientInputHandler.renderDraggedSlotBinding(graphics, mouseX, mouseY);
+        PondererJeiPlugin.renderGhostIngredientDrag(graphics, mouseX, mouseY);
         ci.cancel();
     }
 

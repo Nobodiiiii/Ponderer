@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -656,6 +657,7 @@ public class SceneEditorScreen extends AbstractSimiScreen {
                 case "change_interface_slot" -> UIText.of("ponderer.ui.step.summary.slot_count",
                     stepTypeName("change_interface_slot"),
                     step.interfaceSlots != null ? step.interfaceSlots.size() : 0);
+                case "click_interface" -> stepTypeName("click_interface");
             case "encapsulate_bounds" -> stepTypeName("encapsulate_bounds");
             case "play_sound" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("play_sound"),
                     step.sound != null ? step.sound : "?");
@@ -715,10 +717,16 @@ public class SceneEditorScreen extends AbstractSimiScreen {
     public void insertStepAndSave(int afterIndex, DslScene.DslStep newStep) {
         undoManager.saveState(getSteps());
         List<DslScene.DslStep> steps = getMutableSteps();
+        int insertedIndex;
         if (afterIndex >= 0 && afterIndex < steps.size()) {
             steps.add(afterIndex + 1, newStep);
+            insertedIndex = afterIndex + 1;
         } else {
             steps.add(newStep);
+            insertedIndex = steps.size() - 1;
+        }
+        if (isShowInterfaceStep(newStep)) {
+            pruneFollowingInterfaceSlotSteps(steps, insertedIndex);
         }
         saveToFile();
     }
@@ -728,8 +736,42 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         List<DslScene.DslStep> steps = getMutableSteps();
         if (index >= 0 && index < steps.size()) {
             undoManager.saveState(getSteps());
+            DslScene.DslStep oldStep = steps.get(index);
             steps.set(index, newStep);
+            if (didShowInterfaceContextChange(oldStep, newStep)) {
+                pruneFollowingInterfaceSlotSteps(steps, index);
+            }
             saveToFile();
+        }
+    }
+
+    private static boolean isShowInterfaceStep(@Nullable DslScene.DslStep step) {
+        return step != null && step.type != null && "show_interface".equalsIgnoreCase(step.type);
+    }
+
+    private static boolean didShowInterfaceContextChange(@Nullable DslScene.DslStep oldStep,
+                                                         @Nullable DslScene.DslStep newStep) {
+        if (!isShowInterfaceStep(newStep)) {
+            return false;
+        }
+        if (!isShowInterfaceStep(oldStep)) {
+            return true;
+        }
+        return !Objects.equals(oldStep.block, newStep.block)
+            || !Objects.equals(oldStep.blockProperties, newStep.blockProperties);
+    }
+
+    private static void pruneFollowingInterfaceSlotSteps(List<DslScene.DslStep> steps, int showInterfaceIndex) {
+        for (int i = showInterfaceIndex + 1; i < steps.size();) {
+            DslScene.DslStep step = steps.get(i);
+            if (isShowInterfaceStep(step)) {
+                break;
+            }
+            if (step != null && step.type != null && "change_interface_slot".equalsIgnoreCase(step.type)) {
+                steps.remove(i);
+                continue;
+            }
+            i++;
         }
     }
 

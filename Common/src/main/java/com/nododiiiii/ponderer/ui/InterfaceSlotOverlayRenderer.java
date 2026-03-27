@@ -8,6 +8,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 
+import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,7 +38,12 @@ public final class InterfaceSlotOverlayRenderer {
                 continue;
             }
             RUNTIME_BINDINGS.put(binding.slotIndex,
-                new DslScene.InterfaceSlotBinding(binding.slotIndex, binding.ingredientId, binding.ingredientKind));
+                new DslScene.InterfaceSlotBinding(
+                    binding.slotIndex,
+                    binding.slotX,
+                    binding.slotY,
+                    binding.ingredientId,
+                    binding.ingredientKind));
         }
     }
 
@@ -56,16 +62,30 @@ public final class InterfaceSlotOverlayRenderer {
         ContainerBounds bounds = readContainerBounds(container);
         List<Slot> slots = container.getMenu().slots;
         for (DslScene.InterfaceSlotBinding binding : bindings.values()) {
-            if (binding == null || binding.slotIndex == null || binding.slotIndex < 0 || binding.slotIndex >= slots.size()) {
+            Slot slot = findMatchingSlot(slots, binding);
+            if (slot == null) {
                 continue;
             }
-            Slot slot = slots.get(binding.slotIndex);
             ScreenElement element = JeiCompat.resolveIngredientById(binding.ingredientId, binding.ingredientKind);
             if (element == null) {
                 continue;
             }
             element.render(graphics, bounds.left() + slot.x, bounds.top() + slot.y);
         }
+    }
+
+    private static Slot findMatchingSlot(List<Slot> slots, DslScene.InterfaceSlotBinding binding) {
+        if (binding == null || binding.slotIndex == null || binding.slotIndex < 0 || binding.slotIndex >= slots.size()) {
+            return null;
+        }
+        if (binding.slotX == null || binding.slotY == null) {
+            return null;
+        }
+        Slot slot = slots.get(binding.slotIndex);
+        if (slot.x != binding.slotX || slot.y != binding.slotY) {
+            return null;
+        }
+        return slot;
     }
 
     public static ContainerBounds readContainerBounds(AbstractContainerScreen<?> container) {
@@ -84,6 +104,23 @@ public final class InterfaceSlotOverlayRenderer {
             resolvedTop = Math.max(0, (container.height - imageHeight) / 2);
         }
         return new ContainerBounds(resolvedLeft, resolvedTop, imageWidth, imageHeight);
+    }
+
+    @Nullable
+    public static Slot findSlotAt(Screen screen, double mouseX, double mouseY) {
+        if (!(screen instanceof AbstractContainerScreen<?> container)) {
+            return null;
+        }
+
+        ContainerBounds bounds = readContainerBounds(container);
+        for (Slot slot : container.getMenu().slots) {
+            int left = bounds.left() + slot.x;
+            int top = bounds.top() + slot.y;
+            if (mouseX >= left && mouseX < left + 16 && mouseY >= top && mouseY < top + 16) {
+                return slot;
+            }
+        }
+        return null;
     }
 
     private static Integer readIntField(Class<?> owner, Object target, String fieldName) {
