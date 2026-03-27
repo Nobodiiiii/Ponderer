@@ -7,6 +7,8 @@ import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import com.nododiiiii.ponderer.ui.SceneEditorScreen;
+import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
+import com.nododiiiii.ponderer.ui.UIText;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -248,6 +250,12 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (InterfaceSlotEditState.isActive()) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+                InterfaceSlotEditState.finishAndReopenEditor();
+                return true;
+            }
+        }
         if (PickState.isActive()) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
                 PickState.cancelPick();
@@ -268,7 +276,11 @@ public abstract class PonderUIMixin extends Screen {
     private void ponderer$renderPickHint(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks,
             CallbackInfo ci) {
         if (!PickState.isActive())
-            return;
+            {
+                if (!InterfaceSlotEditState.isActive()) {
+                    return;
+                }
+            }
 
         var font = Minecraft.getInstance().font;
 
@@ -276,6 +288,29 @@ public abstract class PonderUIMixin extends Screen {
         // tooltips
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 800);
+
+        if (InterfaceSlotEditState.isActive()) {
+            String line1 = UIText.of("ponderer.ui.change_interface_slot.hint.drag");
+            String line2 = UIText.of("ponderer.ui.change_interface_slot.hint.exit", InterfaceSlotEditState.bindingCount());
+            int w1 = font.width(line1);
+            int w2 = font.width(line2);
+            int boxW = Math.max(w1, w2) + 8;
+            int boxH = 26;
+            int tx = mouseX + 10;
+            int ty = mouseY - boxH - 17;
+            if (tx < 2) tx = 2;
+            if (tx + boxW > this.width - 2) tx = this.width - boxW - 2;
+            if (ty < 2) ty = 2;
+
+            graphics.fill(tx - 2, ty - 2, tx + boxW + 2, ty + boxH + 2, 0xF0_100020);
+            graphics.fill(tx - 1, ty - 1, tx + boxW + 1, ty + boxH + 1, 0xC0_3a7a6a);
+            graphics.fill(tx, ty, tx + boxW, ty + boxH, 0xF0_100020);
+            graphics.drawString(font, line1, tx + 4, ty + 3, 0x66FFCC);
+            graphics.drawString(font, line2, tx + 4, ty + 15, 0xC0C0C0);
+
+            graphics.pose().popPose();
+            return;
+        }
 
         if (PickState.isUiPointPickActive()) {
             UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(Minecraft.getInstance());
@@ -404,6 +439,9 @@ public abstract class PonderUIMixin extends Screen {
     private void ponderer$onRemoved(CallbackInfo ci) {
         if (PickState.isActive()) {
             PickState.reset();
+        }
+        if (InterfaceSlotEditState.isActive()) {
+            InterfaceSlotEditState.reset();
         }
         // Return to PonderItemGridScreen if it was set as the return target
         if (com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen != null) {

@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import com.nododiiiii.ponderer.registry.ModItems;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
@@ -408,6 +409,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "highlight_section" -> applyHighlightSection(scene, step);
             case "show_controls" -> applyShowControls(scene, step, context);
             case "show_interface" -> applyShowInterface(scene, step, context);
+            case "change_interface_slot" -> applyChangeInterfaceSlot(scene, step);
             case "click_interface" -> applyClickInterface(scene, step);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
@@ -666,6 +668,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
+        InterfaceSlotOverlayRenderer.clearRuntimeBindings();
         // Build-time pointAt() conversion for UI-anchored overlays happens after this step.
         // Reset immediately so subsequent resolveOverlayPoint() uses a clean baseline.
         ponderer$resetSceneViewState(scene.getScene());
@@ -685,6 +688,14 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
         scene.addInstruction(new ClickInterfaceInstruction(step));
+    }
+
+    private void applyChangeInterfaceSlot(SceneBuilder scene, DslScene.DslStep step) {
+        if (step.interfaceSlots == null || step.interfaceSlots.isEmpty()) {
+            LOGGER.warn("change_interface_slot missing interfaceSlots");
+            return;
+        }
+        scene.addInstruction(new ChangeInterfaceSlotInstruction(step));
     }
 
     private void ponderer$resetSceneViewState(net.createmod.ponder.foundation.PonderScene ps) {

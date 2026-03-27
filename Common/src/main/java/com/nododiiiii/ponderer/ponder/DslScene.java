@@ -189,9 +189,26 @@ public class DslScene {
         public Boolean whileSneaking;
         public Boolean whileCTRL;
         public Boolean fullScene;
+        public List<InterfaceSlotBinding> interfaceSlots;
 
         public int durationOrDefault(int fallback) {
             return duration == null ? fallback : Math.max(duration, 0);
+        }
+    }
+
+    public static class InterfaceSlotBinding {
+        public Integer slotIndex;
+        public String ingredientId;
+        @Nullable
+        public String ingredientKind;
+
+        public InterfaceSlotBinding() {
+        }
+
+        public InterfaceSlotBinding(int slotIndex, String ingredientId, @Nullable String ingredientKind) {
+            this.slotIndex = slotIndex;
+            this.ingredientId = ingredientId;
+            this.ingredientKind = ingredientKind;
         }
     }
 }

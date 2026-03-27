@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.ui.IdFieldMode;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
 import net.createmod.catnip.gui.element.ScreenElement;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import net.minecraft.client.gui.screens.Screen;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -17,6 +18,8 @@ import java.util.List;
 public final class JeiCompat {
     private static boolean checked = false;
     private static boolean available = false;
+
+    public record IngredientDescriptor(String id, @Nullable String kind) {}
 
     private JeiCompat() {}
 
@@ -84,6 +87,16 @@ public final class JeiCompat {
     }
 
     /**
+     * Resolve an ingredient ID string from a specific JEI ingredient kind.
+     * The kind is the lower-case JEI ingredient family name, e.g. "item", "fluid", "chemical".
+     */
+    @Nullable
+    public static ScreenElement resolveIngredientById(String id, @Nullable String kind) {
+        if (!isAvailable()) return null;
+        return JeiIngredientHelper.resolveById(id, kind);
+    }
+
+    /**
      * Resolve an ingredient ID string from a JEI ITypedIngredient click.
      * Handles all ingredient types (items, fluids, chemicals, etc.).
      * Returns the registry ID string, or null if unable to resolve.
@@ -95,6 +108,15 @@ public final class JeiCompat {
     }
 
     /**
+     * Resolve a JEI ingredient into an {id, kind} descriptor for persistence.
+     */
+    @Nullable
+    public static IngredientDescriptor resolveIngredientDescriptor(Object typedIngredient) {
+        if (!isAvailable()) return null;
+        return JeiIngredientHelper.resolveDescriptor(typedIngredient);
+    }
+
+    /**
      * Get all JEI ingredient entries for registry mapping.
      * Returns a list of {id, displayName, path, kind} string arrays for ALL ingredients
      * from ALL JEI-registered types (items, fluids, Mekanism chemicals, etc.).
@@ -103,5 +125,31 @@ public final class JeiCompat {
     public static List<String[]> getAllExtraIngredientEntries() {
         if (!isAvailable()) return List.of();
         return JeiIngredientHelper.getAllExtraEntries();
+    }
+
+    /**
+     * Start a JEI ghost-ingredient drag for the target screen.
+     * Returns true when JEI found an ingredient under mouse and at least one ghost target.
+     */
+    public static boolean startGhostIngredientDrag(Screen targetScreen, double mouseX, double mouseY) {
+        if (!isAvailable()) return false;
+        return PondererJeiPlugin.beginGhostIngredientDrag(targetScreen, mouseX, mouseY);
+    }
+
+    /**
+     * Complete a previously-started JEI ghost-ingredient drag.
+     * Returns true if any target accepted the ingredient.
+     */
+    public static boolean completeGhostIngredientDrag(Screen targetScreen, double mouseX, double mouseY) {
+        if (!isAvailable()) return false;
+        return PondererJeiPlugin.completeGhostIngredientDrag(targetScreen, mouseX, mouseY);
+    }
+
+    /**
+     * Cancel any in-progress JEI ghost-ingredient drag.
+     */
+    public static void cancelGhostIngredientDrag() {
+        if (!isAvailable()) return;
+        PondererJeiPlugin.cancelGhostIngredientDrag();
     }
 }

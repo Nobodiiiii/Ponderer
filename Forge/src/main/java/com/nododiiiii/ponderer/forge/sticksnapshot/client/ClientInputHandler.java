@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.forge.sticksnapshot.client;
 
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.mixin.PonderProgressBarAccessorMixin;
-import com.nododiiiii.ponderer.compat.jei.JeiOverlaySuppressor;
+import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.MirrorClosePacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplaySnapshotPacket;
@@ -12,6 +12,7 @@ import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
+import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
@@ -52,6 +53,7 @@ public class ClientInputHandler {
     private static double pendingAutoClickNormX = 0.0;
     private static double pendingAutoClickNormY = 0.0;
     private static int pendingAutoClickButton = GLFW.GLFW_MOUSE_BUTTON_LEFT;
+    private static boolean jeiGhostDragActive = false;
     @Nullable
     private static Screen embeddedMirrorScreen;
 
@@ -77,6 +79,8 @@ public class ClientInputHandler {
         autoReplayArmed = shouldAutoReplay;
         autoReplayTicks = shouldAutoReplay ? SHOW_INTERFACE_AUTO_REPLAY_DELAY_TICKS : -1;
         pendingAutoClick = false;
+        jeiGhostDragActive = false;
+        JeiCompat.cancelGhostIngredientDrag();
         if (mc.player != null && mc.player.containerMenu != null) {
             lastObservedContainerId = mc.player.containerMenu.containerId;
         }
@@ -99,7 +103,6 @@ public class ClientInputHandler {
         embeddedMirrorScreen = mirrorScreen;
         awaitingMirrorOpen = false;
         mirrorScreenActive = true;
-        JeiOverlaySuppressor.push();
         mirrorScreen.init(mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
         stripJeiWidgets(mirrorScreen);
         StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] mirror attached to ponder screen: {}",
@@ -300,6 +303,13 @@ public class ClientInputHandler {
             return;
         }
 
+        if (event.getButton() == GLFW.GLFW_MOUSE_BUTTON_LEFT
+            && JeiCompat.startGhostIngredientDrag(mirror, event.getMouseX(), event.getMouseY())) {
+            jeiGhostDragActive = true;
+            event.setCanceled(true);
+            return;
+        }
+
         mirror.mouseClicked(event.getMouseX(), event.getMouseY(), event.getButton());
     }
 
@@ -307,6 +317,14 @@ public class ClientInputHandler {
     public static void onPonderMouseReleased(ScreenEvent.MouseButtonReleased.Pre event) {
         Screen mirror = embeddedMirrorScreen;
         if (mirror == null || !shouldRenderEmbeddedMirror() || !(event.getScreen() instanceof PonderUI)) {
+            return;
+        }
+
+        if (jeiGhostDragActive) {
+            boolean accepted = JeiCompat.completeGhostIngredientDrag(mirror, event.getMouseX(), event.getMouseY());
+            jeiGhostDragActive = false;
+            event.setCanceled(true);
+            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] jei ghost drag completed accepted={}", accepted);
             return;
         }
 
@@ -334,8 +352,10 @@ public class ClientInputHandler {
         autoReplayArmed = false;
         autoReplayTicks = -1;
         pendingAutoClick = false;
+        jeiGhostDragActive = false;
+        JeiCompat.cancelGhostIngredientDrag();
+        InterfaceSlotOverlayRenderer.clearRuntimeBindings();
         embeddedMirrorScreen = null;
-        JeiOverlaySuppressor.pop();
         MirrorForgeOpenClient.restoreInjectedBlock();
         ModNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
         StickSnapshotFeature.LOGGER.debug("[client] mirror screen closed, requested inventory restore, reason={}", reason);

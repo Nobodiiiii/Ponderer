@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler;
+import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import com.nododiiiii.ponderer.ponder.DslScene;
@@ -29,6 +30,7 @@ public abstract class PonderUIMirrorRenderMixin {
             return;
         }
         mirror.render(graphics, mouseX, mouseY, partialTicks);
+        InterfaceSlotOverlayRenderer.render(graphics, mirror);
         ci.cancel();
     }
 
@@ -50,6 +52,7 @@ public abstract class PonderUIMirrorRenderMixin {
 
     @Inject(method = "replay", at = @At("HEAD"), remap = false)
     private void ponderer$closeEmbeddedOnReplay(CallbackInfo ci) {
+        InterfaceSlotOverlayRenderer.clearRuntimeBindings();
         if (ClientInputHandler.hasEmbeddedMirrorScreen()) {
             ClientInputHandler.closeEmbeddedMirrorFromPonder("ponder-replay");
         }
@@ -60,6 +63,7 @@ public abstract class PonderUIMirrorRenderMixin {
         if (!cir.getReturnValue()) {
             return;
         }
+        InterfaceSlotOverlayRenderer.clearRuntimeBindings();
 
         PonderUI self = (PonderUI) (Object) this;
         if (ponderer$isShowInterfaceScene(self, self.getActiveScene())) {
@@ -74,6 +78,7 @@ public abstract class PonderUIMirrorRenderMixin {
 
     @Inject(method = "removed", at = @At("HEAD"))
     private void ponderer$closeEmbeddedWhenPonderRemoved(CallbackInfo ci) {
+        InterfaceSlotOverlayRenderer.clearRuntimeBindings();
         if (ClientInputHandler.hasEmbeddedMirrorScreen()) {
             ClientInputHandler.closeEmbeddedMirrorFromPonder("ponder-removed");
         }

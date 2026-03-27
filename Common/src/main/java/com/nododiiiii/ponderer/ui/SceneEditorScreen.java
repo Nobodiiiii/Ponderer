@@ -653,6 +653,9 @@ public class SceneEditorScreen extends AbstractSimiScreen {
                     step.item != null && !step.item.isBlank() ? step.item : UIText.of("ponderer.ui.none"));
                 case "show_interface" -> UIText.of("ponderer.ui.step.summary.single_arg",
                     stepTypeName("show_interface"), step.block != null ? step.block : "?");
+                case "change_interface_slot" -> UIText.of("ponderer.ui.step.summary.slot_count",
+                    stepTypeName("change_interface_slot"),
+                    step.interfaceSlots != null ? step.interfaceSlots.size() : 0);
             case "encapsulate_bounds" -> stepTypeName("encapsulate_bounds");
             case "play_sound" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("play_sound"),
                     step.sound != null ? step.sound : "?");

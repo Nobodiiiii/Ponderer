@@ -808,4 +808,23 @@
   "ponderer.pack.update.version": "已更新 (%s)",
   "ponderer.pack.update.loaded": "已加载 (v%s)",
   "ponderer.pack.update.conflicts": "%s 个文件有本地修改，已备份为 .bak"
+,
+  "ponderer.ui.step.type.show_interface": "显示界面",
+  "ponderer.ui.step.type.change_interface_slot": "更改槽位",
+  "ponderer.ui.step.type.click_interface": "点击界面",
+  "ponderer.ui.step.summary.slot_count": "%s %s 个槽位",
+  "ponderer.ui.show_interface": "显示界面",
+  "ponderer.ui.show_interface.block": "界面信息",
+  "ponderer.ui.show_interface.block.hint": "点击右侧 [B] 按钮回到世界并选取方块",
+  "ponderer.ui.show_interface.block.tooltip": "中键选择现实世界中的方块，步骤执行时会镜像打开该方块对应的界面",
+  "ponderer.ui.show_interface.error.no_context": "请先通过 [B] 选择一个方块以保存界面上下文",
+  "ponderer.ui.change_interface_slot": "更改槽位",
+  "ponderer.ui.change_interface_slot.slots": "槽位信息",
+  "ponderer.ui.change_interface_slot.slots.tooltip": "返回到镜像界面并临时打开 JEI，可将 JEI 中的物品、流体或气体等拖入目标槽位",
+  "ponderer.ui.change_interface_slot.edit": "编辑",
+  "ponderer.ui.change_interface_slot.info": "已保存槽位：%s",
+  "ponderer.ui.change_interface_slot.error.empty": "请至少设置一个界面槽位",
+  "ponderer.ui.change_interface_slot.hint.drag": "将 JEI 配料拖到镜像界面的目标槽位",
+  "ponderer.ui.change_interface_slot.hint.exit": "按 ESC/Backspace 返回，当前已保存槽位：%s",
+  "ponderer.ui.click_interface": "点击界面"
 }

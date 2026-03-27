@@ -47,7 +47,7 @@ public class StepTypeSelectorScreen extends AbstractSimiScreen {
     };
     private static final String[][] INTERFACE_SCENE_PAGE_TYPES = {
         {
-            "idle", "text", "show_controls", "click_interface", "play_sound"
+            "idle", "text", "show_controls", "change_interface_slot", "click_interface", "play_sound"
         }
     };
     private static final String[] INTERFACE_SCENE_PAGE_KEYS = {
