@@ -39,6 +39,10 @@ public final class JeiOverlaySuppressor {
             previousOverlayEnabled = overlayEnabled;
             previousBookmarkEnabledRaw = readBookmarkEnabledRaw(toggleState);
 
+            if (previousBookmarkEnabledRaw != null && previousBookmarkEnabledRaw) {
+                invokeBooleanArg(toggleState, "setBookmarkEnabled", false);
+            }
+
             if (overlayEnabled) {
                 invokeNoArg(toggleState, "toggleOverlayEnabled");
             }

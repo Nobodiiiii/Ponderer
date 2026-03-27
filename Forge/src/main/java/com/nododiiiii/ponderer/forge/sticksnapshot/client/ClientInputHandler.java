@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.forge.sticksnapshot.client;
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.mixin.PonderProgressBarAccessorMixin;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.compat.jei.JeiOverlaySuppressor;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.MirrorClosePacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplaySnapshotPacket;
@@ -116,8 +117,13 @@ public class ClientInputHandler {
         embeddedMirrorScreen = mirrorScreen;
         awaitingMirrorOpen = false;
         mirrorScreenActive = true;
+        if (!InterfaceSlotEditState.isActive()) {
+            JeiOverlaySuppressor.push();
+        }
         mirrorScreen.init(mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
-        stripJeiWidgets(mirrorScreen);
+        if (!InterfaceSlotEditState.isActive()) {
+            stripJeiWidgets(mirrorScreen);
+        }
         StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] mirror attached to ponder screen: {}",
                 mirrorScreen.getClass().getName());
     }
@@ -322,6 +328,9 @@ public class ClientInputHandler {
 
         awaitingMirrorOpen = false;
         mirrorScreenActive = true;
+        if (!InterfaceSlotEditState.isActive()) {
+            JeiOverlaySuppressor.push();
+        }
         StickSnapshotFeature.LOGGER.debug("[client] mirror screen opened: {}", event.getNewScreen().getClass().getName());
     }
 
@@ -385,6 +394,7 @@ public class ClientInputHandler {
         draggedSlotBinding = null;
         draggedSlotOriginIndex = null;
         JeiCompat.cancelGhostIngredientDrag();
+        JeiOverlaySuppressor.pop();
         InterfaceSlotOverlayRenderer.clearRuntimeBindings();
         embeddedMirrorScreen = null;
         restorePlayerMenu();
