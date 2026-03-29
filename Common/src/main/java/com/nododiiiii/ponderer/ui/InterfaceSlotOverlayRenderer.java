@@ -3,12 +3,19 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.gui.element.ScreenElement;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.inventory.Slot;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,6 +33,10 @@ public final class InterfaceSlotOverlayRenderer {
 
     public static void clearRuntimeBindings() {
         RUNTIME_BINDINGS.clear();
+    }
+
+    public static boolean hasRuntimeBindingForSlot(int slotIndex) {
+        return RUNTIME_BINDINGS.containsKey(slotIndex);
     }
 
     public static void applyStep(DslScene.DslStep step) {
@@ -59,6 +70,10 @@ public final class InterfaceSlotOverlayRenderer {
             return;
         }
 
+        // Keep overlay ingredients above native slot item rendering (including NBT-driven stacks).
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 300);
+
         ContainerBounds bounds = readContainerBounds(container);
         List<Slot> slots = container.getMenu().slots;
         for (DslScene.InterfaceSlotBinding binding : bindings.values()) {
@@ -72,6 +87,29 @@ public final class InterfaceSlotOverlayRenderer {
             }
             element.render(graphics, bounds.left() + slot.x, bounds.top() + slot.y);
         }
+
+        graphics.pose().popPose();
+    }
+
+    public static void renderTooltip(GuiGraphics graphics, Screen screen, int mouseX, int mouseY) {
+        DslScene.InterfaceSlotBinding hoveredBinding = findBindingAt(screen, mouseX, mouseY);
+        if (hoveredBinding == null || hoveredBinding.ingredientId == null || hoveredBinding.ingredientId.isBlank()) {
+            return;
+        }
+
+        ItemStack stack = resolveTooltipStack(hoveredBinding);
+        if (!stack.isEmpty()) {
+            graphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+            return;
+        }
+
+        List<Component> lines = new ArrayList<>();
+        if (hoveredBinding.ingredientKind != null && !hoveredBinding.ingredientKind.isBlank()) {
+            lines.add(Component.literal(hoveredBinding.ingredientKind + ": " + hoveredBinding.ingredientId));
+        } else {
+            lines.add(Component.literal(hoveredBinding.ingredientId));
+        }
+        graphics.renderComponentTooltip(Minecraft.getInstance().font, lines, mouseX, mouseY);
     }
 
     private static Slot findMatchingSlot(List<Slot> slots, DslScene.InterfaceSlotBinding binding) {
@@ -82,10 +120,53 @@ public final class InterfaceSlotOverlayRenderer {
             return null;
         }
         Slot slot = slots.get(binding.slotIndex);
-        if (slot.x != binding.slotX || slot.y != binding.slotY) {
+        if (!slot.isActive() || slot.x != binding.slotX || slot.y != binding.slotY) {
             return null;
         }
         return slot;
+    }
+
+    @Nullable
+    private static DslScene.InterfaceSlotBinding findBindingAt(Screen screen, double mouseX, double mouseY) {
+        Slot slot = findSlotAt(screen, mouseX, mouseY);
+        if (slot == null) {
+            return null;
+        }
+
+        Map<Integer, DslScene.InterfaceSlotBinding> bindings = InterfaceSlotEditState.isActive()
+            ? InterfaceSlotEditState.getBindingsForRender()
+            : RUNTIME_BINDINGS;
+
+        DslScene.InterfaceSlotBinding binding = bindings.get(slot.index);
+        if (binding == null) {
+            return null;
+        }
+        if (binding.slotX != null && binding.slotY != null
+            && (binding.slotX != slot.x || binding.slotY != slot.y)) {
+            return null;
+        }
+        return binding;
+    }
+
+    private static ItemStack resolveTooltipStack(DslScene.InterfaceSlotBinding binding) {
+        if (binding == null || binding.ingredientId == null || binding.ingredientId.isBlank()) {
+            return ItemStack.EMPTY;
+        }
+        if (binding.ingredientKind != null
+            && !binding.ingredientKind.isBlank()
+            && !"item".equalsIgnoreCase(binding.ingredientKind)) {
+            return ItemStack.EMPTY;
+        }
+
+        ResourceLocation id = ResourceLocation.tryParse(binding.ingredientId);
+        if (id == null) {
+            return ItemStack.EMPTY;
+        }
+        Item item = BuiltInRegistries.ITEM.get(id);
+        if (item == null) {
+            return ItemStack.EMPTY;
+        }
+        return new ItemStack(item);
     }
 
     public static ContainerBounds readContainerBounds(AbstractContainerScreen<?> container) {
@@ -114,6 +195,9 @@ public final class InterfaceSlotOverlayRenderer {
 
         ContainerBounds bounds = readContainerBounds(container);
         for (Slot slot : container.getMenu().slots) {
+            if (!slot.isActive()) {
+                continue;
+            }
             int left = bounds.left() + slot.x;
             int top = bounds.top() + slot.y;
             if (mouseX >= left && mouseX < left + 16 && mouseY >= top && mouseY < top + 16) {

@@ -456,6 +456,13 @@ public class ClientInputHandler {
             }
         }
 
+        if (slot != null) {
+            // Never forward slot clicks to the mirrored container itself.
+            // This disables native item pickup/drag (including NBT-backed stacks)
+            // in all virtual interface states, while custom edit logic above still works.
+            return true;
+        }
+
         mirror.mouseClicked(mouseX, mouseY, button);
         return false;
     }
@@ -468,8 +475,10 @@ public class ClientInputHandler {
             return true;
         }
 
+        Slot slot = InterfaceSlotOverlayRenderer.findSlotAt(mirror, mouseX, mouseY);
+
         if (draggedSlotBinding != null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            Slot target = InterfaceSlotOverlayRenderer.findSlotAt(mirror, mouseX, mouseY);
+            Slot target = slot;
             if (target != null) {
                 InterfaceSlotEditState.putBinding(target.index, target.x, target.y,
                     draggedSlotBinding.ingredientId, draggedSlotBinding.ingredientKind);
@@ -479,6 +488,10 @@ public class ClientInputHandler {
             }
             draggedSlotBinding = null;
             draggedSlotOriginIndex = null;
+            return true;
+        }
+
+        if (slot != null) {
             return true;
         }
 
