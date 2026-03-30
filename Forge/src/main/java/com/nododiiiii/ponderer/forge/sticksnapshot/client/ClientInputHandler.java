@@ -180,7 +180,7 @@ public class ClientInputHandler {
         closeMirrorSession(reason);
     }
 
-    @SubscribeEvent
+    // @SubscribeEvent
     public static void onMousePre(InputEvent.MouseButton.Pre event) {
         if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_MIDDLE || event.getAction() != GLFW.GLFW_PRESS) {
             return;
@@ -221,7 +221,7 @@ public class ClientInputHandler {
         event.setCanceled(true);
     }
 
-    @SubscribeEvent
+    // @SubscribeEvent
     public static void onUseKey(InputEvent.InteractionKeyMappingTriggered event) {
         if (!event.isUseItem()) {
             return;

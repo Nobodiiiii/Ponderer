@@ -22,6 +22,8 @@ out/
 # Gradle
 build/
 .gradle/
+.gradle-user/
+.gradle-project-cache/
 
 # Minecraft run directory
 run/
