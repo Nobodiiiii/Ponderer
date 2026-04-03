@@ -5,6 +5,8 @@ import com.nododiiiii.ponderer.ui.IdFieldMode;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
 import net.createmod.catnip.gui.element.ScreenElement;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -47,6 +49,24 @@ public final class JeiCompat {
     public static void clearActiveEditor() {
         if (!isAvailable()) return;
         PondererJeiPlugin.clearActiveEditor();
+    }
+
+    /**
+     * Returns true when PonderUI should skip JEI's default event-driven draw pass
+     * and render the active overlay manually at the very end of the screen render.
+     */
+    public static boolean shouldRenderPonderUiOverlayManually(Screen screen) {
+        if (!isAvailable()) return false;
+        return PondererJeiPlugin.shouldRenderPonderUiOverlayManually(screen);
+    }
+
+    /**
+     * Render JEI's current ingredient/bookmark overlays manually on top of PonderUI.
+     */
+    public static void renderPonderUiOverlay(Screen screen, GuiGraphics graphics, int mouseX, int mouseY,
+                                             float partialTicks) {
+        if (!isAvailable()) return;
+        PondererJeiPlugin.renderPonderUiOverlay(screen, graphics, mouseX, mouseY, partialTicks);
     }
 
     /**

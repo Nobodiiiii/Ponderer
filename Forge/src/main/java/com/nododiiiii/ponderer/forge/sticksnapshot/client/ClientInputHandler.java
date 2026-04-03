@@ -116,6 +116,9 @@ public class ClientInputHandler {
         awaitingMirrorOpen = false;
         mirrorScreenActive = true;
         mirrorScreen.init(mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+        // JEI should target the host PonderUI during embedded flows, not the child
+        // mirror screen instance that only exists as a rendered subtree.
+        stripJeiWidgets(mirrorScreen);
         if (InterfaceSlotEditState.isActive()) {
             InterfaceSlotEditState.captureJeiViewport(mirrorScreen);
         }
@@ -503,6 +506,45 @@ public class ClientInputHandler {
             sb.append(Integer.toHexString(v));
         }
         return sb.toString();
+    }
+
+    private static void stripJeiWidgets(Screen screen) {
+        int removed = 0;
+        removed += removeJeiEntries(screen.children());
+        removed += removeJeiEntries(readListField(screen, "renderables"));
+        removed += removeJeiEntries(readListField(screen, "narratables"));
+        if (removed > 0) {
+            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] stripped {} JEI widgets from {}",
+                    removed, screen.getClass().getName());
+        }
+    }
+
+    private static int removeJeiEntries(@Nullable List<?> list) {
+        if (list == null || list.isEmpty()) {
+            return 0;
+        }
+        int before = list.size();
+        list.removeIf(ClientInputHandler::isJeiOwned);
+        return before - list.size();
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    private static List<?> readListField(Screen screen, String fieldName) {
+        try {
+            java.lang.reflect.Field field = Screen.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            Object value = field.get(screen);
+            if (value instanceof List<?> list) {
+                return (List<Object>) list;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static boolean isJeiOwned(Object obj) {
+        return obj != null && obj.getClass().getName().startsWith("mezz.jei.");
     }
 
     private static void callPonderReplay(PonderUI ponder) {

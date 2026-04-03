@@ -19,6 +19,8 @@ import mezz.jei.api.runtime.IIngredientListOverlay;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.ponder.foundation.ui.PonderUI;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -26,6 +28,8 @@ import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
+import java.lang.reflect.Method;
+import java.util.Set;
 import java.util.Optional;
 
 @JeiPlugin
@@ -135,6 +139,44 @@ public class PondererJeiPlugin implements IModPlugin {
         return activeScreen;
     }
 
+    static boolean shouldRenderPonderUiOverlayManually(Screen screen) {
+        return runtime != null
+            && screen instanceof PonderUI
+            && InterfaceSlotEditState.isActive()
+            && InterfaceSlotEditState.hasJeiViewport();
+    }
+
+    static void renderPonderUiOverlay(Screen screen, GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        if (!shouldRenderPonderUiOverlayManually(screen)) {
+            return;
+        }
+
+        boolean pushed = false;
+        try {
+            Minecraft mc = Minecraft.getInstance();
+            syncOverlayState(runtime.getIngredientListOverlay(), screen);
+            syncOverlayState(runtime.getBookmarkOverlay(), screen);
+
+            graphics.flush();
+            graphics.pose().pushPose();
+            pushed = true;
+            graphics.pose().translate(0, 0, 1600);
+            invokeDrawOnForeground(runtime.getBookmarkOverlay(), graphics, mouseX, mouseY);
+            invokeDrawOnForeground(runtime.getIngredientListOverlay(), graphics, mouseX, mouseY);
+            invokeDrawScreen(runtime.getIngredientListOverlay(), mc, graphics, mouseX, mouseY, partialTicks);
+            invokeDrawScreen(runtime.getBookmarkOverlay(), mc, graphics, mouseX, mouseY, partialTicks);
+            invokeDrawTooltips(runtime.getIngredientListOverlay(), mc, graphics, mouseX, mouseY);
+            invokeDrawTooltips(runtime.getBookmarkOverlay(), mc, graphics, mouseX, mouseY);
+        } catch (Throwable t) {
+            LOGGER.debug("[jei] ponder ui overlay render failed: {}", t.toString());
+        } finally {
+            if (pushed) {
+                graphics.pose().popPose();
+            }
+            graphics.flush();
+        }
+    }
+
     /**
      * Handle a mouse click on a JeiAwareScreen. Returns true if the event should be cancelled.
      * Called by platform-specific screen event handlers (Forge ScreenEvent / Fabric ScreenEvents).
@@ -214,6 +256,34 @@ public class PondererJeiPlugin implements IModPlugin {
         } catch (Exception e) {
             LOGGER.warn("Failed to generate and add MCMod URL: {}", e.getMessage());
         }
+    }
+
+    private static void syncOverlayState(Object overlay, Screen screen) throws Exception {
+        Method getUpdater = overlay.getClass().getMethod("getScreenPropertiesUpdater");
+        Object updater = getUpdater.invoke(overlay);
+        updater.getClass().getMethod("updateScreen", Screen.class).invoke(updater, screen);
+        updater.getClass().getMethod("updateExclusionAreas", Set.class).invoke(updater, Set.of());
+        updater.getClass().getMethod("update").invoke(updater);
+    }
+
+    private static void invokeDrawOnForeground(Object overlay, GuiGraphics graphics, int mouseX, int mouseY) throws Exception {
+        overlay.getClass()
+            .getMethod("drawOnForeground", GuiGraphics.class, int.class, int.class)
+            .invoke(overlay, graphics, mouseX, mouseY);
+    }
+
+    private static void invokeDrawScreen(Object overlay, Minecraft mc, GuiGraphics graphics,
+                                         int mouseX, int mouseY, float partialTicks) throws Exception {
+        overlay.getClass()
+            .getMethod("drawScreen", Minecraft.class, GuiGraphics.class, int.class, int.class, float.class)
+            .invoke(overlay, mc, graphics, mouseX, mouseY, partialTicks);
+    }
+
+    private static void invokeDrawTooltips(Object overlay, Minecraft mc, GuiGraphics graphics,
+                                           int mouseX, int mouseY) throws Exception {
+        overlay.getClass()
+            .getMethod("drawTooltips", Minecraft.class, GuiGraphics.class, int.class, int.class)
+            .invoke(overlay, mc, graphics, mouseX, mouseY);
     }
 
     private static class JeiAwareGuiProperties implements IGuiProperties {
