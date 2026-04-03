@@ -1,6 +1,8 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.mixin.AbstractContainerScreenAccessor;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.minecraft.client.Minecraft;
@@ -16,7 +18,6 @@ import net.minecraft.world.inventory.Slot;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,8 @@ import java.util.Map;
  * current runtime slot snapshot for show_interface scenes.
  */
 public final class InterfaceSlotOverlayRenderer {
+    private static final int SLOT_OVERLAY_Z_OFFSET = 450;
+    private static final int SLOT_TOOLTIP_Z_OFFSET = 1750;
     private static final LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> RUNTIME_BINDINGS = new LinkedHashMap<>();
 
     private InterfaceSlotOverlayRenderer() {
@@ -70,9 +73,10 @@ public final class InterfaceSlotOverlayRenderer {
             return;
         }
 
-        // Keep overlay ingredients above native slot item rendering (including NBT-driven stacks).
+        graphics.flush();
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 300);
+        graphics.pose().translate(0, 0, SLOT_OVERLAY_Z_OFFSET);
+        RenderSystem.disableDepthTest();
 
         ContainerBounds bounds = readContainerBounds(container);
         List<Slot> slots = container.getMenu().slots;
@@ -89,6 +93,7 @@ public final class InterfaceSlotOverlayRenderer {
         }
 
         graphics.pose().popPose();
+        graphics.flush();
     }
 
     public static void renderTooltip(GuiGraphics graphics, Screen screen, int mouseX, int mouseY) {
@@ -98,8 +103,15 @@ public final class InterfaceSlotOverlayRenderer {
         }
 
         ItemStack stack = resolveTooltipStack(hoveredBinding);
+        graphics.flush();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, SLOT_TOOLTIP_Z_OFFSET);
+        RenderSystem.disableDepthTest();
+
         if (!stack.isEmpty()) {
             graphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+            graphics.pose().popPose();
+            graphics.flush();
             return;
         }
 
@@ -110,6 +122,8 @@ public final class InterfaceSlotOverlayRenderer {
             lines.add(Component.literal(hoveredBinding.ingredientId));
         }
         graphics.renderComponentTooltip(Minecraft.getInstance().font, lines, mouseX, mouseY);
+        graphics.pose().popPose();
+        graphics.flush();
     }
 
     private static Slot findMatchingSlot(List<Slot> slots, DslScene.InterfaceSlotBinding binding) {
@@ -170,15 +184,20 @@ public final class InterfaceSlotOverlayRenderer {
     }
 
     public static ContainerBounds readContainerBounds(AbstractContainerScreen<?> container) {
-        Integer left = readIntField(AbstractContainerScreen.class, container, "leftPos");
-        Integer top = readIntField(AbstractContainerScreen.class, container, "topPos");
-        Integer width = readIntField(AbstractContainerScreen.class, container, "imageWidth");
-        Integer height = readIntField(AbstractContainerScreen.class, container, "imageHeight");
+        int imageWidth = 176;
+        int imageHeight = 166;
+        int resolvedLeft;
+        int resolvedTop;
 
-        int imageWidth = width != null && width > 0 ? width : 176;
-        int imageHeight = height != null && height > 0 ? height : 166;
-        int resolvedLeft = left != null ? left : Math.max(0, (container.width - imageWidth) / 2);
-        int resolvedTop = top != null ? top : Math.max(0, (container.height - imageHeight) / 2);
+        if (container instanceof AbstractContainerScreenAccessor accessor) {
+            imageWidth = Math.max(1, accessor.ponderer$getImageWidth());
+            imageHeight = Math.max(1, accessor.ponderer$getImageHeight());
+            resolvedLeft = accessor.ponderer$getLeftPos();
+            resolvedTop = accessor.ponderer$getTopPos();
+        } else {
+            resolvedLeft = Math.max(0, (container.width - imageWidth) / 2);
+            resolvedTop = Math.max(0, (container.height - imageHeight) / 2);
+        }
 
         if (resolvedLeft == 0 && resolvedTop == 0 && (container.width > imageWidth || container.height > imageHeight)) {
             resolvedLeft = Math.max(0, (container.width - imageWidth) / 2);
@@ -205,16 +224,6 @@ public final class InterfaceSlotOverlayRenderer {
             }
         }
         return null;
-    }
-
-    private static Integer readIntField(Class<?> owner, Object target, String fieldName) {
-        try {
-            Field field = owner.getDeclaredField(fieldName);
-            field.setAccessible(true);
-            return field.getInt(target);
-        } catch (Throwable ignored) {
-            return null;
-        }
     }
 
     public record ContainerBounds(int left, int top, int width, int height) {

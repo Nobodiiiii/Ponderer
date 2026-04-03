@@ -15,6 +15,7 @@ import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
+import com.nododiiiii.ponderer.ui.PonderUiInteractionHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -358,6 +359,9 @@ public class ClientInputHandler {
         if (mirror == null || !shouldRenderEmbeddedMirror() || !(event.getScreen() instanceof PonderUI)) {
             return;
         }
+        if (PonderUiInteractionHelper.hasPriorityPonderButtonAt(event.getScreen(), event.getMouseX(), event.getMouseY())) {
+            return;
+        }
 
         if (handleMirrorMousePressed(mirror, event.getMouseX(), event.getMouseY(), event.getButton())) {
             event.setCanceled(true);
@@ -369,6 +373,9 @@ public class ClientInputHandler {
     public static void onPonderMouseReleased(ScreenEvent.MouseButtonReleased.Pre event) {
         Screen mirror = embeddedMirrorScreen;
         if (mirror == null || !shouldRenderEmbeddedMirror() || !(event.getScreen() instanceof PonderUI)) {
+            return;
+        }
+        if (PonderUiInteractionHelper.hasPriorityPonderButtonAt(event.getScreen(), event.getMouseX(), event.getMouseY())) {
             return;
         }
 

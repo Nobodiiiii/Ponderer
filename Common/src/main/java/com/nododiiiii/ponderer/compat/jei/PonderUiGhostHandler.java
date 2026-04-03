@@ -16,7 +16,7 @@ import java.util.List;
 public class PonderUiGhostHandler implements IGhostIngredientHandler<PonderUI> {
     @Override
     public <I> List<Target<I>> getTargetsTyped(PonderUI gui, ITypedIngredient<I> ingredient, boolean doStart) {
-        if (!InterfaceSlotEditState.isActive() || !InterfaceSlotEditState.hasJeiViewport()) {
+        if (!InterfaceSlotEditState.isActive()) {
             return List.of();
         }
 

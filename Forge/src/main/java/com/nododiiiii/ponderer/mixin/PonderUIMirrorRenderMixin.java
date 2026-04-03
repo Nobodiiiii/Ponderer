@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
@@ -22,7 +23,7 @@ public abstract class PonderUIMirrorRenderMixin {
     private static final int EMBEDDED_MIRROR_Z_OFFSET = 200;
 
     @Inject(method = "renderScene", at = @At("HEAD"), cancellable = true, remap = false)
-    private void ponderer$renderMirrorInsteadOfStructure(GuiGraphics graphics, int mouseX, int mouseY, int i,
+    private void ponderer$skipStructureWhenMirrorAttached(GuiGraphics graphics, int mouseX, int mouseY, int i,
             float partialTicks, CallbackInfo ci) {
         Screen mirror = ClientInputHandler.getEmbeddedMirrorScreen();
         if (mirror == null) {
@@ -31,9 +32,24 @@ public abstract class PonderUIMirrorRenderMixin {
         if (!ClientInputHandler.shouldRenderEmbeddedMirror()) {
             return;
         }
+        ci.cancel();
+    }
 
-        // Embedded screens inherit Ponder's render pass. Reset the GUI state and lift the
-        // child screen forward so background layers are not depth-clipped by the host UI.
+    @Inject(
+        method = "renderWidgets",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/createmod/ponder/foundation/ui/PonderUI;renderSceneOverlay(Lnet/minecraft/client/gui/GuiGraphics;FFF)V"
+        ),
+        remap = false
+    )
+    private void ponderer$renderMirrorBetweenUiLayers(GuiGraphics graphics, int mouseX, int mouseY,
+            float partialTicks, CallbackInfo ci) {
+        Screen mirror = ClientInputHandler.getEmbeddedMirrorScreen();
+        if (mirror == null || !ClientInputHandler.shouldRenderEmbeddedMirror()) {
+            return;
+        }
+
         graphics.flush();
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, EMBEDDED_MIRROR_Z_OFFSET);
@@ -47,14 +63,30 @@ public abstract class PonderUIMirrorRenderMixin {
             graphics.flush();
         } finally {
             ClientInputHandler.endEmbeddedMirrorRender();
-            RenderSystem.enableDepthTest();
             graphics.pose().popPose();
         }
 
+        RenderSystem.disableDepthTest();
         InterfaceSlotOverlayRenderer.render(graphics, mirror);
+
+        if (JeiCompat.shouldRenderPonderUiOverlayManually((Screen) (Object) this)) {
+            JeiCompat.renderPonderUiOverlay((Screen) (Object) this, graphics, mouseX, mouseY, partialTicks);
+        }
+    }
+
+    @Inject(method = "renderWidgets", at = @At("TAIL"), remap = false)
+    private void ponderer$renderMirrorForegroundArtifacts(GuiGraphics graphics, int mouseX, int mouseY,
+            float partialTicks, CallbackInfo ci) {
+        Screen mirror = ClientInputHandler.getEmbeddedMirrorScreen();
+        if (mirror == null || !ClientInputHandler.shouldRenderEmbeddedMirror()) {
+            return;
+        }
+
+        graphics.flush();
+        RenderSystem.disableDepthTest();
         ClientInputHandler.renderDraggedSlotBinding(graphics, mouseX, mouseY);
         InterfaceSlotOverlayRenderer.renderTooltip(graphics, mirror, mouseX, mouseY);
-        ci.cancel();
+        RenderSystem.enableDepthTest();
     }
 
     @Inject(method = "tick", at = @At("HEAD"))

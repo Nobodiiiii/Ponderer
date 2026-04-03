@@ -5,7 +5,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import javax.annotation.Nullable;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 /**
@@ -35,10 +34,8 @@ public final class UiAnchorViewport {
         int guiH = Math.max(1, mc.getWindow().getGuiScaledHeight());
 
         if (mirror instanceof AbstractContainerScreen<?> container) {
-            Rect rect = readContainerRect(container, guiW, guiH);
-            if (rect != null && rect.isValid()) {
-                return rect;
-            }
+            InterfaceSlotOverlayRenderer.ContainerBounds bounds = InterfaceSlotOverlayRenderer.readContainerBounds(container);
+            return new Rect(bounds.left(), bounds.top(), bounds.width(), bounds.height());
         }
 
         return centeredContainerFallback(guiW, guiH);
@@ -50,39 +47,6 @@ public final class UiAnchorViewport {
         double left = Math.floor((guiW - width) * 0.5);
         double top = Math.floor((guiH - height) * 0.5);
         return new Rect(left, top, width, height);
-    }
-
-    @Nullable
-    private static Rect readContainerRect(AbstractContainerScreen<?> container, int guiW, int guiH) {
-        try {
-            Field leftPos = AbstractContainerScreen.class.getDeclaredField("leftPos");
-            Field topPos = AbstractContainerScreen.class.getDeclaredField("topPos");
-            Field imageWidth = AbstractContainerScreen.class.getDeclaredField("imageWidth");
-            Field imageHeight = AbstractContainerScreen.class.getDeclaredField("imageHeight");
-            leftPos.setAccessible(true);
-            topPos.setAccessible(true);
-            imageWidth.setAccessible(true);
-            imageHeight.setAccessible(true);
-
-            double width = imageWidth.getInt(container);
-            double height = imageHeight.getInt(container);
-            if (width <= 1 || height <= 1) {
-                return null;
-            }
-
-            double left = leftPos.getInt(container);
-            double top = topPos.getInt(container);
-
-            // During async mirror attach, init may not have stabilized left/top yet.
-            // If we observe the default (0,0) on a larger GUI, derive centered bounds.
-            if (left == 0.0 && top == 0.0 && (guiW > width || guiH > height)) {
-                left = Math.floor((guiW - width) * 0.5);
-                top = Math.floor((guiH - height) * 0.5);
-            }
-            return new Rect(left, top, width, height);
-        } catch (Throwable ignored) {
-            return null;
-        }
     }
 
     @Nullable

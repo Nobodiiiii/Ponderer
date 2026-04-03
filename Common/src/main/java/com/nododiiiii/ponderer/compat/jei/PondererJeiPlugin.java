@@ -8,6 +8,7 @@ import com.nododiiiii.ponderer.ui.CommandParamScreen;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
+import com.nododiiiii.ponderer.ui.PonderUiInteractionHelper;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
@@ -98,10 +99,14 @@ public class PondererJeiPlugin implements IModPlugin {
         );
 
         registration.addGuiScreenHandler(PonderUI.class, screen -> {
-            if (!InterfaceSlotEditState.isActive() || !InterfaceSlotEditState.hasJeiViewport()) {
+            if (!InterfaceSlotEditState.isActive()) {
                 return null;
             }
-            return new PonderUiGuiProperties(screen);
+            UiAnchorViewport.Rect viewport = resolvePonderUiViewport();
+            if (viewport == null) {
+                return null;
+            }
+            return new PonderUiGuiProperties(screen, viewport);
         });
         registration.addGhostIngredientHandler(
                 PonderUI.class,
@@ -143,7 +148,7 @@ public class PondererJeiPlugin implements IModPlugin {
         return runtime != null
             && screen instanceof PonderUI
             && InterfaceSlotEditState.isActive()
-            && InterfaceSlotEditState.hasJeiViewport();
+            && resolvePonderUiViewport() != null;
     }
 
     static void renderPonderUiOverlay(Screen screen, GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
@@ -183,6 +188,9 @@ public class PondererJeiPlugin implements IModPlugin {
      */
     public static boolean handleMouseClick(Screen screen, double mouseX, double mouseY, int button) {
         if (activeMode == null || runtime == null) return false;
+        if (screen instanceof PonderUI && PonderUiInteractionHelper.hasPriorityPonderButtonAt(screen, mouseX, mouseY)) {
+            return false;
+        }
 
         JeiAwareScreen aware;
         if (activeScreen != null) {
@@ -357,8 +365,26 @@ public class PondererJeiPlugin implements IModPlugin {
     }
 
     private static class PonderUiGuiProperties extends ViewportGuiProperties {
-        private PonderUiGuiProperties(PonderUI screen) {
-            super(screen, InterfaceSlotEditState.getJeiViewport());
+        private PonderUiGuiProperties(PonderUI screen, UiAnchorViewport.Rect viewport) {
+            super(screen, viewport);
         }
+    }
+
+    @Nullable
+    private static UiAnchorViewport.Rect resolvePonderUiViewport() {
+        Screen mirror = UiAnchorViewport.getEmbeddedMirrorScreen();
+        if (mirror != null) {
+            UiAnchorViewport.Rect liveViewport = UiAnchorViewport.resolveForScreen(Minecraft.getInstance(), mirror);
+            if (liveViewport.isValid()) {
+                return liveViewport;
+            }
+        }
+
+        UiAnchorViewport.Rect capturedViewport = InterfaceSlotEditState.getJeiViewport();
+        if (capturedViewport != null && capturedViewport.isValid()) {
+            return capturedViewport;
+        }
+
+        return null;
     }
 }

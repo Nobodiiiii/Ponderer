@@ -15,6 +15,7 @@
     "PonderSceneAccessor",
     "PonderSceneViewOffsetMixin",
     "SceneTransformOffsetMixin",
+    "AbstractContainerScreenAccessor",
     "PonderUIAccessor",
     "PonderUIMixin",
     "PonderUINbtMixin",

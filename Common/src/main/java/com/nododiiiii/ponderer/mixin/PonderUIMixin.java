@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
@@ -99,10 +98,6 @@ public abstract class PonderUIMixin extends Screen {
             }
         }
         graphics.pose().popPose();
-
-        if (JeiCompat.shouldRenderPonderUiOverlayManually((Screen) (Object) this)) {
-            JeiCompat.renderPonderUiOverlay((Screen) (Object) this, graphics, mouseX, mouseY, partialTicks);
-        }
     }
 
     @Inject(method = "replay", at = @At("TAIL"), remap = false)
