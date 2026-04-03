@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ponder;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -47,8 +48,12 @@ public final class PonderJsConversionService {
         }
 
         Path scriptsDir = getClientScriptsDir();
-        String flatName = id.getPath().replace('/', '_') + ".ponderer.js";
-        Path out = scriptsDir.resolve(flatName);
+        String flatName = SafePaths.sanitizeWindowsFileName(id.getPath().replace('/', '_'), "scene") + ".ponderer.js";
+        Path out = SafePaths.resolveFileName(scriptsDir, flatName);
+        if (out == null) {
+            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.to_failed", id.toString()));
+            return 0;
+        }
         try {
             Files.createDirectories(out.getParent());
             String json = GSON.toJson(scene.get());

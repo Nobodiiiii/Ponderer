@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.forge.sticksnapshot.network;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.BlockSnapshot;
 import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ReplayAsyncGuard;
 import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.SnapshotStorage;
@@ -31,8 +30,6 @@ public class SaveSnapshotPacket {
             ServerPlayer player = ctx.getSender();
             if (player != null) {
                 SnapshotStorage.save(player, msg.snapshot);
-                StickSnapshotFeature.LOGGER.debug("[server] snapshot saved for player={} block={} pos={} dim={}",
-                        player.getScoreboardName(), msg.snapshot.getBlockId(), msg.snapshot.getPos(), msg.snapshot.getDimensionId());
             }
         }));
         ctx.setPacketHandled(true);

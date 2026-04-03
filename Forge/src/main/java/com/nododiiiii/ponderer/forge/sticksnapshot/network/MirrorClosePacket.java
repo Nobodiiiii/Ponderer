@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.forge.sticksnapshot.network;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ReplayAsyncGuard;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,7 +24,6 @@ public class MirrorClosePacket {
             }
 
             player.inventoryMenu.broadcastFullState();
-            StickSnapshotFeature.LOGGER.debug("[server] mirror close acknowledged, restored inventory view for player={}", player.getScoreboardName());
         }));
         ctx.setPacketHandled(true);
     }

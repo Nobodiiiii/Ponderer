@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.forge.sticksnapshot.snapshot;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,9 +28,6 @@ public final class ReplayGuard {
             PLAYER_TO_SESSION.put(fakePlayerId, sessionId);
         }
 
-        StickSnapshotFeature.LOGGER.debug(
-                "[replay-guard] begin session={} realPlayer={} fakePlayer={} reason={}",
-                sessionId, realPlayer.getScoreboardName(), fakePlayerId, reason);
         return new Scope(sessionId, true);
     }
 
@@ -82,17 +78,9 @@ public final class ReplayGuard {
     }
 
     public static void auditBlocked(String layer, String action, @Nullable String actor) {
-        ReplayContext context = THREAD_CONTEXT.get();
-        UUID sessionId = context != null ? context.sessionId : null;
-        StickSnapshotFeature.LOGGER.debug(
-                "[replay-guard] blocked layer={} action={} actor={} session={}",
-                layer, action, actor, sessionId);
     }
 
     public static void auditDroppedAsync(String source, UUID sessionId) {
-        StickSnapshotFeature.LOGGER.debug(
-                "[replay-guard] drop async task source={} session={} because replay context already ended",
-                source, sessionId);
     }
 
     private static void endSession(UUID sessionId) {

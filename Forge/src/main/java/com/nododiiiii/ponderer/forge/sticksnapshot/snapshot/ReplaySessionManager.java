@@ -18,8 +18,6 @@ import net.minecraftforge.fml.common.Mod;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -73,24 +71,17 @@ public class ReplaySessionManager {
 
     public static void disableReachabilityCheck(AbstractContainerMenu menu) {
         try {
-            List<String> changedFields = new ArrayList<>();
             for (Field field : AbstractContainerMenu.class.getDeclaredFields()) {
                 if (field.getType() != boolean.class || Modifier.isStatic(field.getModifiers())) {
                     continue;
                 }
 
                 field.setAccessible(true);
-                boolean before = field.getBoolean(menu);
                 field.setBoolean(menu, false);
-                if (before) {
-                    changedFields.add(field.getName());
-                }
             }
-
-            StickSnapshotFeature.LOGGER.debug("[server] disabled menu boolean flags={} menu={}",
-                    changedFields, menu.getClass().getName());
         } catch (ReflectiveOperationException ex) {
-            StickSnapshotFeature.LOGGER.debug("[server] failed to disable reachability check: {}", ex.toString());
+            StickSnapshotFeature.LOGGER.warn("Failed to disable menu reachability check for {}",
+                    menu.getClass().getName(), ex);
         }
     }
 

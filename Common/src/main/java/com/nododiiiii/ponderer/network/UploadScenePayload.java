@@ -6,6 +6,7 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -97,9 +98,8 @@ public record UploadScenePayload(String sceneId, String json,
         ResourceLocation loc = ResourceLocation.tryParse(sceneId);
         if (loc == null) return "";
         java.nio.file.Path sceneDir = SceneStore.getServerSceneDir(server);
-        java.nio.file.Path path = loc.getNamespace().equals(Ponderer.MODID)
-            ? sceneDir.resolve(loc.getPath() + ".json")
-            : sceneDir.resolve(loc.getNamespace()).resolve(loc.getPath() + ".json");
+        java.nio.file.Path path = SafePaths.resolveNamespacedPath(sceneDir, loc, Ponderer.MODID, ".json");
+        if (path == null) return "";
         if (!java.nio.file.Files.exists(path)) return "";
         try {
             return com.nododiiiii.ponderer.ponder.SyncMeta.sha256(java.nio.file.Files.readAllBytes(path));

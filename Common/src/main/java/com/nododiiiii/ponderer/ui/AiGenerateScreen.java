@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.ai.AiSceneGenerator;
 import com.nododiiiii.ponderer.ai.StructureDescriber;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.element.BoxElement;
@@ -326,7 +327,18 @@ public class AiGenerateScreen extends AbstractSimiScreen implements JeiAwareScre
                 target = selected;
             } else {
                 String fileName = selected.getFileName().toString();
-                target = structuresDir.resolve(fileName);
+                if (fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".nbt")) {
+                    fileName = SafePaths.sanitizeWindowsFileName(fileName.substring(0, fileName.length() - 4), "structure") + ".nbt";
+                } else {
+                    fileName = SafePaths.sanitizeWindowsFileName(fileName, "structure.nbt");
+                }
+                target = SafePaths.resolveFileName(structuresDir,
+                    fileName);
+                if (target == null) {
+                    cachedStatusMessage = "Failed to copy: invalid target filename";
+                    cachedStatusColor = 0xFF6666;
+                    return;
+                }
                 try {
                     Files.createDirectories(target.getParent());
                     Files.copy(selected, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);

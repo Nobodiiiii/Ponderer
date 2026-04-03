@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.platform.PondererServices;
 
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -78,25 +79,25 @@ public record DownloadStructurePayload(String sourceId) {
     private static Path resolveSourcePath(ServerPlayer player, ResourceLocation source) {
         if (Ponderer.MODID.equals(source.getNamespace())) {
             Path serverRoot = SceneStore.getServerStructureDir(player.server);
-            Path direct = serverRoot.resolve(source.getPath() + ".nbt");
-            if (Files.exists(direct)) {
+            Path direct = SafePaths.resolveRelativePath(serverRoot, source.getPath() + ".nbt");
+            if (direct != null && Files.exists(direct)) {
                 return direct;
             }
             return null;
         }
 
-        Path generatedPath = player.server.getWorldPath(LevelResource.ROOT)
-            .resolve("generated")
-            .resolve(source.getNamespace())
-            .resolve("structures")
-            .resolve(source.getPath() + ".nbt");
-        if (Files.exists(generatedPath)) {
+        Path generatedRoot = player.server.getWorldPath(LevelResource.ROOT).resolve("generated");
+        Path generatedPath = SafePaths.resolveRelativePath(
+            generatedRoot,
+            source.getNamespace() + "/structures/" + source.getPath() + ".nbt"
+        );
+        if (generatedPath != null && Files.exists(generatedPath)) {
             return generatedPath;
         }
 
         Path serverRoot = SceneStore.getServerStructureDir(player.server);
-        Path fallback = serverRoot.resolve(source.getNamespace()).resolve(source.getPath() + ".nbt");
-        if (Files.exists(fallback)) {
+        Path fallback = SafePaths.resolveRelativePath(serverRoot, source.getNamespace() + "/" + source.getPath() + ".nbt");
+        if (fallback != null && Files.exists(fallback)) {
             return fallback;
         }
         return null;

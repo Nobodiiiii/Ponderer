@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.client.Minecraft;
@@ -133,7 +134,12 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
                 if (fileName.toLowerCase().endsWith(".nbt")) {
                     fileName = fileName.substring(0, fileName.length() - 4);
                 }
-                Path target = structuresDir.resolve(fileName + ".nbt");
+                fileName = SafePaths.sanitizeWindowsFileName(fileName, "structure");
+                Path target = SafePaths.resolveFileName(structuresDir, fileName + ".nbt");
+                if (target == null) {
+                    errorMessage = UIText.of("ponderer.ui.show_structure.structure.error.copy_failed");
+                    return;
+                }
                 try {
                     Files.createDirectories(target.getParent());
                     Files.copy(selected, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -354,14 +360,10 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
 
     private boolean localStructureExists(ResourceLocation id) {
         Path path = resolveLocalStructurePath(id);
-        return Files.exists(path);
+        return path != null && Files.exists(path);
     }
 
     private Path resolveLocalStructurePath(ResourceLocation id) {
-        Path root = SceneStore.getStructureDir();
-        if ("ponderer".equals(id.getNamespace())) {
-            return root.resolve(id.getPath() + ".nbt");
-        }
-        return root.resolve(id.getNamespace()).resolve(id.getPath() + ".nbt");
+        return SafePaths.resolveNamespacedPath(SceneStore.getStructureDir(), id, "ponderer", ".nbt");
     }
 }

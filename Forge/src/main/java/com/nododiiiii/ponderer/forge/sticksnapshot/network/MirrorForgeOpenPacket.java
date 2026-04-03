@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.forge.sticksnapshot.network;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.forge.sticksnapshot.client.MirrorForgeOpenClient;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -38,15 +37,7 @@ public record MirrorForgeOpenPacket(int menuTypeId, int windowId, Component titl
 
     public static void handle(MirrorForgeOpenPacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
         NetworkEvent.Context ctx = ctxSupplier.get();
-        StickSnapshotFeature.LOGGER.debug(
-                "[net][mirror-debug] MirrorForgeOpenPacket recv side={} windowId={} menuTypeId={} title={}",
-                ctx.getDirection().getReceptionSide(), msg.windowId(), msg.menuTypeId(), msg.title().getString());
-        ctx.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-            StickSnapshotFeature.LOGGER.debug(
-                    "[net][mirror-debug] MirrorForgeOpenPacket handling on client windowId={} menuTypeId={}",
-                    msg.windowId(), msg.menuTypeId());
-            MirrorForgeOpenClient.open(msg);
-        }));
+        ctx.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> MirrorForgeOpenClient.open(msg)));
         ctx.setPacketHandled(true);
     }
 }

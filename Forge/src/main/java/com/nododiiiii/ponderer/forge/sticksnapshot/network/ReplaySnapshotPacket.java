@@ -26,12 +26,12 @@ public class ReplaySnapshotPacket {
             if (player == null) {
                 return;
             }
-            StickSnapshotFeature.LOGGER.debug("[server] replay request from player={}", player.getScoreboardName());
             BlockSnapshot snapshot = SnapshotStorage.load(player);
             if (snapshot != null) {
                 SnapshotReplayer.replay(player, snapshot);
             } else {
-                StickSnapshotFeature.LOGGER.debug("[server] replay skipped: no snapshot for player={}", player.getScoreboardName());
+                StickSnapshotFeature.LOGGER.warn("stick replay skipped: no snapshot saved for player={}",
+                        player.getScoreboardName());
             }
         }));
         ctx.setPacketHandled(true);

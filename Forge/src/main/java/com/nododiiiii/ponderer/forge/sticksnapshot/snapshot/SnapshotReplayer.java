@@ -29,7 +29,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
@@ -40,7 +39,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.util.FakePlayer;
-import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
@@ -48,7 +46,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,8 +60,6 @@ public class SnapshotReplayer {
         ServerLevel level = player.serverLevel();
         BlockPos pos = ReplaySessionManager.getSandboxPos(player);
         level.getChunkAt(pos);
-        StickSnapshotFeature.LOGGER.debug("[server] replay begin player={} sandboxPos={} srcBlock={} srcPos={} srcDim={}",
-                player.getScoreboardName(), pos, snapshot.getBlockId(), snapshot.getPos(), snapshot.getDimensionId());
 
         // Always restore any previous replay context before opening a new one.
         ReplaySessionManager.restoreSession(player);
@@ -83,7 +78,7 @@ public class SnapshotReplayer {
             level.setBlock(pos, snapshotState, 0);
             if (snapshot.getBlockEntityTag() != null) {
                 CompoundTag normalizedBeTag = normalizeBlockEntityTagForPos(
-                        snapshot.getBlockEntityTag(), snapshot.getPos(), pos, "server-sandbox");
+                        snapshot.getBlockEntityTag(), snapshot.getPos(), pos);
                 BlockEntity replayBe = BlockEntity.loadStatic(pos, snapshotState, normalizedBeTag);
                 if (replayBe != null) {
                     level.setBlockEntity(replayBe);
@@ -100,9 +95,10 @@ public class SnapshotReplayer {
 
             CapturedPackets capturedPackets = runVirtualUse(level, player, snapshotState, hitResult, sandboxHit);
             if (capturedPackets != null && !capturedPackets.packets.isEmpty()) {
-                mirrorCapturedPacketsToRealPlayer(player, level, capturedPackets, menuTitle, snapshot);
-                StickSnapshotFeature.LOGGER.debug("[server] replay success (captured-packet mirror) player={} packetCount={}",
-                        player.getScoreboardName(), capturedPackets.packets.size());
+                mirrorCapturedPacketsToRealPlayer(player, level, capturedPackets, snapshot);
+                StickSnapshotFeature.LOGGER.info("Opened mirrored interface for player={} block={} title={} packetCount={}",
+                        player.getScoreboardName(), snapshot.getBlockId(), menuTitle.getString(),
+                        capturedPackets.packets.size());
             }
         } finally {
             if (!sandboxClearedAirBlocks.isEmpty()) {
@@ -113,8 +109,6 @@ public class SnapshotReplayer {
             }
             if (!keepSandbox) {
                 ReplaySessionManager.restoreBlock(level, pos, originalState, originalBeTag);
-                StickSnapshotFeature.LOGGER.debug("[server] replay finished without menu, sandbox restored for player={}",
-                        player.getScoreboardName());
             }
         }
     }
@@ -164,8 +158,7 @@ public class SnapshotReplayer {
 
             level.setBlock(targetPos, sourceState, 0);
             if (sourceBeTag != null) {
-                CompoundTag normalizedBeTag = normalizeBlockEntityTagForPos(sourceBeTag, sourcePos, targetPos,
-                        "server-context");
+                CompoundTag normalizedBeTag = normalizeBlockEntityTagForPos(sourceBeTag, sourcePos, targetPos);
                 BlockEntity copiedBe = BlockEntity.loadStatic(targetPos, sourceState, normalizedBeTag);
                 if (copiedBe != null) {
                     level.setBlockEntity(copiedBe);
@@ -173,10 +166,6 @@ public class SnapshotReplayer {
             } else {
                 level.removeBlockEntity(targetPos);
             }
-
-            StickSnapshotFeature.LOGGER.debug(
-                    "[server][mirror-debug] injected sandbox context block sourcePos={} targetPos={} state={} hasBeTag={}",
-                    sourcePos, targetPos, sourceState, sourceBeTag != null);
             injectedCount++;
         }
 
@@ -201,67 +190,7 @@ public class SnapshotReplayer {
             level.setBlock(targetPos, Blocks.AIR.defaultBlockState(), 0);
             level.removeBlockEntity(targetPos);
         }
-
-        StickSnapshotFeature.LOGGER.debug("[server][mirror-debug] sandbox neighbors set to air center={} count={}",
-                sandboxPos, cleared.size());
         return cleared;
-    }
-
-    private static List<GuardedBlock> captureSourceGuard(ServerLevel level, BlockSnapshot snapshot) {
-        if (!level.dimension().location().equals(snapshot.getDimensionId())) {
-            return List.of();
-        }
-
-        BlockPos center = snapshot.getPos();
-        List<GuardedBlock> guarded = new ArrayList<>();
-        int radius = 1;
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dy = -radius; dy <= radius; dy++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    BlockPos samplePos = center.offset(dx, dy, dz);
-                    if (!level.hasChunkAt(samplePos)) {
-                        continue;
-                    }
-                    BlockState state = level.getBlockState(samplePos);
-                    BlockEntity be = level.getBlockEntity(samplePos);
-                    CompoundTag beTag = be != null ? be.saveWithFullMetadata() : null;
-                    guarded.add(new GuardedBlock(samplePos.immutable(), state, beTag));
-                }
-            }
-        }
-        StickSnapshotFeature.LOGGER.debug(
-                "[server][mirror-debug] captured source guard around snapshotPos={} entries={}",
-                snapshot.getPos(), guarded.size());
-        return guarded;
-    }
-
-    private static void logGuardedAreaMutations(ServerLevel level, List<GuardedBlock> guarded, String playerName) {
-        int mutatedCount = 0;
-        for (GuardedBlock guard : guarded) {
-            if (!level.hasChunkAt(guard.pos())) {
-                continue;
-            }
-            BlockState currentState = level.getBlockState(guard.pos());
-            BlockEntity currentBe = level.getBlockEntity(guard.pos());
-            CompoundTag currentBeTag = currentBe != null ? currentBe.saveWithFullMetadata() : null;
-
-            boolean stateChanged = !currentState.equals(guard.state());
-            boolean beChanged = !Objects.equals(currentBeTag, guard.beTag());
-            if (!stateChanged && !beChanged) {
-                continue;
-            }
-
-            mutatedCount++;
-            StickSnapshotFeature.LOGGER.debug(
-                    "[server][mirror-debug] detected source mutation player={} pos={} stateChanged={} beChanged={} beforeState={} afterState={}",
-                    playerName, guard.pos(), stateChanged, beChanged, currentState, guard.state());
-        }
-
-        if (mutatedCount > 0) {
-            StickSnapshotFeature.LOGGER.debug(
-                    "[server][mirror-debug] source guard observed mutations player={} mutatedCount={}",
-                    playerName, mutatedCount);
-        }
     }
 
     private static CapturedPackets runVirtualUse(ServerLevel level, ServerPlayer realPlayer,
@@ -289,19 +218,13 @@ public class SnapshotReplayer {
                 ItemStack oldMainHand = fakePlayer.getItemInHand(InteractionHand.MAIN_HAND);
                 fakePlayer.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
                 try {
-                    InteractionResult result = snapshotState.use(level, fakePlayer, InteractionHand.MAIN_HAND, hitResult);
+                    snapshotState.use(level, fakePlayer, InteractionHand.MAIN_HAND, hitResult);
                     AbstractContainerMenu fakeMenu = fakePlayer.containerMenu != fakePlayer.inventoryMenu
                             ? fakePlayer.containerMenu
                             : null;
-                    StickSnapshotFeature.LOGGER.debug("[server] virtual use result={} fakeMenuOpened={}",
-                            result, fakeMenu != null);
 
                     List<Packet<?>> packets = captureConnection.snapshot();
-                    logCapturedPackets(realPlayer, packets);
                     if (fakeMenu == null || packets.isEmpty()) {
-                        StickSnapshotFeature.LOGGER.debug(
-                                "[server][mirror-debug] no mirrorable packets, player={} fakeMenuOpened={} packetCount={}",
-                                realPlayer.getScoreboardName(), fakeMenu != null, packets.size());
                         return null;
                     }
 
@@ -316,17 +239,18 @@ public class SnapshotReplayer {
                 }
             }
         } catch (Exception ex) {
-            StickSnapshotFeature.LOGGER.debug("[server] virtual use failed: {}", ex.toString());
+            StickSnapshotFeature.LOGGER.warn("Virtual UI replay failed for player={} block={}",
+                    realPlayer.getScoreboardName(), snapshotState.getBlock(), ex);
             return null;
         }
     }
 
-            private static void mirrorCapturedPacketsToRealPlayer(ServerPlayer realPlayer, ServerLevel level,
-                CapturedPackets captured, Component title, BlockSnapshot snapshot) {
+    private static void mirrorCapturedPacketsToRealPlayer(ServerPlayer realPlayer, ServerLevel level,
+            CapturedPackets captured, BlockSnapshot snapshot) {
         List<Packet<?>> packets = captured.packets;
         int sourceContainerId = captured.sourceContainerId;
         boolean hasForgePlayPayload = hasForgePlayPayload(packets);
-                BlockPos clientVirtualPos = getClientVirtualPos(realPlayer);
+        BlockPos clientVirtualPos = getClientVirtualPos(realPlayer);
 
         int targetContainerId = sourceContainerId;
         if (!hasForgePlayPayload && sourceContainerId >= 0) {
@@ -340,10 +264,6 @@ public class SnapshotReplayer {
                         clientVirtualPos);
                 if (forgeOpenPacket != null) {
                     ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> realPlayer), forgeOpenPacket);
-                    StickSnapshotFeature.LOGGER.debug(
-                            "[server][mirror-debug] forwarding forge-open via mod channel player={} windowId={} menuTypeId={} virtualPos={} stateId={} title={}",
-                            realPlayer.getScoreboardName(), forgeOpenPacket.windowId(), forgeOpenPacket.menuTypeId(),
-                            clientVirtualPos, forgeOpenPacket.snapshotStateId(), forgeOpenPacket.title().getString());
                     mirrored++;
                     continue;
                 }
@@ -354,19 +274,12 @@ public class SnapshotReplayer {
                 MirrorForgeOpenPacket vanillaMirrorOpen = createVanillaMirrorOpenPacket(openPacket, snapshot,
                         clientVirtualPos, mappedWindowId);
                 ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> realPlayer), vanillaMirrorOpen);
-                StickSnapshotFeature.LOGGER.debug(
-                        "[server][mirror-debug] forwarding vanilla-open via mod channel player={} windowId={} menuTypeId={} virtualPos={} stateId={} title={}",
-                        realPlayer.getScoreboardName(), vanillaMirrorOpen.windowId(), vanillaMirrorOpen.menuTypeId(),
-                        clientVirtualPos, vanillaMirrorOpen.snapshotStateId(), vanillaMirrorOpen.title().getString());
                 mirrored++;
                 continue;
             }
 
             Packet<?> packetToSend = remapMenuPacketContainerId(packet, sourceContainerId, targetContainerId);
             if (packetToSend != null) {
-                StickSnapshotFeature.LOGGER.debug("[server][mirror-debug] forwarding packet player={} mapped={} -> {}",
-                        realPlayer.getScoreboardName(), describePacket(packet),
-                        describePacket(packetToSend));
                 realPlayer.connection.send(packetToSend);
                 mirrored++;
             }
@@ -375,11 +288,6 @@ public class SnapshotReplayer {
         if (mirrored == 0) {
             return;
         }
-
-        StickSnapshotFeature.LOGGER.debug(
-                "[server] mirrored captured packets to player={} sourceContainerId={} targetContainerId={} packetCount={} forgePlayPayload={} title={}",
-                realPlayer.getScoreboardName(), sourceContainerId, targetContainerId, mirrored, hasForgePlayPayload,
-                title.getString());
     }
 
     private static boolean hasForgePlayPayload(List<Packet<?>> packets) {
@@ -390,79 +298,6 @@ public class SnapshotReplayer {
             }
         }
         return false;
-    }
-
-    private static void logCapturedPackets(ServerPlayer player, List<Packet<?>> packets) {
-        if (packets.isEmpty()) {
-            StickSnapshotFeature.LOGGER.debug("[server][mirror-debug] captured no packets for player={}",
-                    player.getScoreboardName());
-            return;
-        }
-        StickSnapshotFeature.LOGGER.debug("[server][mirror-debug] captured packet count={} player={}",
-                packets.size(), player.getScoreboardName());
-        for (int i = 0; i < packets.size(); i++) {
-            StickSnapshotFeature.LOGGER.debug("[server][mirror-debug] captured[{}] {}",
-                    i, describePacket(packets.get(i)));
-        }
-    }
-
-    private static String describePacket(Packet<?> packet) {
-        if (packet == null) {
-            return "null";
-        }
-        String base = packet.getClass().getSimpleName();
-        if (packet instanceof ClientboundOpenScreenPacket openPacket) {
-            return base + "{containerId=" + openPacket.getContainerId() + ",menuType=" + openPacket.getType() +
-                    ",title=" + openPacket.getTitle().getString() + "}";
-        }
-        if (packet instanceof ClientboundContainerSetSlotPacket setSlotPacket) {
-            return base + "{containerId=" + setSlotPacket.getContainerId() + ",stateId=" +
-                    setSlotPacket.getStateId() + ",slot=" + setSlotPacket.getSlot() + ",item=" +
-                    setSlotPacket.getItem() + "}";
-        }
-        if (packet instanceof ClientboundContainerSetContentPacket setContentPacket) {
-            return base + "{containerId=" + setContentPacket.getContainerId() + ",stateId=" +
-                    setContentPacket.getStateId() + ",items=" + setContentPacket.getItems().size() + "}";
-        }
-        if (packet instanceof ClientboundContainerSetDataPacket setDataPacket) {
-            return base + "{containerId=" + setDataPacket.getContainerId() + ",id=" + setDataPacket.getId() +
-                    ",value=" + setDataPacket.getValue() + "}";
-        }
-        if (packet instanceof ClientboundContainerClosePacket closePacket) {
-            return base + "{containerId=" + closePacket.getContainerId() + "}";
-        }
-        if (packet instanceof ClientboundHorseScreenOpenPacket horsePacket) {
-            return base + "{containerId=" + horsePacket.getContainerId() + ",size=" + horsePacket.getSize() +
-                    ",entityId=" + horsePacket.getEntityId() + "}";
-        }
-        if (packet instanceof ClientboundMerchantOffersPacket offersPacket) {
-            return base + "{containerId=" + offersPacket.getContainerId() + ",offers=" +
-                    offersPacket.getOffers().size() + ",level=" + offersPacket.getVillagerLevel() + "}";
-        }
-        if (packet instanceof ClientboundCustomPayloadPacket customPayload) {
-            FriendlyByteBuf data = customPayload.getData();
-            int readable = data.readableBytes();
-            byte[] head = new byte[Math.min(24, readable)];
-            data.readBytes(head);
-            return base + "{channel=" + customPayload.getIdentifier() + ",bytes=" + readable +
-                    ",head=" + toHex(head) + "}";
-        }
-        return base;
-    }
-
-    private static String toHex(byte[] bytes) {
-        if (bytes.length == 0) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            int value = b & 0xFF;
-            if (value < 16) {
-                sb.append('0');
-            }
-            sb.append(Integer.toHexString(value));
-        }
-        return sb.toString();
     }
 
     private static Packet<?> remapMenuPacketContainerId(Packet<?> packet, int sourceContainerId, int targetContainerId) {
@@ -512,7 +347,7 @@ public class SnapshotReplayer {
     }
 
     @Nullable
-        private static MirrorForgeOpenPacket decodeForgeOpenPacket(ServerLevel level,
+    private static MirrorForgeOpenPacket decodeForgeOpenPacket(ServerLevel level,
             ClientboundCustomPayloadPacket customPayload, BlockSnapshot snapshot, BlockPos clientVirtualPos) {
         if (!"fml:play".equals(customPayload.getIdentifier().toString())) {
             return null;
@@ -534,9 +369,6 @@ public class SnapshotReplayer {
         byte[] extraData = payload.readByteArray(32600);
         BlockPos menuSourcePos = readFirstBlockPos(extraData);
         byte[] rewrittenExtraData = rewriteFirstBlockPos(extraData, clientVirtualPos);
-        StickSnapshotFeature.LOGGER.debug(
-            "[server][mirror-debug] forge-open extraData rewritten windowId={} snapshotPos={} menuSourcePos={} virtualPos={} rawBytes={} rewrittenBytes={}",
-            windowId, snapshot.getPos(), menuSourcePos, clientVirtualPos, extraData.length, rewrittenExtraData.length);
 
         BlockState contextState = Block.stateById(snapshot.getStateId());
         CompoundTag contextBeTag = snapshot.getBlockEntityTag();
@@ -547,26 +379,17 @@ public class SnapshotReplayer {
             contextState = level.getBlockState(menuSourcePos);
             BlockEntity contextBe = level.getBlockEntity(menuSourcePos);
             contextBeTag = contextBe != null ? contextBe.saveWithFullMetadata() : null;
-            StickSnapshotFeature.LOGGER.debug(
-                    "[server][mirror-debug] forge-open context fell back to menuSourcePos={} state={} hasBeTag={}",
-                    menuSourcePos, contextState, contextBeTag != null);
-        } else {
-            StickSnapshotFeature.LOGGER.debug(
-                    "[server][mirror-debug] forge-open context kept snapshot snapshotPos={} menuSourcePos={} hasSnapshotBeTag={} chunkLoaded={}",
-                    snapshot.getPos(), menuSourcePos, usingSnapshotContext,
-                    menuSourcePos != null && level.hasChunkAt(menuSourcePos));
         }
 
-        CompoundTag normalizedSnapshotBeTag = normalizeBlockEntityTagForPos(
-            contextBeTag, contextPos, clientVirtualPos, "client-virtual");
+        CompoundTag normalizedSnapshotBeTag = normalizeBlockEntityTagForPos(contextBeTag, contextPos, clientVirtualPos);
         return new MirrorForgeOpenPacket(menuTypeId, windowId, title, rewrittenExtraData,
-            Block.getId(contextState), normalizedSnapshotBeTag);
+                Block.getId(contextState), normalizedSnapshotBeTag);
     }
 
-        private static BlockPos getClientVirtualPos(ServerPlayer player) {
+    private static BlockPos getClientVirtualPos(ServerPlayer player) {
         int y = player.serverLevel().getMinBuildHeight() + 1;
         return new BlockPos(player.getBlockX(), y, player.getBlockZ());
-        }
+    }
 
     private static byte[] rewriteFirstBlockPos(byte[] extraData, BlockPos sourcePos) {
         if (extraData.length < Long.BYTES) {
@@ -574,7 +397,7 @@ public class SnapshotReplayer {
         }
 
         FriendlyByteBuf input = new FriendlyByteBuf(Unpooled.wrappedBuffer(extraData));
-        long originalPos = input.readLong();
+        input.readLong();
         byte[] remaining = new byte[input.readableBytes()];
         input.readBytes(remaining);
 
@@ -584,8 +407,6 @@ public class SnapshotReplayer {
 
         byte[] rewritten = new byte[output.readableBytes()];
         output.readBytes(rewritten);
-        StickSnapshotFeature.LOGGER.debug("[server][mirror-debug] forge-open remap blockpos {} -> {}", BlockPos.of(originalPos),
-                sourcePos);
         return rewritten;
     }
 
@@ -604,7 +425,7 @@ public class SnapshotReplayer {
         byte[] extraData = encodeVirtualPos(clientVirtualPos);
         BlockState contextState = Block.stateById(snapshot.getStateId());
         CompoundTag normalizedSnapshotBeTag = normalizeBlockEntityTagForPos(
-                snapshot.getBlockEntityTag(), snapshot.getPos(), clientVirtualPos, "client-virtual-vanilla");
+                snapshot.getBlockEntityTag(), snapshot.getPos(), clientVirtualPos);
         return new MirrorForgeOpenPacket(menuTypeId, mappedWindowId, openPacket.getTitle(), extraData,
                 Block.getId(contextState), normalizedSnapshotBeTag);
     }
@@ -626,7 +447,7 @@ public class SnapshotReplayer {
 
     @Nullable
     private static CompoundTag normalizeBlockEntityTagForPos(@Nullable CompoundTag rawTag, BlockPos sourcePos,
-            BlockPos targetPos, String stage) {
+            BlockPos targetPos) {
         if (rawTag == null) {
             return null;
         }
@@ -635,21 +456,10 @@ public class SnapshotReplayer {
         int dx = targetPos.getX() - sourcePos.getX();
         int dy = targetPos.getY() - sourcePos.getY();
         int dz = targetPos.getZ() - sourcePos.getZ();
-        int remappedPosCount = remapEmbeddedPositions(normalized, dx, dy, dz);
-        int beforeX = normalized.contains("x") ? normalized.getInt("x") : Integer.MIN_VALUE;
-        int beforeY = normalized.contains("y") ? normalized.getInt("y") : Integer.MIN_VALUE;
-        int beforeZ = normalized.contains("z") ? normalized.getInt("z") : Integer.MIN_VALUE;
-
+        remapEmbeddedPositions(normalized, dx, dy, dz);
         normalized.putInt("x", targetPos.getX());
         normalized.putInt("y", targetPos.getY());
         normalized.putInt("z", targetPos.getZ());
-
-        StickSnapshotFeature.LOGGER.debug(
-                "[server][mirror-debug] normalized block-entity tag stage={} sourcePos={} targetPos={} delta=({}, {}, {}) remappedPosFields={} tagPos=({}, {}, {}) -> ({}, {}, {})",
-                stage, sourcePos, targetPos,
-                dx, dy, dz, remappedPosCount,
-                beforeX, beforeY, beforeZ,
-                targetPos.getX(), targetPos.getY(), targetPos.getZ());
         return normalized;
     }
 
@@ -755,9 +565,6 @@ public class SnapshotReplayer {
             this.packets = packets;
             this.sourceContainerId = sourceContainerId;
         }
-    }
-
-    private record GuardedBlock(BlockPos pos, BlockState state, @Nullable CompoundTag beTag) {
     }
 
     private record SandboxInjectedBlock(BlockPos pos, BlockState originalState, @Nullable CompoundTag originalBeTag) {

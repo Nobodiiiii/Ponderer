@@ -132,7 +132,6 @@ public final class ForgeShowInterfaceClient {
 
         Block block = BuiltInRegistries.BLOCK.get(expected);
         if (block == null || block.defaultBlockState().isAir() && !"minecraft:air".equals(expected.toString())) {
-            StickSnapshotFeature.LOGGER.debug("show_interface block registry miss id={}", expected);
             return null;
         }
 
@@ -173,7 +172,7 @@ public final class ForgeShowInterfaceClient {
             parsed.putInt("z", pos.getZ());
             return parsed;
         } catch (CommandSyntaxException ex) {
-            StickSnapshotFeature.LOGGER.debug("show_interface nbt parse failed, ignore nbt: {}", ex.getMessage());
+            StickSnapshotFeature.LOGGER.warn("show_interface invalid block entity NBT ignored: {}", ex.getMessage());
             return null;
         }
     }

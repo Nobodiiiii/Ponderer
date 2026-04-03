@@ -41,7 +41,6 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.network.NetworkEvent;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
@@ -135,8 +134,6 @@ public class ClientInputHandler {
         if (InterfaceSlotEditState.isActive()) {
             InterfaceSlotEditState.captureJeiViewport(mirrorScreen);
         }
-        StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] mirror attached to ponder screen: {}",
-                mirrorScreen.getClass().getName());
     }
 
     @Nullable
@@ -200,8 +197,6 @@ public class ClientInputHandler {
         }
         mc.player.containerMenu = menu;
         lastObservedContainerId = menu.containerId;
-        StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] bound mirror menu containerId={} class={}",
-                menu.containerId, menu.getClass().getName());
     }
 
     public static void closeEmbeddedMirrorFromPonder(String reason) {
@@ -245,8 +240,6 @@ public class ClientInputHandler {
                 hit.getLocation(),
                 hit.isInside()
         );
-
-        StickSnapshotFeature.LOGGER.debug("[client] captured snapshot block={} pos={} dim={}", blockId, pos, mc.level.dimension().location());
         ModNetworking.CHANNEL.sendToServer(new SaveSnapshotPacket(localSnapshot));
         // Cancel vanilla pick block behavior while using stick.
         event.setCanceled(true);
@@ -274,7 +267,6 @@ public class ClientInputHandler {
         lastReplayMillis = now;
 
         event.setCanceled(true);
-        StickSnapshotFeature.LOGGER.debug("[client] request replay with stick, localSnapshotPresent={}", localSnapshot != null);
         prepareMirrorReplay(-1);
         ModNetworking.CHANNEL.sendToServer(new ReplaySnapshotPacket());
     }
@@ -296,8 +288,6 @@ public class ClientInputHandler {
 
         int currentId = mc.player.containerMenu.containerId;
         if (currentId != lastObservedContainerId) {
-            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] containerMenu changed old={} new={} class={}",
-                    lastObservedContainerId, currentId, mc.player.containerMenu.getClass().getName());
             lastObservedContainerId = currentId;
         }
 
@@ -321,7 +311,6 @@ public class ClientInputHandler {
                 autoReplayArmed = false;
                 autoReplayTicks = -1;
                 suppressNextAutoReplay = true;
-                StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] trigger delayed ponder replay after show_interface");
                 resetProgressBarBeforeReplay(ponder);
                 callPonderReplay(ponder);
             }
@@ -334,24 +323,6 @@ public class ClientInputHandler {
     }
 
     @SubscribeEvent
-    public static void onClientCustomPayload(NetworkEvent.ClientCustomPayloadEvent event) {
-        if (!awaitingMirrorOpen) {
-            return;
-        }
-
-        if (event.getPayload() == null) {
-            return;
-        }
-
-        net.minecraft.network.FriendlyByteBuf copy = new net.minecraft.network.FriendlyByteBuf(event.getPayload().copy());
-        int readable = copy.readableBytes();
-        byte[] head = new byte[Math.min(32, readable)];
-        copy.readBytes(head);
-        StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] custom payload received loginIndex={} bytes={} head={}",
-                event.getLoginIndex(), readable, toHex(head));
-    }
-
-    @SubscribeEvent
     public static void onScreenOpening(ScreenEvent.Opening event) {
         if (!awaitingMirrorOpen || event.getNewScreen() == null || embeddedMirrorScreen != null) {
             return;
@@ -359,7 +330,6 @@ public class ClientInputHandler {
 
         awaitingMirrorOpen = false;
         mirrorScreenActive = true;
-        StickSnapshotFeature.LOGGER.debug("[client] mirror screen opened: {}", event.getNewScreen().getClass().getName());
     }
 
     @SubscribeEvent
@@ -434,7 +404,6 @@ public class ClientInputHandler {
         restorePlayerMenu();
         MirrorForgeOpenClient.restoreInjectedBlock();
         ModNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
-        StickSnapshotFeature.LOGGER.debug("[client] mirror screen closed, requested inventory restore, reason={}", reason);
     }
 
     private static void restorePlayerMenu() {
@@ -462,8 +431,6 @@ public class ClientInputHandler {
 
         handleMirrorMousePressed(embeddedMirrorScreen, mouseX, mouseY, pendingAutoClickButton, true);
         handleMirrorMouseReleased(embeddedMirrorScreen, mouseX, mouseY, pendingAutoClickButton, true);
-        StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] auto click at norm=({}, {}) mouse=({}, {}) button={}",
-                pendingAutoClickNormX, pendingAutoClickNormY, mouseX, mouseY, pendingAutoClickButton);
         pendingAutoClick = false;
     }
 
@@ -571,30 +538,10 @@ public class ClientInputHandler {
         }
     }
 
-    private static String toHex(byte[] bytes) {
-        if (bytes.length == 0) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            int v = b & 0xFF;
-            if (v < 16) {
-                sb.append('0');
-            }
-            sb.append(Integer.toHexString(v));
-        }
-        return sb.toString();
-    }
-
     private static void stripJeiWidgets(Screen screen) {
-        int removed = 0;
-        removed += removeJeiEntries(screen.children());
-        removed += removeJeiEntries(readListField(screen, "renderables"));
-        removed += removeJeiEntries(readListField(screen, "narratables"));
-        if (removed > 0) {
-            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] stripped {} JEI widgets from {}",
-                    removed, screen.getClass().getName());
-        }
+        removeJeiEntries(screen.children());
+        removeJeiEntries(readListField(screen, "renderables"));
+        removeJeiEntries(readListField(screen, "narratables"));
     }
 
     private static int removeJeiEntries(@Nullable List<?> list) {
@@ -631,7 +578,7 @@ public class ClientInputHandler {
             replay.setAccessible(true);
             replay.invoke(ponder);
         } catch (Throwable t) {
-            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] delayed replay invoke failed: {}", t.toString());
+            StickSnapshotFeature.LOGGER.warn("show_interface delayed replay invoke failed", t);
         }
     }
 

@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.element.BoxElement;
@@ -154,6 +155,11 @@ public class ExportPackScreen extends AbstractSimiScreen {
             return;
         }
 
+        if (!SafePaths.isValidWindowsFileNameSegment(name)) {
+            notifyUser(UIText.of("ponderer.ui.export.name_invalid"));
+            return;
+        }
+
         if (version.isEmpty()) {
             notifyUser(UIText.of("ponderer.ui.export.version_empty"));
             return;
@@ -162,7 +168,11 @@ public class ExportPackScreen extends AbstractSimiScreen {
         // Check for existing file
         Path resourcepacksDir = Minecraft.getInstance().gameDirectory.toPath().resolve("resourcepacks");
         String filename = "[Ponderer] " + name + ".zip";
-        Path targetPath = resourcepacksDir.resolve(filename);
+        Path targetPath = SafePaths.resolveFileName(resourcepacksDir, filename);
+        if (targetPath == null) {
+            notifyUser(UIText.of("ponderer.ui.export.name_invalid"));
+            return;
+        }
 
         if (Files.exists(targetPath)) {
             // Show confirmation dialog

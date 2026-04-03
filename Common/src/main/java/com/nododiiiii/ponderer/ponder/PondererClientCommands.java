@@ -6,6 +6,7 @@ import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.network.DownloadStructurePayload;
 import com.nododiiiii.ponderer.network.UploadScenePayload;
 import com.nododiiiii.ponderer.network.SyncRequestPayload;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.Commands;
@@ -272,6 +273,10 @@ public final class PondererClientCommands {
         }
 
         Path targetPath = SceneStore.getStructurePath(target.getPath());
+        if (targetPath == null) {
+            notifyClient(Component.translatable("ponderer.cmd.push.copy_failed", source.toString(), target.toString()));
+            return source.toString();
+        }
         try {
             byte[] bytes = Files.readAllBytes(sourcePath);
             Files.createDirectories(targetPath.getParent());
@@ -299,11 +304,9 @@ public final class PondererClientCommands {
             return null;
         }
 
-        return server.getWorldPath(LevelResource.ROOT)
-                .resolve("generated")
-                .resolve(id.getNamespace())
-                .resolve("structures")
-                .resolve(id.getPath() + ".nbt");
+        return SafePaths.resolveRelativePath(
+                server.getWorldPath(LevelResource.ROOT).resolve("generated"),
+                id.getNamespace() + "/structures/" + id.getPath() + ".nbt");
     }
 
     private static ResourceLocation parseStructureLocation(String raw) {
@@ -595,10 +598,13 @@ public final class PondererClientCommands {
 
         // Delete the zip file from resourcepacks/
         if (entry.sourceFile != null && !entry.sourceFile.isEmpty()) {
-            Path zipPath = PondererServices.PLATFORM.getGameDir()
-                    .resolve("resourcepacks").resolve(entry.sourceFile);
+            Path zipPath = SafePaths.resolveFileName(
+                    PondererServices.PLATFORM.getGameDir().resolve("resourcepacks"),
+                    entry.sourceFile);
             try {
-                java.nio.file.Files.deleteIfExists(zipPath);
+                if (zipPath != null) {
+                    java.nio.file.Files.deleteIfExists(zipPath);
+                }
             } catch (Exception e) {
                 // Non-fatal: log but continue with registry removal
             }
@@ -610,8 +616,14 @@ public final class PondererClientCommands {
             name = entry.packPrefix.substring(1, entry.packPrefix.length() - 1);
         }
         if (name != null && !name.isEmpty()) {
-            deleteDirectoryRecursive(SceneStore.getPackSceneDir(name));
-            deleteDirectoryRecursive(SceneStore.getPackStructureDir(name));
+            Path packSceneDir = SceneStore.getPackSceneDir(name);
+            Path packStructureDir = SceneStore.getPackStructureDir(name);
+            if (packSceneDir != null) {
+                deleteDirectoryRecursive(packSceneDir);
+            }
+            if (packStructureDir != null) {
+                deleteDirectoryRecursive(packStructureDir);
+            }
         }
 
         // Remove from registry

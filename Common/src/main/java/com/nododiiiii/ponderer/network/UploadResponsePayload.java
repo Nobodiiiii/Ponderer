@@ -1,11 +1,10 @@
 package com.nododiiiii.ponderer.network;
 
-import com.nododiiiii.ponderer.Ponderer;
+import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 
 /**
  * Server -> Client response after an upload (push) attempt.
@@ -47,12 +46,7 @@ public record UploadResponsePayload(String sceneId, String status) {
     }
 
     private static java.nio.file.Path resolveLocalScenePath(String sceneId) {
-        ResourceLocation loc = ResourceLocation.tryParse(sceneId);
-        if (loc == null) return null;
-        java.nio.file.Path dir = com.nododiiiii.ponderer.ponder.SceneStore.getSceneDir();
-        return loc.getNamespace().equals(Ponderer.MODID)
-            ? dir.resolve(loc.getPath() + ".json")
-            : dir.resolve(loc.getNamespace()).resolve(loc.getPath() + ".json");
+        return SceneStore.findLocalSceneFile(sceneId);
     }
 
     private static void notifyClient(Component message) {

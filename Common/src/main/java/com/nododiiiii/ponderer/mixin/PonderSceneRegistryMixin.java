@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.mixin;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.ponder.foundation.registration.PonderSceneRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -65,7 +66,7 @@ public class PonderSceneRegistryMixin {
             // Priority 2: auto-copy built-in structure to local folder, then load from local
             if (SceneStore.ensureBuiltinStructure(location.getPath())) {
                 Path localPath = SceneStore.getStructurePath(location);
-                if (Files.exists(localPath)) {
+                if (localPath != null && Files.exists(localPath)) {
                     try (InputStream stream = Files.newInputStream(localPath)) {
                         cir.setReturnValue(PonderSceneRegistry.loadSchematic(stream));
                     } catch (Exception e) {
@@ -97,12 +98,11 @@ public class PonderSceneRegistryMixin {
             return;
         }
         Path root = server.getWorldPath(LevelResource.ROOT);
-        Path generatedPath = root.resolve("generated")
-            .resolve(location.getNamespace())
-            .resolve("structures")
-            .resolve(location.getPath() + ".nbt");
+        Path generatedPath = SafePaths.resolveRelativePath(
+            root.resolve("generated"),
+            location.getNamespace() + "/structures/" + location.getPath() + ".nbt");
 
-        if (!Files.exists(generatedPath)) {
+        if (generatedPath == null || !Files.exists(generatedPath)) {
             return;
         }
 

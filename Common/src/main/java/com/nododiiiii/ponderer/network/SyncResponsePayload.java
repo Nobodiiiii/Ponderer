@@ -5,6 +5,7 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
@@ -73,6 +74,11 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         for (FileEntry entry : payload.scripts()) {
             String metaKey = "scripts/" + entry.id();
             Path localFile = resolveLocalPath(scriptsDir, entry.id(), ".json");
+            if (localFile == null) {
+                LOGGER.warn("Rejected unsafe script path from server: {}", entry.id());
+                skipped++;
+                continue;
+            }
 
             if (!"force".equals(pullMode)) {
                 String status = SyncMeta.checkConflict(metaKey, entry.bytes(), localFile);
@@ -102,6 +108,11 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         for (FileEntry entry : payload.structures()) {
             String metaKey = "structures/" + entry.id();
             Path localFile = resolveLocalPath(structuresDir, entry.id(), ".nbt");
+            if (localFile == null) {
+                LOGGER.warn("Rejected unsafe structure path from server: {}", entry.id());
+                skipped++;
+                continue;
+            }
 
             if (!"force".equals(pullMode)) {
                 String status = SyncMeta.checkConflict(metaKey, entry.bytes(), localFile);
@@ -142,10 +153,8 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
 
     private static Path resolveLocalPath(Path root, String id, String ext) {
         ResourceLocation loc = ResourceLocation.tryParse(id);
-        if (loc == null) return root.resolve(id + ext);
-        return loc.getNamespace().equals("ponderer")
-            ? root.resolve(loc.getPath() + ext)
-            : root.resolve(loc.getNamespace()).resolve(loc.getPath() + ext);
+        if (loc == null) return null;
+        return SafePaths.resolveNamespacedPath(root, loc, "ponderer", ext);
     }
 
     private static void notifyClient(Component message) {
@@ -160,9 +169,11 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             LOGGER.warn("Invalid id from server: {}", id);
             return;
         }
-        Path path = loc.getNamespace().equals("ponderer")
-            ? root.resolve(loc.getPath() + ext)
-            : root.resolve(loc.getNamespace()).resolve(loc.getPath() + ext);
+        Path path = SafePaths.resolveNamespacedPath(root, loc, "ponderer", ext);
+        if (path == null) {
+            LOGGER.warn("Rejected unsafe path from server: {}", id);
+            return;
+        }
         try {
             Files.createDirectories(path.getParent());
             Files.write(path, bytes);

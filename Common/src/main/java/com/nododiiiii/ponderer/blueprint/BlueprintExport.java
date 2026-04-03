@@ -5,8 +5,10 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Locale;
 
 import com.mojang.logging.LogUtils;
+import com.nododiiiii.ponderer.util.SafePaths;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
@@ -37,13 +39,28 @@ public class BlueprintExport {
         CompoundTag data = structure.save(new CompoundTag());
         BlueprintItem.replaceStructureVoidWithAir(data);
 
-        if (fileName.isEmpty())
-            fileName = "blueprint";
-        if (!overwrite)
-            fileName = findFirstValidFilename(fileName, dir, "nbt");
-        if (!fileName.endsWith(".nbt"))
-            fileName += ".nbt";
-        Path file = dir.resolve(fileName).toAbsolutePath();
+        String baseName = fileName == null ? "" : fileName.trim();
+        if (baseName.toLowerCase(Locale.ROOT).endsWith(".nbt")) {
+            baseName = baseName.substring(0, baseName.length() - 4);
+        }
+        if (baseName.isEmpty())
+            baseName = "blueprint";
+        if (!SafePaths.isValidWindowsFileNameSegment(baseName)) {
+            LOGGER.warn("Rejected blueprint save with invalid Windows-safe filename '{}'", baseName);
+            return null;
+        }
+        if (!overwrite) {
+            baseName = findFirstValidFilename(baseName, dir, "nbt");
+            if (baseName == null) {
+                return null;
+            }
+        }
+        fileName = baseName + ".nbt";
+        Path file = SafePaths.resolveFileName(dir, fileName);
+        if (file == null) {
+            LOGGER.warn("Rejected unsafe blueprint output path '{}'", fileName);
+            return null;
+        }
 
         try {
             Files.createDirectories(dir);
@@ -59,13 +76,17 @@ public class BlueprintExport {
     }
 
     /** Find a filename that doesn't conflict, by appending _2, _3, ... */
+    @Nullable
     public static String findFirstValidFilename(String name, Path folder, String extension) {
         int index = 0;
         String filename;
         Path filepath;
         do {
             filename = index == 0 ? name + "." + extension : name + "_" + index + "." + extension;
-            filepath = folder.resolve(filename);
+            filepath = SafePaths.resolveFileName(folder, filename);
+            if (filepath == null) {
+                return null;
+            }
             index++;
         } while (Files.exists(filepath));
         return filename.substring(0, filename.length() - extension.length() - 1);
