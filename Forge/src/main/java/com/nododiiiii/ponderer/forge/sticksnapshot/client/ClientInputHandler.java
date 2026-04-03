@@ -20,11 +20,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -40,7 +43,9 @@ import net.minecraftforge.network.NetworkEvent;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Mod.EventBusSubscriber(value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ClientInputHandler {
@@ -59,10 +64,12 @@ public class ClientInputHandler {
     private static double pendingAutoClickNormX = 0.0;
     private static double pendingAutoClickNormY = 0.0;
     private static int pendingAutoClickButton = GLFW.GLFW_MOUSE_BUTTON_LEFT;
+    private static int blockedProtectedSlotReleaseButton = Integer.MIN_VALUE;
     @Nullable
     private static DslScene.InterfaceSlotBinding draggedSlotBinding;
     @Nullable
     private static Integer draggedSlotOriginIndex;
+    private static final Map<Integer, ItemStack> protectedMirrorSlotStacks = new HashMap<>();
     @Nullable
     private static AbstractContainerMenu previousPlayerMenu;
     @Nullable
@@ -91,8 +98,10 @@ public class ClientInputHandler {
         autoReplayArmed = shouldAutoReplay;
         autoReplayTicks = shouldAutoReplay ? SHOW_INTERFACE_AUTO_REPLAY_DELAY_TICKS : -1;
         pendingAutoClick = false;
+        blockedProtectedSlotReleaseButton = Integer.MIN_VALUE;
         draggedSlotBinding = null;
         draggedSlotOriginIndex = null;
+        protectedMirrorSlotStacks.clear();
         InterfaceSlotEditState.clearJeiViewport();
         if (mc.player != null && mc.player.containerMenu != null) {
             lastObservedContainerId = mc.player.containerMenu.containerId;
@@ -120,6 +129,7 @@ public class ClientInputHandler {
         // JEI should target the host PonderUI during embedded flows, not the child
         // mirror screen instance that only exists as a rendered subtree.
         stripJeiWidgets(mirrorScreen);
+        captureProtectedMirrorSlotStacks(mirrorScreen);
         if (InterfaceSlotEditState.isActive()) {
             InterfaceSlotEditState.captureJeiViewport(mirrorScreen);
         }
@@ -363,7 +373,7 @@ public class ClientInputHandler {
             return;
         }
 
-        if (handleMirrorMousePressed(mirror, event.getMouseX(), event.getMouseY(), event.getButton())) {
+        if (handleMirrorMousePressed(mirror, event.getMouseX(), event.getMouseY(), event.getButton(), false)) {
             event.setCanceled(true);
             return;
         }
@@ -379,7 +389,7 @@ public class ClientInputHandler {
             return;
         }
 
-        if (handleMirrorMouseReleased(mirror, event.getMouseX(), event.getMouseY(), event.getButton())) {
+        if (handleMirrorMouseReleased(mirror, event.getMouseX(), event.getMouseY(), event.getButton(), false)) {
             event.setCanceled(true);
             return;
         }
@@ -406,8 +416,10 @@ public class ClientInputHandler {
         autoReplayArmed = false;
         autoReplayTicks = -1;
         pendingAutoClick = false;
+        blockedProtectedSlotReleaseButton = Integer.MIN_VALUE;
         draggedSlotBinding = null;
         draggedSlotOriginIndex = null;
+        protectedMirrorSlotStacks.clear();
         InterfaceSlotEditState.clearJeiViewport();
         InterfaceSlotOverlayRenderer.clearRuntimeBindings();
         embeddedMirrorScreen = null;
@@ -440,14 +452,15 @@ public class ClientInputHandler {
         double mouseX = viewport.left() + localX;
         double mouseY = viewport.top() + localY;
 
-        handleMirrorMousePressed(embeddedMirrorScreen, mouseX, mouseY, pendingAutoClickButton);
-        handleMirrorMouseReleased(embeddedMirrorScreen, mouseX, mouseY, pendingAutoClickButton);
+        handleMirrorMousePressed(embeddedMirrorScreen, mouseX, mouseY, pendingAutoClickButton, true);
+        handleMirrorMouseReleased(embeddedMirrorScreen, mouseX, mouseY, pendingAutoClickButton, true);
         StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] auto click at norm=({}, {}) mouse=({}, {}) button={}",
                 pendingAutoClickNormX, pendingAutoClickNormY, mouseX, mouseY, pendingAutoClickButton);
         pendingAutoClick = false;
     }
 
-    private static boolean handleMirrorMousePressed(Screen mirror, double mouseX, double mouseY, int button) {
+    private static boolean handleMirrorMousePressed(Screen mirror, double mouseX, double mouseY, int button,
+                                                    boolean allowProtectedSlotInteraction) {
         Slot slot = InterfaceSlotOverlayRenderer.findSlotAt(mirror, mouseX, mouseY);
         if (InterfaceSlotEditState.isActive() && slot != null) {
             if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && InterfaceSlotEditState.removeBinding(slot.index)) {
@@ -462,12 +475,11 @@ public class ClientInputHandler {
                     return true;
                 }
             }
+            return true;
         }
 
-        if (slot != null) {
-            // Never forward slot clicks to the mirrored container itself.
-            // This disables native item pickup/drag (including NBT-backed stacks)
-            // in all virtual interface states, while custom edit logic above still works.
+        if (shouldBlockProtectedSlotInteraction(slot, button, allowProtectedSlotInteraction)) {
+            blockedProtectedSlotReleaseButton = button;
             return true;
         }
 
@@ -475,7 +487,13 @@ public class ClientInputHandler {
         return false;
     }
 
-    private static boolean handleMirrorMouseReleased(Screen mirror, double mouseX, double mouseY, int button) {
+    private static boolean handleMirrorMouseReleased(Screen mirror, double mouseX, double mouseY, int button,
+                                                     boolean allowProtectedSlotInteraction) {
+        if (blockedProtectedSlotReleaseButton == button) {
+            blockedProtectedSlotReleaseButton = Integer.MIN_VALUE;
+            return true;
+        }
+
         Slot slot = InterfaceSlotOverlayRenderer.findSlotAt(mirror, mouseX, mouseY);
 
         if (draggedSlotBinding != null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
@@ -492,12 +510,57 @@ public class ClientInputHandler {
             return true;
         }
 
-        if (slot != null) {
-            return !InterfaceSlotEditState.isActive() || button != GLFW.GLFW_MOUSE_BUTTON_LEFT;
+        if (InterfaceSlotEditState.isActive() && slot != null) {
+            return button != GLFW.GLFW_MOUSE_BUTTON_LEFT;
+        }
+
+        if (shouldBlockProtectedSlotInteraction(slot, button, allowProtectedSlotInteraction)) {
+            return true;
         }
 
         mirror.mouseReleased(mouseX, mouseY, button);
         return false;
+    }
+
+    private static boolean shouldBlockProtectedSlotInteraction(@Nullable Slot slot, int button,
+                                                               boolean allowProtectedSlotInteraction) {
+        if (allowProtectedSlotInteraction || slot == null) {
+            return false;
+        }
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+            return false;
+        }
+
+        ItemStack original = protectedMirrorSlotStacks.get(slot.index);
+        if (original == null || original.isEmpty()) {
+            return false;
+        }
+
+        ItemStack current = slot.getItem();
+        return !current.isEmpty()
+            && current.getCount() == original.getCount()
+            && ItemStack.isSameItemSameTags(current, original);
+    }
+
+    private static void captureProtectedMirrorSlotStacks(Screen mirrorScreen) {
+        protectedMirrorSlotStacks.clear();
+
+        Minecraft mc = Minecraft.getInstance();
+        if (!(mirrorScreen instanceof AbstractContainerScreen<?> container) || mc.player == null) {
+            return;
+        }
+
+        Inventory playerInventory = mc.player.getInventory();
+        for (Slot slot : container.getMenu().slots) {
+            if (slot.container == playerInventory) {
+                continue;
+            }
+
+            ItemStack stack = slot.getItem();
+            if (!stack.isEmpty()) {
+                protectedMirrorSlotStacks.put(slot.index, stack.copy());
+            }
+        }
     }
 
     private static String toHex(byte[] bytes) {
