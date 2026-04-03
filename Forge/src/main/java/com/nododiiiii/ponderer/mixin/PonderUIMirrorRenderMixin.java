@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
 import com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
@@ -19,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PonderUI.class)
 public abstract class PonderUIMirrorRenderMixin {
+    private static final int EMBEDDED_MIRROR_Z_OFFSET = 200;
 
     @Inject(method = "renderScene", at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$renderMirrorInsteadOfStructure(GuiGraphics graphics, int mouseX, int mouseY, int i,
@@ -30,7 +32,26 @@ public abstract class PonderUIMirrorRenderMixin {
         if (!ClientInputHandler.shouldRenderEmbeddedMirror()) {
             return;
         }
-        mirror.render(graphics, mouseX, mouseY, partialTicks);
+
+        // Embedded screens inherit Ponder's render pass. Reset the GUI state and lift the
+        // child screen forward so background layers are not depth-clipped by the host UI.
+        graphics.flush();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, EMBEDDED_MIRROR_Z_OFFSET);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableDepthTest();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        ClientInputHandler.beginEmbeddedMirrorRender();
+        try {
+            mirror.render(graphics, mouseX, mouseY, partialTicks);
+            graphics.flush();
+        } finally {
+            ClientInputHandler.endEmbeddedMirrorRender();
+            RenderSystem.enableDepthTest();
+            graphics.pose().popPose();
+        }
+
         PondererJeiPlugin.renderEmbeddedOverlays(mirror, graphics, mouseX, mouseY, partialTicks);
         InterfaceSlotOverlayRenderer.render(graphics, mirror);
         ClientInputHandler.renderDraggedSlotBinding(graphics, mouseX, mouseY);

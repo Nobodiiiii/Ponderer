@@ -68,6 +68,7 @@ public class ClientInputHandler {
     private static AbstractContainerMenu previousPlayerMenu;
     @Nullable
     private static Screen embeddedMirrorScreen;
+    private static int embeddedMirrorRenderDepth = 0;
 
     private ClientInputHandler() {
     }
@@ -137,6 +138,20 @@ public class ClientInputHandler {
 
     public static boolean hasEmbeddedMirrorScreen() {
         return embeddedMirrorScreen != null;
+    }
+
+    public static void beginEmbeddedMirrorRender() {
+        embeddedMirrorRenderDepth++;
+    }
+
+    public static void endEmbeddedMirrorRender() {
+        if (embeddedMirrorRenderDepth > 0) {
+            embeddedMirrorRenderDepth--;
+        }
+    }
+
+    public static boolean isRenderingEmbeddedMirror() {
+        return embeddedMirrorRenderDepth > 0;
     }
 
     public static boolean shouldRenderEmbeddedMirror() {
