@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
+import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import com.nododiiiii.ponderer.ui.SceneEditorScreen;
@@ -91,7 +92,7 @@ public abstract class PonderUIMixin extends Screen {
     @Inject(method = "renderWindow", at = @At("TAIL"), remap = false)
     private void ponderer$renderWidgetsOnTop(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 1200);
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER);
         for (GuiEventListener child : this.children()) {
             if (child instanceof PonderButton button && button.visible) {
                 button.render(graphics, mouseX, mouseY, partialTicks);
@@ -287,7 +288,7 @@ public abstract class PonderUIMixin extends Screen {
         // Push to topmost z-level so hint is never occluded by structures or native
         // tooltips
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 800);
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.TOOLTIP_LAYER);
 
         if (InterfaceSlotEditState.isActive()) {
             String line1 = UIText.of("ponderer.ui.change_interface_slot.hint.drag");

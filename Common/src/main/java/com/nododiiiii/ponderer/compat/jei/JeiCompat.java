@@ -70,6 +70,14 @@ public final class JeiCompat {
     }
 
     /**
+     * Render JEI's manual tooltip layer for the active PonderUI overlay.
+     */
+    public static void renderPonderUiTooltips(Screen screen, GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!isAvailable()) return;
+        PondererJeiPlugin.renderPonderUiTooltips(screen, graphics, mouseX, mouseY);
+    }
+
+    /**
      * Create a ScreenElement that renders the given ingredient object using JEI.
      * The ingredient can be an ItemStack, FluidStack, or any JEI-registered type.
      * Returns null if JEI is unavailable or the ingredient is not recognized.

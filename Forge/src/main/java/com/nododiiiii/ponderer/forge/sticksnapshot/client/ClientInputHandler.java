@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.forge.sticksnapshot.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderProgressBarAccessorMixin;
@@ -16,6 +17,7 @@ import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import com.nododiiiii.ponderer.ui.PonderUiInteractionHelper;
+import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -179,7 +181,13 @@ public class ClientInputHandler {
         if (element == null) {
             return;
         }
+        graphics.flush();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.SLOT_ONLY_LAYER);
+        RenderSystem.disableDepthTest();
         element.render(graphics, mouseX - 8, mouseY - 8);
+        graphics.pose().popPose();
+        graphics.flush();
     }
 
     public static void bindMirrorMenu(AbstractContainerMenu menu) {

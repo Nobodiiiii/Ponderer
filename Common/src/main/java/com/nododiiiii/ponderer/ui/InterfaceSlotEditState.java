@@ -90,7 +90,7 @@ public final class InterfaceSlotEditState {
 
     public static void captureJeiViewport(Screen mirrorScreen) {
         Minecraft mc = Minecraft.getInstance();
-        jeiViewport = UiAnchorViewport.resolveForScreen(mc, mirrorScreen);
+        jeiViewport = UiAnchorViewport.resolveJeiForScreen(mc, mirrorScreen);
     }
 
     public static void clearJeiViewport() {

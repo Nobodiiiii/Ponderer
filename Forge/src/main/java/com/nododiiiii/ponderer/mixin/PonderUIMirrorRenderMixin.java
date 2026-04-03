@@ -20,8 +20,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PonderUI.class)
 public abstract class PonderUIMirrorRenderMixin {
-    private static final int EMBEDDED_MIRROR_Z_OFFSET = 200;
-
     @Inject(method = "renderScene", at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$skipStructureWhenMirrorAttached(GuiGraphics graphics, int mouseX, int mouseY, int i,
             float partialTicks, CallbackInfo ci) {
@@ -51,8 +49,6 @@ public abstract class PonderUIMirrorRenderMixin {
         }
 
         graphics.flush();
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, EMBEDDED_MIRROR_Z_OFFSET);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableDepthTest();
@@ -63,11 +59,11 @@ public abstract class PonderUIMirrorRenderMixin {
             graphics.flush();
         } finally {
             ClientInputHandler.endEmbeddedMirrorRender();
-            graphics.pose().popPose();
         }
 
         RenderSystem.disableDepthTest();
         InterfaceSlotOverlayRenderer.render(graphics, mirror);
+        ClientInputHandler.renderDraggedSlotBinding(graphics, mouseX, mouseY);
 
         if (JeiCompat.shouldRenderPonderUiOverlayManually((Screen) (Object) this)) {
             JeiCompat.renderPonderUiOverlay((Screen) (Object) this, graphics, mouseX, mouseY, partialTicks);
@@ -84,7 +80,9 @@ public abstract class PonderUIMirrorRenderMixin {
 
         graphics.flush();
         RenderSystem.disableDepthTest();
-        ClientInputHandler.renderDraggedSlotBinding(graphics, mouseX, mouseY);
+        if (JeiCompat.shouldRenderPonderUiOverlayManually((Screen) (Object) this)) {
+            JeiCompat.renderPonderUiTooltips((Screen) (Object) this, graphics, mouseX, mouseY);
+        }
         InterfaceSlotOverlayRenderer.renderTooltip(graphics, mirror, mouseX, mouseY);
         RenderSystem.enableDepthTest();
     }

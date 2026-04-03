@@ -27,8 +27,6 @@ import java.util.Map;
  * current runtime slot snapshot for show_interface scenes.
  */
 public final class InterfaceSlotOverlayRenderer {
-    private static final int SLOT_OVERLAY_Z_OFFSET = 450;
-    private static final int SLOT_TOOLTIP_Z_OFFSET = 1750;
     private static final LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> RUNTIME_BINDINGS = new LinkedHashMap<>();
 
     private InterfaceSlotOverlayRenderer() {
@@ -75,7 +73,7 @@ public final class InterfaceSlotOverlayRenderer {
 
         graphics.flush();
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, SLOT_OVERLAY_Z_OFFSET);
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.SLOT_ONLY_LAYER);
         RenderSystem.disableDepthTest();
 
         ContainerBounds bounds = readContainerBounds(container);
@@ -105,7 +103,7 @@ public final class InterfaceSlotOverlayRenderer {
         ItemStack stack = resolveTooltipStack(hoveredBinding);
         graphics.flush();
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, SLOT_TOOLTIP_Z_OFFSET);
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.TOOLTIP_LAYER);
         RenderSystem.disableDepthTest();
 
         if (!stack.isEmpty()) {

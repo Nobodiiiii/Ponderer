@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.compat.jei;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.ai.McmodApiClient;
 import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
@@ -8,6 +9,7 @@ import com.nododiiiii.ponderer.ui.CommandParamScreen;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
+import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.PonderUiInteractionHelper;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import mezz.jei.api.IModPlugin;
@@ -159,21 +161,46 @@ public class PondererJeiPlugin implements IModPlugin {
         boolean pushed = false;
         try {
             Minecraft mc = Minecraft.getInstance();
-            syncOverlayState(runtime.getIngredientListOverlay(), screen);
-            syncOverlayState(runtime.getBookmarkOverlay(), screen);
+            syncPonderUiOverlayState(screen);
 
             graphics.flush();
             graphics.pose().pushPose();
             pushed = true;
-            graphics.pose().translate(0, 0, 1600);
+            graphics.pose().translate(0, 0, PonderRuntimeZLayers.JEI_OVERLAY_LAYER);
+            RenderSystem.disableDepthTest();
             invokeDrawOnForeground(runtime.getBookmarkOverlay(), graphics, mouseX, mouseY);
             invokeDrawOnForeground(runtime.getIngredientListOverlay(), graphics, mouseX, mouseY);
             invokeDrawScreen(runtime.getIngredientListOverlay(), mc, graphics, mouseX, mouseY, partialTicks);
             invokeDrawScreen(runtime.getBookmarkOverlay(), mc, graphics, mouseX, mouseY, partialTicks);
+        } catch (Throwable t) {
+            LOGGER.debug("[jei] ponder ui overlay render failed: {}", t.toString());
+        } finally {
+            if (pushed) {
+                graphics.pose().popPose();
+            }
+            graphics.flush();
+        }
+    }
+
+    static void renderPonderUiTooltips(Screen screen, GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!shouldRenderPonderUiOverlayManually(screen)) {
+            return;
+        }
+
+        boolean pushed = false;
+        try {
+            Minecraft mc = Minecraft.getInstance();
+            syncPonderUiOverlayState(screen);
+
+            graphics.flush();
+            graphics.pose().pushPose();
+            pushed = true;
+            graphics.pose().translate(0, 0, PonderRuntimeZLayers.TOOLTIP_LAYER);
+            RenderSystem.disableDepthTest();
             invokeDrawTooltips(runtime.getIngredientListOverlay(), mc, graphics, mouseX, mouseY);
             invokeDrawTooltips(runtime.getBookmarkOverlay(), mc, graphics, mouseX, mouseY);
         } catch (Throwable t) {
-            LOGGER.debug("[jei] ponder ui overlay render failed: {}", t.toString());
+            LOGGER.debug("[jei] ponder ui tooltip render failed: {}", t.toString());
         } finally {
             if (pushed) {
                 graphics.pose().popPose();
@@ -272,6 +299,11 @@ public class PondererJeiPlugin implements IModPlugin {
         updater.getClass().getMethod("updateScreen", Screen.class).invoke(updater, screen);
         updater.getClass().getMethod("updateExclusionAreas", Set.class).invoke(updater, Set.of());
         updater.getClass().getMethod("update").invoke(updater);
+    }
+
+    private static void syncPonderUiOverlayState(Screen screen) throws Exception {
+        syncOverlayState(runtime.getIngredientListOverlay(), screen);
+        syncOverlayState(runtime.getBookmarkOverlay(), screen);
     }
 
     private static void invokeDrawOnForeground(Object overlay, GuiGraphics graphics, int mouseX, int mouseY) throws Exception {
@@ -374,7 +406,7 @@ public class PondererJeiPlugin implements IModPlugin {
     private static UiAnchorViewport.Rect resolvePonderUiViewport() {
         Screen mirror = UiAnchorViewport.getEmbeddedMirrorScreen();
         if (mirror != null) {
-            UiAnchorViewport.Rect liveViewport = UiAnchorViewport.resolveForScreen(Minecraft.getInstance(), mirror);
+            UiAnchorViewport.Rect liveViewport = UiAnchorViewport.resolveJeiForScreen(Minecraft.getInstance(), mirror);
             if (liveViewport.isValid()) {
                 return liveViewport;
             }
