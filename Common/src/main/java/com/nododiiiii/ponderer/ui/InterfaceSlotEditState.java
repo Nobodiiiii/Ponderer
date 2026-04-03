@@ -7,6 +7,7 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
@@ -29,6 +30,8 @@ public final class InterfaceSlotEditState {
     private static DslScene scene;
     private static int sceneIndex;
     private static SceneEditorScreen parent;
+    @Nullable
+    private static UiAnchorViewport.Rect jeiViewport;
 
     private InterfaceSlotEditState() {
     }
@@ -50,6 +53,7 @@ public final class InterfaceSlotEditState {
         InterfaceSlotEditState.scene = scene;
         InterfaceSlotEditState.sceneIndex = sceneIndex;
         InterfaceSlotEditState.parent = parent;
+        InterfaceSlotEditState.jeiViewport = null;
     }
 
     public static void openPonderUIForEdit() {
@@ -82,6 +86,24 @@ public final class InterfaceSlotEditState {
 
     public static boolean isActive() {
         return active;
+    }
+
+    public static void captureJeiViewport(Screen mirrorScreen) {
+        Minecraft mc = Minecraft.getInstance();
+        jeiViewport = UiAnchorViewport.resolveForScreen(mc, mirrorScreen);
+    }
+
+    public static void clearJeiViewport() {
+        jeiViewport = null;
+    }
+
+    public static boolean hasJeiViewport() {
+        return jeiViewport != null && jeiViewport.isValid();
+    }
+
+    @Nullable
+    public static UiAnchorViewport.Rect getJeiViewport() {
+        return jeiViewport;
     }
 
     public static int bindingCount() {
@@ -222,6 +244,7 @@ public final class InterfaceSlotEditState {
     private static void cleanupState() {
         active = false;
         slotBindings.clear();
+        jeiViewport = null;
         stepType = null;
         editIndex = -1;
         insertAfterIndex = -1;

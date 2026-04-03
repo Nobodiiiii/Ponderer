@@ -94,6 +94,7 @@ public class ClientInputHandler {
         jeiGhostDragActive = false;
         draggedSlotBinding = null;
         draggedSlotOriginIndex = null;
+        InterfaceSlotEditState.clearJeiViewport();
         JeiCompat.cancelGhostIngredientDrag();
         if (mc.player != null && mc.player.containerMenu != null) {
             lastObservedContainerId = mc.player.containerMenu.containerId;
@@ -121,8 +122,9 @@ public class ClientInputHandler {
             JeiOverlaySuppressor.push();
         }
         mirrorScreen.init(mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
-        if (!InterfaceSlotEditState.isActive()) {
-            stripJeiWidgets(mirrorScreen);
+        stripJeiWidgets(mirrorScreen);
+        if (InterfaceSlotEditState.isActive()) {
+            InterfaceSlotEditState.captureJeiViewport(mirrorScreen);
         }
         StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] mirror attached to ponder screen: {}",
                 mirrorScreen.getClass().getName());
@@ -394,6 +396,7 @@ public class ClientInputHandler {
         draggedSlotBinding = null;
         draggedSlotOriginIndex = null;
         JeiCompat.cancelGhostIngredientDrag();
+        InterfaceSlotEditState.clearJeiViewport();
         JeiOverlaySuppressor.pop();
         InterfaceSlotOverlayRenderer.clearRuntimeBindings();
         embeddedMirrorScreen = null;

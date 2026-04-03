@@ -34,6 +34,8 @@ import javax.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Optional;
+import java.util.Set;
+import java.lang.reflect.Method;
 
 @JeiPlugin
 public class PondererJeiPlugin implements IModPlugin {
@@ -107,7 +109,7 @@ public class PondererJeiPlugin implements IModPlugin {
         );
 
         registration.addGuiScreenHandler(PonderUI.class, screen -> {
-            if (!InterfaceSlotEditState.isActive()) {
+            if (!InterfaceSlotEditState.isActive() || !InterfaceSlotEditState.hasJeiViewport()) {
                 return null;
             }
             return new PonderUiGuiProperties(screen);
@@ -240,6 +242,36 @@ public class PondererJeiPlugin implements IModPlugin {
         element.render(graphics, mouseX - 8, mouseY - 8);
     }
 
+    public static void renderEmbeddedOverlays(Screen mirrorScreen, GuiGraphics graphics,
+                                              int mouseX, int mouseY, float partialTicks) {
+        if (runtime == null || !InterfaceSlotEditState.isActive()) {
+            return;
+        }
+
+        IGuiProperties guiProperties = createFrozenViewportGuiProperties(mirrorScreen);
+        if (guiProperties == null) {
+            return;
+        }
+
+        try {
+            syncOverlayState(runtime.getIngredientListOverlay(), guiProperties);
+            syncOverlayState(runtime.getBookmarkOverlay(), guiProperties);
+
+            Minecraft mc = Minecraft.getInstance();
+
+            invokeDrawOnForeground(runtime.getBookmarkOverlay(), graphics, mouseX, mouseY);
+            invokeDrawOnForeground(runtime.getIngredientListOverlay(), graphics, mouseX, mouseY);
+
+            invokeDrawScreen(runtime.getIngredientListOverlay(), mc, graphics, mouseX, mouseY, partialTicks);
+            invokeDrawScreen(runtime.getBookmarkOverlay(), mc, graphics, mouseX, mouseY, partialTicks);
+
+            invokeDrawTooltips(runtime.getIngredientListOverlay(), mc, graphics, mouseX, mouseY);
+            invokeDrawTooltips(runtime.getBookmarkOverlay(), mc, graphics, mouseX, mouseY);
+        } catch (Throwable t) {
+            LOGGER.debug("[jei] embedded overlay render failed: {}", t.toString());
+        }
+    }
+
     private static void notifyGhostDragComplete(java.util.List<GhostTargetGroup> groups) {
         for (GhostTargetGroup group : groups) {
             group.handler().onComplete();
@@ -268,6 +300,43 @@ public class PondererJeiPlugin implements IModPlugin {
                 && mouseY >= area.getY()
                 && mouseX < area.getX() + area.getWidth()
                 && mouseY < area.getY() + area.getHeight();
+    }
+
+    @Nullable
+    private static IGuiProperties createFrozenViewportGuiProperties(Screen screen) {
+        UiAnchorViewport.Rect viewport = InterfaceSlotEditState.getJeiViewport();
+        if (viewport == null || !viewport.isValid()) {
+            return null;
+        }
+        return new ViewportGuiProperties(screen, viewport);
+    }
+
+    private static void syncOverlayState(Object overlay, IGuiProperties guiProperties) throws Exception {
+        Method getUpdater = overlay.getClass().getMethod("getScreenPropertiesUpdater");
+        Object updater = getUpdater.invoke(overlay);
+        updater.getClass().getMethod("updateScreen", IGuiProperties.class).invoke(updater, guiProperties);
+        updater.getClass().getMethod("updateExclusionAreas", Set.class).invoke(updater, Set.of());
+        updater.getClass().getMethod("update").invoke(updater);
+    }
+
+    private static void invokeDrawOnForeground(Object overlay, GuiGraphics graphics, int mouseX, int mouseY) throws Exception {
+        overlay.getClass()
+            .getMethod("drawOnForeground", GuiGraphics.class, int.class, int.class)
+            .invoke(overlay, graphics, mouseX, mouseY);
+    }
+
+    private static void invokeDrawScreen(Object overlay, Minecraft mc, GuiGraphics graphics,
+                                         int mouseX, int mouseY, float partialTicks) throws Exception {
+        overlay.getClass()
+            .getMethod("drawScreen", Minecraft.class, GuiGraphics.class, int.class, int.class, float.class)
+            .invoke(overlay, mc, graphics, mouseX, mouseY, partialTicks);
+    }
+
+    private static void invokeDrawTooltips(Object overlay, Minecraft mc, GuiGraphics graphics,
+                                           int mouseX, int mouseY) throws Exception {
+        overlay.getClass()
+            .getMethod("drawTooltips", Minecraft.class, GuiGraphics.class, int.class, int.class)
+            .invoke(overlay, mc, graphics, mouseX, mouseY);
     }
 
     private record GhostTargetGroup(
@@ -413,11 +482,13 @@ public class PondererJeiPlugin implements IModPlugin {
         public int getScreenHeight() { return screen.height; }
     }
 
-    private static class PonderUiGuiProperties implements IGuiProperties {
-        private final PonderUI screen;
+    private static class ViewportGuiProperties implements IGuiProperties {
+        private final Screen screen;
+        private final UiAnchorViewport.Rect viewport;
 
-        private PonderUiGuiProperties(PonderUI screen) {
+        private ViewportGuiProperties(Screen screen, UiAnchorViewport.Rect viewport) {
             this.screen = screen;
+            this.viewport = viewport;
         }
 
         @Override
@@ -425,22 +496,22 @@ public class PondererJeiPlugin implements IModPlugin {
 
         @Override
         public int getGuiLeft() {
-            return (int) UiAnchorViewport.resolve(Minecraft.getInstance()).left();
+            return (int) viewport.left();
         }
 
         @Override
         public int getGuiTop() {
-            return (int) UiAnchorViewport.resolve(Minecraft.getInstance()).top();
+            return (int) viewport.top();
         }
 
         @Override
         public int getGuiXSize() {
-            return (int) UiAnchorViewport.resolve(Minecraft.getInstance()).width();
+            return (int) viewport.width();
         }
 
         @Override
         public int getGuiYSize() {
-            return (int) UiAnchorViewport.resolve(Minecraft.getInstance()).height();
+            return (int) viewport.height();
         }
 
         @Override
@@ -448,5 +519,11 @@ public class PondererJeiPlugin implements IModPlugin {
 
         @Override
         public int getScreenHeight() { return screen.height; }
+    }
+
+    private static class PonderUiGuiProperties extends ViewportGuiProperties {
+        private PonderUiGuiProperties(PonderUI screen) {
+            super(screen, InterfaceSlotEditState.getJeiViewport());
+        }
     }
 }

@@ -27,10 +27,13 @@ public final class UiAnchorViewport {
     }
 
     public static Rect resolve(Minecraft mc) {
+        return resolveForScreen(mc, resolveEmbeddedMirrorScreen());
+    }
+
+    public static Rect resolveForScreen(Minecraft mc, @Nullable Screen mirror) {
         int guiW = Math.max(1, mc.getWindow().getGuiScaledWidth());
         int guiH = Math.max(1, mc.getWindow().getGuiScaledHeight());
 
-        Screen mirror = resolveEmbeddedMirrorScreen();
         if (mirror instanceof AbstractContainerScreen<?> container) {
             Rect rect = readContainerRect(container, guiW, guiH);
             if (rect != null && rect.isValid()) {

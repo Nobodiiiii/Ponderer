@@ -31,6 +31,7 @@ public abstract class PonderUIMirrorRenderMixin {
             return;
         }
         mirror.render(graphics, mouseX, mouseY, partialTicks);
+        PondererJeiPlugin.renderEmbeddedOverlays(mirror, graphics, mouseX, mouseY, partialTicks);
         InterfaceSlotOverlayRenderer.render(graphics, mirror);
         ClientInputHandler.renderDraggedSlotBinding(graphics, mouseX, mouseY);
         PondererJeiPlugin.renderGhostIngredientDrag(graphics, mouseX, mouseY);
