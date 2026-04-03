@@ -21,7 +21,6 @@
     "PonderTooltipNbtMixin",
     "PonderUIMirrorRenderMixin",
     "EmbeddedMirrorContainerScreenMixin",
-    "JeiGuiEventHandlerMixin",
     "PonderProgressBarAccessorMixin"
   ],
   "server": [],

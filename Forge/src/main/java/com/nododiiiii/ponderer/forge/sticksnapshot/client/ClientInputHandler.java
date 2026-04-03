@@ -1,9 +1,8 @@
 package com.nododiiiii.ponderer.forge.sticksnapshot.client;
 
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
-import com.nododiiiii.ponderer.mixin.PonderProgressBarAccessorMixin;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
-import com.nododiiiii.ponderer.compat.jei.JeiOverlaySuppressor;
+import com.nododiiiii.ponderer.mixin.PonderProgressBarAccessorMixin;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.MirrorClosePacket;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
 import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplaySnapshotPacket;
@@ -59,7 +58,6 @@ public class ClientInputHandler {
     private static double pendingAutoClickNormX = 0.0;
     private static double pendingAutoClickNormY = 0.0;
     private static int pendingAutoClickButton = GLFW.GLFW_MOUSE_BUTTON_LEFT;
-    private static boolean jeiGhostDragActive = false;
     @Nullable
     private static DslScene.InterfaceSlotBinding draggedSlotBinding;
     @Nullable
@@ -92,11 +90,9 @@ public class ClientInputHandler {
         autoReplayArmed = shouldAutoReplay;
         autoReplayTicks = shouldAutoReplay ? SHOW_INTERFACE_AUTO_REPLAY_DELAY_TICKS : -1;
         pendingAutoClick = false;
-        jeiGhostDragActive = false;
         draggedSlotBinding = null;
         draggedSlotOriginIndex = null;
         InterfaceSlotEditState.clearJeiViewport();
-        JeiCompat.cancelGhostIngredientDrag();
         if (mc.player != null && mc.player.containerMenu != null) {
             lastObservedContainerId = mc.player.containerMenu.containerId;
         }
@@ -119,11 +115,7 @@ public class ClientInputHandler {
         embeddedMirrorScreen = mirrorScreen;
         awaitingMirrorOpen = false;
         mirrorScreenActive = true;
-        if (!InterfaceSlotEditState.isActive()) {
-            JeiOverlaySuppressor.push();
-        }
         mirrorScreen.init(mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
-        stripJeiWidgets(mirrorScreen);
         if (InterfaceSlotEditState.isActive()) {
             InterfaceSlotEditState.captureJeiViewport(mirrorScreen);
         }
@@ -345,9 +337,6 @@ public class ClientInputHandler {
 
         awaitingMirrorOpen = false;
         mirrorScreenActive = true;
-        if (!InterfaceSlotEditState.isActive()) {
-            JeiOverlaySuppressor.push();
-        }
         StickSnapshotFeature.LOGGER.debug("[client] mirror screen opened: {}", event.getNewScreen().getClass().getName());
     }
 
@@ -407,12 +396,9 @@ public class ClientInputHandler {
         autoReplayArmed = false;
         autoReplayTicks = -1;
         pendingAutoClick = false;
-        jeiGhostDragActive = false;
         draggedSlotBinding = null;
         draggedSlotOriginIndex = null;
-        JeiCompat.cancelGhostIngredientDrag();
         InterfaceSlotEditState.clearJeiViewport();
-        JeiOverlaySuppressor.pop();
         InterfaceSlotOverlayRenderer.clearRuntimeBindings();
         embeddedMirrorScreen = null;
         restorePlayerMenu();
@@ -452,12 +438,6 @@ public class ClientInputHandler {
     }
 
     private static boolean handleMirrorMousePressed(Screen mirror, double mouseX, double mouseY, int button) {
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
-            && JeiCompat.startGhostIngredientDrag(mirror, mouseX, mouseY)) {
-            jeiGhostDragActive = true;
-            return true;
-        }
-
         Slot slot = InterfaceSlotOverlayRenderer.findSlotAt(mirror, mouseX, mouseY);
         if (InterfaceSlotEditState.isActive() && slot != null) {
             if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && InterfaceSlotEditState.removeBinding(slot.index)) {
@@ -486,13 +466,6 @@ public class ClientInputHandler {
     }
 
     private static boolean handleMirrorMouseReleased(Screen mirror, double mouseX, double mouseY, int button) {
-        if (jeiGhostDragActive) {
-            boolean accepted = JeiCompat.completeGhostIngredientDrag(mirror, mouseX, mouseY);
-            jeiGhostDragActive = false;
-            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] jei ghost drag completed accepted={}", accepted);
-            return true;
-        }
-
         Slot slot = InterfaceSlotOverlayRenderer.findSlotAt(mirror, mouseX, mouseY);
 
         if (draggedSlotBinding != null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
@@ -510,7 +483,7 @@ public class ClientInputHandler {
         }
 
         if (slot != null) {
-            return true;
+            return !InterfaceSlotEditState.isActive() || button != GLFW.GLFW_MOUSE_BUTTON_LEFT;
         }
 
         mirror.mouseReleased(mouseX, mouseY, button);
@@ -530,45 +503,6 @@ public class ClientInputHandler {
             sb.append(Integer.toHexString(v));
         }
         return sb.toString();
-    }
-
-    private static void stripJeiWidgets(Screen screen) {
-        int removed = 0;
-        removed += removeJeiEntries(screen.children());
-        removed += removeJeiEntries(readListField(screen, "renderables"));
-        removed += removeJeiEntries(readListField(screen, "narratables"));
-        if (removed > 0) {
-            StickSnapshotFeature.LOGGER.debug("[client][mirror-debug] stripped {} JEI widgets from {}",
-                    removed, screen.getClass().getName());
-        }
-    }
-
-    private static int removeJeiEntries(@Nullable List<?> list) {
-        if (list == null || list.isEmpty()) {
-            return 0;
-        }
-        int before = list.size();
-        list.removeIf(ClientInputHandler::isJeiOwned);
-        return before - list.size();
-    }
-
-    @Nullable
-    @SuppressWarnings("unchecked")
-    private static List<?> readListField(Screen screen, String fieldName) {
-        try {
-            java.lang.reflect.Field field = Screen.class.getDeclaredField(fieldName);
-            field.setAccessible(true);
-            Object value = field.get(screen);
-            if (value instanceof List<?> list) {
-                return (List<Object>) list;
-            }
-        } catch (Throwable ignored) {
-        }
-        return null;
-    }
-
-    private static boolean isJeiOwned(Object obj) {
-        return obj != null && obj.getClass().getName().startsWith("mezz.jei.");
     }
 
     private static void callPonderReplay(PonderUI ponder) {

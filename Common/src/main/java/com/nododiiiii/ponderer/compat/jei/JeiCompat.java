@@ -5,7 +5,6 @@ import com.nododiiiii.ponderer.ui.IdFieldMode;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
 import net.createmod.catnip.gui.element.ScreenElement;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import net.minecraft.client.gui.screens.Screen;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -125,31 +124,5 @@ public final class JeiCompat {
     public static List<String[]> getAllExtraIngredientEntries() {
         if (!isAvailable()) return List.of();
         return JeiIngredientHelper.getAllExtraEntries();
-    }
-
-    /**
-     * Start a JEI ghost-ingredient drag for the target screen.
-     * Returns true when JEI found an ingredient under mouse and at least one ghost target.
-     */
-    public static boolean startGhostIngredientDrag(Screen targetScreen, double mouseX, double mouseY) {
-        if (!isAvailable()) return false;
-        return PondererJeiPlugin.beginGhostIngredientDrag(targetScreen, mouseX, mouseY);
-    }
-
-    /**
-     * Complete a previously-started JEI ghost-ingredient drag.
-     * Returns true if any target accepted the ingredient.
-     */
-    public static boolean completeGhostIngredientDrag(Screen targetScreen, double mouseX, double mouseY) {
-        if (!isAvailable()) return false;
-        return PondererJeiPlugin.completeGhostIngredientDrag(targetScreen, mouseX, mouseY);
-    }
-
-    /**
-     * Cancel any in-progress JEI ghost-ingredient drag.
-     */
-    public static void cancelGhostIngredientDrag() {
-        if (!isAvailable()) return;
-        PondererJeiPlugin.cancelGhostIngredientDrag();
     }
 }

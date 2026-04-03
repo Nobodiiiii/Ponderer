@@ -27,6 +27,10 @@ public class InterfaceSlotGhostHandler<T extends AbstractContainerScreen<?>> imp
             return List.of();
         }
 
+        return createTargets(gui, descriptor);
+    }
+
+    static <I> List<Target<I>> createTargets(AbstractContainerScreen<?> gui, JeiCompat.IngredientDescriptor descriptor) {
         InterfaceSlotOverlayRenderer.ContainerBounds bounds = InterfaceSlotOverlayRenderer.readContainerBounds(gui);
         List<Target<I>> targets = new ArrayList<>();
         List<Slot> slots = gui.getMenu().slots;

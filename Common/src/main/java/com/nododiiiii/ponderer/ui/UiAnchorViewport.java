@@ -27,7 +27,7 @@ public final class UiAnchorViewport {
     }
 
     public static Rect resolve(Minecraft mc) {
-        return resolveForScreen(mc, resolveEmbeddedMirrorScreen());
+        return resolveForScreen(mc, getEmbeddedMirrorScreen());
     }
 
     public static Rect resolveForScreen(Minecraft mc, @Nullable Screen mirror) {
@@ -86,7 +86,7 @@ public final class UiAnchorViewport {
     }
 
     @Nullable
-    private static Screen resolveEmbeddedMirrorScreen() {
+    public static Screen getEmbeddedMirrorScreen() {
         Screen mirror = queryEmbeddedMirror(
             "com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler");
         if (mirror != null) {
