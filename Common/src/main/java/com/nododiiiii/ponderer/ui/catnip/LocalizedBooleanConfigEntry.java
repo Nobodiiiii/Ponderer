@@ -1,33 +1,28 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
-import net.createmod.catnip.config.ui.entries.BooleanEntry;
+import net.createmod.catnip.config.ui.ConfigHelper;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 import javax.annotation.Nullable;
 
-public class LocalizedBooleanConfigEntry extends BooleanEntry implements SearchableListEntry {
-
-    private final String searchText;
+public class LocalizedBooleanConfigEntry extends ToggleListEntry {
 
     public LocalizedBooleanConfigEntry(String labelKey, @Nullable String tooltipKey,
                                        ForgeConfigSpec.ConfigValue<Boolean> value, ForgeConfigSpec.ValueSpec spec) {
-        super(com.nododiiiii.ponderer.ui.UIText.of(labelKey), value, spec);
-        this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
-        EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        this(labelKey, tooltipKey, value, ConfigEntrySupport.metadataOf(value, spec));
     }
 
-    @Override
-    public boolean matchesQuery(String query) {
-        return searchText.contains(query);
-    }
-
-    @Override
-    public void highlightEntry() {
-        annotations.put("highlight", ":)");
-    }
-
-    @Override
-    protected int getLabelWidth(int totalWidth) {
-        return EntryTextSupport.compactLabelWidth(totalWidth);
+    private LocalizedBooleanConfigEntry(String labelKey, @Nullable String tooltipKey,
+                                        ForgeConfigSpec.ConfigValue<Boolean> value,
+                                        ConfigEntrySupport.Metadata metadata) {
+        super(labelKey, tooltipKey,
+            () -> ConfigEntrySupport.currentValue(metadata, value),
+            () -> ConfigHelper.setValue(
+                metadata.path(),
+                value,
+                !ConfigEntrySupport.currentValue(metadata, value),
+                metadata.annotations()));
+        this.path = metadata.path();
+        this.annotations.putAll(metadata.annotations());
     }
 }

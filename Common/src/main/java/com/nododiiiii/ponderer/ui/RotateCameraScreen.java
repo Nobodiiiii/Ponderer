@@ -24,7 +24,7 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.rotate_camera"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.number(
             degreesField,
             "ponderer.ui.rotate_camera.degrees",

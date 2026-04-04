@@ -17,6 +17,8 @@ public final class UILayoutConstants {
     public static final int PARAM_WINDOW_W = 240;
     /** Default window width for config / description / wider screens. */
     public static final int WIDE_WINDOW_W = 260;
+    /** Shared declarative list width used by the step editor and related pages. */
+    public static final int EDITOR_LIST_W = 300;
 
     // ─── Row layout ─────────────────────────────────────────────────────
     /** Standard form row height (all editors). */

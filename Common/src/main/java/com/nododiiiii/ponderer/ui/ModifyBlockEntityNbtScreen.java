@@ -31,7 +31,7 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.modify_block_entity_nbt"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.xyz(
             posField,
             "ponderer.ui.modify_block_entity_nbt.pos_from",
@@ -46,13 +46,13 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
             "ponderer.ui.modify_block_entity_nbt.properties",
             "ponderer.ui.modify_block_entity_nbt.properties.tooltip",
             this::blockPropRowCount));
-        entries.add(StepEditorEntries.nbtText(
+        entries.add(StepEditorEntries.text(
             nbtField,
             "ponderer.ui.modify_block_entity_nbt.nbt",
             "ponderer.ui.modify_block_entity_nbt.nbt.tooltip",
             "{CustomName:'\"Demo\"'}",
             124,
-            "nbt"));
+            StepTextButtonSpec.nbtPick("nbt")));
         entries.add(StepEditorEntries.toggle(
             "ponderer.ui.modify_block_entity_nbt.redraw",
             "ponderer.ui.modify_block_entity_nbt.redraw.tooltip",

@@ -21,7 +21,7 @@ public class StructureListScreen extends AbstractReadonlyDeclarativeListScreen {
     private final List<String> allStructures = new ArrayList<>();
 
     public StructureListScreen(Screen parent, Consumer<String> onSelect) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_desc.structure_list_title", 360);
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_desc.structure_list_title", UILayoutConstants.EDITOR_LIST_W);
         this.parent = parent;
         this.onSelect = onSelect;
     }
@@ -49,7 +49,7 @@ public class StructureListScreen extends AbstractReadonlyDeclarativeListScreen {
 
     @Override
     protected int getEntryHeight() {
-        return 34;
+        return 40;
     }
 
     private void reloadStructures() {

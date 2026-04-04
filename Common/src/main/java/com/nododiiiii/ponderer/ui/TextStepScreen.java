@@ -48,7 +48,7 @@ public class TextStepScreen extends AbstractStepEditorScreen {
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.text"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.localizedText(
             textField,
             "ponderer.ui.text",

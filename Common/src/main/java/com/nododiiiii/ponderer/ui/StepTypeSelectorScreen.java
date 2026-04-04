@@ -50,7 +50,7 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
 
     public StepTypeSelectorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent, int pageIndex,
                                   int insertAfterIndex) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.step_selector.title", 360);
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.step_selector.title", UILayoutConstants.EDITOR_LIST_W);
         this.scene = scene;
         this.sceneIndex = sceneIndex;
         this.parent = parent;
@@ -90,7 +90,7 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
 
     @Override
     protected int getEntryHeight() {
-        return 36;
+        return 40;
     }
 
     private void openPage(int newPageIndex) {

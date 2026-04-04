@@ -3,7 +3,8 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeConfigListScreen;
-import net.createmod.catnip.config.ui.ConfigScreenList;
+import com.nododiiiii.ponderer.ui.catnip.ConfigEntries;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraftforge.fml.config.ModConfig;
 
@@ -25,37 +26,37 @@ public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
     }
 
     @Override
-    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
-        addStringConfigEntry(entries, "ponderer.ui.ai_config.provider",
+    protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(ConfigEntries.stringEntry("ponderer.ui.ai_config.provider",
             "ponderer.ui.ai_config.provider.hint",
             "ponderer.ui.ai_config.provider.tooltip",
-            Config.AI_PROVIDER);
-        addStringConfigEntry(entries, "ponderer.ui.ai_config.base_url",
+            Config.AI_PROVIDER));
+        entries.add(ConfigEntries.stringEntry("ponderer.ui.ai_config.base_url",
             "ponderer.ui.ai_config.base_url.hint",
             "ponderer.ui.ai_config.base_url.tooltip",
-            Config.AI_API_BASE_URL);
-        addStringConfigEntry(entries, "ponderer.ui.ai_config.api_key",
+            Config.AI_API_BASE_URL));
+        entries.add(ConfigEntries.stringEntry("ponderer.ui.ai_config.api_key",
             "ponderer.ui.ai_config.api_key.hint",
             "ponderer.ui.ai_config.api_key.tooltip",
-            Config.AI_API_KEY);
-        addStringConfigEntry(entries, "ponderer.ui.ai_config.model",
+            Config.AI_API_KEY));
+        entries.add(ConfigEntries.stringEntry("ponderer.ui.ai_config.model",
             "ponderer.ui.ai_config.model.hint",
             "ponderer.ui.ai_config.model.tooltip",
-            Config.AI_MODEL);
-        addStringConfigEntry(entries, "ponderer.ui.ai_config.proxy",
+            Config.AI_MODEL));
+        entries.add(ConfigEntries.stringEntry("ponderer.ui.ai_config.proxy",
             "ponderer.ui.ai_config.proxy.hint",
             "ponderer.ui.ai_config.proxy.tooltip",
-            Config.AI_PROXY);
-        addIntegerConfigEntry(entries, "ponderer.ui.ai_config.max_tokens",
+            Config.AI_PROXY));
+        entries.add(ConfigEntries.integerEntry("ponderer.ui.ai_config.max_tokens",
             "ponderer.ui.ai_config.max_tokens.hint",
             "ponderer.ui.ai_config.max_tokens.tooltip",
-            Config.AI_MAX_TOKENS);
-        addBooleanConfigEntry(entries, "ponderer.ui.ai_config.trust_ssl",
+            Config.AI_MAX_TOKENS));
+        entries.add(ConfigEntries.booleanEntry("ponderer.ui.ai_config.trust_ssl",
             "ponderer.ui.ai_config.trust_ssl.tooltip",
-            Config.AI_TRUST_ALL_SSL);
-        addBooleanConfigEntry(entries, "ponderer.ui.ai_config.web_use_proxy",
+            Config.AI_TRUST_ALL_SSL));
+        entries.add(ConfigEntries.booleanEntry("ponderer.ui.ai_config.web_use_proxy",
             "ponderer.ui.ai_config.web_use_proxy.tooltip",
-            Config.AI_WEB_USE_PROXY);
+            Config.AI_WEB_USE_PROXY));
     }
 
 }

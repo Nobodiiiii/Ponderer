@@ -23,7 +23,7 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
     private final List<PonderPackInfo> availablePacks = new ArrayList<>();
 
     public ImportPackScreen() {
-        super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.function_page.import.title", 360);
+        super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.function_page.import.title", UILayoutConstants.EDITOR_LIST_W);
     }
 
     @Override
@@ -51,7 +51,7 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
 
     @Override
     protected int getEntryHeight() {
-        return 34;
+        return 40;
     }
 
     private void scanResourcePacks() {

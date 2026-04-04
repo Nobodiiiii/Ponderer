@@ -32,7 +32,7 @@ public class HighlightSectionScreen extends AbstractStepEditorScreen {
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.highlight_section"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.xyz(
             pos1Field,
             "ponderer.ui.highlight_section.pos_from",

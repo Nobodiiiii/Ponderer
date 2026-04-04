@@ -1,12 +1,20 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+
 import java.util.Map;
 
-public interface StepEditorEntry {
+public interface StepEditorEntry extends DeclarativeFormEntry {
 
     int rows();
 
-    void build(AbstractStepEditorScreen screen);
+    void buildStep(AbstractStepEditorScreen screen);
+
+    @Override
+    default void build(AbstractDeclarativeFormScreen screen) {
+        buildStep((AbstractStepEditorScreen) screen);
+    }
 
     default void snapshot(Map<String, String> snapshot) {
     }

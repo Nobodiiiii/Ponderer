@@ -56,25 +56,26 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.set_block"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
-        entries.add(StepEditorEntries.textWithJeiAndBlockPick(
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
+        entries.add(StepEditorEntries.text(
             blockField,
             "ponderer.ui.set_block",
             "ponderer.ui.set_block.tooltip",
             UIText.of("ponderer.ui.set_block.hint"),
-            IdFieldMode.BLOCK,
-            "nbt"));
+            124,
+            StepTextButtonSpec.jei(IdFieldMode.BLOCK),
+            StepTextButtonSpec.blockPick("nbt")));
         entries.add(StepEditorEntries.blockProps(
             "ponderer.ui.block_properties",
             "ponderer.ui.block_properties.tooltip",
             this::blockPropRowCount));
-        entries.add(StepEditorEntries.nbtText(
+        entries.add(StepEditorEntries.text(
             nbtField,
             "ponderer.ui.set_block.nbt",
             "ponderer.ui.set_block.nbt.tooltip",
             "{CustomName:'\"Demo\"'}",
             124,
-            "nbt"));
+            StepTextButtonSpec.nbtPick("nbt")));
         entries.add(StepEditorEntries.xyz(
             posField,
             "ponderer.ui.set_block.pos_from",

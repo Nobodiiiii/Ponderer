@@ -31,19 +31,21 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.create_item_entity"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
-        entries.add(StepEditorEntries.textWithJeiAndHeldItem(
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
+        entries.add(StepEditorEntries.text(
             itemField,
             "ponderer.ui.create_item_entity.item",
             "ponderer.ui.create_item_entity.item.tooltip",
             UIText.of("ponderer.ui.create_item_entity.hint"),
-            IdFieldMode.ITEM,
+            124,
+            StepTextButtonSpec.jei(IdFieldMode.ITEM),
+            StepTextButtonSpec.heldItem(
             stack -> {
                 itemField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
                 if (stack.getTag() != null && !stack.getTag().isEmpty()) {
                     nbtField.setValue(stack.getTag().toString());
                 }
-            }));
+            })));
         entries.add(StepEditorEntries.number(
             countField,
             "ponderer.ui.create_item_entity.count",
@@ -61,13 +63,13 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             motionField,
             "ponderer.ui.create_item_entity.motion",
             "ponderer.ui.create_item_entity.motion.tooltip"));
-        entries.add(StepEditorEntries.nbtText(
+        entries.add(StepEditorEntries.text(
             nbtField,
             "ponderer.ui.create_item_entity.nbt",
             "ponderer.ui.create_item_entity.nbt.tooltip",
             "{PickupDelay:40s}",
             124,
-            "nbt"));
+            StepTextButtonSpec.nbtPick("nbt")));
     }
 
     @Override

@@ -34,7 +34,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
     private final List<Section> sections = new ArrayList<>();
 
     public FunctionScreen() {
-        super(null, "ponderer.ui.scope.editor", "ponderer.ui.function_page.title", 360);
+        super(null, "ponderer.ui.scope.editor", "ponderer.ui.function_page.title", UILayoutConstants.EDITOR_LIST_W);
 
         sections.add(new Section("ponderer.ui.function_page.scene_management", List.of(
             new ButtonDef("ponderer.ui.function_page.new_scene",
@@ -138,7 +138,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
 
     @Override
     protected int getEntryHeight() {
-        return 34;
+        return 40;
     }
 
     private static CommandParamScreen buildPushPage() {

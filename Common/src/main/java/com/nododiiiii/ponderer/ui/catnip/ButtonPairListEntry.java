@@ -73,7 +73,7 @@ public class ButtonPairListEntry extends ConfigScreenList.LabeledEntry implement
     @Override
     public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
-        int buttonHeight = Math.max(16, height - 18);
+        int buttonHeight = Math.max(16, height - 20);
         int buttonY = y + 10;
         int buttonWidth = right == null ? width - 8 : (width - GAP - 8) / 2;
 

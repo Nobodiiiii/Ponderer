@@ -38,23 +38,25 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
     protected String getHeaderTitle() { return UIText.of("ponderer.ui." + stepType); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         if (jeiMode == IdFieldMode.ITEM) {
-            entries.add(StepEditorEntries.textWithJeiAndHeldItem(
-                idField,
-                "ponderer.ui." + stepType + ".id",
-                "ponderer.ui." + stepType + ".id.tooltip",
-                UIText.of("ponderer.ui." + stepType + ".id.hint"),
-                jeiMode,
-                stack -> idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString())));
-        } else {
-            entries.add(StepEditorEntries.textWithJei(
+            entries.add(StepEditorEntries.text(
                 idField,
                 "ponderer.ui." + stepType + ".id",
                 "ponderer.ui." + stepType + ".id.tooltip",
                 UIText.of("ponderer.ui." + stepType + ".id.hint"),
                 124,
-                jeiMode));
+                StepTextButtonSpec.jei(jeiMode),
+                StepTextButtonSpec.heldItem(
+                    stack -> idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString()))));
+        } else {
+            entries.add(StepEditorEntries.text(
+                idField,
+                "ponderer.ui." + stepType + ".id",
+                "ponderer.ui." + stepType + ".id.tooltip",
+                UIText.of("ponderer.ui." + stepType + ".id.hint"),
+                124,
+                StepTextButtonSpec.jei(jeiMode)));
         }
         entries.add(StepEditorEntries.xyz(
             posField,

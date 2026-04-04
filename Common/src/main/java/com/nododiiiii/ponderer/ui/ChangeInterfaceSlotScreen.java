@@ -24,7 +24,7 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.cycleButton(
             "ponderer.ui.change_interface_slot.slots",
             "ponderer.ui.change_interface_slot.slots.tooltip",

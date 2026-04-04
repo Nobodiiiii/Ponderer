@@ -11,7 +11,7 @@ import net.minecraftforge.fml.config.ModConfig;
 import javax.annotation.Nullable;
 import java.util.List;
 
-public abstract class AbstractDeclarativeConfigListScreen extends AbstractDeclarativeListScreen {
+public abstract class AbstractDeclarativeConfigListScreen extends AbstractDeclarativeFormScreen {
 
     private final String modId;
     protected final ModConfig.Type type;
@@ -67,22 +67,22 @@ public abstract class AbstractDeclarativeConfigListScreen extends AbstractDeclar
         rebuildEntries(currentListScroll());
     }
 
-    protected final void addStringConfigEntry(List<ConfigScreenList.Entry> entries, String labelKey,
+    protected final void addStringConfigEntry(String labelKey,
                                               @Nullable String hintKey, @Nullable String tooltipKey,
                                               ForgeConfigSpec.ConfigValue<String> value) {
-        entries.add(new LocalizedStringConfigEntry(labelKey, hintKey, tooltipKey, value, specOf(value)));
+        appendEntry(new LocalizedStringConfigEntry(labelKey, hintKey, tooltipKey, value, specOf(value)));
     }
 
-    protected final void addBooleanConfigEntry(List<ConfigScreenList.Entry> entries, String labelKey,
+    protected final void addBooleanConfigEntry(String labelKey,
                                                @Nullable String tooltipKey,
                                                ForgeConfigSpec.ConfigValue<Boolean> value) {
-        entries.add(new LocalizedBooleanConfigEntry(labelKey, tooltipKey, value, specOf(value)));
+        appendEntry(new LocalizedBooleanConfigEntry(labelKey, tooltipKey, value, specOf(value)));
     }
 
-    protected final void addIntegerConfigEntry(List<ConfigScreenList.Entry> entries, String labelKey,
+    protected final void addIntegerConfigEntry(String labelKey,
                                                @Nullable String hintKey, @Nullable String tooltipKey,
                                                ForgeConfigSpec.ConfigValue<Integer> value) {
-        entries.add(new LocalizedIntegerConfigEntry(labelKey, hintKey, tooltipKey, value, specOf(value)));
+        appendEntry(new LocalizedIntegerConfigEntry(labelKey, hintKey, tooltipKey, value, specOf(value)));
     }
 
     private <T> ForgeConfigSpec.ValueSpec specOf(ForgeConfigSpec.ConfigValue<T> value) {

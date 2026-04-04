@@ -67,7 +67,7 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.xyz(
             posField,
             "ponderer.ui." + stepType + ".pos_from",

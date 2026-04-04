@@ -32,14 +32,14 @@ public class ReplaceBlocksScreen extends AbstractStepEditorScreen {
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.replace_blocks"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
-        entries.add(StepEditorEntries.textWithJei(
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
+        entries.add(StepEditorEntries.text(
             blockField,
             "ponderer.ui.replace_blocks",
             "ponderer.ui.replace_blocks.tooltip",
             UIText.of("ponderer.ui.replace_blocks.hint"),
             124,
-            IdFieldMode.BLOCK));
+            StepTextButtonSpec.jei(IdFieldMode.BLOCK)));
         entries.add(StepEditorEntries.blockProps(
             "ponderer.ui.block_properties",
             "ponderer.ui.block_properties.tooltip",

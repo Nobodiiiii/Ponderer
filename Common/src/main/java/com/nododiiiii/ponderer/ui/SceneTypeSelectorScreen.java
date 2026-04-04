@@ -12,7 +12,7 @@ public class SceneTypeSelectorScreen extends AbstractReadonlyDeclarativeListScre
     private final SceneEditorScreen parent;
 
     public SceneTypeSelectorScreen(SceneEditorScreen parent) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_selector.title", 320);
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_selector.title", UILayoutConstants.EDITOR_LIST_W);
         this.parent = parent;
     }
 
@@ -31,6 +31,6 @@ public class SceneTypeSelectorScreen extends AbstractReadonlyDeclarativeListScre
 
     @Override
     protected int getEntryHeight() {
-        return 36;
+        return 40;
     }
 }

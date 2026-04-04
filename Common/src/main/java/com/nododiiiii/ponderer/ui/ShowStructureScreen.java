@@ -43,17 +43,19 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.show_structure"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
-        entries.add(StepEditorEntries.textWithButton(
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
+        entries.add(StepEditorEntries.text(
             structureField,
             "ponderer.ui.show_structure.structure",
             "ponderer.ui.show_structure.structure.tooltip",
             UIText.of("ponderer.ui.show_structure.structure.hint"),
             105,
-            this::openFilePicker,
-            () -> "S",
-            () -> 0xFFFFFF,
-            UIText.of("ponderer.ui.show_structure.browse.tooltip")));
+            StepTextButtonSpec.action(
+                20,
+                this::openFilePicker,
+                () -> "S",
+                () -> 0xFFFFFF,
+                UIText.of("ponderer.ui.show_structure.browse.tooltip"))));
         entries.add(StepEditorEntries.number(
             scaleField,
             "ponderer.ui.show_structure.scale",

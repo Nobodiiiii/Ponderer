@@ -861,7 +861,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                 @Nullable Consumer<Set<String>> onSelectMulti,
                 @Nullable Set<String> preSelected,
                 Runnable onCancel) {
-            super(null, "ponderer.ui.scope.editor", "ponderer.ui.item_grid.select_scene_id", 360);
+            super(null, "ponderer.ui.scope.editor", "ponderer.ui.item_grid.select_scene_id", UILayoutConstants.EDITOR_LIST_W);
             this.sceneKeys = sceneKeys;
             this.selectMode = selectMode;
             this.onSelectSingle = onSelectSingle;
@@ -935,7 +935,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
 
         @Override
         protected int getEntryHeight() {
-            return 34;
+            return 40;
         }
 
         @Override

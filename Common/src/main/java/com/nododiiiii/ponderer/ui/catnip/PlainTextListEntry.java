@@ -38,9 +38,9 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
         this.textField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 200, 20);
         EntryTextSupport.applyHint(textField, hintKey);
-        this.textField.setResponder(responder);
         this.textField.setValue(initialValue);
         this.textField.moveCursorToStart();
+        this.textField.setResponder(responder);
         listeners.add(textField);
     }
 

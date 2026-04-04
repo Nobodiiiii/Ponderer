@@ -4,10 +4,10 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.FormEntries;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
-import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
-import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -17,7 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 
-public class SceneDescEditorScreen extends AbstractDeclarativeListScreen {
+public class SceneDescEditorScreen extends AbstractDeclarativeFormScreen {
 
     private final DslScene scene;
     private final int sceneIndex;
@@ -58,8 +58,8 @@ public class SceneDescEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     @Override
-    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
-        ponderTitleEntry = localizedTextEntry(
+    protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(FormEntries.localizedText(
             "ponderer.ui.scene_desc.ponder_title",
             null,
             "ponderer.ui.scene_desc.hint.ponder_title",
@@ -69,11 +69,11 @@ public class SceneDescEditorScreen extends AbstractDeclarativeListScreen {
             value -> {
                 workingPonderTitle.setForLang(ponderTitleLang, value);
                 clearStatusMessages();
-            });
-        entries.add(ponderTitleEntry);
+            },
+            entry -> ponderTitleEntry = entry));
 
         if (hasMultiScene && workingSceneTitle != null) {
-            sceneTitleEntry = localizedTextEntry(
+            entries.add(FormEntries.localizedText(
                 "ponderer.ui.scene_desc.scene_title",
                 null,
                 "ponderer.ui.scene_desc.hint.scene_title",
@@ -83,13 +83,13 @@ public class SceneDescEditorScreen extends AbstractDeclarativeListScreen {
                 value -> {
                     workingSceneTitle.setForLang(sceneTitleLang, value);
                     clearStatusMessages();
-                });
-            entries.add(sceneTitleEntry);
+                },
+                entry -> sceneTitleEntry = entry));
         } else {
             sceneTitleEntry = null;
         }
 
-        entries.add(textEntry(
+        entries.add(FormEntries.text(
             "ponderer.ui.scene_desc.ponder_id",
             "ponderer.ui.scene_desc.id_hint",
             "ponderer.ui.scene_desc.hint.ponder_id",
@@ -100,7 +100,7 @@ public class SceneDescEditorScreen extends AbstractDeclarativeListScreen {
             }));
 
         if (hasMultiScene) {
-            entries.add(textEntry(
+            entries.add(FormEntries.text(
                 "ponderer.ui.scene_desc.scene_id",
                 "ponderer.ui.scene_desc.id_hint",
                 "ponderer.ui.scene_desc.hint.scene_id",

@@ -150,26 +150,27 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         if (pendingStructureSelection != null) {
             structureField.setValue(pendingStructureSelection);
             pendingStructureSelection = null;
         }
 
-        entries.add(StepEditorEntries.textWithJeiAndHeldItem(
+        entries.add(StepEditorEntries.text(
             itemField,
             "ponderer.ui.scene_desc.item_id",
             null,
             UIText.of("ponderer.ui.scene_desc.hint.item_id"),
-            IdFieldMode.ITEM,
-            this::applyHeldItem));
-        entries.add(StepEditorEntries.nbtText(
+            124,
+            StepTextButtonSpec.jei(IdFieldMode.ITEM),
+            StepTextButtonSpec.heldItem(this::applyHeldItem)));
+        entries.add(StepEditorEntries.text(
             itemNbtField,
             "ponderer.ui.scene_desc.item_nbt",
             null,
             UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
             124,
-            "nbt"));
+            StepTextButtonSpec.nbtPick("nbt")));
         entries.add(StepEditorEntries.cycleButton(
             "ponderer.ui.trigger_editor.trigger_mode",
             "ponderer.ui.trigger_editor.trigger_mode.tooltip",
@@ -230,33 +231,45 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
 
         String mode = TRIGGER_MODES[triggerModeIndex];
         if ("structure".equals(mode)) {
-            entries.add(StepEditorEntries.textWithButton(
+            entries.add(StepEditorEntries.text(
                 structureField,
                 "ponderer.ui.trigger_editor.trigger_structure",
                 null,
                 UIText.of("ponderer.ui.trigger_editor.hint.trigger_structure"),
                 124,
-                this::openStructureList,
-                () -> "L",
-                () -> 0xFFFFFF,
-                UIText.of("ponderer.ui.scene_desc.structure_list_title")));
+                StepTextButtonSpec.action(
+                    20,
+                    this::openStructureList,
+                    () -> "L",
+                    () -> 0xFFFFFF,
+                    UIText.of("ponderer.ui.scene_desc.structure_list_title"))));
         } else if ("coordinate".equals(mode)) {
-            entries.add(StepEditorEntries.xyzWithButton(
+            entries.add(StepEditorEntries.xyz(
                 coord1Field,
                 "ponderer.ui.trigger_editor.trigger_coord1",
                 null,
-                this::startCoordinatePick,
-                () -> "+",
-                () -> 0x80FFFF,
-                UIText.of("ponderer.ui.pick.tooltip")));
-            entries.add(StepEditorEntries.xyzWithButton(
+                "X",
+                "Y",
+                "Z",
+                StepXyzButtonSpec.action(
+                    20,
+                    this::startCoordinatePick,
+                    () -> "+",
+                    () -> 0x80FFFF,
+                    UIText.of("ponderer.ui.pick.tooltip"))));
+            entries.add(StepEditorEntries.xyz(
                 coord2Field,
                 "ponderer.ui.trigger_editor.trigger_coord2",
                 null,
-                this::startCoordinatePick,
-                () -> "+",
-                () -> 0x80FFFF,
-                UIText.of("ponderer.ui.pick.tooltip")));
+                "X",
+                "Y",
+                "Z",
+                StepXyzButtonSpec.action(
+                    20,
+                    this::startCoordinatePick,
+                    () -> "+",
+                    () -> 0x80FFFF,
+                    UIText.of("ponderer.ui.pick.tooltip"))));
         }
     }
 

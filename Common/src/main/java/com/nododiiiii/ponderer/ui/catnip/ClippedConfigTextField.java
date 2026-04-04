@@ -1,11 +1,12 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import net.createmod.catnip.config.ui.ConfigTextField;
-import net.createmod.catnip.gui.UIRenderHelper;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 
 public class ClippedConfigTextField extends ConfigTextField {
+
+    private static final int HINT_COLOR = 0x90_A0A0A0;
 
     public ClippedConfigTextField(Font font, int x, int y, int width, int height) {
         super(font, x, y, width, height);
@@ -13,7 +14,10 @@ public class ClippedConfigTextField extends ConfigTextField {
 
     @Override
     public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        String savedHint = this.hint;
+        this.hint = "";
         super.renderWidget(graphics, mouseX, mouseY, partialTicks);
+        this.hint = savedHint;
 
         if (hint == null || hint.isEmpty() || !getValue().isEmpty()) {
             return;
@@ -21,7 +25,6 @@ public class ClippedConfigTextField extends ConfigTextField {
 
         int maxWidth = Math.max(0, getWidth() - 10);
         String clipped = font.plainSubstrByWidth(hint, maxWidth);
-        graphics.drawString(font, clipped, getX() + 5, this.getY() + (this.height - 8) / 2,
-            UIRenderHelper.COLOR_TEXT.getFirst().scaleAlpha(.75f).getRGB());
+        graphics.drawString(font, clipped, getX() + 5, this.getY() + (this.height - 8) / 2, HINT_COLOR);
     }
 }

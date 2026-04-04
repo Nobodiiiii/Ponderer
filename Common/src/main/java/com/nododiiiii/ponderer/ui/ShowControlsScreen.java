@@ -38,7 +38,7 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.show_controls"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.xyz(
             pointField,
             "ponderer.ui.point",
@@ -64,12 +64,14 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
             100,
             () -> actionIndex = (actionIndex + 1) % ACTIONS.length,
             () -> actionIndex == 0 ? UIText.of("ponderer.ui.none") : optionLabel("ponderer.ui.show_controls.action", ACTIONS[actionIndex])));
-        entries.add(StepEditorEntries.textWithJeiAndHeldItem(
+        entries.add(StepEditorEntries.text(
             itemField,
             "ponderer.ui.show_controls.item",
             "ponderer.ui.show_controls.item.tooltip",
             UIText.of("ponderer.ui.show_controls.item.hint"),
-            IdFieldMode.INGREDIENT,
+            124,
+            StepTextButtonSpec.jei(IdFieldMode.INGREDIENT),
+            StepTextButtonSpec.heldItem(
             stack -> {
                 String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                 itemField.setValue(itemId);
@@ -78,14 +80,14 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
                 } else {
                     nbtField.setValue("");
                 }
-            }));
-        entries.add(StepEditorEntries.nbtText(
+            })));
+        entries.add(StepEditorEntries.text(
             nbtField,
             "ponderer.ui.show_controls.nbt",
             "ponderer.ui.show_controls.nbt.tooltip",
             "{}",
             124,
-            "nbt"));
+            StepTextButtonSpec.nbtPick("nbt")));
         entries.add(StepEditorEntries.toggle(
             "ponderer.ui.show_controls.sneaking",
             "ponderer.ui.show_controls.sneaking.tooltip",

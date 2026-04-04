@@ -1,21 +1,23 @@
 package com.nododiiiii.ponderer.blueprint;
 
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import com.nododiiiii.ponderer.ui.UIText;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
-import net.createmod.catnip.config.ui.ConfigScreenList;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.FormEntries;
 import net.minecraft.client.Minecraft;
 
 import java.util.List;
 
-public class BlueprintPromptScreen extends AbstractDeclarativeListScreen {
+public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
 
     private String blueprintName = "";
     private String baselineName = "";
     private boolean awaitingOverrideConfirm = false;
 
     public BlueprintPromptScreen() {
-        super(null, "ponderer.ui.scope.editor", "ponderer.ui.blueprint.prompt.title", 320);
+        super(null, "ponderer.ui.scope.editor", "ponderer.ui.blueprint.prompt.title", UILayoutConstants.EDITOR_LIST_W);
     }
 
     @Override
@@ -28,8 +30,8 @@ public class BlueprintPromptScreen extends AbstractDeclarativeListScreen {
     }
 
     @Override
-    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
-        entries.add(textEntry(
+    protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(FormEntries.text(
             "ponderer.ui.blueprint.prompt.name",
             null,
             "ponderer.ui.blueprint.prompt.name",

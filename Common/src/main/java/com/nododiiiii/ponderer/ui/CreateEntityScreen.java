@@ -33,14 +33,15 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.create_entity"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
-        entries.add(StepEditorEntries.textWithJeiAndNbtPick(
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
+        entries.add(StepEditorEntries.text(
             entityField,
             "ponderer.ui.create_entity",
             "ponderer.ui.create_entity.tooltip",
             UIText.of("ponderer.ui.create_entity.hint"),
-            IdFieldMode.ENTITY,
-            "nbt"));
+            124,
+            StepTextButtonSpec.jei(IdFieldMode.ENTITY),
+            StepTextButtonSpec.nbtPick("nbt")));
         entries.add(StepEditorEntries.xyz(
             posField,
             "ponderer.ui.create_entity.pos",
@@ -74,13 +75,13 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
                 PickState.TargetField.LOOK_AT,
                 true));
         }
-        entries.add(StepEditorEntries.nbtText(
+        entries.add(StepEditorEntries.text(
             nbtField,
             "ponderer.ui.create_entity.nbt",
             "ponderer.ui.create_entity.nbt.tooltip",
             "{NoAI:1b}",
             124,
-            "nbt"));
+            StepTextButtonSpec.nbtPick("nbt")));
     }
 
     @Override

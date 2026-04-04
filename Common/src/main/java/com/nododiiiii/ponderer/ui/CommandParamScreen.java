@@ -3,10 +3,10 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
-import com.nododiiiii.ponderer.ui.catnip.ButtonListEntry;
-import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
-import com.nododiiiii.ponderer.ui.catnip.ToggleListEntry;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
+import com.nododiiiii.ponderer.ui.catnip.FormEntries;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;
@@ -21,7 +21,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class CommandParamScreen extends AbstractDeclarativeListScreen implements JeiAwareScreen {
+public class CommandParamScreen extends AbstractDeclarativeFormScreen implements JeiTextButtonHost {
 
     public sealed interface FieldDef permits TextFieldDef, ChoiceFieldDef, ToggleFieldDef {
     }
@@ -59,10 +59,10 @@ public class CommandParamScreen extends AbstractDeclarativeListScreen implements
 
     private boolean jeiActive = false;
     @Nullable
-    private String jeiTargetFieldId = null;
+    private HintableTextFieldWidget jeiTargetField = null;
 
     private CommandParamScreen(String titleKey, List<FieldDef> fieldDefs, Consumer<Map<String, String>> onExecute) {
-        super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, 360);
+        super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, UILayoutConstants.EDITOR_LIST_W);
         this.titleKey = titleKey;
         this.fieldDefs = fieldDefs;
         this.onExecute = onExecute;
@@ -98,61 +98,46 @@ public class CommandParamScreen extends AbstractDeclarativeListScreen implements
     }
 
     @Override
-    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
+    protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         textInputs.clear();
         collectingEntries = true;
 
         try {
             for (FieldDef def : fieldDefs) {
                 if (def instanceof TextFieldDef textDef) {
-                    PlainTextListEntry entry = new PlainTextListEntry(
+                    entries.add(FormEntries.text(
                         textDef.labelKey,
                         null,
                         textDef.hintKey,
                         "",
-                        value -> handleTextChanged(textDef.id, value));
-                    entry.field().setMaxLength(32500);
-                    if (textDef.jeiMode != null && JeiCompat.isAvailable()) {
-                        entry.addTrailingButton(
-                            20,
-                            () -> toggleJei(textDef.id),
-                            () -> "J",
-                            () -> jeiActive && textDef.id.equals(jeiTargetFieldId) ? 0x55FF55 : 0xAAAAFF,
-                            UIText.of("ponderer.ui.jei_browse.tooltip"));
-                    }
-                    if (textDef.sceneSelector) {
-                        entry.addTrailingButton(
-                            20,
-                            () -> openSceneSelector(textDef.id, textDef.sceneMultiSelect),
-                            () -> "S",
-                            () -> 0x80FFFF,
-                            null);
-                    }
-                    entries.add(entry);
-                    textInputs.put(textDef.id, entry.field());
-
-                    suppressFieldResponder = true;
-                    entry.field().setValue(currentTextValue(textDef.id));
-                    suppressFieldResponder = false;
+                        value -> handleTextChanged(textDef.id, value),
+                        entry -> {
+                            entry.field().setMaxLength(32500);
+                            textInputs.put(textDef.id, entry.field());
+                            suppressFieldResponder = true;
+                            entry.field().setValue(currentTextValue(textDef.id));
+                            suppressFieldResponder = false;
+                        },
+                        textButtonsFor(textDef)));
                     continue;
                 }
 
                 if (def instanceof ChoiceFieldDef choiceDef) {
                     ensureChoiceState(choiceDef);
-                    entries.add(new ButtonListEntry(
+                    entries.add(FormEntries.choice(
                         choiceDef.labelKey,
                         null,
                         140,
                         () -> cycleChoice(choiceDef),
                         () -> UIText.of(choiceDef.optionLabelKeys.get(choiceSelections.getOrDefault(choiceDef.id, 0))),
                         () -> 0xFFFFFF,
-                        null).setControlWidthScale(0.7f));
+                        null));
                     continue;
                 }
 
                 ToggleFieldDef toggleDef = (ToggleFieldDef) def;
                 toggleStates.putIfAbsent(toggleDef.id, toggleDef.defaultValue);
-                entries.add(new ToggleListEntry(
+                entries.add(FormEntries.toggle(
                     toggleDef.labelKey,
                     null,
                     () -> toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue),
@@ -225,11 +210,6 @@ public class CommandParamScreen extends AbstractDeclarativeListScreen implements
     }
 
     @Override
-    protected int getEntryHeight() {
-        return 40;
-    }
-
-    @Override
     public void removed() {
         super.removed();
         if (jeiActive) {
@@ -240,13 +220,34 @@ public class CommandParamScreen extends AbstractDeclarativeListScreen implements
     @Override
     @Nullable
     public HintableTextFieldWidget getJeiTargetField() {
-        return jeiTargetFieldId == null ? null : textInputs.get(jeiTargetFieldId);
+        return jeiTargetField;
+    }
+
+    @Override
+    public void toggleJeiForField(HintableTextFieldWidget field, IdFieldMode mode) {
+        if (!JeiCompat.isAvailable()) {
+            return;
+        }
+        if (jeiActive && jeiTargetField == field) {
+            deactivateJei();
+            rebuildEntries(currentListScroll());
+            return;
+        }
+        jeiActive = true;
+        jeiTargetField = field;
+        JeiCompat.setActiveScreen(this, mode);
+        rebuildEntries(currentListScroll());
+    }
+
+    @Override
+    public boolean isJeiActiveForField(HintableTextFieldWidget field) {
+        return jeiActive && jeiTargetField == field;
     }
 
     @Override
     public void deactivateJei() {
         jeiActive = false;
-        jeiTargetFieldId = null;
+        jeiTargetField = null;
         JeiCompat.clearActiveEditor();
     }
 
@@ -323,27 +324,6 @@ public class CommandParamScreen extends AbstractDeclarativeListScreen implements
         }
 
         clearStatusMessages();
-        rebuildEntries(currentListScroll());
-    }
-
-    private void toggleJei(String fieldId) {
-        FieldDef def = fieldDefs.stream()
-            .filter(field -> field instanceof TextFieldDef textDef && textDef.id.equals(fieldId))
-            .findFirst()
-            .orElse(null);
-        if (!(def instanceof TextFieldDef textDef) || textDef.jeiMode == null) {
-            return;
-        }
-
-        if (jeiActive && fieldId.equals(jeiTargetFieldId)) {
-            deactivateJei();
-            rebuildEntries(currentListScroll());
-            return;
-        }
-
-        jeiActive = true;
-        jeiTargetFieldId = fieldId;
-        JeiCompat.setActiveScreen(this, textDef.jeiMode);
         rebuildEntries(currentListScroll());
     }
 
@@ -432,6 +412,21 @@ public class CommandParamScreen extends AbstractDeclarativeListScreen implements
 
     private String currentTextValue(String fieldId) {
         return textValues.getOrDefault(fieldId, defaultValues.getOrDefault(fieldId, ""));
+    }
+
+    private FormTextButtonSpec[] textButtonsFor(TextFieldDef textDef) {
+        List<FormTextButtonSpec> specs = new ArrayList<>();
+        if (textDef.jeiMode != null) {
+            specs.add(FormTextButtonSpec.jei(textDef.jeiMode));
+        }
+        if (textDef.sceneSelector) {
+            specs.add(FormTextButtonSpec.action(
+                "S",
+                0x80FFFF,
+                null,
+                () -> openSceneSelector(textDef.id, textDef.sceneMultiSelect)));
+        }
+        return specs.toArray(FormTextButtonSpec[]::new);
     }
 
     private void setTextValue(String fieldId, @Nullable String value) {

@@ -50,22 +50,18 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
-        entries.add(StepEditorEntries.textWithJeiAndBlockPick(
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
+        entries.add(StepEditorEntries.text(
             blockField,
             "ponderer.ui.show_interface.block",
             "ponderer.ui.show_interface.block.tooltip",
             UIText.of("ponderer.ui.show_interface.block.hint"),
-            IdFieldMode.BLOCK,
-            NBT_SNAPSHOT_KEY,
-            row -> {
-                row.field().setEditable(false);
-                row.field().setCanLoseFocus(true);
-                if (row.jeiBtn() != null) {
-                    row.jeiBtn().visible = false;
-                    row.jeiBtn().active = false;
-                }
-            }));
+            124,
+            field -> {
+                field.setEditable(false);
+                field.setCanLoseFocus(true);
+            },
+            StepTextButtonSpec.blockPick(NBT_SNAPSHOT_KEY)));
         entries.add(StepEditorEntries.toggle(
             "ponderer.ui.show_interface.enable_nbt",
             "ponderer.ui.show_interface.enable_nbt.tooltip",

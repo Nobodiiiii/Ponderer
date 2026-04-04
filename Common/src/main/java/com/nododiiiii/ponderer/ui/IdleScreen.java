@@ -23,7 +23,7 @@ public class IdleScreen extends AbstractStepEditorScreen {
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.idle"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.number(
             durationField,
             "ponderer.ui.duration",

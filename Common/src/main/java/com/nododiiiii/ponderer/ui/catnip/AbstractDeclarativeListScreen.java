@@ -104,7 +104,7 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
         list.setLeftPos(width / 2 - list.getWidth() / 2);
         addRenderableWidget(list);
 
-        search = new ConfigTextField(font, width / 2 - listWidth / 2, height - 35, listWidth, 20);
+        search = new ClippedConfigTextField(font, width / 2 - listWidth / 2, height - 35, listWidth, 20);
         search.setResponder(this::updateFilter);
         search.setHint(Component.translatable("catnip.ui.search_hint"));
         search.moveCursorToStart();

@@ -4,13 +4,11 @@ import com.nododiiiii.ponderer.ai.AiSceneGenerator;
 import com.nododiiiii.ponderer.ai.StructureDescriber;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
-import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
-import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
-import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
-import com.nododiiiii.ponderer.ui.catnip.ToggleListEntry;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
+import com.nododiiiii.ponderer.ui.catnip.FormEntries;
 import com.nododiiiii.ponderer.util.SafePaths;
-import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -26,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
-public class AiGenerateScreen extends AbstractDeclarativeListScreen implements JeiAwareScreen {
+public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements JeiTextButtonHost {
 
     private static final List<Path> cachedStructurePaths = new ArrayList<>();
     private static final List<StructureDescriber.StructureInfo> cachedStructureInfos = new ArrayList<>();
@@ -54,10 +52,10 @@ public class AiGenerateScreen extends AbstractDeclarativeListScreen implements J
 
     private boolean jeiActive = false;
     @Nullable
-    private HintableTextFieldWidget carrierField = null;
+    private HintableTextFieldWidget jeiTargetField = null;
 
     public AiGenerateScreen() {
-        super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.ai_generate.title", 420);
+        super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.ai_generate.title", UILayoutConstants.EDITOR_LIST_W);
     }
 
     @Override
@@ -71,73 +69,70 @@ public class AiGenerateScreen extends AbstractDeclarativeListScreen implements J
     }
 
     @Override
-    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
-        entries.add(new SectionHeaderListEntry(this::structureSummaryLine));
-        entries.add(new SectionHeaderListEntry(this::structureDetailsLine));
-        entries.add(new FullButtonListEntry(UIText.of("ponderer.ui.ai_generate.add"),
-            UIText.of("ponderer.ui.ai_generate.add.tooltip"), this::addStructure));
+    protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(FormEntries.sectionHeader(this::structureSummaryLine));
+        entries.add(FormEntries.sectionHeader(this::structureDetailsLine));
+        entries.add(FormEntries.fullButton(
+            UIText.of("ponderer.ui.ai_generate.add"),
+            UIText.of("ponderer.ui.ai_generate.add.tooltip"),
+            this::addStructure));
 
         if (!cachedStructurePaths.isEmpty()) {
-            entries.add(new FullButtonListEntry(UIText.of("ponderer.ui.ai_generate.delete"),
-                UIText.of("ponderer.ui.ai_generate.delete.tooltip"), this::deleteStructure));
-            entries.add(new FullButtonListEntry("< " + UIText.of("ponderer.ui.ai_generate.prev.tooltip"),
-                UIText.of("ponderer.ui.ai_generate.prev.tooltip"), this::prevStructure));
-            entries.add(new FullButtonListEntry(UIText.of("ponderer.ui.ai_generate.next.tooltip") + " >",
-                UIText.of("ponderer.ui.ai_generate.next.tooltip"), this::nextStructure));
+            entries.add(FormEntries.fullButton(
+                UIText.of("ponderer.ui.ai_generate.delete"),
+                UIText.of("ponderer.ui.ai_generate.delete.tooltip"),
+                this::deleteStructure));
+            entries.add(FormEntries.fullButton(
+                "< " + UIText.of("ponderer.ui.ai_generate.prev.tooltip"),
+                UIText.of("ponderer.ui.ai_generate.prev.tooltip"),
+                this::prevStructure));
+            entries.add(FormEntries.fullButton(
+                UIText.of("ponderer.ui.ai_generate.next.tooltip") + " >",
+                UIText.of("ponderer.ui.ai_generate.next.tooltip"),
+                this::nextStructure));
         }
 
-        PlainTextListEntry carrierEntry = new PlainTextListEntry(
+        entries.add(FormEntries.text(
             "ponderer.ui.ai_generate.carrier",
             null,
             "ponderer.ui.ai_generate.carrier.hint",
             cachedCarrier,
-            value -> cachedCarrier = value);
-        carrierEntry.field().setMaxLength(128);
-        if (JeiCompat.isAvailable()) {
-            carrierEntry.addTrailingButton(
-                20,
-                this::toggleJei,
-                () -> "J",
-                () -> jeiActive ? 0x55FF55 : 0xAAAAFF,
-                UIText.of("ponderer.ui.jei_browse.tooltip"));
-        }
-        entries.add(carrierEntry);
-        carrierField = carrierEntry.field();
+            value -> cachedCarrier = value,
+            entry -> entry.field().setMaxLength(128),
+            FormTextButtonSpec.jei(IdFieldMode.ITEM)));
 
-        PlainTextListEntry promptEntry = new PlainTextListEntry(
+        entries.add(FormEntries.text(
             "ponderer.ui.ai_generate.prompt",
             null,
             "ponderer.ui.ai_generate.prompt.hint",
             cachedPrompt,
-            value -> cachedPrompt = value);
-        promptEntry.field().setMaxLength(2048);
-        entries.add(promptEntry);
+            value -> cachedPrompt = value,
+            entry -> entry.field().setMaxLength(2048)));
 
-        entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.ai_generate.urls")));
+        entries.add(FormEntries.sectionHeader(UIText.of("ponderer.ui.ai_generate.urls")));
         List<String> urlValues = referenceUrlManager.getUrlValues();
         for (int i = 0; i < urlValues.size(); i++) {
             final int index = i;
-            PlainTextListEntry urlEntry = new PlainTextListEntry(
+            entries.add(FormEntries.text(
                 i == 0 ? "ponderer.ui.ai_generate.urls" : "",
                 null,
                 "ponderer.ui.ai_generate.url.hint",
                 urlValues.get(i),
-                value -> referenceUrlManager.updateUrl(index, value));
-            urlEntry.field().setMaxLength(512);
-            urlEntry.addTrailingButton(20, () -> removeUrl(index), () -> "-", () -> 0xFF6666, null);
-            entries.add(urlEntry);
+                value -> referenceUrlManager.updateUrl(index, value),
+                entry -> entry.field().setMaxLength(512),
+                FormTextButtonSpec.action("-", 0xFF6666, null, () -> removeUrl(index))));
         }
-        entries.add(new FullButtonListEntry(
+        entries.add(FormEntries.fullButton(
             UIText.of("ponderer.ui.ai_generate.add_url"),
             UIText.of("ponderer.ui.ai_generate.add_url.tooltip"),
             this::addUrl));
 
-        entries.add(new ToggleListEntry(
+        entries.add(FormEntries.toggle(
             "ponderer.ui.ai_generate.build_tutorial",
             "ponderer.ui.ai_generate.build_tutorial.tooltip",
             () -> cachedBuildTutorial,
             this::toggleBuildTutorial));
-        entries.add(new ToggleListEntry(
+        entries.add(FormEntries.toggle(
             "ponderer.ui.ai_generate.include_images",
             "ponderer.ui.ai_generate.include_images.tooltip",
             () -> cachedIncludeImages,
@@ -204,19 +199,36 @@ public class AiGenerateScreen extends AbstractDeclarativeListScreen implements J
     }
 
     @Override
-    protected int getEntryHeight() {
-        return 40;
+    @Nullable
+    public HintableTextFieldWidget getJeiTargetField() {
+        return jeiTargetField;
     }
 
     @Override
-    @Nullable
-    public HintableTextFieldWidget getJeiTargetField() {
-        return carrierField;
+    public void toggleJeiForField(HintableTextFieldWidget field, IdFieldMode mode) {
+        if (!JeiCompat.isAvailable()) {
+            return;
+        }
+        if (jeiActive && jeiTargetField == field) {
+            deactivateJei();
+            rebuildEntries(currentListScroll());
+            return;
+        }
+        jeiActive = true;
+        jeiTargetField = field;
+        JeiCompat.setActiveScreen(this, mode);
+        rebuildEntries(currentListScroll());
+    }
+
+    @Override
+    public boolean isJeiActiveForField(HintableTextFieldWidget field) {
+        return jeiActive && jeiTargetField == field;
     }
 
     @Override
     public void deactivateJei() {
         jeiActive = false;
+        jeiTargetField = null;
         JeiCompat.clearActiveEditor();
         if (list != null) {
             rebuildEntries(currentListScroll());
@@ -258,19 +270,6 @@ public class AiGenerateScreen extends AbstractDeclarativeListScreen implements J
         if (jeiActive) {
             deactivateJei();
         }
-    }
-
-    private void toggleJei() {
-        if (!JeiCompat.isAvailable()) {
-            return;
-        }
-        if (jeiActive) {
-            deactivateJei();
-            return;
-        }
-        jeiActive = true;
-        JeiCompat.setActiveScreen(this, IdFieldMode.ITEM);
-        rebuildEntries(currentListScroll());
     }
 
     private void addStructure() {

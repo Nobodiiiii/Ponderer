@@ -1,8 +1,9 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
-import net.createmod.catnip.config.ui.ConfigScreenList;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.FormEntries;
 import net.minecraft.client.Minecraft;
 
 import java.util.HashSet;
@@ -10,7 +11,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-public class ExportPackScreen extends com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen {
+public class ExportPackScreen extends AbstractDeclarativeFormScreen {
 
     private String draftName = "";
     private String draftVersion = "1.0.0";
@@ -23,12 +24,12 @@ public class ExportPackScreen extends com.nododiiiii.ponderer.ui.catnip.Abstract
     private Set<String> baselineSceneIds = new HashSet<>();
 
     public ExportPackScreen() {
-        super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.function_page.export.title", 360);
+        super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.function_page.export.title", UILayoutConstants.EDITOR_LIST_W);
     }
 
     @Override
-    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
-        entries.add(textEntry(
+    protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(FormEntries.text(
             "ponderer.ui.export.name",
             null,
             "ponderer.ui.export.name",
@@ -37,7 +38,7 @@ public class ExportPackScreen extends com.nododiiiii.ponderer.ui.catnip.Abstract
                 draftName = value;
                 clearStatusMessages();
             }));
-        entries.add(textEntry(
+        entries.add(FormEntries.text(
             "ponderer.ui.export.version",
             null,
             "ponderer.ui.export.version",
@@ -46,7 +47,7 @@ public class ExportPackScreen extends com.nododiiiii.ponderer.ui.catnip.Abstract
                 draftVersion = value;
                 clearStatusMessages();
             }));
-        entries.add(textEntry(
+        entries.add(FormEntries.text(
             "ponderer.ui.export.author",
             null,
             "ponderer.ui.export.author",
@@ -55,7 +56,7 @@ public class ExportPackScreen extends com.nododiiiii.ponderer.ui.catnip.Abstract
                 draftAuthor = value;
                 clearStatusMessages();
             }));
-        entries.add(new FullButtonListEntry(
+        entries.add(FormEntries.fullButton(
             currentSceneSelectionLabel(),
             UIText.of("ponderer.ui.export.all_scenes"),
             this::openSceneSelector));
@@ -125,11 +126,6 @@ public class ExportPackScreen extends com.nododiiiii.ponderer.ui.catnip.Abstract
         draftAuthor = baselineAuthor;
         selectedSceneIds = new HashSet<>(baselineSceneIds);
         rebuildEntries(currentListScroll());
-    }
-
-    @Override
-    protected int getEntryHeight() {
-        return 40;
     }
 
     private void openSceneSelector() {

@@ -26,7 +26,7 @@ public class EncapsulateBoundsScreen extends AbstractStepEditorScreen {
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.encapsulate_bounds"); }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.xyz(
             boundsField,
             "ponderer.ui.encapsulate_bounds.bounds",

@@ -66,7 +66,7 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
         int buttonX = x + 4;
         int buttonY = y + 10;
         int buttonWidth = Math.max(40, width - 8);
-        int buttonHeight = Math.max(16, height - 18);
+        int buttonHeight = Math.max(16, height - 20);
         button.setX(buttonX);
         button.setY(buttonY);
         button.setWidth(buttonWidth);

@@ -30,7 +30,7 @@ public class ClickInterfaceScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected void collectFormEntries(List<StepEditorEntry> entries) {
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         entries.add(StepEditorEntries.xyzWithHints(
             pointField,
             "ponderer.ui.click_interface.point",
