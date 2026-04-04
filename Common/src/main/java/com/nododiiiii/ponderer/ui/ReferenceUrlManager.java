@@ -104,4 +104,12 @@ public class ReferenceUrlManager {
     public void clear() {
         referenceUrls.clear();
     }
+
+    public void replaceWith(List<String> urls, List<Boolean> autoAddedFlags) {
+        referenceUrls.clear();
+        for (int i = 0; i < urls.size(); i++) {
+            boolean isAutoAdded = i < autoAddedFlags.size() && autoAddedFlags.get(i);
+            referenceUrls.add(new ReferenceUrl(urls.get(i), isAutoAdded));
+        }
+    }
 }

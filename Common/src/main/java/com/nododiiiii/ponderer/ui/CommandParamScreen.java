@@ -3,19 +3,13 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
+import com.nododiiiii.ponderer.ui.catnip.ButtonListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
+import com.nododiiiii.ponderer.ui.catnip.ToggleListEntry;
+import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
-import net.createmod.catnip.gui.AbstractSimiScreen;
-import net.createmod.catnip.gui.element.BoxElement;
-import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.catnip.theme.Color;
-import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.network.chat.Component;
-import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.components.events.GuiEventListener;
-import net.minecraft.util.Mth;
-import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -23,136 +17,437 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/**
- * Reusable parameter input screen for commands.
- * Uses unified button abstractions for JEI, scene selector, and toggle widgets.
- */
-public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareScreen {
-
-    // -- Layout constants --
-    private static final int WIDTH = 240;
-    private static final int LABEL_W = 72;
-    private static final int FIELD_H = 16;
-    private static final int ROW_H = 22;
-    private static final int MARGIN = 12;
-
-    // Unified button dimensions (matching AbstractStepEditorScreen)
-    private static final int ACTION_BTN_W = 14;
-    private static final int ACTION_BTN_H = 12;
-    private static final int TOGGLE_SIZE = 12;
-    private static final int BTN_Y_OFFSET = 4;
-    private static final int BTN_GAP = 4;
-    private static final int FIELD_BTN_GAP = 6;
-
-    // -- Field definitions --
+public class CommandParamScreen extends AbstractDeclarativeListScreen implements JeiAwareScreen {
 
     public sealed interface FieldDef permits TextFieldDef, ChoiceFieldDef, ToggleFieldDef {
     }
 
     public record TextFieldDef(String id, String labelKey, String hintKey, boolean required,
-            @Nullable IdFieldMode jeiMode, boolean sceneSelector, boolean sceneMultiSelect) implements FieldDef {
+                               @Nullable IdFieldMode jeiMode,
+                               boolean sceneSelector, boolean sceneMultiSelect) implements FieldDef {
     }
 
     public record ChoiceFieldDef(String id, String labelKey, List<String> optionLabelKeys,
-            List<String> values) implements FieldDef {
+                                 List<String> values) implements FieldDef {
     }
 
     public record ToggleFieldDef(String id, String labelKey, boolean defaultValue) implements FieldDef {
     }
 
-    // -- Labeled button tracking for unified rendering --
-
-    private record LabeledButton(PonderButton button, String label, int inactiveColor, int activeColor,
-            BooleanSupplier isActive) {
-    }
-
-    private record ClickableButton(int x, int y, int w, int h, Supplier<String> labelSupplier, Runnable action,
-            boolean scrollable) {
-        ClickableButton(int x, int y, int w, int h, Supplier<String> labelSupplier, Runnable action) {
-            this(x, y, w, h, labelSupplier, action, true);
-        }
-    }
-
-    // -- Scroll support --
-    private int scrollOffset = 0;
-    private int maxScroll = 0;
-    private final List<FormWidgetRecord> formWidgetRecords = new ArrayList<>();
-    private record FormWidgetRecord(AbstractWidget widget, int contentOffsetY) {}
-    private static final int FORM_TOP_Y = 30;
-    private static final int BOTTOM_H = 40;
-
-    // -- State --
-
     private final List<FieldDef> fieldDefs;
     private final Consumer<Map<String, String>> onExecute;
-    private final Map<String, HintableTextFieldWidget> textInputs = new LinkedHashMap<>();
+    private final String titleKey;
+
+    private final Map<String, String> textValues = new LinkedHashMap<>();
     private final Map<String, Integer> choiceSelections = new HashMap<>();
     private final Map<String, Boolean> toggleStates = new HashMap<>();
-    private final Map<String, BoxWidget> toggleWidgets = new HashMap<>();
-    private final List<LabeledButton> labeledButtons = new ArrayList<>();
-    private final List<ClickableButton> clickableButtons = new ArrayList<>();
+    private final Map<String, HintableTextFieldWidget> textInputs = new LinkedHashMap<>();
     private final Map<String, String> defaultValues = new HashMap<>();
 
-    // Post-build configuration
     private final Map<String, String> toggleDependencies = new HashMap<>();
     private final Map<String, String> fieldDisablesToggle = new HashMap<>();
     private final Map<String, Map<String, Supplier<String>>> toggleAutoFill = new HashMap<>();
 
-    @Nullable
-    private String errorMessage;
+    private boolean suppressFieldResponder = false;
+    private boolean collectingEntries = false;
+    private boolean initialSnapshotCaptured = false;
+    private Map<String, String> baselineSnapshot = new HashMap<>();
 
-    // JEI state
     private boolean jeiActive = false;
     @Nullable
-    private HintableTextFieldWidget jeiTargetField = null;
+    private String jeiTargetFieldId = null;
 
-    // Suppress text field responder during programmatic setValue
-    private boolean suppressFieldResponder = false;
-
-    private CommandParamScreen(Component title, List<FieldDef> fieldDefs, Consumer<Map<String, String>> onExecute) {
-        super(title);
+    private CommandParamScreen(String titleKey, List<FieldDef> fieldDefs, Consumer<Map<String, String>> onExecute) {
+        super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, 360);
+        this.titleKey = titleKey;
         this.fieldDefs = fieldDefs;
         this.onExecute = onExecute;
     }
-
-    // -- Post-build configuration --
-
-    public void setDefaultValue(String fieldId, String value) {
-        defaultValues.put(fieldId, value);
-    }
-
-    /** Toggle childToggleId can only be true if parentToggleId is also true. */
-    public void addToggleDependency(String childToggleId, String parentToggleId) {
-        toggleDependencies.put(childToggleId, parentToggleId);
-    }
-
-    /** When the user edits fieldId, automatically set toggleId to false. */
-    public void addFieldDisablesToggle(String fieldId, String toggleId) {
-        fieldDisablesToggle.put(fieldId, toggleId);
-    }
-
-    /**
-     * When toggleId is turned ON, auto-fill fieldId with the value from supplier.
-     */
-    public void addToggleAutoFill(String toggleId, String fieldId, Supplier<String> valueSupplier) {
-        toggleAutoFill.computeIfAbsent(toggleId, k -> new HashMap<>()).put(fieldId, valueSupplier);
-    }
-
-    // -- Builder --
 
     public static Builder builder(String titleKey) {
         return new Builder(titleKey);
     }
 
+    public void setDefaultValue(String fieldId, String value) {
+        defaultValues.put(fieldId, value);
+    }
+
+    public void addToggleDependency(String childToggleId, String parentToggleId) {
+        toggleDependencies.put(childToggleId, parentToggleId);
+    }
+
+    public void addFieldDisablesToggle(String fieldId, String toggleId) {
+        fieldDisablesToggle.put(fieldId, toggleId);
+    }
+
+    public void addToggleAutoFill(String toggleId, String fieldId, Supplier<String> valueSupplier) {
+        toggleAutoFill.computeIfAbsent(toggleId, key -> new HashMap<>()).put(fieldId, valueSupplier);
+    }
+
+    @Override
+    protected void init() {
+        super.init();
+        if (!initialSnapshotCaptured) {
+            baselineSnapshot = snapshotState();
+            initialSnapshotCaptured = true;
+        }
+    }
+
+    @Override
+    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
+        textInputs.clear();
+        collectingEntries = true;
+
+        try {
+            for (FieldDef def : fieldDefs) {
+                if (def instanceof TextFieldDef textDef) {
+                    PlainTextListEntry entry = new PlainTextListEntry(
+                        textDef.labelKey,
+                        null,
+                        textDef.hintKey,
+                        "",
+                        value -> handleTextChanged(textDef.id, value));
+                    entry.field().setMaxLength(32500);
+                    if (textDef.jeiMode != null && JeiCompat.isAvailable()) {
+                        entry.addTrailingButton(
+                            20,
+                            () -> toggleJei(textDef.id),
+                            () -> "J",
+                            () -> jeiActive && textDef.id.equals(jeiTargetFieldId) ? 0x55FF55 : 0xAAAAFF,
+                            UIText.of("ponderer.ui.jei_browse.tooltip"));
+                    }
+                    if (textDef.sceneSelector) {
+                        entry.addTrailingButton(
+                            20,
+                            () -> openSceneSelector(textDef.id, textDef.sceneMultiSelect),
+                            () -> "S",
+                            () -> 0x80FFFF,
+                            null);
+                    }
+                    entries.add(entry);
+                    textInputs.put(textDef.id, entry.field());
+
+                    suppressFieldResponder = true;
+                    entry.field().setValue(currentTextValue(textDef.id));
+                    suppressFieldResponder = false;
+                    continue;
+                }
+
+                if (def instanceof ChoiceFieldDef choiceDef) {
+                    ensureChoiceState(choiceDef);
+                    entries.add(new ButtonListEntry(
+                        choiceDef.labelKey,
+                        null,
+                        140,
+                        () -> cycleChoice(choiceDef),
+                        () -> UIText.of(choiceDef.optionLabelKeys.get(choiceSelections.getOrDefault(choiceDef.id, 0))),
+                        () -> 0xFFFFFF,
+                        null).setControlWidthScale(0.7f));
+                    continue;
+                }
+
+                ToggleFieldDef toggleDef = (ToggleFieldDef) def;
+                toggleStates.putIfAbsent(toggleDef.id, toggleDef.defaultValue);
+                entries.add(new ToggleListEntry(
+                    toggleDef.labelKey,
+                    null,
+                    () -> toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue),
+                    () -> handleToggle(toggleDef.id)));
+            }
+        } finally {
+            collectingEntries = false;
+        }
+    }
+
+    @Override
+    protected boolean hasUnsavedChanges() {
+        return getUnsavedChangeCount() > 0;
+    }
+
+    @Override
+    protected int getUnsavedChangeCount() {
+        Map<String, String> snapshot = snapshotState();
+        int dirty = 0;
+        for (String key : baselineSnapshot.keySet()) {
+            if (!java.util.Objects.equals(baselineSnapshot.get(key), snapshot.get(key))) {
+                dirty++;
+            }
+        }
+        for (String key : snapshot.keySet()) {
+            if (!baselineSnapshot.containsKey(key)) {
+                dirty++;
+            }
+        }
+        return dirty;
+    }
+
+    @Override
+    protected boolean saveEdits() {
+        clearStatusMessages();
+        Map<String, String> values = new HashMap<>();
+
+        for (FieldDef def : fieldDefs) {
+            if (def instanceof TextFieldDef textDef) {
+                String value = currentTextValue(textDef.id).trim();
+                if (textDef.required && value.isEmpty()) {
+                    setErrorMessage(UIText.of("ponderer.ui.error.required_field", UIText.of(textDef.labelKey)));
+                    return false;
+                }
+                values.put(textDef.id, value);
+                continue;
+            }
+            if (def instanceof ChoiceFieldDef choiceDef) {
+                ensureChoiceState(choiceDef);
+                values.put(choiceDef.id, choiceDef.values.get(choiceSelections.get(choiceDef.id)));
+                continue;
+            }
+            ToggleFieldDef toggleDef = (ToggleFieldDef) def;
+            values.put(toggleDef.id, String.valueOf(toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue)));
+        }
+
+        if (jeiActive) {
+            deactivateJei();
+        }
+        Minecraft.getInstance().setScreen(null);
+        onExecute.accept(values);
+        return true;
+    }
+
+    @Override
+    protected void discardEdits() {
+        clearStatusMessages();
+        restoreSnapshot(baselineSnapshot);
+        rebuildEntries(currentListScroll());
+    }
+
+    @Override
+    protected int getEntryHeight() {
+        return 40;
+    }
+
+    @Override
+    public void removed() {
+        super.removed();
+        if (jeiActive) {
+            deactivateJei();
+        }
+    }
+
+    @Override
+    @Nullable
+    public HintableTextFieldWidget getJeiTargetField() {
+        return jeiTargetFieldId == null ? null : textInputs.get(jeiTargetFieldId);
+    }
+
+    @Override
+    public void deactivateJei() {
+        jeiActive = false;
+        jeiTargetFieldId = null;
+        JeiCompat.clearActiveEditor();
+    }
+
+    @Override
+    public void showJeiIncompatibleWarning(IdFieldMode mode) {
+        setErrorMessage(switch (mode) {
+            case BLOCK -> UIText.of("ponderer.ui.jei.error.not_block");
+            case ENTITY -> UIText.of("ponderer.ui.jei.error.not_spawn_egg");
+            case ITEM, INGREDIENT -> null;
+        });
+    }
+
+    @Override
+    public int getGuiLeft() {
+        return width / 2 - currentListWidthValue() / 2 - 40;
+    }
+
+    @Override
+    public int getGuiTop() {
+        return 35;
+    }
+
+    @Override
+    public int getGuiWidth() {
+        return currentListWidthValue() + 80;
+    }
+
+    @Override
+    public int getGuiHeight() {
+        return height - 60;
+    }
+
+    private void handleTextChanged(String fieldId, String value) {
+        textValues.put(fieldId, value);
+        clearStatusMessages();
+        if (suppressFieldResponder) {
+            return;
+        }
+
+        String toggleToDisable = fieldDisablesToggle.get(fieldId);
+        if (toggleToDisable == null || collectingEntries) {
+            return;
+        }
+        toggleStates.put(toggleToDisable, false);
+        for (var dependency : toggleDependencies.entrySet()) {
+            if (dependency.getValue().equals(toggleToDisable)) {
+                toggleStates.put(dependency.getKey(), false);
+            }
+        }
+        rebuildEntries(currentListScroll());
+    }
+
+    private void handleToggle(String id) {
+        boolean newState = !toggleStates.getOrDefault(id, false);
+        String parent = toggleDependencies.get(id);
+        if (parent != null && newState && !toggleStates.getOrDefault(parent, false)) {
+            return;
+        }
+
+        toggleStates.put(id, newState);
+        if (newState) {
+            Map<String, Supplier<String>> fills = toggleAutoFill.get(id);
+            if (fills != null) {
+                for (var fill : fills.entrySet()) {
+                    setTextValue(fill.getKey(), fill.getValue().get());
+                }
+            }
+        } else {
+            for (var dependency : toggleDependencies.entrySet()) {
+                if (dependency.getValue().equals(id)) {
+                    toggleStates.put(dependency.getKey(), false);
+                }
+            }
+        }
+
+        clearStatusMessages();
+        rebuildEntries(currentListScroll());
+    }
+
+    private void toggleJei(String fieldId) {
+        FieldDef def = fieldDefs.stream()
+            .filter(field -> field instanceof TextFieldDef textDef && textDef.id.equals(fieldId))
+            .findFirst()
+            .orElse(null);
+        if (!(def instanceof TextFieldDef textDef) || textDef.jeiMode == null) {
+            return;
+        }
+
+        if (jeiActive && fieldId.equals(jeiTargetFieldId)) {
+            deactivateJei();
+            rebuildEntries(currentListScroll());
+            return;
+        }
+
+        jeiActive = true;
+        jeiTargetFieldId = fieldId;
+        JeiCompat.setActiveScreen(this, textDef.jeiMode);
+        rebuildEntries(currentListScroll());
+    }
+
+    private void openSceneSelector(String targetFieldId, boolean multiSelect) {
+        List<DslScene> scenes = SceneRuntime.getScenes();
+        if (scenes.isEmpty()) {
+            setErrorMessage(UIText.of("ponderer.ui.function_page.no_scenes"));
+            return;
+        }
+
+        if (multiSelect) {
+            Minecraft.getInstance().setScreen(new PonderItemGridScreen(
+                selectedIds -> {
+                    setTextValue(targetFieldId, String.join(",", selectedIds));
+                    Minecraft.getInstance().setScreen(this);
+                },
+                () -> Minecraft.getInstance().setScreen(this),
+                true));
+            return;
+        }
+
+        Minecraft.getInstance().setScreen(new PonderItemGridScreen(
+            sceneId -> {
+                setTextValue(targetFieldId, sceneId);
+                Minecraft.getInstance().setScreen(this);
+            },
+            () -> Minecraft.getInstance().setScreen(this)));
+    }
+
+    private void cycleChoice(ChoiceFieldDef choiceDef) {
+        ensureChoiceState(choiceDef);
+        int next = (choiceSelections.get(choiceDef.id) + 1) % choiceDef.values.size();
+        choiceSelections.put(choiceDef.id, next);
+        clearStatusMessages();
+        rebuildEntries(currentListScroll());
+    }
+
+    private void ensureChoiceState(ChoiceFieldDef choiceDef) {
+        choiceSelections.computeIfAbsent(choiceDef.id, ignored -> {
+            String baselineValue = defaultValues.get(choiceDef.id);
+            if (baselineValue != null) {
+                int index = choiceDef.values.indexOf(baselineValue);
+                if (index >= 0) {
+                    return index;
+                }
+            }
+            return 0;
+        });
+    }
+
+    private void restoreSnapshot(Map<String, String> snapshot) {
+        for (FieldDef def : fieldDefs) {
+            if (def instanceof TextFieldDef textDef) {
+                textValues.put(textDef.id, snapshot.getOrDefault(textDef.id, defaultValues.getOrDefault(textDef.id, "")));
+                continue;
+            }
+            if (def instanceof ChoiceFieldDef choiceDef) {
+                String targetValue = snapshot.get(choiceDef.id);
+                int index = targetValue == null ? 0 : choiceDef.values.indexOf(targetValue);
+                choiceSelections.put(choiceDef.id, Math.max(0, index));
+                continue;
+            }
+            ToggleFieldDef toggleDef = (ToggleFieldDef) def;
+            boolean state = Boolean.parseBoolean(snapshot.getOrDefault(toggleDef.id, String.valueOf(toggleDef.defaultValue)));
+            toggleStates.put(toggleDef.id, state);
+        }
+    }
+
+    private Map<String, String> snapshotState() {
+        Map<String, String> snapshot = new LinkedHashMap<>();
+        for (FieldDef def : fieldDefs) {
+            if (def instanceof TextFieldDef textDef) {
+                snapshot.put(textDef.id, currentTextValue(textDef.id));
+                continue;
+            }
+            if (def instanceof ChoiceFieldDef choiceDef) {
+                ensureChoiceState(choiceDef);
+                snapshot.put(choiceDef.id, choiceDef.values.get(choiceSelections.get(choiceDef.id)));
+                continue;
+            }
+            ToggleFieldDef toggleDef = (ToggleFieldDef) def;
+            snapshot.put(toggleDef.id, String.valueOf(toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue)));
+        }
+        return snapshot;
+    }
+
+    private String currentTextValue(String fieldId) {
+        return textValues.getOrDefault(fieldId, defaultValues.getOrDefault(fieldId, ""));
+    }
+
+    private void setTextValue(String fieldId, @Nullable String value) {
+        textValues.put(fieldId, value == null ? "" : value);
+        HintableTextFieldWidget field = textInputs.get(fieldId);
+        if (field != null) {
+            suppressFieldResponder = true;
+            field.setValue(value == null ? "" : value);
+            suppressFieldResponder = false;
+        }
+    }
+
     public static class Builder {
         private final String titleKey;
         private final List<FieldDef> fields = new ArrayList<>();
-        private Consumer<Map<String, String>> onExecute = m -> {
+        private Consumer<Map<String, String>> onExecute = ignored -> {
         };
 
         private Builder(String titleKey) {
@@ -174,7 +469,8 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
             return this;
         }
 
-        public Builder sceneIdField(String id, String labelKey, String hintKey, boolean required, boolean multiSelect) {
+        public Builder sceneIdField(String id, String labelKey, String hintKey, boolean required,
+                                    boolean multiSelect) {
             fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, multiSelect));
             return this;
         }
@@ -195,567 +491,7 @@ public class CommandParamScreen extends AbstractSimiScreen implements JeiAwareSc
         }
 
         public CommandParamScreen build() {
-            return new CommandParamScreen(Component.translatable(titleKey), List.copyOf(fields), onExecute);
+            return new CommandParamScreen(titleKey, List.copyOf(fields), onExecute);
         }
     }
-
-    // -- Unified button helpers --
-
-    private PonderButton createActionButton(int x, int y, String label,
-            int inactiveColor, int activeColor,
-            BooleanSupplier isActive, Runnable callback) {
-        PonderButton btn = new PonderButton(x, y + BTN_Y_OFFSET, ACTION_BTN_W, ACTION_BTN_H);
-        btn.withCallback(callback);
-        addRenderableWidget(btn);
-        labeledButtons.add(new LabeledButton(btn, label, inactiveColor, activeColor, isActive));
-        return btn;
-    }
-
-    private BoxWidget createToggleWidget(int fieldX, int y, String id, boolean defaultValue) {
-        toggleStates.putIfAbsent(id, defaultValue);
-        PonderButton toggle = new PonderButton(fieldX + 3, y + BTN_Y_OFFSET, TOGGLE_SIZE, TOGGLE_SIZE);
-        toggle.withCallback(() -> handleToggle(id));
-        addRenderableWidget(toggle);
-        toggleWidgets.put(id, toggle);
-        return toggle;
-    }
-
-    private void handleToggle(String id) {
-        boolean newState = !toggleStates.getOrDefault(id, false);
-        // Check dependency: can't enable if parent is off
-        String parent = toggleDependencies.get(id);
-        if (parent != null && newState && !toggleStates.getOrDefault(parent, false)) {
-            return;
-        }
-        toggleStates.put(id, newState);
-        if (newState) {
-            // Auto-fill fields when toggle is turned ON
-            Map<String, Supplier<String>> fills = toggleAutoFill.get(id);
-            if (fills != null) {
-                for (var fe : fills.entrySet()) {
-                    HintableTextFieldWidget field = textInputs.get(fe.getKey());
-                    if (field != null) {
-                        String val = fe.getValue().get();
-                        if (val != null && !val.isEmpty()) {
-                            suppressFieldResponder = true;
-                            field.setValue(val);
-                            suppressFieldResponder = false;
-                        }
-                    }
-                }
-            }
-        } else {
-            // If toggled off, cascade to disable all children
-            for (var entry : toggleDependencies.entrySet()) {
-                if (entry.getValue().equals(id)) {
-                    toggleStates.put(entry.getKey(), false);
-                }
-            }
-        }
-    }
-
-    private void renderToggleState(GuiGraphics graphics, BoxWidget toggle, boolean state) {
-        String label = state ? "V" : "X";
-        int color = state ? 0xFF_55FF55 : 0xFF_FF5555;
-        var font = Minecraft.getInstance().font;
-        graphics.drawCenteredString(font, label, toggle.getX() + 7, toggle.getY() + 2, color);
-    }
-
-    // -- Layout --
-
-    private int getContentHeight() {
-        return 36 + fieldDefs.size() * ROW_H + BOTTOM_H;
-    }
-
-    private int getWindowHeight() {
-        int contentH = getContentHeight();
-        if (height <= 0) {
-            maxScroll = 0;
-            return contentH;
-        }
-        int maxH = height - UILayoutConstants.SCREEN_MARGIN * 2;
-        if (contentH <= maxH) {
-            maxScroll = 0;
-            return contentH;
-        }
-        maxScroll = contentH - maxH;
-        scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
-        return maxH;
-    }
-
-    private boolean isScrollEnabled() {
-        return maxScroll > 0;
-    }
-
-    private int viewportTop() { return guiTop + FORM_TOP_Y; }
-    private int viewportBottom() { return guiTop + getWindowHeight() - BOTTOM_H; }
-
-    private void updateScrollPositions() {
-        if (formWidgetRecords.isEmpty()) return;
-        int vTop = viewportTop();
-        int vBot = viewportBottom();
-        for (FormWidgetRecord rec : formWidgetRecords) {
-            int newY = guiTop + FORM_TOP_Y + rec.contentOffsetY - scrollOffset;
-            rec.widget.setY(newY);
-            if (isScrollEnabled()) {
-                rec.widget.visible = (newY + rec.widget.getHeight() > vTop) && (newY < vBot);
-            } else {
-                rec.widget.visible = true;
-            }
-        }
-    }
-
-    @Override
-    protected void init() {
-        setWindowSize(WIDTH, getWindowHeight());
-        super.init();
-
-        textInputs.clear();
-        toggleWidgets.clear();
-        labeledButtons.clear();
-        clickableButtons.clear();
-        formWidgetRecords.clear();
-        errorMessage = null;
-
-        int wH = getWindowHeight();
-        int childCountBeforeForm = children().size();
-        int fieldY = guiTop + FORM_TOP_Y;
-
-        for (FieldDef def : fieldDefs) {
-            int fieldX = guiLeft + MARGIN + LABEL_W + 4;
-            int fieldW = WIDTH - MARGIN * 2 - LABEL_W - 4;
-
-            if (def instanceof TextFieldDef tf) {
-                // Count extra buttons to reserve space
-                int extraBtns = 0;
-                if (tf.jeiMode != null && JeiCompat.isAvailable())
-                    extraBtns++;
-                if (tf.sceneSelector)
-                    extraBtns++;
-                int btnSpace = extraBtns > 0
-                        ? FIELD_BTN_GAP + extraBtns * ACTION_BTN_W + Math.max(0, extraBtns - 1) * BTN_GAP
-                        : 0;
-                int actualFieldW = fieldW - btnSpace;
-
-                var font = Minecraft.getInstance().font;
-                HintableTextFieldWidget field = new SoftHintTextFieldWidget(font, fieldX, fieldY + 2, actualFieldW,
-                        FIELD_H);
-                field.setHint(UIText.of(tf.hintKey));
-                field.setMaxLength(32500);
-                addRenderableWidget(field);
-                textInputs.put(tf.id, field);
-
-                // Apply default value (with responder suppressed)
-                String defaultVal = defaultValues.get(tf.id);
-                if (defaultVal != null && !defaultVal.isEmpty()) {
-                    suppressFieldResponder = true;
-                    field.setValue(defaultVal);
-                    suppressFieldResponder = false;
-                }
-
-                // Attach responder to disable toggle when user edits manually
-                String toggleToDisable = fieldDisablesToggle.get(tf.id);
-                if (toggleToDisable != null) {
-                    field.setResponder(text -> {
-                        if (!suppressFieldResponder) {
-                            toggleStates.put(toggleToDisable, false);
-                            // Cascade to children
-                            for (var dep : toggleDependencies.entrySet()) {
-                                if (dep.getValue().equals(toggleToDisable)) {
-                                    toggleStates.put(dep.getKey(), false);
-                                }
-                            }
-                        }
-                    });
-                }
-
-                int btnX = fieldX + actualFieldW + FIELD_BTN_GAP;
-
-                // JEI button
-                if (tf.jeiMode != null && JeiCompat.isAvailable()) {
-                    final IdFieldMode mode = tf.jeiMode;
-                    final HintableTextFieldWidget thisField = field;
-                    createActionButton(btnX, fieldY, "J", 0xAAAAFF, 0x55FF55,
-                            () -> jeiActive && jeiTargetField == thisField,
-                            () -> {
-                                if (jeiActive && jeiTargetField == thisField) {
-                                    deactivateJei();
-                                } else {
-                                    jeiActive = true;
-                                    jeiTargetField = thisField;
-                                    JeiCompat.setActiveScreen(this, mode);
-                                }
-                            });
-                    btnX += ACTION_BTN_W + BTN_GAP;
-                }
-
-                // Scene selector button
-                if (tf.sceneSelector) {
-                    final String fieldId = tf.id;
-                    final boolean multiSelect = tf.sceneMultiSelect;
-                    createActionButton(btnX, fieldY, "S", 0x80FFFF, 0x80FFFF,
-                            () -> false,
-                            () -> openSceneSelector(fieldId, multiSelect));
-                }
-            } else if (def instanceof ChoiceFieldDef cf) {
-                choiceSelections.putIfAbsent(cf.id, 0);
-                final ChoiceFieldDef choiceDef = cf;
-                clickableButtons.add(new ClickableButton(fieldX, fieldY + 1, fieldW, FIELD_H + 2,
-                        () -> UIText.of(choiceDef.optionLabelKeys.get(choiceSelections.getOrDefault(choiceDef.id, 0))),
-                        () -> cycleChoice(choiceDef)));
-            } else if (def instanceof ToggleFieldDef tg) {
-                createToggleWidget(fieldX, fieldY, tg.id, tg.defaultValue);
-            }
-            fieldY += ROW_H;
-        }
-
-        // Track form widgets for scroll repositioning
-        List<? extends GuiEventListener> allChildren = children();
-        for (int i = childCountBeforeForm; i < allChildren.size(); i++) {
-            if (allChildren.get(i) instanceof AbstractWidget aw) {
-                int contentOffsetY = aw.getY() - guiTop - FORM_TOP_Y;
-                formWidgetRecords.add(new FormWidgetRecord(aw, contentOffsetY));
-            }
-        }
-        updateScrollPositions();
-
-        // Focus first text field
-        for (HintableTextFieldWidget field : textInputs.values()) {
-            field.setFocused(true);
-            setFocused(field);
-            break;
-        }
-
-        // Execute button (fixed, not scrollable)
-        int btnY = guiTop + wH - 32;
-        clickableButtons.add(new ClickableButton(guiLeft + MARGIN, btnY, 70, 20,
-                () -> UIText.of("ponderer.ui.function_page.execute"), this::doExecute, false));
-
-        // Back button (fixed, not scrollable)
-        clickableButtons.add(new ClickableButton(guiLeft + WIDTH - MARGIN - 70, btnY, 70, 20,
-                () -> UIText.of("ponderer.ui.function_page.back"), this::goBack, false));
-    }
-
-    // -- Scene selector --
-
-    private void openSceneSelector(String targetFieldId, boolean multiSelect) {
-        List<DslScene> scenes = SceneRuntime.getScenes();
-        if (scenes.isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.function_page.no_scenes");
-            return;
-        }
-        saveCurrentValues();
-        CommandParamScreen self = this;
-        if (multiSelect) {
-            Minecraft.getInstance().setScreen(new PonderItemGridScreen(
-                    selectedIds -> {
-                        String joined = String.join(",", selectedIds);
-                        self.defaultValues.put(targetFieldId, joined);
-                        Minecraft.getInstance().setScreen(self);
-                    },
-                    () -> Minecraft.getInstance().setScreen(self),
-                    true));
-        } else {
-            Minecraft.getInstance().setScreen(new PonderItemGridScreen(
-                    sceneId -> {
-                        self.defaultValues.put(targetFieldId, sceneId);
-                        Minecraft.getInstance().setScreen(self);
-                    },
-                    () -> Minecraft.getInstance().setScreen(self)));
-        }
-    }
-
-    private void saveCurrentValues() {
-        for (var entry : textInputs.entrySet()) {
-            String value = entry.getValue().getValue();
-            if (value != null && !value.isEmpty()) {
-                defaultValues.put(entry.getKey(), value);
-            } else {
-                defaultValues.remove(entry.getKey());
-            }
-        }
-    }
-
-    // -- Choice cycling --
-
-    private void cycleChoice(ChoiceFieldDef cf) {
-        int sel = choiceSelections.getOrDefault(cf.id, 0);
-        sel = (sel + 1) % cf.values.size();
-        choiceSelections.put(cf.id, sel);
-    }
-
-    // -- Execute / Back --
-
-    private void doExecute() {
-        Map<String, String> values = new HashMap<>();
-        for (FieldDef def : fieldDefs) {
-            if (def instanceof TextFieldDef tf) {
-                String val = textInputs.get(tf.id).getValue().trim();
-                if (tf.required && val.isEmpty()) {
-                    errorMessage = UIText.of("ponderer.ui.error.required_field", UIText.of(tf.labelKey));
-                    return;
-                }
-                values.put(tf.id, val);
-            } else if (def instanceof ChoiceFieldDef cf) {
-                int sel = choiceSelections.getOrDefault(cf.id, 0);
-                values.put(cf.id, cf.values.get(sel));
-            } else if (def instanceof ToggleFieldDef tg) {
-                values.put(tg.id, String.valueOf(toggleStates.getOrDefault(tg.id, tg.defaultValue)));
-            }
-        }
-        errorMessage = null;
-        Minecraft.getInstance().setScreen(null);
-        onExecute.accept(values);
-    }
-
-    private void goBack() {
-        if (jeiActive)
-            deactivateJei();
-        Minecraft.getInstance().setScreen(new FunctionScreen());
-    }
-
-    // -- Rendering --
-
-    @Override
-    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        int wH = getWindowHeight();
-
-        // Background panel
-        new BoxElement()
-                .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
-                .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
-                .at(guiLeft, guiTop, 0)
-                .withBounds(WIDTH, wH)
-                .render(graphics);
-
-        var font = Minecraft.getInstance().font;
-
-        // Title
-        graphics.drawCenteredString(font, this.title, guiLeft + WIDTH / 2, guiTop + 8, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WIDTH - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
-
-        // Scrollable field labels
-        if (isScrollEnabled()) {
-            graphics.enableScissor(guiLeft, viewportTop(), guiLeft + WIDTH, viewportBottom());
-            graphics.pose().pushPose();
-            graphics.pose().translate(0, -scrollOffset, 0);
-        }
-
-        int fieldY = guiTop + FORM_TOP_Y;
-        for (FieldDef def : fieldDefs) {
-            String labelKey;
-            if (def instanceof TextFieldDef tf)
-                labelKey = tf.labelKey;
-            else if (def instanceof ChoiceFieldDef cf)
-                labelKey = cf.labelKey;
-            else if (def instanceof ToggleFieldDef tg)
-                labelKey = tg.labelKey;
-            else
-                labelKey = "";
-            graphics.drawString(font, UIText.of(labelKey), guiLeft + MARGIN, fieldY + 5, UILayoutConstants.COLOR_LABEL);
-            fieldY += ROW_H;
-        }
-
-        // Scrollable clickable buttons (choice cycle buttons in form area)
-        for (ClickableButton btn : clickableButtons) {
-            if (!btn.scrollable) continue;
-            renderClickableButton(graphics, btn, mouseX, mouseY + scrollOffset, font);
-        }
-
-        if (isScrollEnabled()) {
-            graphics.pose().popPose();
-            graphics.disableScissor();
-            renderScrollbar(graphics);
-        }
-
-        // Error message (fixed)
-        if (errorMessage != null) {
-            graphics.drawCenteredString(font, errorMessage, guiLeft + WIDTH / 2, guiTop + wH - 44, 0xFF6666);
-        }
-
-        // Fixed clickable buttons (execute/back)
-        for (ClickableButton btn : clickableButtons) {
-            if (btn.scrollable) continue;
-            renderClickableButton(graphics, btn, mouseX, mouseY, font);
-        }
-    }
-
-    private void renderClickableButton(GuiGraphics graphics, ClickableButton btn, int mouseX, int mouseY,
-            net.minecraft.client.gui.Font font) {
-        boolean hovered = mouseX >= btn.x && mouseX < btn.x + btn.w
-                && mouseY >= btn.y && mouseY < btn.y + btn.h;
-        int bgColor = hovered ? 0x80_4466aa : 0x60_333366;
-        int borderColor = hovered ? 0xCC_6688cc : 0x60_555588;
-        graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h, bgColor);
-        graphics.fill(btn.x, btn.y, btn.x + btn.w, btn.y + 1, borderColor);
-        graphics.fill(btn.x, btn.y + btn.h - 1, btn.x + btn.w, btn.y + btn.h, borderColor);
-        graphics.fill(btn.x, btn.y, btn.x + 1, btn.y + btn.h, borderColor);
-        graphics.fill(btn.x + btn.w - 1, btn.y, btn.x + btn.w, btn.y + btn.h, borderColor);
-        String label = btn.labelSupplier.get();
-        int textWidth = font.width(label);
-        int textX = btn.x + (btn.w - textWidth) / 2;
-        int textY = btn.y + (btn.h - font.lineHeight) / 2 + 1;
-        graphics.drawString(font, label, textX, textY, hovered ? 0xFFFFFF : UILayoutConstants.COLOR_LABEL);
-    }
-
-    private void renderScrollbar(GuiGraphics graphics) {
-        if (maxScroll <= 0) return;
-        int barX = guiLeft + WIDTH - UILayoutConstants.SCROLLBAR_W - 2;
-        int vTop = viewportTop();
-        int vBot = viewportBottom();
-        int trackH = vBot - vTop;
-        graphics.fill(barX, vTop, barX + UILayoutConstants.SCROLLBAR_W, vBot, UILayoutConstants.COLOR_SCROLLBAR_BG);
-        int contentH = fieldDefs.size() * ROW_H;
-        if (contentH <= 0) return;
-        int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * trackH / contentH);
-        int thumbY = vTop + (int) ((float) scrollOffset / maxScroll * (trackH - thumbH));
-        graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
-    }
-
-    @Override
-    protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        // Foreground overlay (above widgets, z=500)
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 500);
-
-        var font = Minecraft.getInstance().font;
-
-        // Scissor form foreground when scrolling
-        if (isScrollEnabled()) {
-            graphics.enableScissor(guiLeft, viewportTop(), guiLeft + WIDTH, viewportBottom());
-        }
-
-        // Unified toggle rendering
-        for (var entry : toggleWidgets.entrySet()) {
-            boolean state = toggleStates.getOrDefault(entry.getKey(), false);
-            renderToggleState(graphics, entry.getValue(), state);
-        }
-
-        // Unified action button label rendering
-        for (LabeledButton lb : labeledButtons) {
-            int color = lb.isActive.getAsBoolean() ? lb.activeColor : lb.inactiveColor;
-            graphics.drawCenteredString(font, lb.label,
-                    lb.button.getX() + 7, lb.button.getY() + 2, color);
-        }
-
-        if (isScrollEnabled()) {
-            graphics.disableScissor();
-        }
-
-        graphics.pose().popPose();
-    }
-
-    // -- Input handling --
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0) {
-            for (ClickableButton btn : clickableButtons) {
-                double adjustedY = btn.scrollable ? mouseY + scrollOffset : mouseY;
-                if (mouseX >= btn.x && mouseX < btn.x + btn.w
-                        && adjustedY >= btn.y && adjustedY < btn.y + btn.h) {
-                    btn.action.run();
-                    return true;
-                }
-            }
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (isScrollEnabled()) {
-            int oldOffset = scrollOffset;
-            scrollOffset = Mth.clamp(scrollOffset - (int)(delta * UILayoutConstants.SCROLL_SPEED), 0, maxScroll);
-            if (scrollOffset != oldOffset) {
-                updateScrollPositions();
-                return true;
-            }
-        }
-        return super.mouseScrolled(mouseX, mouseY, delta);
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE)
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-            doExecute();
-            return true;
-        }
-        if (getFocused() != null && getFocused().keyPressed(keyCode, scanCode, modifiers))
-            return true;
-        if (getFocused() instanceof net.minecraft.client.gui.components.EditBox)
-            return true;
-        return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        if (getFocused() != null && getFocused().charTyped(codePoint, modifiers))
-            return true;
-        return super.charTyped(codePoint, modifiers);
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
-    @Override
-    public void onClose() {
-        goBack();
-    }
-
-    @Override
-    public void removed() {
-        super.removed();
-        if (jeiActive)
-            deactivateJei();
-    }
-
-    // -- JeiAwareScreen implementation --
-
-    @Override
-    @Nullable
-    public HintableTextFieldWidget getJeiTargetField() {
-        return jeiTargetField;
-    }
-
-    @Override
-    public void deactivateJei() {
-        jeiActive = false;
-        jeiTargetField = null;
-        JeiCompat.clearActiveEditor();
-    }
-
-    @Override
-    public void showJeiIncompatibleWarning(IdFieldMode mode) {
-        errorMessage = switch (mode) {
-            case BLOCK -> UIText.of("ponderer.ui.jei.error.not_block");
-            case ENTITY -> UIText.of("ponderer.ui.jei.error.not_spawn_egg");
-            case ITEM, INGREDIENT -> null;
-        };
-    }
-
-    @Override
-    public int getGuiLeft() {
-        return guiLeft;
-    }
-
-    @Override
-    public int getGuiTop() {
-        return guiTop;
-    }
-
-    @Override
-    public int getGuiWidth() {
-        return WIDTH;
-    }
-
-    @Override
-    public int getGuiHeight() {
-        return getWindowHeight();
-    }
-
 }

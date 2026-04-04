@@ -13,7 +13,6 @@ import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
-import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
@@ -98,7 +97,7 @@ public class PondererForgeClient {
             mc.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
         }
         if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
-            ScreenOpener.transitionTo(new FunctionScreen());
+            mc.setScreen(new FunctionScreen());
         }
     }
 

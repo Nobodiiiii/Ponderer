@@ -13,7 +13,6 @@ import com.nododiiiii.ponderer.registry.ModItems;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
-import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.fabricmc.api.ClientModInitializer;
@@ -96,7 +95,7 @@ public class PondererFabricClient implements ClientModInitializer {
             // Key binding
             if (client.player != null && client.screen == null) {
                 if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
-                    ScreenOpener.transitionTo(new FunctionScreen());
+                    client.setScreen(new FunctionScreen());
                 }
 
             }

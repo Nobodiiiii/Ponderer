@@ -7,6 +7,10 @@ import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.theme.Color;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
+import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
+import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
+import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.ChatFormatting;
@@ -835,14 +839,10 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
      * List screen for selecting one or more scene keys from a single item
      * that is associated with multiple scenes.
      */
-    static class SceneIdListScreen extends AbstractSimiScreen {
+    static class SceneIdListScreen extends AbstractDeclarativeListScreen {
         public enum SelectMode {
             SINGLE, MULTI
         }
-
-        private static final int LIST_W = 220;
-        private static final int ROW_HEIGHT = 16;
-        private static final int VISIBLE_ROWS = 10;
 
         private final List<String> sceneKeys;
         private final SelectMode selectMode;
@@ -850,9 +850,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         private final @Nullable Consumer<Set<String>> onSelectMulti;
         private final Runnable onCancel;
         private final Set<String> selectedItems = new HashSet<>();
-        private int scrollOffset = 0;
-        private PonderButton confirmButton;
-        private PonderButton cancelButton;
+        private final Set<String> baselineSelectedItems = new HashSet<>();
 
         SceneIdListScreen(List<String> sceneKeys, Consumer<String> onSelect, Runnable onCancel) {
             this(sceneKeys, SelectMode.SINGLE, onSelect, null, null, onCancel);
@@ -863,7 +861,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                 @Nullable Consumer<Set<String>> onSelectMulti,
                 @Nullable Set<String> preSelected,
                 Runnable onCancel) {
-            super(Component.translatable("ponderer.ui.item_grid.select_scene_id"));
+            super(null, "ponderer.ui.scope.editor", "ponderer.ui.item_grid.select_scene_id", 360);
             this.sceneKeys = sceneKeys;
             this.selectMode = selectMode;
             this.onSelectSingle = onSelectSingle;
@@ -871,138 +869,110 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
             this.onCancel = onCancel;
             if (preSelected != null) {
                 this.selectedItems.addAll(preSelected);
+                this.baselineSelectedItems.addAll(preSelected);
             }
-        }
-
-        private int getListWindowHeight() {
-            int rows = Math.min(sceneKeys.size(), VISIBLE_ROWS);
-            int h = 36 + rows * ROW_HEIGHT + 10;
-            if (selectMode == SelectMode.MULTI)
-                h += 30;
-            return h;
         }
 
         @Override
         protected void init() {
-            setWindowSize(LIST_W, getListWindowHeight());
             super.init();
-            if (selectMode == SelectMode.MULTI) {
-                int wH = getListWindowHeight();
-                confirmButton = new PonderButton(guiLeft + 30, guiTop + wH - 30, 50, 16);
-                confirmButton.withCallback(() -> {
-                    if (onSelectMulti != null)
-                        onSelectMulti.accept(selectedItems);
-                });
-                addRenderableWidget(confirmButton);
-                cancelButton = new PonderButton(guiLeft + LIST_W - 80, guiTop + wH - 30, 50, 16);
-                cancelButton.withCallback(this::onClose);
-                addRenderableWidget(cancelButton);
-            }
-        }
-
-        @Override
-        protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-            int wH = getListWindowHeight();
-            new BoxElement()
-                    .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
-                    .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
-                    .at(guiLeft, guiTop, 0)
-                    .withBounds(LIST_W, wH)
-                    .render(graphics);
-
-            var font = Minecraft.getInstance().font;
-            graphics.drawCenteredString(font, this.title, guiLeft + LIST_W / 2, guiTop + 8, 0xFFFFFF);
-            graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + LIST_W - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
-
-            if (selectMode == SelectMode.MULTI) {
-                String countText = UIText.of("ponderer.ui.item_grid.sub_selected",
-                        selectedItems.size(), sceneKeys.size());
-                graphics.drawString(font, countText, guiLeft + 10, guiTop + 23, 0x999999);
-            }
-
-            int rows = Math.min(sceneKeys.size(), VISIBLE_ROWS);
-            for (int i = 0; i < rows; i++) {
-                int idx = scrollOffset + i;
-                if (idx >= sceneKeys.size())
-                    break;
-                int rowY = guiTop + 26 + i * ROW_HEIGHT;
-                boolean hovered = mouseX >= guiLeft + 6 && mouseX < guiLeft + LIST_W - 6
-                        && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-                String sceneKey = sceneKeys.get(idx);
-                boolean isSelected = selectedItems.contains(sceneKey);
-
-                if (hovered || isSelected) {
-                    int color = hovered ? 0x60_FFFFFF : 0x40_4080FF;
-                    graphics.fill(guiLeft + 6, rowY, guiLeft + LIST_W - 6, rowY + ROW_HEIGHT, color);
+            if (selectMode == SelectMode.SINGLE) {
+                if (saveChanges != null) {
+                    saveChanges.visible = false;
+                    saveChanges.active = false;
                 }
-                if (selectMode == SelectMode.MULTI) {
-                    String prefix = isSelected ? "\u2713 " : "  ";
-                    graphics.drawString(font, prefix + sceneKey, guiLeft + 10, rowY + 4,
-                            hovered ? 0x80FFFF : UILayoutConstants.COLOR_LABEL);
-                } else {
-                    graphics.drawString(font, sceneKey, guiLeft + 10, rowY + 4,
-                            hovered ? 0x80FFFF : UILayoutConstants.COLOR_LABEL);
+                if (discardChanges != null) {
+                    discardChanges.visible = false;
+                    discardChanges.active = false;
                 }
             }
         }
 
         @Override
-        protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        protected void collectEntries(List<ConfigScreenList.Entry> entries) {
             if (selectMode == SelectMode.MULTI) {
-                var font = Minecraft.getInstance().font;
-                graphics.pose().pushPose();
-                graphics.pose().translate(0, 0, 500);
-                graphics.drawCenteredString(font, UIText.of("ponderer.ui.confirm"),
-                        confirmButton.getX() + 25, confirmButton.getY() + 4, 0xFFFFFF);
-                graphics.drawCenteredString(font, UIText.of("ponderer.ui.cancel"),
-                        cancelButton.getX() + 25, cancelButton.getY() + 4, 0xFFFFFF);
-                graphics.pose().popPose();
+                entries.add(new SectionHeaderListEntry(
+                    UIText.of("ponderer.ui.item_grid.sub_selected", selectedItems.size(), sceneKeys.size())));
+            }
+
+            for (String sceneKey : sceneKeys) {
+                entries.add(new FullButtonListEntry(
+                    () -> selectMode == SelectMode.MULTI && selectedItems.contains(sceneKey)
+                        ? "[x] " + sceneKey
+                        : sceneKey,
+                    null,
+                    () -> handleSceneClick(sceneKey),
+                    () -> selectMode == SelectMode.MULTI && selectedItems.contains(sceneKey) ? 0x80FFFF : 0xFFFFFF,
+                    () -> true));
             }
         }
 
         @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (button == 0) {
-                int rows = Math.min(sceneKeys.size(), VISIBLE_ROWS);
-                for (int i = 0; i < rows; i++) {
-                    int idx = scrollOffset + i;
-                    if (idx >= sceneKeys.size())
-                        break;
-                    int rowY = guiTop + 26 + i * ROW_HEIGHT;
-                    if (mouseX >= guiLeft + 6 && mouseX < guiLeft + LIST_W - 6
-                            && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
-                        String sceneKey = sceneKeys.get(idx);
-                        if (selectMode == SelectMode.SINGLE) {
-                            if (onSelectSingle != null)
-                                onSelectSingle.accept(sceneKey);
-                        } else {
-                            if (selectedItems.contains(sceneKey))
-                                selectedItems.remove(sceneKey);
-                            else
-                                selectedItems.add(sceneKey);
-                        }
-                        return true;
+        protected boolean hasUnsavedChanges() {
+            return selectMode == SelectMode.MULTI && !baselineSelectedItems.equals(selectedItems);
+        }
+
+        @Override
+        protected int getUnsavedChangeCount() {
+            return hasUnsavedChanges() ? 1 : 0;
+        }
+
+        @Override
+        protected boolean saveEdits() {
+            if (selectMode != SelectMode.MULTI || onSelectMulti == null) {
+                return false;
+            }
+            onSelectMulti.accept(new HashSet<>(selectedItems));
+            return true;
+        }
+
+        @Override
+        protected void discardEdits() {
+            selectedItems.clear();
+            selectedItems.addAll(baselineSelectedItems);
+            rebuildEntries(currentListScroll());
+        }
+
+        @Override
+        protected int getEntryHeight() {
+            return 34;
+        }
+
+        @Override
+        protected void attemptBackToParent() {
+            if (!hasUnsavedChanges()) {
+                onCancel.run();
+                return;
+            }
+            showLeavingPrompt(response -> {
+                if (response == net.createmod.catnip.gui.ConfirmationScreen.Response.Cancel) {
+                    return;
+                }
+                if (response == net.createmod.catnip.gui.ConfirmationScreen.Response.Confirm) {
+                    if (!saveEdits()) {
+                        return;
                     }
+                } else {
+                    discardEdits();
                 }
+                onCancel.run();
+            });
+        }
+
+        private void handleSceneClick(String sceneKey) {
+            if (selectMode == SelectMode.SINGLE) {
+                if (onSelectSingle != null) {
+                    onSelectSingle.accept(sceneKey);
+                }
+                return;
             }
-            return super.mouseClicked(mouseX, mouseY, button);
-        }
 
-        @Override
-        public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-            int maxScroll = Math.max(0, sceneKeys.size() - VISIBLE_ROWS);
-            scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - (int) delta));
-            return true;
-        }
-
-        @Override
-        public void onClose() {
-            onCancel.run();
-        }
-
-        @Override
-        public boolean isPauseScreen() {
-            return true;
+            if (selectedItems.contains(sceneKey)) {
+                selectedItems.remove(sceneKey);
+            } else {
+                selectedItems.add(sceneKey);
+            }
+            rebuildEntries(currentListScroll());
         }
     }
 }

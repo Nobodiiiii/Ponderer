@@ -2,187 +2,90 @@ package com.nododiiiii.ponderer.blueprint;
 
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.UIText;
-import net.createmod.catnip.gui.AbstractSimiScreen;
-import net.createmod.catnip.gui.element.BoxElement;
-import net.createmod.catnip.gui.element.GuiGameElement;
-import net.createmod.catnip.theme.Color;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
+import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.network.chat.Component;
-import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
-/**
- * Prompt screen for saving a blueprint selection.
- * Ported from Create's SchematicPromptScreen.
- */
-public class BlueprintPromptScreen extends AbstractSimiScreen {
+import java.util.List;
 
-    private static final int WIDTH = 200;
-    private static final int HEIGHT = 84;
+public class BlueprintPromptScreen extends AbstractDeclarativeListScreen {
 
-    private EditBox nameField;
-    private boolean awaitingOverrideConfirm;
-    @Nullable
-    private String errorMessage;
-
-    // Simi-style clickable button areas
-    private int saveX, saveY, saveW, saveH;
-    private int discardX, discardY, discardW, discardH;
+    private String blueprintName = "";
+    private String baselineName = "";
+    private boolean awaitingOverrideConfirm = false;
 
     public BlueprintPromptScreen() {
-        super(Component.translatable("ponderer.ui.blueprint.prompt.title"));
+        super(null, "ponderer.ui.scope.editor", "ponderer.ui.blueprint.prompt.title", 320);
     }
 
     @Override
     protected void init() {
-        setWindowSize(WIDTH, HEIGHT);
         super.init();
-
-        // Name input
-        nameField = new EditBox(this.font, guiLeft + 30, guiTop + 25, 140, 16, Component.empty());
-        nameField.setTextColor(-1);
-        nameField.setTextColorUneditable(-1);
-        nameField.setBordered(true);
-        nameField.setMaxLength(35);
-        nameField.setFocused(true);
-        nameField.setResponder(s -> {
-            resetOverrideState();
-            errorMessage = null;
-        });
-        setFocused(nameField);
-        addRenderableWidget(nameField);
-
-        // Button positions — save left, discard right
-        saveX = guiLeft + 10;
-        saveY = guiTop + 52;
-        saveW = 60;
-        saveH = 20;
-
-        discardX = guiLeft + WIDTH - 70;
-        discardY = guiTop + 52;
-        discardW = 60;
-        discardH = 20;
-    }
-
-    @Override
-    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        // Background panel
-        new BoxElement()
-            .withBackground(new Color(0xdd_000000, true))
-            .gradientBorder(new Color(awaitingOverrideConfirm ? 0x60_ff6666 : 0x60_c0c0ff, true),
-                            new Color(awaitingOverrideConfirm ? 0x30_ff6666 : 0x30_c0c0ff, true))
-            .at(guiLeft, guiTop, 0)
-            .withBounds(WIDTH, HEIGHT)
-            .render(graphics);
-
-        var font = Minecraft.getInstance().font;
-
-        // Title
-        graphics.drawCenteredString(font, this.title, guiLeft + WIDTH / 2, guiTop + 6, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 18, guiLeft + WIDTH - 5, guiTop + 19, 0x60_FFFFFF);
-
-        // Blueprint item decoration
-        GuiGameElement.of(BlueprintFeature.getCarrierStack())
-                .at(guiLeft + 8, guiTop + 22, 0)
-                .render(graphics);
-
-        // Override warning / save error
-        if (awaitingOverrideConfirm) {
-            Component warn = Component.translatable("ponderer.ui.blueprint.prompt.override_warn");
-            int warnWidth = font.width(warn);
-            graphics.drawString(font, warn, guiLeft + (WIDTH - warnWidth) / 2, guiTop + HEIGHT - 34, 0xFF6666, true);
-        } else if (errorMessage != null && !errorMessage.isEmpty()) {
-            String clippedError = font.plainSubstrByWidth(errorMessage, WIDTH - 20);
-            int errorWidth = font.width(clippedError);
-            graphics.drawString(font, clippedError, guiLeft + (WIDTH - errorWidth) / 2, guiTop + HEIGHT - 34, 0xFF6666, true);
+        if (discardChanges != null) {
+            discardChanges.withCallback(this::discardBlueprint);
+            discardChanges.active = true;
         }
-
-        // Simi-style save button (left)
-        String saveLabel = awaitingOverrideConfirm
-            ? UIText.of("ponderer.ui.blueprint.prompt.confirm_override")
-            : UIText.of("ponderer.ui.blueprint.prompt.save");
-        renderSimiButton(graphics, font, saveX, saveY, saveW, saveH, saveLabel, mouseX, mouseY);
-
-        // Simi-style discard button (right)
-        String discardLabel = UIText.of("ponderer.ui.blueprint.prompt.discard");
-        renderSimiButton(graphics, font, discardX, discardY, discardW, discardH, discardLabel, mouseX, mouseY);
-    }
-
-    private void renderSimiButton(GuiGraphics graphics, net.minecraft.client.gui.Font font,
-                                   int x, int y, int w, int h, String label, int mouseX, int mouseY) {
-        boolean hovered = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
-        int bgColor = hovered ? 0x80_4466aa : 0x60_333366;
-        int borderColor = hovered ? 0xCC_6688cc : 0x60_555588;
-        graphics.fill(x, y, x + w, y + h, bgColor);
-        graphics.fill(x, y, x + w, y + 1, borderColor);
-        graphics.fill(x, y + h - 1, x + w, y + h, borderColor);
-        graphics.fill(x, y, x + 1, y + h, borderColor);
-        graphics.fill(x + w - 1, y, x + w, y + h, borderColor);
-        int textX = x + (w - font.width(label)) / 2;
-        int textY = y + (h - font.lineHeight) / 2 + 1;
-        graphics.drawString(font, label, textX, textY, hovered ? 0xFFFFFF : 0xCCCCCC);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0) {
-            if (mouseX >= saveX && mouseX < saveX + saveW
-                && mouseY >= saveY && mouseY < saveY + saveH) {
-                doConfirm();
-                return true;
-            }
-            if (mouseX >= discardX && mouseX < discardX + discardW
-                && mouseY >= discardY && mouseY < discardY + discardH) {
-                BlueprintHandler.INSTANCE.discard();
-                onClose();
-                return true;
-            }
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
+    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
+        entries.add(textEntry(
+            "ponderer.ui.blueprint.prompt.name",
+            null,
+            "ponderer.ui.blueprint.prompt.name",
+            blueprintName,
+            value -> {
+                blueprintName = value;
+                awaitingOverrideConfirm = false;
+                clearStatusMessages();
+            }));
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-            doConfirm();
-            return true;
-        }
-        if (getFocused() != null && getFocused().keyPressed(keyCode, scanCode, modifiers))
-            return true;
-        return super.keyPressed(keyCode, scanCode, modifiers);
+    protected boolean hasUnsavedChanges() {
+        return !blueprintName.trim().equals(baselineName.trim()) || awaitingOverrideConfirm;
     }
 
     @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        if (getFocused() != null && getFocused().charTyped(codePoint, modifiers))
-            return true;
-        return super.charTyped(codePoint, modifiers);
+    protected int getUnsavedChangeCount() {
+        return hasUnsavedChanges() ? 1 : 0;
     }
 
-    private void doConfirm() {
-        String name = nameField.getValue().trim();
+    @Override
+    protected boolean saveEdits() {
+        String name = blueprintName.trim();
         if (!awaitingOverrideConfirm && SceneStore.isBuiltinStructureName(name)) {
             awaitingOverrideConfirm = true;
-            errorMessage = null;
-            return;
+            setErrorMessage(UIText.of("ponderer.ui.blueprint.prompt.override_warn"));
+            return false;
         }
-        BlueprintExport.SaveResult result = BlueprintHandler.INSTANCE.saveBlueprint(nameField.getValue());
+
+        BlueprintExport.SaveResult result = BlueprintHandler.INSTANCE.saveBlueprint(blueprintName);
         if (result.isSuccess()) {
-            onClose();
-            return;
+            Minecraft.getInstance().setScreen(null);
+            return true;
         }
-        resetOverrideState();
-        errorMessage = UIText.of(result.uiMessageKey(), result.uiMessageArgs());
+
+        awaitingOverrideConfirm = false;
+        setErrorMessage(UIText.of(result.uiMessageKey(), result.uiMessageArgs()));
+        return false;
     }
 
-    private void resetOverrideState() {
+    @Override
+    protected void discardEdits() {
         awaitingOverrideConfirm = false;
+        blueprintName = baselineName;
+        clearStatusMessages();
+        rebuildEntries(currentListScroll());
     }
 
     @Override
     public boolean isPauseScreen() {
         return false;
+    }
+
+    private void discardBlueprint() {
+        BlueprintHandler.INSTANCE.discard();
+        Minecraft.getInstance().setScreen(null);
     }
 }
