@@ -353,10 +353,15 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
         super.renderFormForeground(graphics, mouseX, mouseY, partialTicks);
         if (triggerModeIndex != 0 && autoFreqIndex != 0) {
             String warning = UIText.of("ponderer.ui.trigger_editor.auto_warning");
-            int warnY = confirmButton.getY() - 12;
+            int warnY = height - 58;
             graphics.drawCenteredString(Minecraft.getInstance().font, warning,
-                guiLeft + WINDOW_W / 2, warnY, 0xFF5555);
+                width / 2, warnY, 0xFF5555);
         }
+    }
+
+    @Override
+    protected boolean saveEdits() {
+        return doSave();
     }
 
     private void doConfirm() {

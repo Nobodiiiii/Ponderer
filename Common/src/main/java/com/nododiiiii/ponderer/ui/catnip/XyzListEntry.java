@@ -11,41 +11,50 @@ import net.minecraft.network.chat.Component;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
-public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
+public class XyzListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    protected record TrailingButton(BoxWidget widget, int width, Supplier<String> labelGetter, IntSupplier colorGetter) {
+    private record TrailingButton(BoxWidget widget, int width, Supplier<String> labelGetter, IntSupplier colorGetter) {
     }
 
-    protected final ConfigTextField textField;
     private final String searchText;
-    protected final List<TrailingButton> trailingButtons = new ArrayList<>();
-    @Nullable
-    private Supplier<String> unitTextGetter;
+    private final ConfigTextField xField;
+    private final ConfigTextField yField;
+    private final ConfigTextField zField;
+    private final List<TrailingButton> trailingButtons = new ArrayList<>();
 
-    public PlainTextListEntry(String labelKey, @Nullable String tooltipKey, @Nullable String hintKey,
-                              String initialValue, Consumer<String> responder) {
+    public XyzListEntry(String labelKey, @Nullable String tooltipKey,
+                        @Nullable String xHint, @Nullable String yHint, @Nullable String zHint) {
         super(UIText.of(labelKey));
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
-        this.textField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 200, 20);
-        EntryTextSupport.applyHint(textField, hintKey);
-        this.textField.setResponder(responder);
-        this.textField.setValue(initialValue);
-        this.textField.moveCursorToStart();
-        listeners.add(textField);
+        this.xField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 52, 20);
+        this.yField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 52, 20);
+        this.zField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 52, 20);
+        this.xField.setMaxLength(32);
+        this.yField.setMaxLength(32);
+        this.zField.setMaxLength(32);
+        EntryTextSupport.applyHint(xField, xHint);
+        EntryTextSupport.applyHint(yField, yHint);
+        EntryTextSupport.applyHint(zField, zHint);
+        listeners.add(xField);
+        listeners.add(yField);
+        listeners.add(zField);
     }
 
-    public ConfigTextField field() {
-        return textField;
+    public ConfigTextField xField() {
+        return xField;
     }
 
-    public void setValue(String value) {
-        textField.setValue(value != null ? value : "");
+    public ConfigTextField yField() {
+        return yField;
+    }
+
+    public ConfigTextField zField() {
+        return zField;
     }
 
     public BoxWidget addTrailingButton(int width, Runnable onClick, Supplier<String> labelGetter,
@@ -57,10 +66,6 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         trailingButtons.add(new TrailingButton(button, width, labelGetter, colorGetter));
         listeners.add(button);
         return button;
-    }
-
-    public void setUnitText(@Nullable Supplier<String> unitTextGetter) {
-        this.unitTextGetter = unitTextGetter;
     }
 
     @Override
@@ -81,7 +86,9 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     @Override
     public void tick() {
         super.tick();
-        textField.tick();
+        xField.tick();
+        yField.tick();
+        zField.tick();
         for (TrailingButton trailingButton : trailingButtons) {
             trailingButton.widget().tick();
         }
@@ -93,36 +100,38 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         int labelWidth = getLabelWidth(width);
-        int fieldX = x + labelWidth + 4;
-        int trailingWidth = getTrailingWidth();
-
-        textField.setX(fieldX);
-        textField.setY(y + 8);
-        textField.setWidth(Math.max(60, width - labelWidth - trailingWidth - 4));
-        textField.setHeight(20);
-        textField.render(graphics, mouseX, mouseY, partialTicks);
-
-        renderTrailing(graphics, y, x, width, height, mouseX, mouseY, partialTicks);
-    }
-
-    protected int getTrailingWidth() {
-        int width = 0;
-        if (unitTextGetter != null) {
-            width += Minecraft.getInstance().font.width(unitTextGetter.get()) + 8;
-        }
+        int buttonsWidth = 0;
         for (TrailingButton trailingButton : trailingButtons) {
-            width += trailingButton.width() + 4;
+            buttonsWidth += trailingButton.width() + 4;
         }
-        return width;
-    }
 
-    protected void renderTrailing(GuiGraphics graphics, int y, int x, int width, int height,
-                                  int mouseX, int mouseY, float partialTicks) {
+        int available = Math.max(120, width - labelWidth - buttonsWidth - 16);
+        int fieldWidth = Math.max(34, (available - 10) / 3);
+        int fieldX = x + labelWidth + 4;
+        int fieldY = y + 8;
+
+        xField.setX(fieldX);
+        xField.setY(fieldY);
+        xField.setWidth(fieldWidth);
+        xField.setHeight(20);
+        xField.render(graphics, mouseX, mouseY, partialTicks);
+
+        yField.setX(fieldX + fieldWidth + 5);
+        yField.setY(fieldY);
+        yField.setWidth(fieldWidth);
+        yField.setHeight(20);
+        yField.render(graphics, mouseX, mouseY, partialTicks);
+
+        zField.setX(fieldX + (fieldWidth + 5) * 2);
+        zField.setY(fieldY);
+        zField.setWidth(fieldWidth);
+        zField.setHeight(20);
+        zField.render(graphics, mouseX, mouseY, partialTicks);
+
         int cursorX = x + width - 4;
         int buttonY = y + 10;
         int buttonHeight = Math.max(16, height - 20);
         var font = Minecraft.getInstance().font;
-
         for (int i = trailingButtons.size() - 1; i >= 0; i--) {
             TrailingButton trailingButton = trailingButtons.get(i);
             BoxWidget button = trailingButton.widget();
@@ -137,14 +146,6 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
                 button.getY() + (button.getHeight() - 8) / 2,
                 trailingButton.colorGetter().getAsInt());
             cursorX -= 4;
-        }
-
-        if (unitTextGetter != null) {
-            String unitText = unitTextGetter.get();
-            graphics.drawString(font, unitText,
-                cursorX - font.width(unitText),
-                y + 14,
-                0xA0A0A0);
         }
     }
 }

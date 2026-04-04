@@ -35,6 +35,10 @@ public class LocalizedTextListEntry extends PlainTextListEntry {
         langButton.tick();
     }
 
+    public BoxWidget langButton() {
+        return langButton;
+    }
+
     @Override
     protected int getTrailingWidth() {
         return 34;

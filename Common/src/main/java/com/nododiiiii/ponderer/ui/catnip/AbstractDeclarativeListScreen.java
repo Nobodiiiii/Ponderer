@@ -148,9 +148,9 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         String breadcrumb = UIText.of("ponderer.ui.mod_name")
             + " > "
-            + UIText.of(scopeKey)
+            + getBreadcrumbScopeText()
             + " > "
-            + UIText.of(titleKey);
+            + getBreadcrumbTitleText();
         graphics.drawCenteredString(
             minecraft.font,
             breadcrumb,
@@ -257,6 +257,18 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
 
     protected int getEntryHeight() {
         return 40;
+    }
+
+    protected String getBreadcrumbScopeText() {
+        return UIText.of(scopeKey);
+    }
+
+    protected String getBreadcrumbTitleText() {
+        return UIText.of(titleKey);
+    }
+
+    protected final int currentListWidthValue() {
+        return listWidth;
     }
 
     protected void attemptBackToParent() {
