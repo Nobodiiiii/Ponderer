@@ -1,11 +1,9 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,9 +12,7 @@ public class ClickInterfaceScreen extends AbstractStepEditorScreen {
     private static final String CLICK_ACTION_LEFT = "left";
     private static final String CLICK_ACTION_RIGHT = "right";
 
-    private HintableTextFieldWidget pointXField;
-    private HintableTextFieldWidget pointYField;
-    private HintableTextFieldWidget pointZField;
+    private final StepXyzFieldHandle pointField = new StepXyzFieldHandle("point");
     private String clickAction = CLICK_ACTION_LEFT;
 
     public ClickInterfaceScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
@@ -29,37 +25,27 @@ public class ClickInterfaceScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected int getFormRowCount() {
-        return 2;
-    }
-
-    @Override
     protected String getHeaderTitle() {
         return UIText.of("ponderer.ui.click_interface");
     }
 
     @Override
-    protected void buildForm() {
-        beginForm();
-
-        var point = addFormXyzRow(
+    protected void collectFormEntries(List<StepEditorEntry> entries) {
+        entries.add(StepEditorEntries.xyzWithHints(
+            pointField,
             "ponderer.ui.click_interface.point",
             "ponderer.ui.click_interface.point.tooltip",
-            PickState.TargetField.POINT);
-        pointXField = point.x();
-        pointYField = point.y();
-        pointZField = point.z();
-        pointXField.setHint(UIText.of("ponderer.ui.click_interface.point.hint_x"));
-        pointYField.setHint(UIText.of("ponderer.ui.click_interface.point.hint_y"));
-        pointZField.setHint(UIText.of("ponderer.ui.click_interface.point.hint_z"));
-
-        addFormCycleButton(
+            PickState.TargetField.POINT,
+            false,
+            UIText.of("ponderer.ui.click_interface.point.hint_x"),
+            UIText.of("ponderer.ui.click_interface.point.hint_y"),
+            UIText.of("ponderer.ui.click_interface.point.hint_z")));
+        entries.add(StepEditorEntries.cycleButton(
             "ponderer.ui.click_interface.action",
             "ponderer.ui.click_interface.action.tooltip",
             70,
             this::cycleClickAction,
-            this::clickActionLabel
-        );
+            this::clickActionLabel));
     }
 
     @Override
@@ -67,9 +53,9 @@ public class ClickInterfaceScreen extends AbstractStepEditorScreen {
         super.populateFromStep(step);
 
         if (step.pos != null && step.pos.size() >= 2) {
-            pointXField.setValue(formatCoord(step.pos.get(0)));
-            pointYField.setValue(formatCoord(step.pos.get(1)));
-            pointZField.setValue(step.pos.size() >= 3 ? formatCoord(step.pos.get(2)) : "0.000");
+            pointField.xHandle().setValue(formatCoord(step.pos.get(0)));
+            pointField.yHandle().setValue(formatCoord(step.pos.get(1)));
+            pointField.zHandle().setValue(step.pos.size() >= 3 ? formatCoord(step.pos.get(2)) : "0.000");
         }
 
         if (CLICK_ACTION_RIGHT.equalsIgnoreCase(step.action)) {
@@ -85,27 +71,12 @@ public class ClickInterfaceScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected Map<String, String> snapshotForm() {
-        Map<String, String> snapshot = new HashMap<>();
-        snapshot.put("pointX", pointXField.getValue());
-        snapshot.put("pointY", pointYField.getValue());
-        snapshot.put("pointZ", pointZField.getValue());
+    protected void appendCustomSnapshot(Map<String, String> snapshot) {
         snapshot.put("clickAction", clickAction);
-        return snapshot;
     }
 
     @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
-        if (snapshot.containsKey("pointX")) {
-            pointXField.setValue(snapshot.get("pointX"));
-        }
-        if (snapshot.containsKey("pointY")) {
-            pointYField.setValue(snapshot.get("pointY"));
-        }
-        if (snapshot.containsKey("pointZ")) {
-            pointZField.setValue(snapshot.get("pointZ"));
-        }
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
         if (snapshot.containsKey("clickAction") && CLICK_ACTION_RIGHT.equalsIgnoreCase(snapshot.get("clickAction"))) {
             clickAction = CLICK_ACTION_RIGHT;
         } else {
@@ -118,9 +89,9 @@ public class ClickInterfaceScreen extends AbstractStepEditorScreen {
     protected DslScene.DslStep buildStep() {
         errorMessage = null;
 
-        Double x = parseDouble(pointXField.getValue());
-        Double y = parseDouble(pointYField.getValue());
-        Double z = parseDouble(pointZField.getValue());
+        Double x = parseDouble(pointField.x());
+        Double y = parseDouble(pointField.y());
+        Double z = parseDouble(pointField.z());
         if (x == null || y == null) {
             errorMessage = UIText.of("ponderer.ui.click_interface.error.invalid_point");
             return null;

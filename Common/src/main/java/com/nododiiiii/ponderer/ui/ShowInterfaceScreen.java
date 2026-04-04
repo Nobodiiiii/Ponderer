@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -20,7 +19,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     private static final String NBT_SNAPSHOT_KEY = "show_interface_nbt";
     private static final BlockPos SANITIZED_CONTEXT_POS = BlockPos.ZERO;
 
-    private HintableTextFieldWidget blockField;
+    private final StepTextFieldHandle blockField = new StepTextFieldHandle("block");
 
     @Nullable
     private List<Integer> contextPos;
@@ -46,37 +45,32 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected int getFormRowCount() {
-        return 2;
-    }
-
-    @Override
     protected String getHeaderTitle() {
         return UIText.of("ponderer.ui.show_interface");
     }
 
     @Override
-    protected void buildForm() {
-        beginForm();
-        var blockPick = addFormTextFieldWithJeiAndBlockPick(
+    protected void collectFormEntries(List<StepEditorEntry> entries) {
+        entries.add(StepEditorEntries.textWithJeiAndBlockPick(
+            blockField,
             "ponderer.ui.show_interface.block",
             "ponderer.ui.show_interface.block.tooltip",
             UIText.of("ponderer.ui.show_interface.block.hint"),
             IdFieldMode.BLOCK,
-            NBT_SNAPSHOT_KEY);
-        blockField = blockPick.field();
-        blockField.setEditable(false);
-        blockField.setCanLoseFocus(true);
-        if (blockPick.jeiBtn() != null) {
-            blockPick.jeiBtn().visible = false;
-            blockPick.jeiBtn().active = false;
-        }
-        addFormToggle(
+            NBT_SNAPSHOT_KEY,
+            row -> {
+                row.field().setEditable(false);
+                row.field().setCanLoseFocus(true);
+                if (row.jeiBtn() != null) {
+                    row.jeiBtn().visible = false;
+                    row.jeiBtn().active = false;
+                }
+            }));
+        entries.add(StepEditorEntries.toggle(
             "ponderer.ui.show_interface.enable_nbt",
             "ponderer.ui.show_interface.enable_nbt.tooltip",
             () -> enableNbt,
-            () -> enableNbt = !enableNbt);
-
+            () -> enableNbt = !enableNbt));
     }
 
     @Override
@@ -101,9 +95,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected Map<String, String> snapshotForm() {
-        Map<String, String> snapshot = new HashMap<>();
-        snapshot.put("block", blockField.getValue());
+    protected void appendCustomSnapshot(Map<String, String> snapshot) {
         if (contextPos != null && contextPos.size() >= 3) {
             snapshot.put("ctx_pos", contextPos.get(0) + "," + contextPos.get(1) + "," + contextPos.get(2));
         }
@@ -121,15 +113,10 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         }
         snapshot.put("enable_nbt", String.valueOf(enableNbt));
         snapshotProps(snapshot, capturedBlockProperties);
-        return snapshot;
     }
 
     @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
-        if (snapshot.containsKey("block")) {
-            blockField.setValue(snapshot.get("block"));
-        }
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
         if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_ID_KEY)) {
             blockField.setValue(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_ID_KEY));
         }

@@ -1,17 +1,15 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 public class RotateCameraScreen extends AbstractStepEditorScreen {
 
-    private HintableTextFieldWidget degreesField;
-    private HintableTextFieldWidget durationField;
+    private final StepTextFieldHandle degreesField = new StepTextFieldHandle("degrees");
+    private final StepTextFieldHandle durationField = new StepTextFieldHandle("duration");
 
     public RotateCameraScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.rotate_camera.add"), scene, sceneIndex, parent);
@@ -23,16 +21,24 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected int getFormRowCount() { return 2; }
-
-    @Override
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.rotate_camera"); }
 
     @Override
-    protected void buildForm() {
-        beginForm();
-        degreesField = addFormNumberField("ponderer.ui.rotate_camera.degrees", "ponderer.ui.rotate_camera.degrees.tooltip", "90", 60, "ponderer.ui.rotate_camera.degrees.unit");
-        durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.rotate_camera.duration.tooltip", "20", 60, "ponderer.ui.ticks");
+    protected void collectFormEntries(List<StepEditorEntry> entries) {
+        entries.add(StepEditorEntries.number(
+            degreesField,
+            "ponderer.ui.rotate_camera.degrees",
+            "ponderer.ui.rotate_camera.degrees.tooltip",
+            "90",
+            60,
+            "ponderer.ui.rotate_camera.degrees.unit"));
+        entries.add(StepEditorEntries.number(
+            durationField,
+            "ponderer.ui.duration",
+            "ponderer.ui.rotate_camera.duration.tooltip",
+            "20",
+            60,
+            "ponderer.ui.ticks"));
     }
 
     @Override
@@ -48,21 +54,6 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
 
     @Override
     protected String getStepType() { return "rotate_camera_y"; }
-
-    @Override
-    protected Map<String, String> snapshotForm() {
-        Map<String, String> m = new HashMap<>();
-        m.put("degrees", degreesField.getValue());
-        m.put("duration", durationField.getValue());
-        return m;
-    }
-
-    @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
-        if (snapshot.containsKey("degrees")) degreesField.setValue(snapshot.get("degrees"));
-        if (snapshot.containsKey("duration")) durationField.setValue(snapshot.get("duration"));
-    }
 
     @Nullable
     @Override

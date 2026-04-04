@@ -1,13 +1,9 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
-import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -22,18 +18,14 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     private final boolean withLinkId;
     private final boolean withDuration;
 
-    private HintableTextFieldWidget posXField, posYField, posZField;
-    private HintableTextFieldWidget pos2XField, pos2YField, pos2ZField;
-    private BoxWidget directionButton;
-    private HintableTextFieldWidget linkIdField;
-    private HintableTextFieldWidget durationField;
-    private HintableTextFieldWidget intervalField;
-    private BoxWidget entranceAnimationButton;
-    private BoxWidget smartDisplayToggle;
+    private final StepXyzFieldHandle posField = new StepXyzFieldHandle("pos");
+    private final StepXyzFieldHandle pos2Field = new StepXyzFieldHandle("pos2");
+    private final StepTextFieldHandle linkIdField = new StepTextFieldHandle("linkId");
+    private final StepTextFieldHandle durationField = new StepTextFieldHandle("duration");
+    private final StepTextFieldHandle intervalField = new StepTextFieldHandle("entranceInterval");
     private int directionIndex = 0;
     private int entranceAnimationIndex = 0;
     private boolean smartDisplay = true;
-    private PonderButton pickBtn1, pickBtn2;
 
     public SelectionOperationScreen(String stepType, boolean withDirection, boolean withLinkId,
                                     DslScene scene, int sceneIndex, SceneEditorScreen parent) {
@@ -65,18 +57,6 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         this.withDuration = withDuration;
     }
 
-    @Override
-    protected int getFormRowCount() {
-        int rows = 2;
-        if (withDirection) rows++;
-        if (withLinkId) rows++;
-        if (supportsEntranceAnimation()) rows++;
-        if (withDuration) rows++;
-        if (supportsEntranceAnimation()) rows++;
-        if (supportsEntranceAnimation()) rows++;
-        return rows;
-    }
-
     private boolean supportsEntranceAnimation() {
         return "show_section_and_merge".equals(stepType);
     }
@@ -87,35 +67,66 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected void buildForm() {
-        beginForm();
-        var from = addFormXyzRow("ponderer.ui." + stepType + ".pos_from", "ponderer.ui." + stepType + ".pos_from.tooltip", PickState.TargetField.POS1);
-        posXField = from.x(); posYField = from.y(); posZField = from.z(); pickBtn1 = from.pickBtn();
-        var to = addFormXyzRow("ponderer.ui." + stepType + ".pos_to", "ponderer.ui." + stepType + ".pos_to.tooltip", PickState.TargetField.POS2);
-        pos2XField = to.x(); pos2YField = to.y(); pos2ZField = to.z(); pickBtn2 = to.pickBtn();
+    protected void collectFormEntries(List<StepEditorEntry> entries) {
+        entries.add(StepEditorEntries.xyz(
+            posField,
+            "ponderer.ui." + stepType + ".pos_from",
+            "ponderer.ui." + stepType + ".pos_from.tooltip",
+            PickState.TargetField.POS1));
+        entries.add(StepEditorEntries.xyz(
+            pos2Field,
+            "ponderer.ui." + stepType + ".pos_to",
+            "ponderer.ui." + stepType + ".pos_to.tooltip",
+            PickState.TargetField.POS2));
         if (supportsEntranceAnimation()) {
-            entranceAnimationButton = addFormCycleButton("ponderer.ui.entrance_animation", "ponderer.ui.entrance_animation.tooltip",
-                    140, () -> {
-                        entranceAnimationIndex = (entranceAnimationIndex + 1) % ENTRANCE_ANIMATIONS.length;
-                        updateTickFieldsEnabledState();
-                    },
-                    () -> entranceAnimationLabel(ENTRANCE_ANIMATIONS[entranceAnimationIndex]));
+            entries.add(StepEditorEntries.cycleButton(
+                "ponderer.ui.entrance_animation",
+                "ponderer.ui.entrance_animation.tooltip",
+                140,
+                () -> {
+                    entranceAnimationIndex = (entranceAnimationIndex + 1) % ENTRANCE_ANIMATIONS.length;
+                    updateTickFieldsEnabledState();
+                },
+                () -> entranceAnimationLabel(ENTRANCE_ANIMATIONS[entranceAnimationIndex])));
         }
         if (withDirection) {
-            directionButton = addFormCycleButton("ponderer.ui." + stepType + ".direction", "ponderer.ui." + stepType + ".direction.tooltip",
-                    140, () -> directionIndex = (directionIndex + 1) % DIRECTIONS.length,
-                    () -> optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[directionIndex]));
+            entries.add(StepEditorEntries.cycleButton(
+                "ponderer.ui." + stepType + ".direction",
+                "ponderer.ui." + stepType + ".direction.tooltip",
+                140,
+                () -> directionIndex = (directionIndex + 1) % DIRECTIONS.length,
+                () -> optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[directionIndex])));
         }
         if (withLinkId) {
-            linkIdField = addFormTextField("ponderer.ui." + stepType + ".link", "ponderer.ui." + stepType + ".link.tooltip", "", 140);
+            entries.add(StepEditorEntries.text(
+                linkIdField,
+                "ponderer.ui." + stepType + ".link",
+                "ponderer.ui." + stepType + ".link.tooltip",
+                "",
+                140));
         }
         if (withDuration) {
-            durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.duration.tooltip.section_animation", "20", 60);
+            entries.add(StepEditorEntries.number(
+                durationField,
+                "ponderer.ui.duration",
+                "ponderer.ui.duration.tooltip.section_animation",
+                "20",
+                60,
+                null));
         }
         if (supportsEntranceAnimation()) {
-            intervalField = addFormNumberField("ponderer.ui.entrance_interval", "ponderer.ui.entrance_interval.tooltip", "1", 60);
-            smartDisplayToggle = addFormToggle("ponderer.ui.smart_display", "ponderer.ui.smart_display.tooltip",
-                    () -> smartDisplay, () -> smartDisplay = !smartDisplay);
+            entries.add(StepEditorEntries.number(
+                intervalField,
+                "ponderer.ui.entrance_interval",
+                "ponderer.ui.entrance_interval.tooltip",
+                "1",
+                60,
+                null));
+            entries.add(StepEditorEntries.toggle(
+                "ponderer.ui.smart_display",
+                "ponderer.ui.smart_display.tooltip",
+                () -> smartDisplay,
+                () -> smartDisplay = !smartDisplay));
             updateTickFieldsEnabledState();
         }
     }
@@ -124,14 +135,10 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         if (step.blockPos != null && step.blockPos.size() >= 3) {
-            posXField.setValue(String.valueOf(step.blockPos.get(0)));
-            posYField.setValue(String.valueOf(step.blockPos.get(1)));
-            posZField.setValue(String.valueOf(step.blockPos.get(2)));
+            posField.setValue(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
         }
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
-            pos2XField.setValue(String.valueOf(step.blockPos2.get(0)));
-            pos2YField.setValue(String.valueOf(step.blockPos2.get(1)));
-            pos2ZField.setValue(String.valueOf(step.blockPos2.get(2)));
+            pos2Field.setValue(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
         if (withDirection && step.direction != null) {
             String normalized = normalizeDirection(step.direction);
@@ -161,7 +168,7 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
                 durationField.setValue(String.valueOf(step.duration));
             }
         }
-        if (supportsEntranceAnimation() && intervalField != null && step.entranceInterval != null) {
+        if (supportsEntranceAnimation() && step.entranceInterval != null) {
             intervalField.setValue(String.valueOf(step.entranceInterval));
         }
         if (supportsEntranceAnimation() && step.smartDisplay != null) {
@@ -216,11 +223,11 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         boolean durationEnabled = !"none".equals(mode);
         boolean intervalEnabled = !("none".equals(mode) || "simultaneous".equals(mode));
 
-        if (durationField != null) {
-            durationField.active = durationEnabled;
+        if (durationField.widget() != null) {
+            durationField.widget().active = durationEnabled;
         }
-        if (intervalField != null) {
-            intervalField.active = intervalEnabled;
+        if (intervalField.widget() != null) {
+            intervalField.widget().active = intervalEnabled;
         }
     }
 
@@ -228,39 +235,16 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     protected String getStepType() { return stepType; }
 
     @Override
-    protected Map<String, String> snapshotForm() {
-        Map<String, String> m = new HashMap<>();
-        m.put("posX", posXField.getValue());
-        m.put("posY", posYField.getValue());
-        m.put("posZ", posZField.getValue());
-        m.put("pos2X", pos2XField.getValue());
-        m.put("pos2Y", pos2YField.getValue());
-        m.put("pos2Z", pos2ZField.getValue());
+    protected void appendCustomSnapshot(Map<String, String> m) {
         if (withDirection) m.put("direction", String.valueOf(directionIndex));
-        if (withLinkId && linkIdField != null) m.put("linkId", linkIdField.getValue());
-        if (withDuration && durationField != null) m.put("duration", durationField.getValue());
-        if (supportsEntranceAnimation() && intervalField != null) m.put("entranceInterval", intervalField.getValue());
         if (supportsEntranceAnimation()) m.put("entranceAnimation", String.valueOf(entranceAnimationIndex));
         if (supportsEntranceAnimation()) m.put("smartDisplay", String.valueOf(smartDisplay));
-        return m;
     }
 
     @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
-        if (snapshot.containsKey("posX")) posXField.setValue(snapshot.get("posX"));
-        if (snapshot.containsKey("posY")) posYField.setValue(snapshot.get("posY"));
-        if (snapshot.containsKey("posZ")) posZField.setValue(snapshot.get("posZ"));
-        if (snapshot.containsKey("pos2X")) pos2XField.setValue(snapshot.get("pos2X"));
-        if (snapshot.containsKey("pos2Y")) pos2YField.setValue(snapshot.get("pos2Y"));
-        if (snapshot.containsKey("pos2Z")) pos2ZField.setValue(snapshot.get("pos2Z"));
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
         if (withDirection && snapshot.containsKey("direction")) {
             try { directionIndex = Integer.parseInt(snapshot.get("direction")); } catch (NumberFormatException ignored) {}
-        }
-        if (withLinkId && linkIdField != null && snapshot.containsKey("linkId")) linkIdField.setValue(snapshot.get("linkId"));
-        if (withDuration && durationField != null && snapshot.containsKey("duration")) durationField.setValue(snapshot.get("duration"));
-        if (supportsEntranceAnimation() && intervalField != null && snapshot.containsKey("entranceInterval")) {
-            intervalField.setValue(snapshot.get("entranceInterval"));
         }
         if (supportsEntranceAnimation() && snapshot.containsKey("entranceAnimation")) {
             try {
@@ -283,14 +267,14 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     protected DslScene.DslStep buildStep() {
         errorMessage = null;
 
-        Integer px = parseInt(posXField.getValue(), "X");
-        Integer py = parseInt(posYField.getValue(), "Y");
-        Integer pz = parseInt(posZField.getValue(), "Z");
+        Integer px = parseInt(posField.x(), "X");
+        Integer py = parseInt(posField.y(), "Y");
+        Integer pz = parseInt(posField.z(), "Z");
         if (px == null || py == null || pz == null) return null;
 
-        String pos2X = pos2XField.getValue().trim();
-        String pos2Y = pos2YField.getValue().trim();
-        String pos2Z = pos2ZField.getValue().trim();
+        String pos2X = pos2Field.x().trim();
+        String pos2Y = pos2Field.y().trim();
+        String pos2Z = pos2Field.z().trim();
         boolean hasPos2 = !pos2X.isEmpty() || !pos2Y.isEmpty() || !pos2Z.isEmpty();
         Integer px2 = null, py2 = null, pz2 = null;
         if (hasPos2) {
@@ -325,8 +309,8 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
                 s.duration = 0;
             } else {
                 s.entranceAnimation = entranceAnimation;
-                s.entranceDuration = Math.max(0, parseIntOr(durationField != null ? durationField.getValue() : "20", 20));
-                s.entranceInterval = Math.max(0, parseIntOr(intervalField != null ? intervalField.getValue() : "1", 1));
+                s.entranceDuration = Math.max(0, parseIntOr(durationField.getValue(), 20));
+                s.entranceInterval = Math.max(0, parseIntOr(intervalField.getValue(), 1));
             }
             s.smartDisplay = smartDisplay;
         }

@@ -24,19 +24,13 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected int getFormRowCount() {
-        return 1;
-    }
-
-    @Override
-    protected void buildForm() {
-        beginForm();
-        addFormCycleButton(
+    protected void collectFormEntries(List<StepEditorEntry> entries) {
+        entries.add(StepEditorEntries.cycleButton(
             "ponderer.ui.change_interface_slot.slots",
             "ponderer.ui.change_interface_slot.slots.tooltip",
             70,
             this::openSlotEditor,
-            () -> UIText.of("ponderer.ui.change_interface_slot.edit"));
+            () -> UIText.of("ponderer.ui.change_interface_slot.edit")));
         refreshInfoMessage();
     }
 
@@ -68,16 +62,13 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected Map<String, String> snapshotForm() {
+    protected void appendCustomSnapshot(Map<String, String> snapshot) {
         ensureInitialBindingsLoaded();
-        Map<String, String> snapshot = new LinkedHashMap<>();
         InterfaceSlotEditState.writeBindingsToSnapshot(snapshot, slotBindings);
-        return snapshot;
     }
 
     @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
         slotBindings.clear();
         slotBindings.putAll(InterfaceSlotEditState.readBindingsFromSnapshot(snapshot));
         initialBindingsLoaded = true;

@@ -4,279 +4,310 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
+import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
+import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Objects;
 
-/**
- * Editor screen for ponder scene description: titles and IDs.
- * Trigger settings are handled by {@link TriggerEditorScreen}.
- */
-public class SceneDescEditorScreen extends AbstractStepEditorScreen {
+public class SceneDescEditorScreen extends AbstractDeclarativeListScreen {
 
-    // Ponder title
-    private FieldWithLang ponderTitleRow;
-    private String ponderTitleLang;
+    private final DslScene scene;
+    private final int sceneIndex;
+    private final boolean hasMultiScene;
+
+    private LocalizedText originalPonderTitle;
     private LocalizedText workingPonderTitle;
-
-    // Scene title (only when scene.scenes[] mode)
-    private boolean hasMultiScene;
-    private FieldWithLang sceneTitleRow;
-    private String sceneTitleLang;
-    private LocalizedText workingSceneTitle;
-
-    // IDs
-    private HintableTextFieldWidget ponderIdField;
-    private HintableTextFieldWidget sceneIdField;
-
-    public SceneDescEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
-        super(Component.translatable("ponderer.ui.scene_desc"), scene, sceneIndex, parent);
-
-        this.ponderTitleLang = getCurrentLang();
-        this.workingPonderTitle = scene.title != null ? scene.title : LocalizedText.of("");
-
-        this.hasMultiScene = scene.scenes != null && !scene.scenes.isEmpty()
-                && sceneIndex >= 0 && sceneIndex < scene.scenes.size();
-        if (hasMultiScene) {
-            this.sceneTitleLang = getCurrentLang();
-            DslScene.SceneSegment sc = scene.scenes.get(sceneIndex);
-            this.workingSceneTitle = sc.title != null ? sc.title : LocalizedText.of("");
-        }
-    }
-
-    @Override
-    protected boolean showsKeyFrame() { return false; }
-
-    @Override
-    protected String getHeaderTitle() {
-        return UIText.of("ponderer.ui.scene_desc");
-    }
-
-    @Override
-    protected int getFormRowCount() {
-        int rows = 1; // ponder title
-        if (hasMultiScene) rows += 1; // scene title
-        rows += 1; // ponder ID
-        if (hasMultiScene) rows += 1; // scene ID
-        return rows;
-    }
-
-    @Override
-    protected void init() {
-        super.init();
-        confirmButton.withCallback(this::doConfirm);
-    }
-
-    @Override
-    protected void buildForm() {
-        beginForm();
-
-        // ---- Ponder title with lang toggle ----
-        ponderTitleRow = addFormTextFieldWithLang(
-                "ponderer.ui.scene_desc.ponder_title", null,
-                UIText.of("ponderer.ui.scene_desc.hint.ponder_title"),
-                104,
-                () -> ponderTitleLang,
-                this::togglePonderTitleLang);
-        String val = workingPonderTitle.getExact(ponderTitleLang);
-        ponderTitleRow.field().setValue(val != null ? val : workingPonderTitle.resolve());
-
-        // ---- Scene title with lang toggle ----
-        if (hasMultiScene) {
-            sceneTitleRow = addFormTextFieldWithLang(
-                    "ponderer.ui.scene_desc.scene_title", null,
-                    UIText.of("ponderer.ui.scene_desc.hint.scene_title"),
-                    104,
-                    () -> sceneTitleLang,
-                    this::toggleSceneTitleLang);
-            String scVal = workingSceneTitle.getExact(sceneTitleLang);
-            sceneTitleRow.field().setValue(scVal != null ? scVal : workingSceneTitle.resolve());
-        }
-
-        // ---- Ponder ID (warning-colored label) ----
-        addFormLabel("ponderer.ui.scene_desc.ponder_id", "ponderer.ui.scene_desc.id_hint", 0xFFFF00);
-        ponderIdField = createTextField(fieldX(), formY(), 141, 18,
-                UIText.of("ponderer.ui.scene_desc.hint.ponder_id"));
-        ponderIdField.setValue(scene.id != null ? scene.id : "");
-        nextFormRow();
-
-        // ---- Scene segment ID (warning-colored label) ----
-        if (hasMultiScene) {
-            addFormLabel("ponderer.ui.scene_desc.scene_id", null, 0xFFFF00);
-            sceneIdField = createTextField(fieldX(), formY(), 141, 18,
-                    UIText.of("ponderer.ui.scene_desc.hint.scene_id"));
-            DslScene.SceneSegment sc = scene.scenes.get(sceneIndex);
-            sceneIdField.setValue(sc.id != null ? sc.id : "");
-            nextFormRow();
-        }
-    }
-
-    @Override
-    protected String getStepType() {
-        return "scene_desc";
-    }
+    private String ponderTitleLang;
 
     @Nullable
-    @Override
-    protected DslScene.DslStep buildStep() {
-        return null;
+    private LocalizedText originalSceneTitle;
+    @Nullable
+    private LocalizedText workingSceneTitle;
+    private String sceneTitleLang;
+
+    private String originalPonderId;
+    private String draftPonderId;
+    private String originalSceneId;
+    private String draftSceneId;
+
+    @Nullable
+    private LocalizedTextListEntry ponderTitleEntry;
+    @Nullable
+    private LocalizedTextListEntry sceneTitleEntry;
+
+    public SceneDescEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_desc");
+        this.scene = scene;
+        this.sceneIndex = sceneIndex;
+        this.hasMultiScene = scene.scenes != null
+            && !scene.scenes.isEmpty()
+            && sceneIndex >= 0
+            && sceneIndex < scene.scenes.size();
+
+        this.ponderTitleLang = getCurrentLang();
+        this.sceneTitleLang = getCurrentLang();
+        syncStateFromScene();
     }
 
     @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        if (snapshot.containsKey("ponderTitle") && ponderTitleRow != null)
-            ponderTitleRow.field().setValue(snapshot.get("ponderTitle"));
-        if (snapshot.containsKey("ponderTitleLang"))
-            ponderTitleLang = snapshot.get("ponderTitleLang");
-        if (hasMultiScene && sceneTitleRow != null && snapshot.containsKey("sceneTitle"))
-            sceneTitleRow.field().setValue(snapshot.get("sceneTitle"));
-        if (snapshot.containsKey("sceneTitleLang"))
-            sceneTitleLang = snapshot.get("sceneTitleLang");
-        if (snapshot.containsKey("ponderId") && ponderIdField != null)
-            ponderIdField.setValue(snapshot.get("ponderId"));
-        if (hasMultiScene && sceneIdField != null && snapshot.containsKey("sceneId"))
-            sceneIdField.setValue(snapshot.get("sceneId"));
-    }
+    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
+        ponderTitleEntry = localizedTextEntry(
+            "ponderer.ui.scene_desc.ponder_title",
+            null,
+            "ponderer.ui.scene_desc.hint.ponder_title",
+            localizedValue(workingPonderTitle, ponderTitleLang),
+            () -> ponderTitleLang,
+            this::togglePonderTitleLang,
+            value -> {
+                workingPonderTitle.setForLang(ponderTitleLang, value);
+                clearStatusMessages();
+            });
+        entries.add(ponderTitleEntry);
 
-    @Override
-    protected Map<String, String> snapshotForm() {
-        Map<String, String> m = new HashMap<>();
-        if (ponderTitleRow != null) m.put("ponderTitle", ponderTitleRow.field().getValue());
-        m.put("ponderTitleLang", ponderTitleLang);
-        if (hasMultiScene && sceneTitleRow != null) {
-            m.put("sceneTitle", sceneTitleRow.field().getValue());
-            m.put("sceneTitleLang", sceneTitleLang);
+        if (hasMultiScene && workingSceneTitle != null) {
+            sceneTitleEntry = localizedTextEntry(
+                "ponderer.ui.scene_desc.scene_title",
+                null,
+                "ponderer.ui.scene_desc.hint.scene_title",
+                localizedValue(workingSceneTitle, sceneTitleLang),
+                () -> sceneTitleLang,
+                this::toggleSceneTitleLang,
+                value -> {
+                    workingSceneTitle.setForLang(sceneTitleLang, value);
+                    clearStatusMessages();
+                });
+            entries.add(sceneTitleEntry);
+        } else {
+            sceneTitleEntry = null;
         }
-        if (ponderIdField != null) m.put("ponderId", ponderIdField.getValue());
-        if (hasMultiScene && sceneIdField != null) m.put("sceneId", sceneIdField.getValue());
-        return m;
+
+        entries.add(textEntry(
+            "ponderer.ui.scene_desc.ponder_id",
+            "ponderer.ui.scene_desc.id_hint",
+            "ponderer.ui.scene_desc.hint.ponder_id",
+            draftPonderId,
+            value -> {
+                draftPonderId = value;
+                clearStatusMessages();
+            }));
+
+        if (hasMultiScene) {
+            entries.add(textEntry(
+                "ponderer.ui.scene_desc.scene_id",
+                "ponderer.ui.scene_desc.id_hint",
+                "ponderer.ui.scene_desc.hint.scene_id",
+                draftSceneId,
+                value -> {
+                    draftSceneId = value;
+                    clearStatusMessages();
+                }));
+        }
     }
 
-    // ---- Confirm / Save ----
+    @Override
+    protected boolean hasUnsavedChanges() {
+        return getUnsavedChangeCount() > 0;
+    }
 
-    private void doConfirm() {
-        errorMessage = null;
-
-        String newPonderId = ponderIdField.getValue().trim();
-        if (!newPonderId.isEmpty() && !newPonderId.equals(scene.id)) {
-            for (DslScene s : SceneRuntime.getScenes()) {
-                if (s != scene && newPonderId.equals(s.id)) {
-                    errorMessage = Component.translatable("ponderer.ui.scene_desc.error.ponder_id_exists",
-                            newPonderId).getString();
-                    return;
-                }
+    @Override
+    protected int getUnsavedChangeCount() {
+        int dirtyFields = 0;
+        if (!sameLocalizedText(workingPonderTitle, originalPonderTitle)) {
+            dirtyFields++;
+        }
+        if (!Objects.equals(draftPonderId, originalPonderId)) {
+            dirtyFields++;
+        }
+        if (hasMultiScene) {
+            if (!sameLocalizedText(workingSceneTitle, originalSceneTitle)) {
+                dirtyFields++;
+            }
+            if (!Objects.equals(draftSceneId, originalSceneId)) {
+                dirtyFields++;
             }
         }
+        return dirtyFields;
+    }
 
-        if (hasMultiScene && sceneIdField != null) {
-            String newSceneId = sceneIdField.getValue().trim();
-            DslScene.SceneSegment currentSeg = scene.scenes.get(sceneIndex);
-            if (!newSceneId.isEmpty() && !newSceneId.equals(currentSeg.id)) {
-                for (int i = 0; i < scene.scenes.size(); i++) {
-                    if (i != sceneIndex && newSceneId.equals(scene.scenes.get(i).id)) {
-                        errorMessage = Component.translatable("ponderer.ui.scene_desc.error.scene_id_exists",
-                                newSceneId).getString();
-                        return;
-                    }
-                }
-            }
+    @Override
+    protected boolean saveEdits() {
+        clearStatusMessages();
+
+        String newPonderId = draftPonderId.trim();
+        if (!validatePonderId(newPonderId) || !validateSceneId()) {
+            return false;
         }
-
-        // ---- Save all fields ----
 
         DslScene candidate = SceneStore.copyScene(scene);
         if (candidate == null) {
-            errorMessage = UIText.of("ponderer.ui.save_error.io", "Unable to prepare scene copy");
-            return;
+            setErrorMessage(UIText.of("ponderer.ui.scene_desc.error.prepare_copy"));
+            return false;
         }
 
-        LocalizedText candidatePonderTitle = copyLocalizedText(workingPonderTitle);
-        String pTitle = ponderTitleRow.field().getValue();
-        if (!pTitle.isEmpty()) {
-            candidatePonderTitle.setForLang(ponderTitleLang, pTitle);
-        }
-        candidate.title = candidatePonderTitle;
-
-        LocalizedText candidateSceneTitle = null;
-        if (hasMultiScene && sceneTitleRow != null) {
-            candidateSceneTitle = copyLocalizedText(workingSceneTitle);
-            String scTitle = sceneTitleRow.field().getValue();
-            if (!scTitle.isEmpty()) {
-                candidateSceneTitle.setForLang(sceneTitleLang, scTitle);
-            }
-            candidate.scenes.get(sceneIndex).title = candidateSceneTitle;
-        }
-
+        candidate.title = copyLocalizedText(workingPonderTitle);
         if (!newPonderId.isEmpty()) {
             candidate.id = newPonderId;
         }
 
-        if (hasMultiScene && sceneIdField != null) {
-            String newSceneId = sceneIdField.getValue().trim();
+        if (hasMultiScene && candidate.scenes != null && workingSceneTitle != null) {
+            candidate.scenes.get(sceneIndex).title = copyLocalizedText(workingSceneTitle);
+            String newSceneId = draftSceneId.trim();
             if (!newSceneId.isEmpty()) {
                 candidate.scenes.get(sceneIndex).id = newSceneId;
             }
         }
 
-        workingPonderTitle = candidatePonderTitle;
-        if (candidateSceneTitle != null) {
-            workingSceneTitle = candidateSceneTitle;
-        }
-
         SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(candidate);
         if (!saveResult.isSuccess()) {
-            errorMessage = UIText.saveError(saveResult);
-            return;
+            setErrorMessage(UIText.saveError(saveResult));
+            return false;
         }
 
+        applySavedScene(candidate);
+        SceneStore.reloadFromDisk();
+        Minecraft.getInstance().execute(PonderIndex::reload);
+
+        syncStateFromScene();
+        rebuildEntries(currentListScroll());
+        setInfoMessage(UIText.of("ponderer.ui.scene_desc.saved"));
+        return true;
+    }
+
+    @Override
+    protected void discardEdits() {
+        clearStatusMessages();
+        workingPonderTitle = copyLocalizedText(originalPonderTitle);
+        draftPonderId = originalPonderId;
+
+        if (hasMultiScene) {
+            workingSceneTitle = copyLocalizedText(originalSceneTitle);
+            draftSceneId = originalSceneId;
+        }
+
+        rebuildEntries(currentListScroll());
+    }
+
+    private boolean validatePonderId(String newPonderId) {
+        if (newPonderId.isEmpty() || newPonderId.equals(scene.id)) {
+            return true;
+        }
+        for (DslScene existingScene : SceneRuntime.getScenes()) {
+            if (existingScene != scene && newPonderId.equals(existingScene.id)) {
+                setErrorMessage(Component.translatable(
+                    "ponderer.ui.scene_desc.error.ponder_id_exists",
+                    newPonderId).getString());
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean validateSceneId() {
+        if (!hasMultiScene) {
+            return true;
+        }
+
+        String newSceneId = draftSceneId.trim();
+        DslScene.SceneSegment currentScene = scene.scenes.get(sceneIndex);
+        if (newSceneId.isEmpty() || newSceneId.equals(currentScene.id)) {
+            return true;
+        }
+
+        for (int i = 0; i < scene.scenes.size(); i++) {
+            if (i != sceneIndex && newSceneId.equals(scene.scenes.get(i).id)) {
+                setErrorMessage(Component.translatable(
+                    "ponderer.ui.scene_desc.error.scene_id_exists",
+                    newSceneId).getString());
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void applySavedScene(DslScene candidate) {
         scene.title = candidate.title;
         scene.id = candidate.id;
         if (hasMultiScene && candidate.scenes != null && scene.scenes != null
-                && sceneIndex >= 0 && sceneIndex < candidate.scenes.size() && sceneIndex < scene.scenes.size()) {
+            && sceneIndex >= 0 && sceneIndex < candidate.scenes.size() && sceneIndex < scene.scenes.size()) {
             scene.scenes.get(sceneIndex).title = candidate.scenes.get(sceneIndex).title;
             scene.scenes.get(sceneIndex).id = candidate.scenes.get(sceneIndex).id;
         }
-
-        SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
-        returnToParent();
     }
 
-    // ---- Language toggle logic ----
+    private void syncStateFromScene() {
+        originalPonderTitle = copyLocalizedText(scene.title);
+        workingPonderTitle = copyLocalizedText(scene.title);
+        originalPonderId = scene.id != null ? scene.id : "";
+        draftPonderId = originalPonderId;
+
+        if (hasMultiScene && scene.scenes != null && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
+            DslScene.SceneSegment currentScene = scene.scenes.get(sceneIndex);
+            originalSceneTitle = copyLocalizedText(currentScene.title);
+            workingSceneTitle = copyLocalizedText(currentScene.title);
+            originalSceneId = currentScene.id != null ? currentScene.id : "";
+            draftSceneId = originalSceneId;
+        } else {
+            originalSceneTitle = null;
+            workingSceneTitle = null;
+            originalSceneId = "";
+            draftSceneId = "";
+        }
+    }
 
     private void togglePonderTitleLang() {
-        if (ponderTitleRow == null) return;
-        String currentText = ponderTitleRow.field().getValue();
-        if (!currentText.isEmpty()) {
-            workingPonderTitle.setForLang(ponderTitleLang, currentText);
-        }
         ponderTitleLang = nextLang(ponderTitleLang);
-        String val = workingPonderTitle.getExact(ponderTitleLang);
-        ponderTitleRow.field().setValue(val != null ? val : "");
+        if (ponderTitleEntry != null) {
+            ponderTitleEntry.setValue(localizedValue(workingPonderTitle, ponderTitleLang));
+        }
+        clearStatusMessages();
     }
 
     private void toggleSceneTitleLang() {
-        if (sceneTitleRow == null) return;
-        String currentText = sceneTitleRow.field().getValue();
-        if (!currentText.isEmpty()) {
-            workingSceneTitle.setForLang(sceneTitleLang, currentText);
+        if (workingSceneTitle == null) {
+            return;
         }
         sceneTitleLang = nextLang(sceneTitleLang);
-        String val = workingSceneTitle.getExact(sceneTitleLang);
-        sceneTitleRow.field().setValue(val != null ? val : "");
+        if (sceneTitleEntry != null) {
+            sceneTitleEntry.setValue(localizedValue(workingSceneTitle, sceneTitleLang));
+        }
+        clearStatusMessages();
     }
 
-    private String nextLang(String current) {
-        String mcLang = getCurrentLang();
-        if (current.equals("en_us") && !"en_us".equals(mcLang)) {
-            return mcLang;
+    private static String nextLang(String current) {
+        String minecraftLang = getCurrentLang();
+        if ("en_us".equals(current) && !"en_us".equals(minecraftLang)) {
+            return minecraftLang;
         }
         return "en_us";
+    }
+
+    private static String localizedValue(@Nullable LocalizedText text, String lang) {
+        if (text == null) {
+            return "";
+        }
+        String exact = text.getExact(lang);
+        return exact != null ? exact : "";
+    }
+
+    private static boolean sameLocalizedText(@Nullable LocalizedText left, @Nullable LocalizedText right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null) {
+            return false;
+        }
+        if (left.isPlain() != right.isPlain()) {
+            return false;
+        }
+        return left.getAllTranslations().equals(right.getAllTranslations());
     }
 
     private static String getCurrentLang() {
@@ -293,6 +324,6 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
         }
         return text.isPlain()
             ? LocalizedText.of(text.resolve())
-            : LocalizedText.ofMap(new java.util.LinkedHashMap<>(text.getAllTranslations()));
+            : LocalizedText.ofMap(new LinkedHashMap<>(text.getAllTranslations()));
     }
 }

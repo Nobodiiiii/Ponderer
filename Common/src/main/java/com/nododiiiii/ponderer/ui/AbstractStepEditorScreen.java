@@ -105,6 +105,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     /** Tracked form widgets and their content-relative Y offsets for scroll repositioning. */
     private final List<FormWidgetRecord> formWidgetRecords = new ArrayList<>();
     private record FormWidgetRecord(AbstractWidget widget, int contentOffsetY) {}
+    private final List<StepEditorEntry> formEntries = new ArrayList<>();
 
     /** Registered tooltip regions: hover over label area to see description. */
     protected final List<TooltipRegion> tooltipRegions = new ArrayList<>();
@@ -285,10 +286,28 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
      * Number of form rows in this step editor. Determines auto-calculated window
      * height.
      */
-    protected abstract int getFormRowCount();
+    protected final int getFormRowCount() {
+        formEntries.clear();
+        collectFormEntries(formEntries);
+        int rows = 0;
+        for (StepEditorEntry entry : formEntries) {
+            rows += Math.max(0, entry.rows());
+        }
+        return rows;
+    }
 
-    /** Subclasses create their input fields/widgets in this method. */
-    protected abstract void buildForm();
+    /** Subclasses declare their form rows in this method. */
+    protected abstract void collectFormEntries(List<StepEditorEntry> entries);
+
+    /** Builds the form from declarative entries. */
+    protected final void buildForm() {
+        beginForm();
+        formEntries.clear();
+        collectFormEntries(formEntries);
+        for (StepEditorEntry entry : formEntries) {
+            entry.build(this);
+        }
+    }
 
     /** Subclasses populate form fields from an existing step (for edit mode). */
     protected void populateFromStep(DslScene.DslStep step) {
@@ -698,13 +717,45 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
      * Capture the current form field values into a string map.
      * Keys should match those used in {@link #restoreFromSnapshot(Map)}.
      */
-    protected abstract Map<String, String> snapshotForm();
+    protected final Map<String, String> snapshotForm() {
+        Map<String, String> snapshot = new HashMap<>();
+        for (StepEditorEntry entry : formEntries) {
+            entry.snapshot(snapshot);
+        }
+        appendCustomSnapshot(snapshot);
+        return snapshot;
+    }
 
     /**
      * Restore form field values from a previously captured snapshot.
      * Called after returning from a pick operation.
      */
-    protected abstract void restoreFromSnapshot(Map<String, String> snapshot);
+    protected final void restoreFromSnapshot(Map<String, String> snapshot) {
+        restoreKeyFrame(snapshot);
+        for (StepEditorEntry entry : formEntries) {
+            entry.restore(snapshot);
+        }
+        restoreCustomSnapshot(snapshot);
+    }
+
+    /** Append screen-specific snapshot values that are not covered by declarative entries. */
+    protected void appendCustomSnapshot(Map<String, String> snapshot) {
+    }
+
+    /** Restore screen-specific snapshot values that are not covered by declarative entries. */
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
+    }
+
+    /** Rebuild the current form layout while preserving declarative field state. */
+    protected final void rebuildFormPreservingState() {
+        var mc = Minecraft.getInstance();
+        if (mc == null) {
+            return;
+        }
+        Map<String, String> snapshot = snapshotForm();
+        init(mc, width, height);
+        restoreFromSnapshot(snapshot);
+    }
 
     /**
      * Helper to restore the keyFrame toggle from a snapshot.
@@ -901,6 +952,10 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     protected record XyzFieldGroup(HintableTextFieldWidget x, HintableTextFieldWidget y, HintableTextFieldWidget z, @Nullable PonderButton pickBtn) {}
     /** Return value for {@link #addFormTextFieldWithLang}. */
     protected record FieldWithLang(HintableTextFieldWidget field, BoxWidget langBtn) {}
+    /** Return value for text field rows with a single trailing button. */
+    protected record FieldWithButton(HintableTextFieldWidget field, PonderButton button) {}
+    /** Return value for dual-field rows. */
+    protected record DualFieldGroup(HintableTextFieldWidget first, HintableTextFieldWidget second) {}
 
     /** Tracked label for auto-rendering in renderForm(). */
     private record AutoLabel(String text, int x, int y, int color) {}
@@ -1057,6 +1112,27 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         return field;
     }
 
+    /** Add a text field row with a single trailing action button. */
+    protected FieldWithButton addFormTextFieldWithButton(String labelKey, @Nullable String tooltipKey,
+                                                         String hint, int fieldW,
+                                                         Runnable onClick,
+                                                         Supplier<String> buttonLabelGetter,
+                                                         IntSupplier buttonColorGetter,
+                                                         @Nullable String buttonTooltip) {
+        addFormLabel(labelKey, tooltipKey);
+        int fx = fieldX();
+        HintableTextFieldWidget field = createTextField(fx, formCursorY, fieldW, 18, hint);
+        PonderButton button = new PonderButton(fx + fieldW + 5, formCursorY + 3, 14, 12);
+        button.withCallback(onClick);
+        addRenderableWidget(button);
+        if (buttonTooltip != null) {
+            addTooltip(button.getX(), button.getY(), button.getWidth(), button.getHeight(), buttonTooltip);
+        }
+        autoFgElements.add(new FgCycleBtn(button, buttonLabelGetter, buttonColorGetter));
+        nextFormRow();
+        return new FieldWithButton(field, button);
+    }
+
     /** Add an XYZ coordinate field row with optional pick button. */
     protected XyzFieldGroup addFormXyzRow(String labelKey, @Nullable String tooltipKey,
                                           @Nullable PickState.TargetField target, boolean halfOffset) {
@@ -1083,6 +1159,29 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
     /** Add an XYZ field row without pick button. */
     protected XyzFieldGroup addFormXyzRow(String labelKey, @Nullable String tooltipKey) {
         return addFormXyzRow(labelKey, tooltipKey, null, false);
+    }
+
+    /** Add an XYZ coordinate row with a custom trailing action button. */
+    protected XyzFieldGroup addFormXyzRowWithButton(String labelKey, @Nullable String tooltipKey,
+                                                    Runnable onClick,
+                                                    Supplier<String> buttonLabelGetter,
+                                                    IntSupplier buttonColorGetter,
+                                                    @Nullable String buttonTooltip) {
+        addFormLabel(labelKey, tooltipKey);
+        int fx = fieldX();
+        int sw = 38;
+        var xf = createSmallNumberField(fx, formCursorY, sw, "X");
+        var yf = createSmallNumberField(fx + sw + 5, formCursorY, sw, "Y");
+        var zf = createSmallNumberField(fx + 2 * (sw + 5), formCursorY, sw, "Z");
+        PonderButton button = new PonderButton(fx + 3 * (sw + 5), formCursorY + 3, 14, 12);
+        button.withCallback(onClick);
+        addRenderableWidget(button);
+        if (buttonTooltip != null) {
+            addTooltip(button.getX(), button.getY(), button.getWidth(), button.getHeight(), buttonTooltip);
+        }
+        autoFgElements.add(new FgCycleBtn(button, buttonLabelGetter, buttonColorGetter));
+        nextFormRow();
+        return new XyzFieldGroup(xf, yf, zf, button);
     }
 
     /** Add a toggle (checkbox) row. */
@@ -1151,6 +1250,18 @@ public abstract class AbstractStepEditorScreen extends AbstractSimiScreen implem
         autoFgElements.add(new FgLangBtn(langBtn, langGetter));
         nextFormRow();
         return new FieldWithLang(field, langBtn);
+    }
+
+    /** Add a row with two small number/text fields under one label. */
+    protected DualFieldGroup addFormDualNumberField(String labelKey, @Nullable String tooltipKey,
+                                                    String firstHint, int firstWidth,
+                                                    String secondHint, int secondWidth) {
+        addFormLabel(labelKey, tooltipKey);
+        int fx = fieldX();
+        HintableTextFieldWidget first = createSmallNumberField(fx, formCursorY, firstWidth, firstHint);
+        HintableTextFieldWidget second = createSmallNumberField(fx + firstWidth + 5, formCursorY, secondWidth, secondHint);
+        nextFormRow();
+        return new DualFieldGroup(first, second);
     }
 
     /** Add a block properties section (dynamic rows). Advances cursor by blockPropRowCount(). */

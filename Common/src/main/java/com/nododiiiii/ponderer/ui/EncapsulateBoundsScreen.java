@@ -1,13 +1,10 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Editor for "encapsulate_bounds" step.
@@ -15,7 +12,7 @@ import java.util.Map;
  */
 public class EncapsulateBoundsScreen extends AbstractStepEditorScreen {
 
-    private HintableTextFieldWidget boundsXField, boundsYField, boundsZField;
+    private final StepXyzFieldHandle boundsField = new StepXyzFieldHandle("bounds");
 
     public EncapsulateBoundsScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.encapsulate_bounds"), scene, sceneIndex, parent);
@@ -26,55 +23,34 @@ public class EncapsulateBoundsScreen extends AbstractStepEditorScreen {
         super(Component.translatable("ponderer.ui.encapsulate_bounds"), scene, sceneIndex, parent, editIndex, step);
     }
 
-    @Override protected int getFormRowCount() { return 1; }
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.encapsulate_bounds"); }
 
     @Override
-    protected void buildForm() {
-        beginForm();
-        var xyz = addFormXyzRow("ponderer.ui.encapsulate_bounds.bounds", "ponderer.ui.encapsulate_bounds.bounds.tooltip");
-        boundsXField = xyz.x();
-        boundsYField = xyz.y();
-        boundsZField = xyz.z();
+    protected void collectFormEntries(List<StepEditorEntry> entries) {
+        entries.add(StepEditorEntries.xyz(
+            boundsField,
+            "ponderer.ui.encapsulate_bounds.bounds",
+            "ponderer.ui.encapsulate_bounds.bounds.tooltip"));
     }
 
     @Override
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         if (step.bounds != null && step.bounds.size() >= 3) {
-            boundsXField.setValue(String.valueOf(step.bounds.get(0)));
-            boundsYField.setValue(String.valueOf(step.bounds.get(1)));
-            boundsZField.setValue(String.valueOf(step.bounds.get(2)));
+            boundsField.setValue(step.bounds.get(0), step.bounds.get(1), step.bounds.get(2));
         }
     }
 
     @Override
     protected String getStepType() { return "encapsulate_bounds"; }
 
-    @Override
-    protected Map<String, String> snapshotForm() {
-        Map<String, String> m = new HashMap<>();
-        m.put("boundsX", boundsXField.getValue());
-        m.put("boundsY", boundsYField.getValue());
-        m.put("boundsZ", boundsZField.getValue());
-        return m;
-    }
-
-    @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
-        if (snapshot.containsKey("boundsX")) boundsXField.setValue(snapshot.get("boundsX"));
-        if (snapshot.containsKey("boundsY")) boundsYField.setValue(snapshot.get("boundsY"));
-        if (snapshot.containsKey("boundsZ")) boundsZField.setValue(snapshot.get("boundsZ"));
-    }
-
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
         errorMessage = null;
-        Integer bx = parseInt(boundsXField.getValue(), "X");
-        Integer by = parseInt(boundsYField.getValue(), "Y");
-        Integer bz = parseInt(boundsZField.getValue(), "Z");
+        Integer bx = parseInt(boundsField.x(), "X");
+        Integer by = parseInt(boundsField.y(), "Y");
+        Integer bz = parseInt(boundsField.z(), "Z");
         if (bx == null || by == null || bz == null) return null;
 
         DslScene.DslStep s = new DslScene.DslStep();

@@ -1,25 +1,19 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
-import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
 
-    private HintableTextFieldWidget posXField, posYField, posZField;
-    private HintableTextFieldWidget pos2XField, pos2YField, pos2ZField;
-    private HintableTextFieldWidget nbtField;
+    private final StepXyzFieldHandle posField = new StepXyzFieldHandle("pos");
+    private final StepXyzFieldHandle pos2Field = new StepXyzFieldHandle("pos2");
+    private final StepTextFieldHandle nbtField = new StepTextFieldHandle("nbt");
     private boolean redraw = false;
-    private BoxWidget redrawToggle;
-    private PonderButton pickBtn1, pickBtn2;
 
     public ModifyBlockEntityNbtScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.modify_block_entity_nbt.add"), scene, sceneIndex, parent);
@@ -34,37 +28,46 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
     protected boolean usesBlockProps() { return true; }
 
     @Override
-    protected int getFormRowCount() { return 4 + blockPropRowCount(); }
-
-    @Override
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.modify_block_entity_nbt"); }
 
     @Override
-    protected void buildForm() {
-        beginForm();
-        var pos1 = addFormXyzRow("ponderer.ui.modify_block_entity_nbt.pos_from", "ponderer.ui.modify_block_entity_nbt.pos_from.tooltip", PickState.TargetField.POS1);
-        posXField = pos1.x(); posYField = pos1.y(); posZField = pos1.z(); pickBtn1 = pos1.pickBtn();
-        var pos2 = addFormXyzRow("ponderer.ui.modify_block_entity_nbt.pos_to", "ponderer.ui.modify_block_entity_nbt.pos_to.tooltip", PickState.TargetField.POS2);
-        pos2XField = pos2.x(); pos2YField = pos2.y(); pos2ZField = pos2.z(); pickBtn2 = pos2.pickBtn();
-        addFormBlockProps("ponderer.ui.modify_block_entity_nbt.properties", "ponderer.ui.modify_block_entity_nbt.properties.tooltip");
-        nbtField = addFormNbtField("ponderer.ui.modify_block_entity_nbt.nbt", "ponderer.ui.modify_block_entity_nbt.nbt.tooltip",
-                "{CustomName:'\"Demo\"'}", 124, "nbt");
-        redrawToggle = addFormToggle("ponderer.ui.modify_block_entity_nbt.redraw", "ponderer.ui.modify_block_entity_nbt.redraw.tooltip",
-                () -> redraw, () -> redraw = !redraw);
+    protected void collectFormEntries(List<StepEditorEntry> entries) {
+        entries.add(StepEditorEntries.xyz(
+            posField,
+            "ponderer.ui.modify_block_entity_nbt.pos_from",
+            "ponderer.ui.modify_block_entity_nbt.pos_from.tooltip",
+            PickState.TargetField.POS1));
+        entries.add(StepEditorEntries.xyz(
+            pos2Field,
+            "ponderer.ui.modify_block_entity_nbt.pos_to",
+            "ponderer.ui.modify_block_entity_nbt.pos_to.tooltip",
+            PickState.TargetField.POS2));
+        entries.add(StepEditorEntries.blockProps(
+            "ponderer.ui.modify_block_entity_nbt.properties",
+            "ponderer.ui.modify_block_entity_nbt.properties.tooltip",
+            this::blockPropRowCount));
+        entries.add(StepEditorEntries.nbtText(
+            nbtField,
+            "ponderer.ui.modify_block_entity_nbt.nbt",
+            "ponderer.ui.modify_block_entity_nbt.nbt.tooltip",
+            "{CustomName:'\"Demo\"'}",
+            124,
+            "nbt"));
+        entries.add(StepEditorEntries.toggle(
+            "ponderer.ui.modify_block_entity_nbt.redraw",
+            "ponderer.ui.modify_block_entity_nbt.redraw.tooltip",
+            () -> redraw,
+            () -> redraw = !redraw));
     }
 
     @Override
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         if (step.blockPos != null && step.blockPos.size() >= 3) {
-            posXField.setValue(String.valueOf(step.blockPos.get(0)));
-            posYField.setValue(String.valueOf(step.blockPos.get(1)));
-            posZField.setValue(String.valueOf(step.blockPos.get(2)));
+            posField.setValue(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
         }
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
-            pos2XField.setValue(String.valueOf(step.blockPos2.get(0)));
-            pos2YField.setValue(String.valueOf(step.blockPos2.get(1)));
-            pos2ZField.setValue(String.valueOf(step.blockPos2.get(2)));
+            pos2Field.setValue(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
         if (step.nbt != null) nbtField.setValue(step.nbt);
         if (step.reDrawBlocks != null) redraw = step.reDrawBlocks;
@@ -74,32 +77,15 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
     protected String getStepType() { return "modify_block_entity_nbt"; }
 
     @Override
-    protected Map<String, String> snapshotForm() {
+    protected void appendCustomSnapshot(Map<String, String> m) {
         syncBlockPropFieldsToEntries();
-        Map<String, String> m = new HashMap<>();
-        m.put("posX", posXField.getValue());
-        m.put("posY", posYField.getValue());
-        m.put("posZ", posZField.getValue());
-        m.put("pos2X", pos2XField.getValue());
-        m.put("pos2Y", pos2YField.getValue());
-        m.put("pos2Z", pos2ZField.getValue());
         snapshotBlockProps(m);
-        m.put("nbt", nbtField.getValue());
         m.put("redraw", String.valueOf(redraw));
-        return m;
     }
 
     @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
-        if (snapshot.containsKey("posX")) posXField.setValue(snapshot.get("posX"));
-        if (snapshot.containsKey("posY")) posYField.setValue(snapshot.get("posY"));
-        if (snapshot.containsKey("posZ")) posZField.setValue(snapshot.get("posZ"));
-        if (snapshot.containsKey("pos2X")) pos2XField.setValue(snapshot.get("pos2X"));
-        if (snapshot.containsKey("pos2Y")) pos2YField.setValue(snapshot.get("pos2Y"));
-        if (snapshot.containsKey("pos2Z")) pos2ZField.setValue(snapshot.get("pos2Z"));
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
         restoreBlockProps(snapshot);
-        if (snapshot.containsKey("nbt")) nbtField.setValue(snapshot.get("nbt"));
         restoreNbtPickNotice(snapshot);
         if (snapshot.containsKey("redraw")) redraw = Boolean.parseBoolean(snapshot.get("redraw"));
     }
@@ -109,14 +95,14 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
     protected DslScene.DslStep buildStep() {
         errorMessage = null;
 
-        Integer px = parseInt(posXField.getValue(), "X");
-        Integer py = parseInt(posYField.getValue(), "Y");
-        Integer pz = parseInt(posZField.getValue(), "Z");
+        Integer px = parseInt(posField.x(), "X");
+        Integer py = parseInt(posField.y(), "Y");
+        Integer pz = parseInt(posField.z(), "Z");
         if (px == null || py == null || pz == null) return null;
 
-        String pos2X = pos2XField.getValue().trim();
-        String pos2Y = pos2YField.getValue().trim();
-        String pos2Z = pos2ZField.getValue().trim();
+        String pos2X = pos2Field.x().trim();
+        String pos2Y = pos2Field.y().trim();
+        String pos2Z = pos2Field.z().trim();
         boolean hasPos2 = !pos2X.isEmpty() || !pos2Y.isEmpty() || !pos2Z.isEmpty();
         Integer px2 = null, py2 = null, pz2 = null;
         if (hasPos2) {

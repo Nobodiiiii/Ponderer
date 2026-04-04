@@ -1,16 +1,12 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
-import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,31 +16,18 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     private static final String[] DIRECTIONS = {"down", "up", "north", "south", "west", "east"};
     private static final String[] ENTRANCE_ANIMATIONS = {"none", "simultaneous", "down", "up", "south", "north", "east", "west"};
 
-    private HintableTextFieldWidget blockField;
-    private HintableTextFieldWidget nbtField;
-    private HintableTextFieldWidget posXField, posYField, posZField;
-    private HintableTextFieldWidget pos2XField, pos2YField, pos2ZField;
-    private HintableTextFieldWidget linkIdField;
-    private HintableTextFieldWidget durationField;
-    private HintableTextFieldWidget intervalField;
+    private final StepTextFieldHandle blockField = new StepTextFieldHandle("block");
+    private final StepTextFieldHandle nbtField = new StepTextFieldHandle("nbt");
+    private final StepXyzFieldHandle posField = new StepXyzFieldHandle("pos");
+    private final StepXyzFieldHandle pos2Field = new StepXyzFieldHandle("pos2");
+    private final StepTextFieldHandle linkIdField = new StepTextFieldHandle("linkId");
+    private final StepTextFieldHandle durationField = new StepTextFieldHandle("duration");
+    private final StepTextFieldHandle intervalField = new StepTextFieldHandle("entranceInterval");
     private boolean spawnParticles = true;
     private boolean smartDisplay = true;
     private int entranceModeIndex = 1;
     private int directionIndex = 0;
-    private String linkIdValue = "";
-    private String durationValue = "20";
-    private String intervalValue = "1";
-    private BoxWidget particlesToggle;
-    private BoxWidget entranceModeButton;
-    private BoxWidget directionButton;
-    private BoxWidget entranceAnimationButton;
-    private BoxWidget smartDisplayToggle;
     private int entranceAnimationIndex = 0;
-    private PonderButton pickBtn1, pickBtn2;
-    @Nullable
-    private PonderButton jeiBtn;
-    @Nullable
-    private PonderButton blockPickBtn;
 
     public SetBlockScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.set_block.add"), scene, sceneIndex, parent);
@@ -70,70 +53,92 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     protected boolean usesBlockProps() { return true; }
 
     @Override
-    protected int getFormRowCount() {
-        int rows = 5 + blockPropRowCount();
-        String mode = ENTRANCE_MODES[entranceModeIndex];
-        if ("immediate".equals(mode)) {
-            rows += 1;
-        } else if ("animated".equals(mode)) {
-            rows += 6;
-        }
-        return rows;
-    }
-
-    @Override
     protected String getHeaderTitle() { return UIText.of("ponderer.ui.set_block"); }
 
     @Override
-    protected void buildForm() {
-        linkIdField = null;
-        durationField = null;
-        intervalField = null;
-        particlesToggle = null;
-        directionButton = null;
-        entranceAnimationButton = null;
-        smartDisplayToggle = null;
-
-        beginForm();
-        var blk = addFormTextFieldWithJeiAndBlockPick("ponderer.ui.set_block", "ponderer.ui.set_block.tooltip",
-                UIText.of("ponderer.ui.set_block.hint"), IdFieldMode.BLOCK, "nbt");
-        blockField = blk.field();
-        jeiBtn = blk.jeiBtn();
-        blockPickBtn = blk.blockPickBtn();
-        addFormBlockProps("ponderer.ui.block_properties", "ponderer.ui.block_properties.tooltip");
-        nbtField = addFormNbtField("ponderer.ui.set_block.nbt", "ponderer.ui.set_block.nbt.tooltip",
-            "{CustomName:'\"Demo\"'}", 124, "nbt");
-        var from = addFormXyzRow("ponderer.ui.set_block.pos_from", "ponderer.ui.set_block.pos_from.tooltip", PickState.TargetField.POS1);
-        posXField = from.x(); posYField = from.y(); posZField = from.z(); pickBtn1 = from.pickBtn();
-        var to = addFormXyzRow("ponderer.ui.set_block.pos_to", "ponderer.ui.set_block.pos_to.tooltip", PickState.TargetField.POS2);
-        pos2XField = to.x(); pos2YField = to.y(); pos2ZField = to.z(); pickBtn2 = to.pickBtn();
-        entranceModeButton = addFormCycleButton("ponderer.ui.set_block.entrance_mode", "ponderer.ui.set_block.entrance_mode.tooltip",
-            140, () -> {
-                Map<String, String> snapshot = snapshotForm();
+    protected void collectFormEntries(List<StepEditorEntry> entries) {
+        entries.add(StepEditorEntries.textWithJeiAndBlockPick(
+            blockField,
+            "ponderer.ui.set_block",
+            "ponderer.ui.set_block.tooltip",
+            UIText.of("ponderer.ui.set_block.hint"),
+            IdFieldMode.BLOCK,
+            "nbt"));
+        entries.add(StepEditorEntries.blockProps(
+            "ponderer.ui.block_properties",
+            "ponderer.ui.block_properties.tooltip",
+            this::blockPropRowCount));
+        entries.add(StepEditorEntries.nbtText(
+            nbtField,
+            "ponderer.ui.set_block.nbt",
+            "ponderer.ui.set_block.nbt.tooltip",
+            "{CustomName:'\"Demo\"'}",
+            124,
+            "nbt"));
+        entries.add(StepEditorEntries.xyz(
+            posField,
+            "ponderer.ui.set_block.pos_from",
+            "ponderer.ui.set_block.pos_from.tooltip",
+            PickState.TargetField.POS1));
+        entries.add(StepEditorEntries.xyz(
+            pos2Field,
+            "ponderer.ui.set_block.pos_to",
+            "ponderer.ui.set_block.pos_to.tooltip",
+            PickState.TargetField.POS2));
+        entries.add(StepEditorEntries.cycleButton(
+            "ponderer.ui.set_block.entrance_mode",
+            "ponderer.ui.set_block.entrance_mode.tooltip",
+            140,
+            () -> {
                 entranceModeIndex = (entranceModeIndex + 1) % ENTRANCE_MODES.length;
-                snapshot.put("entranceMode", String.valueOf(entranceModeIndex));
-                init(net.minecraft.client.Minecraft.getInstance(), this.width, this.height);
-                restoreFromSnapshot(snapshot);
+                rebuildFormPreservingState();
             },
-            () -> UIText.of("ponderer.ui.set_block.entrance_mode.option." + ENTRANCE_MODES[entranceModeIndex]));
-
+            () -> UIText.of("ponderer.ui.set_block.entrance_mode.option." + ENTRANCE_MODES[entranceModeIndex])));
         String mode = ENTRANCE_MODES[entranceModeIndex];
         if ("immediate".equals(mode)) {
-            particlesToggle = addFormToggle("ponderer.ui.set_block.particles", "ponderer.ui.set_block.particles.tooltip",
-                    () -> spawnParticles, () -> spawnParticles = !spawnParticles);
+            entries.add(StepEditorEntries.toggle(
+                "ponderer.ui.set_block.particles",
+                "ponderer.ui.set_block.particles.tooltip",
+                () -> spawnParticles,
+                () -> spawnParticles = !spawnParticles));
         } else if ("animated".equals(mode)) {
-            entranceAnimationButton = addFormCycleButton("ponderer.ui.set_block.entrance_animation", "ponderer.ui.set_block.entrance_animation.tooltip",
-                140, () -> entranceAnimationIndex = (entranceAnimationIndex + 1) % ENTRANCE_ANIMATIONS.length,
-                () -> entranceAnimationLabel(ENTRANCE_ANIMATIONS[entranceAnimationIndex]));
-            directionButton = addFormCycleButton("ponderer.ui.show_section_and_merge.direction", "ponderer.ui.show_section_and_merge.direction.tooltip",
-                    140, () -> directionIndex = (directionIndex + 1) % DIRECTIONS.length,
-                    () -> optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[directionIndex]));
-                linkIdField = addFormTextField("ponderer.ui.show_section_and_merge.link", "ponderer.ui.show_section_and_merge.link.tooltip", linkIdValue, 140);
-                durationField = addFormNumberField("ponderer.ui.duration", "ponderer.ui.duration.tooltip.section_animation", durationValue, 60);
-            intervalField = addFormNumberField("ponderer.ui.entrance_interval", "ponderer.ui.entrance_interval.tooltip", "1", 60);
-                intervalField.setValue(intervalValue);
-            smartDisplayToggle = addFormToggle("ponderer.ui.smart_display", "ponderer.ui.smart_display.tooltip",
-                    () -> smartDisplay, () -> smartDisplay = !smartDisplay);
+            entries.add(StepEditorEntries.cycleButton(
+                "ponderer.ui.set_block.entrance_animation",
+                "ponderer.ui.set_block.entrance_animation.tooltip",
+                140,
+                () -> entranceAnimationIndex = (entranceAnimationIndex + 1) % ENTRANCE_ANIMATIONS.length,
+                () -> entranceAnimationLabel(ENTRANCE_ANIMATIONS[entranceAnimationIndex])));
+            entries.add(StepEditorEntries.cycleButton(
+                "ponderer.ui.show_section_and_merge.direction",
+                "ponderer.ui.show_section_and_merge.direction.tooltip",
+                140,
+                () -> directionIndex = (directionIndex + 1) % DIRECTIONS.length,
+                () -> optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[directionIndex])));
+            entries.add(StepEditorEntries.text(
+                linkIdField,
+                "ponderer.ui.show_section_and_merge.link",
+                "ponderer.ui.show_section_and_merge.link.tooltip",
+                "",
+                140));
+            entries.add(StepEditorEntries.number(
+                durationField,
+                "ponderer.ui.duration",
+                "ponderer.ui.duration.tooltip.section_animation",
+                "20",
+                60,
+                null));
+            entries.add(StepEditorEntries.number(
+                intervalField,
+                "ponderer.ui.entrance_interval",
+                "ponderer.ui.entrance_interval.tooltip",
+                "1",
+                60,
+                null));
+            entries.add(StepEditorEntries.toggle(
+                "ponderer.ui.smart_display",
+                "ponderer.ui.smart_display.tooltip",
+                () -> smartDisplay,
+                () -> smartDisplay = !smartDisplay));
         }
     }
 
@@ -142,14 +147,10 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
         super.populateFromStep(step);
         if (step.block != null) blockField.setValue(step.block);
         if (step.blockPos != null && step.blockPos.size() >= 3) {
-            posXField.setValue(String.valueOf(step.blockPos.get(0)));
-            posYField.setValue(String.valueOf(step.blockPos.get(1)));
-            posZField.setValue(String.valueOf(step.blockPos.get(2)));
+            posField.setValue(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
         }
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
-            pos2XField.setValue(String.valueOf(step.blockPos2.get(0)));
-            pos2YField.setValue(String.valueOf(step.blockPos2.get(1)));
-            pos2ZField.setValue(String.valueOf(step.blockPos2.get(2)));
+            pos2Field.setValue(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
         if (step.spawnParticles != null) {
             spawnParticles = step.spawnParticles;
@@ -176,27 +177,15 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             }
         }
         if (step.linkId != null) {
-            linkIdValue = step.linkId;
-            if (linkIdField != null) {
-                linkIdField.setValue(step.linkId);
-            }
+            linkIdField.setValue(step.linkId);
         }
         if (step.entranceDuration != null) {
-            durationValue = String.valueOf(step.entranceDuration);
-            if (durationField != null) {
-                durationField.setValue(durationValue);
-            }
+            durationField.setValue(String.valueOf(step.entranceDuration));
         } else if (step.duration != null) {
-            durationValue = String.valueOf(step.duration);
-            if (durationField != null) {
-                durationField.setValue(durationValue);
-            }
+            durationField.setValue(String.valueOf(step.duration));
         }
         if (step.entranceInterval != null) {
-            intervalValue = String.valueOf(step.entranceInterval);
-            if (intervalField != null) {
-                intervalField.setValue(intervalValue);
-            }
+            intervalField.setValue(String.valueOf(step.entranceInterval));
         }
         if (step.nbt != null) nbtField.setValue(step.nbt);
     }
@@ -241,48 +230,22 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     protected String getStepType() { return "set_block"; }
 
     @Override
-    protected Map<String, String> snapshotForm() {
+    protected void appendCustomSnapshot(Map<String, String> m) {
         syncBlockPropFieldsToEntries();
-        Map<String, String> m = new HashMap<>();
-        m.put("block", blockField.getValue());
         snapshotBlockProps(m);
-        m.put("posX", posXField.getValue());
-        m.put("posY", posYField.getValue());
-        m.put("posZ", posZField.getValue());
-        m.put("pos2X", pos2XField.getValue());
-        m.put("pos2Y", pos2YField.getValue());
-        m.put("pos2Z", pos2ZField.getValue());
-        m.put("nbt", nbtField.getValue());
-        if (linkIdField != null) linkIdValue = linkIdField.getValue();
-        if (durationField != null) durationValue = durationField.getValue();
-        if (intervalField != null) intervalValue = intervalField.getValue();
         m.put("entranceMode", String.valueOf(entranceModeIndex));
         m.put("particles", String.valueOf(spawnParticles));
         m.put("direction", String.valueOf(directionIndex));
-        m.put("linkId", linkIdValue);
-        m.put("duration", durationValue);
         m.put("entranceAnimation", String.valueOf(entranceAnimationIndex));
-        m.put("entranceInterval", intervalValue);
         m.put("smartDisplay", String.valueOf(smartDisplay));
-        return m;
     }
 
     @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
         if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_ID_KEY)) {
             blockField.setValue(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_ID_KEY));
-        } else if (snapshot.containsKey("block")) {
-            blockField.setValue(snapshot.get("block"));
         }
         restoreBlockProps(snapshot);
-        if (snapshot.containsKey("posX")) posXField.setValue(snapshot.get("posX"));
-        if (snapshot.containsKey("posY")) posYField.setValue(snapshot.get("posY"));
-        if (snapshot.containsKey("posZ")) posZField.setValue(snapshot.get("posZ"));
-        if (snapshot.containsKey("pos2X")) pos2XField.setValue(snapshot.get("pos2X"));
-        if (snapshot.containsKey("pos2Y")) pos2YField.setValue(snapshot.get("pos2Y"));
-        if (snapshot.containsKey("pos2Z")) pos2ZField.setValue(snapshot.get("pos2Z"));
-        if (snapshot.containsKey("nbt")) nbtField.setValue(snapshot.get("nbt"));
         restoreNbtPickNotice(snapshot);
         if (snapshot.containsKey("entranceMode")) {
             try {
@@ -306,12 +269,10 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             }
         }
         if (snapshot.containsKey("linkId")) {
-            linkIdValue = snapshot.get("linkId");
-            if (linkIdField != null) linkIdField.setValue(linkIdValue);
+            linkIdField.setValue(snapshot.get("linkId"));
         }
         if (snapshot.containsKey("duration")) {
-            durationValue = snapshot.get("duration");
-            if (durationField != null) durationField.setValue(durationValue);
+            durationField.setValue(snapshot.get("duration"));
         }
         if (snapshot.containsKey("entranceAnimation")) {
             try {
@@ -324,8 +285,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             }
         }
         if (snapshot.containsKey("entranceInterval")) {
-            intervalValue = snapshot.get("entranceInterval");
-            if (intervalField != null) intervalField.setValue(intervalValue);
+            intervalField.setValue(snapshot.get("entranceInterval"));
         }
         if (snapshot.containsKey("smartDisplay")) smartDisplay = Boolean.parseBoolean(snapshot.get("smartDisplay"));
     }
@@ -342,14 +302,14 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             errorMessage = UIText.of("ponderer.ui.set_block.error.unknown", blockId); return null;
         }
 
-        Integer px = parseInt(posXField.getValue(), "X");
-        Integer py = parseInt(posYField.getValue(), "Y");
-        Integer pz = parseInt(posZField.getValue(), "Z");
+        Integer px = parseInt(posField.x(), "X");
+        Integer py = parseInt(posField.y(), "Y");
+        Integer pz = parseInt(posField.z(), "Z");
         if (px == null || py == null || pz == null) return null;
 
-        String pos2X = pos2XField.getValue().trim();
-        String pos2Y = pos2YField.getValue().trim();
-        String pos2Z = pos2ZField.getValue().trim();
+        String pos2X = pos2Field.x().trim();
+        String pos2Y = pos2Field.y().trim();
+        String pos2Z = pos2Field.z().trim();
         boolean hasPos2 = !pos2X.isEmpty() || !pos2Y.isEmpty() || !pos2Z.isEmpty();
         Integer px2 = null, py2 = null, pz2 = null;
         if (hasPos2) {
@@ -393,15 +353,15 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             s.immediateDisplay = false;
             s.spawnParticles = false;
             s.direction = DIRECTIONS[directionIndex];
-            String linkId = linkIdField != null ? linkIdField.getValue().trim() : linkIdValue.trim();
+            String linkId = linkIdField.getValue().trim();
             if (!linkId.isEmpty()) s.linkId = linkId;
             String entranceAnimation = ENTRANCE_ANIMATIONS[entranceAnimationIndex];
             if ("none".equals(entranceAnimation)) {
                 entranceAnimation = "down";
             }
             s.entranceAnimation = entranceAnimation;
-            s.entranceDuration = Math.max(0, parseIntOr(durationField != null ? durationField.getValue() : durationValue, 20));
-            s.entranceInterval = Math.max(0, parseIntOr(intervalField != null ? intervalField.getValue() : intervalValue, 1));
+            s.entranceDuration = Math.max(0, parseIntOr(durationField.getValue(), 20));
+            s.entranceInterval = Math.max(0, parseIntOr(intervalField.getValue(), 1));
             s.smartDisplay = smartDisplay;
         }
         return s;

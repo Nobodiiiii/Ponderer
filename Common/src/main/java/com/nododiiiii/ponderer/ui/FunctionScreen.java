@@ -120,7 +120,7 @@ public class FunctionScreen extends NavigatableSimiScreen {
                 mc.setScreen(new KeyBindsScreen(null, mc.options));
             }, "ponderer.ui.function_page.keybindings.tooltip"),
             new ButtonDef("ponderer.ui.function_page.ai_config", () -> {
-                Minecraft.getInstance().setScreen(new AiConfigScreen());
+                Minecraft.getInstance().setScreen(new AiConfigScreen(this));
             }, "ponderer.ui.function_page.ai_config.tooltip")
         )));
     }
