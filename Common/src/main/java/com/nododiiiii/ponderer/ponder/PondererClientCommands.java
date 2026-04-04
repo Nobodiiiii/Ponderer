@@ -201,13 +201,13 @@ public final class PondererClientCommands {
         String json = GSON.toJson(uploadScene);
 
         // Compute lastSyncHash for conflict detection
-        String metaKey = "scripts/" + scene.id;
+        String metaKey = SyncMeta.metaKey("scripts", scene.id, scene.pack);
         Map<String, String> meta = SyncMeta.load();
         String lastSyncHash = meta.getOrDefault(metaKey, "");
 
         PondererServices.NETWORK
-                .sendToServer(new UploadScenePayload(scene.id, json, structures, mode, lastSyncHash));
-        notifyClient(Component.translatable("ponderer.cmd.push.uploading", scene.id, mode));
+                .sendToServer(new UploadScenePayload(scene.id, scene.pack, json, structures, mode, lastSyncHash));
+        notifyClient(Component.translatable("ponderer.cmd.push.uploading", scene.sceneKey(), mode));
         return 1;
     }
 
@@ -218,12 +218,12 @@ public final class PondererClientCommands {
         if (scene.structures != null && !scene.structures.isEmpty()) {
             List<String> mapped = new ArrayList<>();
             for (String ref : scene.structures) {
-                String updated = remapStructureRef(ref, uploadEntries, remapped);
+                String updated = remapStructureRef(ref, scene.pack, uploadEntries, remapped);
                 mapped.add(updated == null ? ref : updated);
             }
             scene.structures = mapped;
         } else if (scene.structure != null && !scene.structure.isBlank()) {
-            String updated = remapStructureRef(scene.structure, uploadEntries, remapped);
+            String updated = remapStructureRef(scene.structure, scene.pack, uploadEntries, remapped);
             if (updated != null) {
                 scene.structure = updated;
             }
@@ -241,7 +241,7 @@ public final class PondererClientCommands {
                     if (isNumeric(step.structure.trim())) {
                         continue;
                     }
-                    String updated = remapStructureRef(step.structure, uploadEntries, remapped);
+                    String updated = remapStructureRef(step.structure, scene.pack, uploadEntries, remapped);
                     if (updated != null) {
                         step.structure = updated;
                     }
@@ -250,7 +250,8 @@ public final class PondererClientCommands {
         }
     }
 
-    private static String remapStructureRef(String ref, List<UploadScenePayload.StructureEntry> uploadEntries,
+    private static String remapStructureRef(String ref, @Nullable String pack,
+            List<UploadScenePayload.StructureEntry> uploadEntries,
             Map<String, String> remapped) {
         if (ref == null || ref.isBlank())
             return null;
@@ -266,13 +267,13 @@ public final class PondererClientCommands {
         }
 
         ResourceLocation target = new ResourceLocation("ponderer", source.getPath());
-        Path sourcePath = findStructureSourcePath(source);
+        Path sourcePath = findStructureSourcePath(source, pack);
         if (sourcePath == null || !Files.exists(sourcePath)) {
             notifyClient(Component.translatable("ponderer.cmd.push.structure_not_found", source.toString()));
             return source.toString();
         }
 
-        Path targetPath = SceneStore.getStructurePath(target.getPath());
+        Path targetPath = SceneStore.resolveLocalSyncStructurePath(target, pack);
         if (targetPath == null) {
             notifyClient(Component.translatable("ponderer.cmd.push.copy_failed", source.toString(), target.toString()));
             return source.toString();
@@ -282,8 +283,9 @@ public final class PondererClientCommands {
             Files.createDirectories(targetPath.getParent());
             Files.write(targetPath, bytes);
 
-            if (uploadEntries.stream().noneMatch(e -> e.id().equals(target.toString()))) {
-                uploadEntries.add(new UploadScenePayload.StructureEntry(target.toString(), bytes));
+            if (uploadEntries.stream().noneMatch(e -> e.id().equals(target.toString())
+                    && java.util.Objects.equals(e.pack(), pack))) {
+                uploadEntries.add(new UploadScenePayload.StructureEntry(target.toString(), pack, bytes));
             }
 
             remapped.put(key, target.toString());
@@ -294,9 +296,15 @@ public final class PondererClientCommands {
         }
     }
 
-    private static Path findStructureSourcePath(ResourceLocation id) {
+    private static Path findStructureSourcePath(ResourceLocation id, @Nullable String pack) {
         if ("ponderer".equals(id.getNamespace())) {
-            return SceneStore.getStructurePath(id.getPath());
+            if (pack != null && !pack.isBlank()) {
+                Path packPath = SceneStore.resolveLocalSyncStructurePath(id, pack);
+                if (packPath != null && Files.exists(packPath)) {
+                    return packPath;
+                }
+            }
+            return SceneStore.getStructurePath(id);
         }
 
         var server = Minecraft.getInstance().getSingleplayerServer();

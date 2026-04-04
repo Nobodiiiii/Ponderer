@@ -2,36 +2,33 @@ package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.platform.PondererServices;
 
-import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
-import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public record UploadScenePayload(String sceneId, String json,
+public record UploadScenePayload(String sceneId, @Nullable String pack, String json,
                                  List<StructureEntry> structures,
                                  String mode, String lastSyncHash) {
 
-    private static final Logger LOGGER = LogUtils.getLogger();
-
-    public record StructureEntry(String id, byte[] bytes) {
+    public record StructureEntry(String id, @Nullable String pack, byte[] bytes) {
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeUtf(sceneId());
+        writeOptionalUtf(buf, pack());
         buf.writeUtf(json());
         buf.writeVarInt(structures().size());
         for (StructureEntry entry : structures()) {
             buf.writeUtf(entry.id());
+            writeOptionalUtf(buf, entry.pack());
             buf.writeByteArray(entry.bytes());
         }
         buf.writeUtf(mode() == null ? "check" : mode());
@@ -40,15 +37,16 @@ public record UploadScenePayload(String sceneId, String json,
 
     public static UploadScenePayload decode(FriendlyByteBuf buf) {
         String sceneId = buf.readUtf();
+        String pack = readOptionalUtf(buf);
         String json = buf.readUtf();
         int size = buf.readVarInt();
         List<StructureEntry> structures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            structures.add(new StructureEntry(buf.readUtf(), buf.readByteArray()));
+            structures.add(new StructureEntry(buf.readUtf(), readOptionalUtf(buf), buf.readByteArray()));
         }
         String mode = buf.readUtf();
         String lastSyncHash = buf.readUtf();
-        return new UploadScenePayload(sceneId, json, structures, mode, lastSyncHash);
+        return new UploadScenePayload(sceneId, pack, json, structures, mode, lastSyncHash);
     }
 
     public static void handle(UploadScenePayload payload, @Nullable ServerPlayer player) {
@@ -61,50 +59,67 @@ public record UploadScenePayload(String sceneId, String json,
         }
 
         String pushMode = payload.mode() == null ? "check" : payload.mode();
+        String displayId = SceneStore.displaySceneKey(payload.sceneId(), payload.pack());
 
         // Conflict detection for non-force push
         if (!"force".equals(pushMode)) {
             String lastSyncHash = payload.lastSyncHash() == null ? "" : payload.lastSyncHash();
-            String serverHash = computeServerSceneHash(player.server, payload.sceneId());
+            String serverHash = computeServerSceneHash(player.server, payload.sceneId(), payload.pack());
 
             if (!serverHash.isEmpty() && !lastSyncHash.isEmpty() && !serverHash.equals(lastSyncHash)) {
-                player.sendSystemMessage(Component.translatable("ponderer.cmd.push.server_conflict", payload.sceneId()));
-                PondererServices.NETWORK.sendToPlayer(player, new UploadResponsePayload(payload.sceneId(), "conflict"));
+                player.sendSystemMessage(Component.translatable("ponderer.cmd.push.server_conflict", displayId));
+                PondererServices.NETWORK.sendToPlayer(player,
+                        new UploadResponsePayload(payload.sceneId(), payload.pack(), "conflict"));
                 return;
             }
         }
 
-        boolean ok = SceneStore.saveToServer(player.server, payload.sceneId(), payload.json());
+        boolean ok = SceneStore.saveToServer(player.server, payload.sceneId(), payload.pack(), payload.json());
         if (ok && payload.structures() != null) {
             for (StructureEntry entry : payload.structures()) {
                 if (entry == null || entry.id() == null || entry.id().isBlank() || entry.bytes() == null) {
                     continue;
                 }
-                ok = SceneStore.saveStructureToServer(player.server, entry.id(), entry.bytes()) && ok;
+                ok = SceneStore.saveStructureToServer(player.server, entry.id(), entry.pack(), entry.bytes()) && ok;
             }
         }
 
         if (ok) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_ok", payload.sceneId()));
-            String newHash = computeServerSceneHash(player.server, payload.sceneId());
-            PondererServices.NETWORK.sendToPlayer(player, new UploadResponsePayload(payload.sceneId(), "ok:" + newHash));
+            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_ok", displayId));
+            String newHash = computeServerSceneHash(player.server, payload.sceneId(), payload.pack());
+            PondererServices.NETWORK.sendToPlayer(player,
+                    new UploadResponsePayload(payload.sceneId(), payload.pack(), "ok:" + newHash));
         } else {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_failed", payload.sceneId()));
-            PondererServices.NETWORK.sendToPlayer(player, new UploadResponsePayload(payload.sceneId(), "error"));
+            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_failed", displayId));
+            PondererServices.NETWORK.sendToPlayer(player,
+                    new UploadResponsePayload(payload.sceneId(), payload.pack(), "error"));
         }
     }
 
-    private static String computeServerSceneHash(net.minecraft.server.MinecraftServer server, String sceneId) {
+    private static String computeServerSceneHash(net.minecraft.server.MinecraftServer server, String sceneId,
+            @Nullable String pack) {
         ResourceLocation loc = ResourceLocation.tryParse(sceneId);
         if (loc == null) return "";
-        java.nio.file.Path sceneDir = SceneStore.getServerSceneDir(server);
-        java.nio.file.Path path = SafePaths.resolveNamespacedPath(sceneDir, loc, Ponderer.MODID, ".json");
+        java.nio.file.Path path = SceneStore.resolveServerScenePath(server, loc, pack);
         if (path == null) return "";
         if (!java.nio.file.Files.exists(path)) return "";
         try {
-            return com.nododiiiii.ponderer.ponder.SyncMeta.sha256(java.nio.file.Files.readAllBytes(path));
+            return SyncMeta.sha256(java.nio.file.Files.readAllBytes(path));
         } catch (Exception e) {
             return "";
         }
+    }
+
+    private static void writeOptionalUtf(FriendlyByteBuf buf, @Nullable String value) {
+        boolean present = value != null && !value.isBlank();
+        buf.writeBoolean(present);
+        if (present) {
+            buf.writeUtf(value);
+        }
+    }
+
+    @Nullable
+    private static String readOptionalUtf(FriendlyByteBuf buf) {
+        return buf.readBoolean() ? buf.readUtf() : null;
     }
 }

@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.fabric;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.network.*;
 import com.nododiiiii.ponderer.platform.services.NetworkHelper;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -11,8 +10,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-
-import java.util.List;
 
 /**
  * Fabric implementation of NetworkHelper using Fabric Networking API.
@@ -38,12 +35,7 @@ public class FabricNetworkHelper implements NetworkHelper {
         });
 
         ServerPlayNetworking.registerGlobalReceiver(SYNC_REQUEST, (server, player, handler, buf, responseSender) -> {
-            server.execute(() -> {
-                List<SyncResponsePayload.FileEntry> scripts = SceneStore.collectServerScripts(player.server);
-                List<SyncResponsePayload.FileEntry> structures = SceneStore.collectServerStructures(player.server);
-                SyncResponsePayload response = new SyncResponsePayload(scripts, structures);
-                sendToPlayer(player, response);
-            });
+            server.execute(() -> SyncResponsePayload.sendBatched(player));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(DOWNLOAD_STRUCTURE, (server, player, handler, buf, responseSender) -> {

@@ -119,7 +119,7 @@ public final class TriggerManager {
         activeScene = newScene;
 
         if (activeScene != null) {
-            String sceneKey = activeScene.id != null ? activeScene.id : "";
+            String sceneKey = activeScene.sceneKey();
 
             // Resolve per-style frequencies (new parallel model or legacy fallback)
             String autoFreq = resolveHintFreq(activeScene, "auto");
@@ -308,7 +308,7 @@ public final class TriggerManager {
         DslScene sceneToOpen = activeScene != null ? activeScene : findTriggeredScene(mc);
         if (sceneToOpen == null) return false;
 
-        String sceneKey = sceneToOpen.id != null ? sceneToOpen.id : "";
+        String sceneKey = sceneToOpen.sceneKey();
         openPonderFor(sceneToOpen, sceneKey);
         activeScene = null;
         return true;

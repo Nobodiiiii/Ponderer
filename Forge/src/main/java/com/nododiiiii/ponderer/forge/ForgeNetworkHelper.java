@@ -3,15 +3,12 @@ package com.nododiiiii.ponderer.forge;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.network.*;
 import com.nododiiiii.ponderer.platform.services.NetworkHelper;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
-
-import java.util.List;
 
 /**
  * Forge implementation of NetworkHelper using SimpleChannel.
@@ -50,9 +47,7 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .consumerMainThread((msg, ctx) -> {
                     ServerPlayer player = ctx.get().getSender();
                     if (player == null) return;
-                    List<SyncResponsePayload.FileEntry> scripts = SceneStore.collectServerScripts(player.server);
-                    List<SyncResponsePayload.FileEntry> structures = SceneStore.collectServerStructures(player.server);
-                    CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new SyncResponsePayload(scripts, structures));
+                    SyncResponsePayload.sendBatched(player);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();

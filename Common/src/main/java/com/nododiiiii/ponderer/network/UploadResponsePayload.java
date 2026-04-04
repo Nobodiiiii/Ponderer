@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.ponder.SyncMeta;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Server -> Client response after an upload (push) attempt.
@@ -13,23 +14,24 @@ import net.minecraft.network.chat.Component;
  *   "conflict"       - server file was modified, push rejected
  *   "error"          - write failed
  */
-public record UploadResponsePayload(String sceneId, String status) {
+public record UploadResponsePayload(String sceneId, @Nullable String pack, String status) {
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeUtf(sceneId());
+        writeOptionalUtf(buf, pack());
         buf.writeUtf(status());
     }
 
     public static UploadResponsePayload decode(FriendlyByteBuf buf) {
-        return new UploadResponsePayload(buf.readUtf(), buf.readUtf());
+        return new UploadResponsePayload(buf.readUtf(), readOptionalUtf(buf), buf.readUtf());
     }
 
     public static void handle(UploadResponsePayload payload) {
         if (payload.status() != null && payload.status().startsWith("ok:")) {
             String newHash = payload.status().substring(3);
-            String metaKey = "scripts/" + payload.sceneId();
+            String metaKey = SyncMeta.metaKey("scripts", payload.sceneId(), payload.pack());
 
-            java.nio.file.Path localFile = resolveLocalScenePath(payload.sceneId());
+            java.nio.file.Path localFile = resolveLocalScenePath(payload.sceneId(), payload.pack());
             if (localFile != null && java.nio.file.Files.exists(localFile)) {
                 try {
                     byte[] bytes = java.nio.file.Files.readAllBytes(localFile);
@@ -41,17 +43,31 @@ public record UploadResponsePayload(String sceneId, String status) {
                 }
             }
         } else if ("conflict".equals(payload.status())) {
-            notifyClient(Component.translatable("ponderer.cmd.push.conflict", payload.sceneId()));
+            notifyClient(Component.translatable("ponderer.cmd.push.conflict",
+                    SceneStore.displaySceneKey(payload.sceneId(), payload.pack())));
         }
     }
 
-    private static java.nio.file.Path resolveLocalScenePath(String sceneId) {
-        return SceneStore.findLocalSceneFile(sceneId);
+    private static java.nio.file.Path resolveLocalScenePath(String sceneId, @Nullable String pack) {
+        return SceneStore.findLocalSceneFile(sceneId, pack);
     }
 
     private static void notifyClient(Component message) {
         if (Minecraft.getInstance().player != null) {
             Minecraft.getInstance().player.displayClientMessage(message, false);
         }
+    }
+
+    private static void writeOptionalUtf(FriendlyByteBuf buf, @Nullable String value) {
+        boolean present = value != null && !value.isBlank();
+        buf.writeBoolean(present);
+        if (present) {
+            buf.writeUtf(value);
+        }
+    }
+
+    @Nullable
+    private static String readOptionalUtf(FriendlyByteBuf buf) {
+        return buf.readBoolean() ? buf.readUtf() : null;
     }
 }

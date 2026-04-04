@@ -39,6 +39,9 @@ import java.util.zip.ZipOutputStream;
 public final class SceneStore {
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    public record SyncFileRef(String id, @javax.annotation.Nullable String pack, Path path) {
+    }
+
     /** Information about a pack that was updated during auto-load. */
     public static class PackUpdateInfo {
         public final String packName;
@@ -198,6 +201,16 @@ public final class SceneStore {
     }
 
     @javax.annotation.Nullable
+    public static Path getServerPackSceneDir(MinecraftServer server, String packName) {
+        return SafePaths.resolveFileName(getServerSceneDir(server).resolve(PACKS_SUBDIR), packName);
+    }
+
+    @javax.annotation.Nullable
+    public static Path getServerPackStructureDir(MinecraftServer server, String packName) {
+        return SafePaths.resolveFileName(getServerStructureDir(server).resolve(PACKS_SUBDIR), packName);
+    }
+
+    @javax.annotation.Nullable
     public static Path getStructurePath(String path) {
         return SafePaths.resolveRelativePath(getStructureDir(), path + ".nbt");
     }
@@ -270,6 +283,11 @@ public final class SceneStore {
     }
 
     @javax.annotation.Nullable
+    private static Path resolveServerNamespacedPath(Path root, ResourceLocation id, String extension) {
+        return SafePaths.resolveRelativePath(root, id.getNamespace() + "/" + id.getPath() + extension);
+    }
+
+    @javax.annotation.Nullable
     private static Path resolvePackScopedPath(Path packDir, String packName, String relativePath) {
         List<String> segments = SafePaths.splitValidatedRelativePath(relativePath);
         if (packDir == null || segments == null || segments.isEmpty()) {
@@ -280,17 +298,57 @@ public final class SceneStore {
         return SafePaths.resolveRelativePath(packDir, targetSegments);
     }
 
-    public static boolean saveToServer(MinecraftServer server, String sceneId, String json) {
+    @javax.annotation.Nullable
+    public static Path resolveServerScenePath(MinecraftServer server, ResourceLocation id, @javax.annotation.Nullable String pack) {
+        if (pack != null && !pack.isBlank()) {
+            Path packDir = getServerPackSceneDir(server, pack);
+            return packDir == null ? null : resolvePackScopedPath(packDir, pack, id.getNamespace() + "/" + id.getPath() + ".json");
+        }
+        return resolveServerNamespacedPath(getServerSceneDir(server), id, ".json");
+    }
+
+    @javax.annotation.Nullable
+    public static Path resolveServerStructurePath(MinecraftServer server, ResourceLocation id,
+            @javax.annotation.Nullable String pack) {
+        if (pack != null && !pack.isBlank()) {
+            Path packDir = getServerPackStructureDir(server, pack);
+            return packDir == null ? null : resolvePackScopedPath(packDir, pack, id.getNamespace() + "/" + id.getPath() + ".nbt");
+        }
+        return resolveServerNamespacedPath(getServerStructureDir(server), id, ".nbt");
+    }
+
+    @javax.annotation.Nullable
+    public static Path resolveLocalSyncStructurePath(ResourceLocation id, @javax.annotation.Nullable String pack) {
+        if (pack != null && !pack.isBlank()) {
+            Path packDir = getPackStructureDir(pack);
+            if (packDir == null) {
+                return null;
+            }
+            String relativePath = id.getNamespace().equals(Ponderer.MODID)
+                    ? id.getPath() + ".nbt"
+                    : id.getNamespace() + "/" + id.getPath() + ".nbt";
+            return resolvePackScopedPath(packDir, pack, relativePath);
+        }
+        return resolveStructurePath(getStructureDir(), id);
+    }
+
+    public static String displaySceneKey(String id, @javax.annotation.Nullable String pack) {
+        if (pack == null || pack.isBlank()) {
+            return id;
+        }
+        return "[" + pack + "] " + id;
+    }
+
+    public static boolean saveToServer(MinecraftServer server, String sceneId, @javax.annotation.Nullable String pack, String json) {
         ResourceLocation sceneLoc = ResourceLocation.tryParse(sceneId);
         if (sceneLoc == null) {
             LOGGER.warn("Invalid scene id: {}", sceneId);
             return false;
         }
 
-        Path sceneDir = getServerSceneDir(server);
-        Path scenePath = resolveScenePath(sceneDir, sceneLoc);
+        Path scenePath = resolveServerScenePath(server, sceneLoc, pack);
         if (scenePath == null) {
-            LOGGER.warn("Rejected unsafe scene path for id {}", sceneId);
+            LOGGER.warn("Rejected unsafe scene path for id {} pack {}", sceneId, pack);
             return false;
         }
 
@@ -302,11 +360,12 @@ public final class SceneStore {
             return false;
         }
 
-        LOGGER.info("Uploaded scene {} to server storage", sceneId);
+        LOGGER.info("Uploaded scene {} to server storage (pack={})", sceneId, pack);
         return true;
     }
 
-    public static boolean saveStructureToServer(MinecraftServer server, String structureId, byte[] structureBytes) {
+    public static boolean saveStructureToServer(MinecraftServer server, String structureId, @javax.annotation.Nullable String pack,
+            byte[] structureBytes) {
         if (structureId == null || structureId.isBlank() || structureBytes == null) {
             return true;
         }
@@ -316,10 +375,9 @@ public final class SceneStore {
             LOGGER.warn("Invalid structure id: {}", structureId);
             return false;
         }
-        Path structureDir = getServerStructureDir(server);
-        Path structurePath = resolveStructurePath(structureDir, structureLoc);
+        Path structurePath = resolveServerStructurePath(server, structureLoc, pack);
         if (structurePath == null) {
-            LOGGER.warn("Rejected unsafe structure path for id {}", structureId);
+            LOGGER.warn("Rejected unsafe structure path for id {} pack {}", structureId, pack);
             return false;
         }
         try {
@@ -332,17 +390,20 @@ public final class SceneStore {
         }
     }
 
-    public static List<com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry> collectServerScripts(MinecraftServer server) {
+    public static List<SyncFileRef> collectServerScriptRefs(MinecraftServer server) {
         Path root = getServerSceneDir(server);
         if (!Files.exists(root)) {
             return List.of();
         }
-        List<com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry> entries = new ArrayList<>();
+        List<SyncFileRef> entries = new ArrayList<>();
         try (var paths = Files.walk(root)) {
-            for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".json")).toList()) {
-                String id = toId(root, path, ".json");
-                if (id == null) continue;
-                entries.add(new com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry(id, Files.readAllBytes(path)));
+            for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                    .sorted(Comparator.comparing(Path::toString))
+                    .toList()) {
+                SyncFileRef ref = toServerSceneRef(root, path);
+                if (ref != null) {
+                    entries.add(ref);
+                }
             }
         } catch (Exception e) {
             LOGGER.warn("Failed to collect server scripts", e);
@@ -350,17 +411,20 @@ public final class SceneStore {
         return entries;
     }
 
-    public static List<com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry> collectServerStructures(MinecraftServer server) {
+    public static List<SyncFileRef> collectServerStructureRefs(MinecraftServer server) {
         Path root = getServerStructureDir(server);
         if (!Files.exists(root)) {
             return List.of();
         }
-        List<com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry> entries = new ArrayList<>();
+        List<SyncFileRef> entries = new ArrayList<>();
         try (var paths = Files.walk(root)) {
-            for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".nbt")).toList()) {
-                String id = toId(root, path, ".nbt");
-                if (id == null) continue;
-                entries.add(new com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry(id, Files.readAllBytes(path)));
+            for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".nbt"))
+                    .sorted(Comparator.comparing(Path::toString))
+                    .toList()) {
+                SyncFileRef ref = toServerStructureRef(root, path, ".nbt");
+                if (ref != null) {
+                    entries.add(ref);
+                }
             }
         } catch (Exception e) {
             LOGGER.warn("Failed to collect server structures", e);
@@ -368,24 +432,74 @@ public final class SceneStore {
         return entries;
     }
 
-    private static String toId(Path root, Path file, String ext) {
+    @javax.annotation.Nullable
+    private static SyncFileRef toServerSceneRef(Path root, Path file) {
+        try {
+            String json = Files.readString(file, StandardCharsets.UTF_8);
+            DslScene scene = GSON.fromJson(json, DslScene.class);
+            if (scene == null || scene.id == null || scene.id.isBlank()) {
+                LOGGER.warn("Skipping invalid server scene file (missing id): {}", file);
+                return null;
+            }
+            String inferredPack = inferPackName(root, file);
+            String pack = scene.pack != null && !scene.pack.isBlank() ? scene.pack : inferredPack;
+            return new SyncFileRef(scene.id, pack, file);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to inspect server scene file: {}", file, e);
+            return null;
+        }
+    }
+
+    @javax.annotation.Nullable
+    static SyncFileRef toServerStructureRef(Path root, Path file, String ext) {
         Path rel = root.relativize(file);
         if (rel.getNameCount() < 1) {
             return null;
         }
+
+        String pack = null;
+        Path idPath = rel;
+        if (PACKS_SUBDIR.equals(rel.getName(0).toString()) && rel.getNameCount() >= 3) {
+            pack = rel.getName(1).toString();
+            idPath = rel.subpath(2, rel.getNameCount());
+            String first = idPath.getName(0).toString();
+            String prefix = "[" + pack + "] ";
+            if (first.startsWith(prefix)) {
+                idPath = idPath.getNameCount() == 1
+                        ? Path.of(first.substring(prefix.length()))
+                        : Path.of(first.substring(prefix.length()), idPath.subpath(1, idPath.getNameCount()).toString());
+            }
+        }
+
+        if (idPath.getNameCount() == 0) {
+            return null;
+        }
+
         String namespace;
         String path;
-        if (rel.getNameCount() == 1) {
+        if (idPath.getNameCount() == 1) {
             namespace = Ponderer.MODID;
-            path = rel.getName(0).toString();
+            path = idPath.getName(0).toString();
         } else {
-            namespace = rel.getName(0).toString();
-            path = rel.subpath(1, rel.getNameCount()).toString().replace("\\", "/");
+            namespace = idPath.getName(0).toString();
+            path = idPath.subpath(1, idPath.getNameCount()).toString().replace("\\", "/");
         }
         if (path.endsWith(ext)) {
             path = path.substring(0, path.length() - ext.length());
         }
-        return namespace + ":" + path;
+        if (namespace.isBlank() || path.isBlank()) {
+            return null;
+        }
+        return new SyncFileRef(namespace + ":" + path, pack, file);
+    }
+
+    @javax.annotation.Nullable
+    private static String inferPackName(Path root, Path file) {
+        Path rel = root.relativize(file);
+        if (rel.getNameCount() >= 2 && PACKS_SUBDIR.equals(rel.getName(0).toString())) {
+            return rel.getName(1).toString();
+        }
+        return null;
     }
 
     /**
@@ -430,19 +544,33 @@ public final class SceneStore {
 
     @javax.annotation.Nullable
     public static Path findLocalSceneFile(String sceneId) {
+        return findLocalSceneFile(sceneId, null);
+    }
+
+    @javax.annotation.Nullable
+    public static Path findLocalSceneFile(String sceneId, @javax.annotation.Nullable String pack) {
         if (sceneId == null || sceneId.isBlank()) {
             return null;
         }
+        DslScene temp = new DslScene();
+        temp.id = sceneId;
+        temp.pack = pack;
+
+        if (pack != null && !pack.isBlank()) {
+            Path packDir = getPackSceneDir(pack);
+            Path existing = packDir == null ? null : findExistingFile(packDir, sceneId);
+            return existing != null ? existing : resolveLocalScenePath(temp);
+        }
+
         Path existing = findExistingFile(getSceneDir(), sceneId);
         if (existing != null) {
             return existing;
         }
-        existing = findExistingFileInPacks(sceneId);
-        if (existing != null) {
-            return existing;
-        }
         ResourceLocation loc = ResourceLocation.tryParse(sceneId);
-        return loc == null ? null : resolveScenePath(getSceneDir(), loc);
+        if (loc == null) {
+            return null;
+        }
+        return resolveLocalScenePath(temp);
     }
 
     public static LocalSaveResult saveSceneToLocalDetailed(DslScene scene) {
@@ -497,7 +625,7 @@ public final class SceneStore {
      */
     private static Path findExistingFile(Path dir, String sceneId) {
         if (!Files.exists(dir)) return null;
-        try (Stream<Path> paths = Files.list(dir)) {
+        try (Stream<Path> paths = Files.walk(dir)) {
             for (Path path : paths.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json")).toList()) {
                 try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
                     DslScene existing = GSON.fromJson(reader, DslScene.class);
@@ -726,8 +854,9 @@ public final class SceneStore {
         }
 
         // 1. Load flat files (local scenes)
-        try (Stream<Path> paths = Files.list(dir)) {
+        try (Stream<Path> paths = Files.walk(dir)) {
             paths.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                .filter(path -> !path.startsWith(dir.resolve(PACKS_SUBDIR)))
                 .sorted(Comparator.comparing(Path::toString))
                 .forEach(path -> loadSceneFile(path, loaded));
         } catch (IOException e) {
@@ -739,7 +868,7 @@ public final class SceneStore {
         if (Files.exists(packsDir)) {
             try (Stream<Path> packDirs = Files.list(packsDir)) {
                 for (Path packDir : packDirs.filter(Files::isDirectory).sorted().toList()) {
-                    try (Stream<Path> paths = Files.list(packDir)) {
+                    try (Stream<Path> paths = Files.walk(packDir)) {
                         paths.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
                             .sorted(Comparator.comparing(Path::toString))
                             .forEach(path -> loadSceneFile(path, loaded));
@@ -1205,24 +1334,10 @@ public final class SceneStore {
         Path scriptsDir = getSceneDir();
         if (!Files.exists(scriptsDir)) return result;
 
-        // Flat files
-        try (Stream<Path> paths = Files.list(scriptsDir)) {
+        try (Stream<Path> paths = Files.walk(scriptsDir)) {
             paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
                 .forEach(result::add);
         } catch (IOException ignored) {}
-
-        // Pack subdirectories
-        Path packsDir = scriptsDir.resolve(PACKS_SUBDIR);
-        if (Files.exists(packsDir)) {
-            try (Stream<Path> packDirs = Files.list(packsDir)) {
-                for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
-                    try (Stream<Path> paths = Files.list(packDir)) {
-                        paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
-                            .forEach(result::add);
-                    } catch (IOException ignored) {}
-                }
-            } catch (IOException ignored) {}
-        }
 
         return result;
     }
@@ -1291,24 +1406,11 @@ public final class SceneStore {
         Path structuresDir = getStructureDir();
         if (!Files.exists(structuresDir)) return 0;
 
-        // Collect all structure files (flat + pack subdirectories)
         List<Path> allStructureFiles = new ArrayList<>();
-        try (Stream<Path> paths = Files.list(structuresDir)) {
+        try (Stream<Path> paths = Files.walk(structuresDir)) {
             paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".nbt"))
                 .forEach(allStructureFiles::add);
         } catch (IOException ignored) {}
-
-        Path packsDir = structuresDir.resolve(PACKS_SUBDIR);
-        if (Files.exists(packsDir)) {
-            try (Stream<Path> packDirs = Files.list(packsDir)) {
-                for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
-                    try (Stream<Path> paths = Files.list(packDir)) {
-                        paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".nbt"))
-                            .forEach(allStructureFiles::add);
-                    } catch (IOException ignored) {}
-                }
-            } catch (IOException ignored) {}
-        }
 
         Set<String> writtenEntries = new HashSet<>();
         for (Path p : allStructureFiles) {
@@ -1405,7 +1507,7 @@ public final class SceneStore {
         // Collect structure references from pack scripts
         Set<String> structureRefs = new HashSet<>();
         if (Files.exists(packScriptsDir)) {
-            try (Stream<Path> paths = Files.list(packScriptsDir)) {
+            try (Stream<Path> paths = Files.walk(packScriptsDir)) {
                 for (Path p : paths.filter(f -> f.getFileName().toString().endsWith(".json")).toList()) {
                     try {
                         String json = Files.readString(p, StandardCharsets.UTF_8);
@@ -1426,7 +1528,7 @@ public final class SceneStore {
         // Move matching structures from flat directory to pack directory
         Path structuresDir = getStructureDir();
         if (Files.exists(structuresDir)) {
-            try (Stream<Path> paths = Files.list(structuresDir)) {
+            try (Stream<Path> paths = Files.walk(structuresDir)) {
                 for (Path p : paths.filter(f -> Files.isRegularFile(f) && f.getFileName().toString().endsWith(".nbt")).toList()) {
                     String fileName = p.getFileName().toString();
                     String baseName = fileName.endsWith(".nbt") ? fileName.substring(0, fileName.length() - 4) : fileName;
@@ -1456,30 +1558,85 @@ public final class SceneStore {
 
     private static void collectStructureReferences(String sceneJson, Set<String> structures) {
         try {
-            // Simple JSON parsing to find structure references
-            // Look for "structure": "xxx" patterns
-            int idx = 0;
-            String searchFor = "\"structure\"";
-            while ((idx = sceneJson.indexOf(searchFor, idx)) != -1) {
-                idx += searchFor.length();
-                // Find the colon
-                int colonIdx = sceneJson.indexOf(":", idx);
-                if (colonIdx != -1) {
-                    // Find the quoted value
-                    int quoteStart = sceneJson.indexOf("\"", colonIdx);
-                    if (quoteStart != -1) {
-                        int quoteEnd = sceneJson.indexOf("\"", quoteStart + 1);
-                        if (quoteEnd != -1) {
-                            String structRef = sceneJson.substring(quoteStart + 1, quoteEnd);
-                            if (!structRef.isEmpty() && !structRef.matches("\\d+")) {
-                                structures.add(structRef);
-                            }
-                        }
-                    }
-                }
-            }
+            collectStructureReferences(GSON.fromJson(sceneJson, DslScene.class), structures);
         } catch (Exception e) {
             LOGGER.warn("Failed to collect structure references from scene", e);
+        }
+    }
+
+    static void collectStructureReferences(@javax.annotation.Nullable DslScene scene, Set<String> structures) {
+        if (scene == null || structures == null) {
+            return;
+        }
+
+        List<String> pool = getStructurePool(scene);
+        for (String ref : pool) {
+            addStructureReference(ref, structures);
+        }
+
+        if (scene.scenes == null) {
+            return;
+        }
+
+        for (DslScene.SceneSegment segment : scene.scenes) {
+            if (segment == null || segment.steps == null) {
+                continue;
+            }
+            for (DslScene.DslStep step : segment.steps) {
+                if (step == null || step.structure == null || step.structure.isBlank()) {
+                    continue;
+                }
+                addStructureReference(resolveStructureReference(pool, step.structure), structures);
+            }
+        }
+    }
+
+    private static List<String> getStructurePool(DslScene scene) {
+        if (scene.structures != null && !scene.structures.isEmpty()) {
+            return scene.structures;
+        }
+        if (scene.structure != null && !scene.structure.isBlank()) {
+            return List.of(scene.structure);
+        }
+        return List.of();
+    }
+
+    @javax.annotation.Nullable
+    private static String resolveStructureReference(List<String> pool, String ref) {
+        if (ref == null || ref.isBlank()) {
+            return null;
+        }
+        String trimmed = ref.trim();
+        Integer parsed = tryParseInt(trimmed);
+        if (parsed == null) {
+            return trimmed;
+        }
+
+        int index = -1;
+        if (parsed >= 1 && parsed <= pool.size()) {
+            index = parsed - 1;
+        } else if (parsed >= 0 && parsed < pool.size()) {
+            index = parsed;
+        }
+        return index >= 0 ? pool.get(index) : null;
+    }
+
+    private static void addStructureReference(@javax.annotation.Nullable String ref, Set<String> structures) {
+        if (ref == null || ref.isBlank()) {
+            return;
+        }
+        String trimmed = ref.trim();
+        if (!trimmed.matches("\\d+")) {
+            structures.add(trimmed);
+        }
+    }
+
+    @javax.annotation.Nullable
+    private static Integer tryParseInt(String raw) {
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException ignored) {
+            return null;
         }
     }
 
