@@ -43,6 +43,6 @@ public final class EntryTextSupport {
     }
 
     public static int compactLabelWidth(int totalWidth) {
-        return (int) (totalWidth * 0.34f) + 18;
+        return (int) (totalWidth * 0.30f) + 14;
     }
 }

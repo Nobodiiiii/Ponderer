@@ -33,6 +33,8 @@ import java.util.function.Supplier;
 
 public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListScreen implements JeiAwareScreen {
 
+    protected static final int STEP_EDITOR_LIST_WIDTH = 300;
+
     protected final DslScene scene;
     protected final int sceneIndex;
     protected final SceneEditorScreen parent;
@@ -125,7 +127,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
     protected AbstractStepEditorScreen(net.minecraft.network.chat.Component title, DslScene scene, int sceneIndex,
                                        SceneEditorScreen parent, int editIndex,
                                        @Nullable DslScene.DslStep existingStep) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.step_editor", 420);
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.step_editor", STEP_EDITOR_LIST_WIDTH);
         this.scene = scene;
         this.sceneIndex = sceneIndex;
         this.parent = parent;

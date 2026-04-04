@@ -25,6 +25,8 @@ import java.util.function.Consumer;
 
 public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
 
+    protected static final int DEFAULT_LIST_WIDTH = 300;
+
     protected final String scopeKey;
     protected final String titleKey;
 
@@ -49,7 +51,7 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
     private int listWidth;
 
     protected AbstractDeclarativeListScreen(@Nullable Screen parent, String scopeKey, String titleKey) {
-        this(parent, scopeKey, titleKey, 320);
+        this(parent, scopeKey, titleKey, DEFAULT_LIST_WIDTH);
     }
 
     protected AbstractDeclarativeListScreen(@Nullable Screen parent, String scopeKey, String titleKey, int preferredListWidth) {
