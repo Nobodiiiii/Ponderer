@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.element.BoxElement;
@@ -11,9 +10,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.network.chat.Component;
+import org.jetbrains.annotations.Nullable;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -50,6 +48,9 @@ public class ExportPackScreen extends AbstractSimiScreen {
     private String savedName = "";
     private String savedVersion = "1.0.0";
     private String savedAuthor = "";
+    @Nullable
+    private String statusMessage;
+    private int statusColor = UILayoutConstants.COLOR_HINT;
 
     public ExportPackScreen() {
         super(Component.literal("Export as Resource Pack"));
@@ -74,6 +75,7 @@ public class ExportPackScreen extends AbstractSimiScreen {
         nameField.setHint(UIText.of("ponderer.ui.export.name"));
         nameField.setMaxLength(64);
         nameField.setValue(savedName);
+        nameField.setResponder(s -> clearStatus());
         addRenderableWidget(nameField);
         formWidgetRecords.add(new FormWidgetRecord(nameField, 35));
 
@@ -82,6 +84,7 @@ public class ExportPackScreen extends AbstractSimiScreen {
         versionField.setHint(UIText.of("ponderer.ui.export.version"));
         versionField.setValue(savedVersion);
         versionField.setMaxLength(32);
+        versionField.setResponder(s -> clearStatus());
         addRenderableWidget(versionField);
         formWidgetRecords.add(new FormWidgetRecord(versionField, 65));
 
@@ -90,6 +93,7 @@ public class ExportPackScreen extends AbstractSimiScreen {
         authorField.setHint(UIText.of("ponderer.ui.export.author"));
         authorField.setValue(savedAuthor);
         authorField.setMaxLength(64);
+        authorField.setResponder(s -> clearStatus());
         addRenderableWidget(authorField);
         formWidgetRecords.add(new FormWidgetRecord(authorField, 95));
 
@@ -143,72 +147,41 @@ public class ExportPackScreen extends AbstractSimiScreen {
         String name = nameField.getValue().trim();
         String version = versionField.getValue().trim();
         String author = authorField.getValue().trim();
-
-        // Validation
-        if (name.isEmpty()) {
-            notifyUser(UIText.of("ponderer.ui.export.name_empty"));
-            return;
-        }
-
-        if (!name.matches("[a-zA-Z0-9_-]+")) {
-            notifyUser(UIText.of("ponderer.ui.export.name_invalid"));
-            return;
-        }
-
-        if (!SafePaths.isValidWindowsFileNameSegment(name)) {
-            notifyUser(UIText.of("ponderer.ui.export.name_invalid"));
-            return;
-        }
+        clearStatus();
 
         if (version.isEmpty()) {
-            notifyUser(UIText.of("ponderer.ui.export.version_empty"));
+            setStatus(UIText.of("ponderer.ui.export.version_empty"), UILayoutConstants.COLOR_ERROR);
             return;
         }
 
-        // Check for existing file
-        Path resourcepacksDir = Minecraft.getInstance().gameDirectory.toPath().resolve("resourcepacks");
-        String filename = "[Ponderer] " + name + ".zip";
-        Path targetPath = SafePaths.resolveFileName(resourcepacksDir, filename);
-        if (targetPath == null) {
-            notifyUser(UIText.of("ponderer.ui.export.name_invalid"));
-            return;
-        }
-
-        if (Files.exists(targetPath)) {
-            // Show confirmation dialog
-            showOverwriteConfirmation(name, version, author, targetPath);
-            return;
-        }
-
-        // Export directly
-        doExport(name, version, author);
-    }
-
-    private void showOverwriteConfirmation(String name, String version, String author, Path targetPath) {
-        // For now, directly overwrite (can enhance with dialog later)
         doExport(name, version, author);
     }
 
     private void doExport(String name, String version, String author) {
-        try {
-            boolean success = selectedSceneIds.isEmpty()
-                    ? SceneStore.packScenesAndStructures(name, version, author)
-                    : SceneStore.packSelectedScenesAndStructures(name, version, author, selectedSceneIds);
-            if (success) {
-                notifyUser(UIText.of("ponderer.ui.export.success", name));
-                this.onClose();
-            } else {
-                notifyUser(UIText.of("ponderer.ui.export.failed"));
-            }
-        } catch (Exception e) {
-            notifyUser(UIText.of("ponderer.ui.export.failed") + ": " + e.getMessage());
+        SceneStore.PackExportResult result = selectedSceneIds.isEmpty()
+                ? SceneStore.packScenesAndStructuresDetailed(name, version, author)
+                : SceneStore.packSelectedScenesAndStructuresDetailed(name, version, author, selectedSceneIds);
+
+        if (result.isSuccess()) {
+            setStatus(UIText.of("ponderer.ui.export.success", name.trim()), 0x66FF66);
+            return;
         }
+
+        String key = result.uiMessageKey();
+        String message = key == null || key.isBlank()
+                ? UIText.of("ponderer.ui.export.failed")
+                : UIText.of(key, result.uiMessageArgs());
+        setStatus(message, UILayoutConstants.COLOR_ERROR);
     }
 
-    private void notifyUser(String message) {
-        if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(Component.literal(message), false);
-        }
+    private void setStatus(@Nullable String message, int color) {
+        statusMessage = message;
+        statusColor = color;
+    }
+
+    private void clearStatus() {
+        statusMessage = null;
+        statusColor = UILayoutConstants.COLOR_HINT;
     }
 
     @Override
@@ -248,6 +221,11 @@ public class ExportPackScreen extends AbstractSimiScreen {
             graphics.pose().popPose();
             graphics.disableScissor();
             renderScrollbar(graphics);
+        }
+
+        if (statusMessage != null && !statusMessage.isEmpty()) {
+            String clippedStatus = font.plainSubstrByWidth(statusMessage, WINDOW_W - 20);
+            graphics.drawString(font, clippedStatus, guiLeft + 10, guiTop + displayH - 44, statusColor);
         }
     }
 

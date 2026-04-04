@@ -75,6 +75,8 @@ public class SceneEditorScreen extends AbstractSimiScreen {
     private BoxWidget descButton;
     private BoxWidget prevSceneBtn;
     private BoxWidget nextSceneBtn;
+    @Nullable
+    private String saveErrorMessage;
 
     public SceneEditorScreen(DslScene scene, int sceneIndex) {
         super(Component.translatable("ponderer.ui.scene_editor"));
@@ -299,6 +301,11 @@ public class SceneEditorScreen extends AbstractSimiScreen {
             int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, trackH * maxVisible() / steps.size());
             int thumbY = trackTop + (maxOff > 0 ? (int) ((float) scrollOffset / maxOff * (trackH - thumbH)) : 0);
             graphics.fill(trackX, thumbY, trackX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
+        }
+
+        if (saveErrorMessage != null && !saveErrorMessage.isEmpty()) {
+            String clippedError = font.plainSubstrByWidth(saveErrorMessage, WINDOW_W - 20);
+            graphics.drawString(font, clippedError, guiLeft + 10, guiTop + WINDOW_H - 32, UILayoutConstants.COLOR_ERROR);
         }
 
         // Footer hint (undo/redo always shown)
@@ -863,6 +870,9 @@ public class SceneEditorScreen extends AbstractSimiScreen {
         saveToFile();
 
         if (newSceneIndex >= 0) {
+            if (saveErrorMessage != null) {
+                return;
+            }
             // Switch to the new scene and open description editor
             sceneIndex = newSceneIndex;
             scrollOffset = 0;
@@ -894,8 +904,14 @@ public class SceneEditorScreen extends AbstractSimiScreen {
     }
 
     /** Save the scene JSON to file without reloading Ponder. */
-    private void saveToFile() {
-        SceneStore.saveSceneToLocal(scene);
+    private boolean saveToFile() {
+        SceneStore.LocalSaveResult result = SceneStore.saveSceneToLocalDetailed(scene);
+        if (result.isSuccess()) {
+            saveErrorMessage = null;
+            return true;
+        }
+        saveErrorMessage = UIText.saveError(result);
+        return false;
     }
 
     /**

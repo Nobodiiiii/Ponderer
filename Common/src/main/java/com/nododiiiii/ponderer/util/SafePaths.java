@@ -12,37 +12,100 @@ import java.util.regex.Pattern;
 
 public final class SafePaths {
     private static final Pattern INVALID_WINDOWS_CHARS = Pattern.compile("[<>:\"/\\\\|?*\\x00-\\x1F]");
+    private static final Pattern INVALID_ID_LIKE_CHARS = Pattern.compile("[^a-z0-9._-]");
     private static final Set<String> RESERVED_WINDOWS_NAMES = Set.of(
         "CON", "PRN", "AUX", "NUL", "CLOCK$", "CONIN$", "CONOUT$",
         "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
         "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
     );
 
+    public enum FileNameValidationErrorCode {
+        EMPTY,
+        DOT_SEGMENT,
+        TRAILING_SPACE_OR_DOT,
+        INVALID_CHARACTER,
+        RESERVED_NAME
+    }
+
+    public static final class FileNameValidationError {
+        private final FileNameValidationErrorCode code;
+        private final String input;
+        @Nullable
+        private final String offendingText;
+
+        private FileNameValidationError(FileNameValidationErrorCode code, String input, @Nullable String offendingText) {
+            this.code = code;
+            this.input = input;
+            this.offendingText = offendingText;
+        }
+
+        public FileNameValidationErrorCode code() {
+            return code;
+        }
+
+        public String input() {
+            return input;
+        }
+
+        @Nullable
+        public String offendingText() {
+            return offendingText;
+        }
+    }
+
     private SafePaths() {
     }
 
     public static boolean isValidWindowsFileNameSegment(String segment) {
-        return validateWindowsFileNameSegment(segment) != null;
+        return diagnoseWindowsFileNameSegment(segment) == null;
     }
 
     @Nullable
     public static String validateWindowsFileNameSegment(String segment) {
+        return diagnoseWindowsFileNameSegment(segment) == null ? segment : null;
+    }
+
+    @Nullable
+    public static FileNameValidationError diagnoseWindowsFileNameSegment(String segment) {
         if (segment == null || segment.isEmpty() || segment.isBlank()) {
-            return null;
+            return new FileNameValidationError(FileNameValidationErrorCode.EMPTY, segment == null ? "" : segment, null);
         }
         if (".".equals(segment) || "..".equals(segment)) {
-            return null;
+            return new FileNameValidationError(FileNameValidationErrorCode.DOT_SEGMENT, segment, null);
         }
         if (segment.endsWith(" ") || segment.endsWith(".")) {
-            return null;
+            return new FileNameValidationError(FileNameValidationErrorCode.TRAILING_SPACE_OR_DOT, segment, null);
         }
-        if (INVALID_WINDOWS_CHARS.matcher(segment).find()) {
-            return null;
+        java.util.regex.Matcher matcher = INVALID_WINDOWS_CHARS.matcher(segment);
+        if (matcher.find()) {
+            return new FileNameValidationError(
+                FileNameValidationErrorCode.INVALID_CHARACTER,
+                segment,
+                printableCharacter(matcher.group().charAt(0))
+            );
         }
         if (isReservedWindowsName(segment)) {
-            return null;
+            return new FileNameValidationError(FileNameValidationErrorCode.RESERVED_NAME, segment, null);
         }
-        return segment;
+        return null;
+    }
+
+    @Nullable
+    public static FileNameValidationError diagnosePortableAssetName(String segment) {
+        String normalized = segment == null ? "" : segment.trim();
+        FileNameValidationError baseError = diagnoseWindowsFileNameSegment(normalized);
+        if (baseError != null) {
+            return baseError;
+        }
+        java.util.regex.Matcher matcher = INVALID_ID_LIKE_CHARS.matcher(normalized);
+        if (matcher.find()) {
+            return new FileNameValidationError(
+                FileNameValidationErrorCode.INVALID_CHARACTER,
+                normalized,
+                printableCharacter(matcher.group().charAt(0))
+            );
+        }
+        return null;
     }
 
     public static String sanitizeWindowsFileName(String raw, String fallback) {
@@ -171,5 +234,12 @@ public final class SafePaths {
             end--;
         }
         return value.substring(0, end);
+    }
+
+    private static String printableCharacter(char ch) {
+        if (Character.isISOControl(ch)) {
+            return String.format(Locale.ROOT, "U+%04X", (int) ch);
+        }
+        return Character.toString(ch);
     }
 }

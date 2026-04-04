@@ -265,15 +265,12 @@ public class AiSceneGenerator {
                 autoAddKeyFrames(scene);
 
                 // 9. Pretty-print and save
-                Path filePath = SceneStore.resolveLocalScenePath(scene);
-                if (filePath == null) {
-                    throw new RuntimeException("Unsafe or invalid output filename for scene: " + scene.id);
-                }
-                if (!SceneStore.saveSceneToLocal(scene)) {
-                    throw new RuntimeException("Failed to save scene: " + scene.id);
+                SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(scene);
+                if (!saveResult.isSuccess() || saveResult.path() == null) {
+                    throw new RuntimeException(saveResult.englishMessage());
                 }
 
-                return filePath.toString();
+                return saveResult.path().toString();
             } catch (Exception e) {
                 throw new RuntimeException(e.getMessage(), e);
             }

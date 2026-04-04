@@ -15,13 +15,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -51,6 +55,105 @@ public final class SceneStore {
             this.conflictCount = conflictCount;
         }
     }
+
+    public static final class LocalSaveResult {
+        private final boolean success;
+        @javax.annotation.Nullable
+        private final Path path;
+        private final String englishMessage;
+        @javax.annotation.Nullable
+        private final String uiMessageKey;
+        private final Object[] uiMessageArgs;
+
+        private LocalSaveResult(boolean success, @javax.annotation.Nullable Path path, String englishMessage,
+                                @javax.annotation.Nullable String uiMessageKey, Object[] uiMessageArgs) {
+            this.success = success;
+            this.path = path;
+            this.englishMessage = englishMessage;
+            this.uiMessageKey = uiMessageKey;
+            this.uiMessageArgs = uiMessageArgs == null ? new Object[0] : Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        @javax.annotation.Nullable
+        public Path path() {
+            return path;
+        }
+
+        public String englishMessage() {
+            return englishMessage;
+        }
+
+        @javax.annotation.Nullable
+        public String uiMessageKey() {
+            return uiMessageKey;
+        }
+
+        public Object[] uiMessageArgs() {
+            return Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        private static LocalSaveResult success(Path path, String englishMessage) {
+            return new LocalSaveResult(true, path, englishMessage, null, new Object[0]);
+        }
+
+        private static LocalSaveResult failure(String englishMessage, String uiMessageKey, Object... uiMessageArgs) {
+            return new LocalSaveResult(false, null, englishMessage, uiMessageKey, uiMessageArgs);
+        }
+    }
+
+    public static final class PackExportResult {
+        private final boolean success;
+        @javax.annotation.Nullable
+        private final Path path;
+        private final String englishMessage;
+        @javax.annotation.Nullable
+        private final String uiMessageKey;
+        private final Object[] uiMessageArgs;
+
+        private PackExportResult(boolean success, @javax.annotation.Nullable Path path, String englishMessage,
+                                 @javax.annotation.Nullable String uiMessageKey, Object[] uiMessageArgs) {
+            this.success = success;
+            this.path = path;
+            this.englishMessage = englishMessage;
+            this.uiMessageKey = uiMessageKey;
+            this.uiMessageArgs = uiMessageArgs == null ? new Object[0] : Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        @javax.annotation.Nullable
+        public Path path() {
+            return path;
+        }
+
+        public String englishMessage() {
+            return englishMessage;
+        }
+
+        @javax.annotation.Nullable
+        public String uiMessageKey() {
+            return uiMessageKey;
+        }
+
+        public Object[] uiMessageArgs() {
+            return Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        private static PackExportResult success(Path path, String englishMessage) {
+            return new PackExportResult(true, path, englishMessage, null, new Object[0]);
+        }
+
+        private static PackExportResult failure(String englishMessage, String uiMessageKey, Object... uiMessageArgs) {
+            return new PackExportResult(false, null, englishMessage, uiMessageKey, uiMessageArgs);
+        }
+    }
+
     private static final Gson GSON = new GsonBuilder().setLenient()
         .disableHtmlEscaping()
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
@@ -63,8 +166,17 @@ public final class SceneStore {
     private static final String SCRIPT_DIR = "scripts";
     private static final String STRUCTURE_DIR = "structures";
     private static final String PACKS_SUBDIR = "_packs";
+    private static final String SAVE_ERROR_KEY_PREFIX = "ponderer.ui.save_error.";
 
     private SceneStore() {
+    }
+
+    @javax.annotation.Nullable
+    public static DslScene copyScene(@javax.annotation.Nullable DslScene scene) {
+        if (scene == null) {
+            return null;
+        }
+        return GSON.fromJson(GSON.toJson(scene), DslScene.class);
     }
 
     public static Path getSceneDir() {
@@ -333,16 +445,21 @@ public final class SceneStore {
         return loc == null ? null : resolveScenePath(getSceneDir(), loc);
     }
 
-    public static boolean saveSceneToLocal(DslScene scene) {
-        if (scene == null || scene.id == null || scene.id.isBlank()) {
-            LOGGER.warn("Cannot save scene with null/blank id");
-            return false;
+    public static LocalSaveResult saveSceneToLocalDetailed(DslScene scene) {
+        LocalSaveResult validationFailure = validateLocalSceneSave(scene);
+        if (validationFailure != null) {
+            LOGGER.warn(validationFailure.englishMessage());
+            return validationFailure;
         }
 
         Path filePath = resolveLocalScenePath(scene);
         if (filePath == null) {
-            LOGGER.warn("Cannot save scene {} because the target path is unsafe or not Windows-compatible", scene.id);
-            return false;
+            LocalSaveResult failure = LocalSaveResult.failure(
+                "Cannot save scene '" + scene.id + "' because the output path could not be resolved safely",
+                SAVE_ERROR_KEY_PREFIX + "file_name_invalid"
+            );
+            LOGGER.warn(failure.englishMessage());
+            return failure;
         }
 
         try {
@@ -351,11 +468,16 @@ public final class SceneStore {
             String json = GSON_PRETTY.toJson(scene);
             Files.writeString(filePath, json, StandardCharsets.UTF_8);
             LOGGER.info("Saved scene {} to {}", scene.id, filePath);
-            return true;
+            return LocalSaveResult.success(filePath, "Saved scene '" + scene.id + "' to " + filePath);
         } catch (IOException e) {
-            LOGGER.error("Failed to save scene {} to {}", scene.id, filePath, e);
-            return false;
+            LocalSaveResult failure = mapIoFailure(scene.id, filePath, e);
+            LOGGER.error(failure.englishMessage(), e);
+            return failure;
         }
+    }
+
+    public static boolean saveSceneToLocal(DslScene scene) {
+        return saveSceneToLocalDetailed(scene).isSuccess();
     }
 
     /**
@@ -686,6 +808,153 @@ public final class SceneStore {
         seg.steps = fixed;
     }
 
+    @javax.annotation.Nullable
+    private static LocalSaveResult validateLocalSceneSave(DslScene scene) {
+        if (scene == null || scene.id == null || scene.id.isBlank()) {
+            return LocalSaveResult.failure(
+                "Cannot save scene with blank id",
+                SAVE_ERROR_KEY_PREFIX + "scene_id_blank"
+            );
+        }
+
+        String invalidSceneIdChar = findInvalidSceneIdCharacter(scene.id);
+        ResourceLocation loc = ResourceLocation.tryParse(scene.id);
+        if (loc == null) {
+            if (invalidSceneIdChar != null) {
+                return LocalSaveResult.failure(
+                    "Cannot save scene '" + scene.id + "' because the scene id contains invalid character '" + invalidSceneIdChar + "'",
+                    SAVE_ERROR_KEY_PREFIX + "scene_id_invalid_char",
+                    invalidSceneIdChar
+                );
+            }
+            return LocalSaveResult.failure(
+                "Cannot save scene '" + scene.id + "' because the scene id is invalid",
+                SAVE_ERROR_KEY_PREFIX + "scene_id_invalid"
+            );
+        }
+
+        if (scene.pack != null && !scene.pack.isBlank()) {
+            SafePaths.FileNameValidationError packError = SafePaths.diagnosePortableAssetName(scene.pack);
+            if (packError != null) {
+                return toPackNameFailure(scene.id, scene.pack, packError);
+            }
+        }
+
+        String fileName = buildLocalSceneFileName(scene.pack, loc);
+        SafePaths.FileNameValidationError fileNameError = SafePaths.diagnoseWindowsFileNameSegment(fileName);
+        if (fileNameError != null) {
+            return toFileNameFailure(scene.id, fileName, fileNameError);
+        }
+
+        return null;
+    }
+
+    private static String buildLocalSceneFileName(@javax.annotation.Nullable String packName, ResourceLocation loc) {
+        String prefix = packName != null && !packName.isBlank() ? "[" + packName + "] " : "";
+        return prefix + loc.getPath().replace('/', '_') + ".json";
+    }
+
+    @javax.annotation.Nullable
+    private static String findInvalidSceneIdCharacter(String sceneId) {
+        if (sceneId == null) {
+            return null;
+        }
+        for (int i = 0; i < sceneId.length(); i++) {
+            char ch = sceneId.charAt(i);
+            boolean allowed = (ch >= 'a' && ch <= 'z')
+                || (ch >= '0' && ch <= '9')
+                || ch == '_'
+                || ch == '-'
+                || ch == '.'
+                || ch == '/'
+                || ch == ':';
+            if (!allowed) {
+                if (Character.isISOControl(ch)) {
+                    return String.format(Locale.ROOT, "U+%04X", (int) ch);
+                }
+                return Character.toString(ch);
+            }
+        }
+        return null;
+    }
+
+    private static LocalSaveResult toPackNameFailure(String sceneId, String packName, SafePaths.FileNameValidationError error) {
+        return switch (error.code()) {
+            case INVALID_CHARACTER -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because pack name '" + packName + "' contains invalid character '" + error.offendingText() + "'",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid_char",
+                error.offendingText()
+            );
+            case RESERVED_NAME -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because pack name '" + packName + "' is a reserved Windows name",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_reserved",
+                packName
+            );
+            case TRAILING_SPACE_OR_DOT -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because pack name '" + packName + "' ends with a space or dot",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_trailing"
+            );
+            case EMPTY, DOT_SEGMENT -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because pack name '" + packName + "' is invalid",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid"
+            );
+        };
+    }
+
+    private static LocalSaveResult toFileNameFailure(String sceneId, String fileName, SafePaths.FileNameValidationError error) {
+        return switch (error.code()) {
+            case INVALID_CHARACTER -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because output filename '" + fileName + "' contains invalid character '" + error.offendingText() + "'",
+                SAVE_ERROR_KEY_PREFIX + "file_name_invalid_char",
+                error.offendingText()
+            );
+            case RESERVED_NAME -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because output filename '" + fileName + "' is a reserved Windows name",
+                SAVE_ERROR_KEY_PREFIX + "file_name_reserved",
+                fileName
+            );
+            case TRAILING_SPACE_OR_DOT -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because output filename '" + fileName + "' ends with a space or dot",
+                SAVE_ERROR_KEY_PREFIX + "file_name_trailing"
+            );
+            case EMPTY, DOT_SEGMENT -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because output filename '" + fileName + "' is invalid",
+                SAVE_ERROR_KEY_PREFIX + "file_name_invalid"
+            );
+        };
+    }
+
+    private static LocalSaveResult mapIoFailure(String sceneId, Path filePath, IOException e) {
+        if (e instanceof AccessDeniedException) {
+            return LocalSaveResult.failure(
+                "Failed to save scene '" + sceneId + "' to " + filePath + ": access denied",
+                SAVE_ERROR_KEY_PREFIX + "access_denied",
+                filePath.getFileName() != null ? filePath.getFileName().toString() : filePath.toString()
+            );
+        }
+        if (e instanceof NoSuchFileException) {
+            return LocalSaveResult.failure(
+                "Failed to save scene '" + sceneId + "' to " + filePath + ": target path does not exist",
+                SAVE_ERROR_KEY_PREFIX + "path_missing",
+                filePath.toString()
+            );
+        }
+
+        String detail = "I/O error";
+        if (e instanceof FileSystemException fileSystemException && fileSystemException.getReason() != null
+            && !fileSystemException.getReason().isBlank()) {
+            detail = "filesystem error: " + fileSystemException.getReason();
+        } else if (e.getMessage() != null && !e.getMessage().isBlank()) {
+            detail = "I/O error: " + e.getMessage();
+        }
+
+        return LocalSaveResult.failure(
+            "Failed to save scene '" + sceneId + "' to " + filePath + ": " + detail,
+            SAVE_ERROR_KEY_PREFIX + "io",
+            detail
+        );
+    }
+
     // ===== Pack Export/Import Methods =====
 
     /**
@@ -693,43 +962,42 @@ public final class SceneStore {
      * File will be created at: resourcepacks/[Ponderer] {name}.zip
      * After export: reorganizes files into _packs/{name}/ and reloads.
      */
-    public static boolean packScenesAndStructures(String name, String version, String author) {
+    public static PackExportResult packScenesAndStructuresDetailed(String name, String version, String author) {
+        PackExportResult nameFailure = validatePackExportName(name);
+        if (nameFailure != null) {
+            LOGGER.warn(nameFailure.englishMessage());
+            return nameFailure;
+        }
+
+        String normalizedName = name.trim();
+        Path resourcepacksDir = PondererServices.PLATFORM.getGameDir().resolve("resourcepacks");
+        Path outputPath = resolvePackExportOutputPath(resourcepacksDir, normalizedName);
+        if (outputPath == null) {
+            PackExportResult failure = PackExportResult.failure(
+                "Cannot export pack '" + normalizedName + "' because the output path could not be resolved safely",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid"
+            );
+            LOGGER.warn(failure.englishMessage());
+            return failure;
+        }
+
         try {
-            if (!SafePaths.isValidWindowsFileNameSegment(name)) {
-                LOGGER.warn("Rejected pack export with invalid Windows-safe name: {}", name);
-                return false;
-            }
-            // Prepare output directory
-            Path gameDir = PondererServices.PLATFORM.getGameDir();
-            Path resourcepacksDir = gameDir.resolve("resourcepacks");
             Files.createDirectories(resourcepacksDir);
 
-            String filename = "[Ponderer] " + name + ".zip";
-            Path outputPath = SafePaths.resolveFileName(resourcepacksDir, filename);
-            if (outputPath == null) {
-                LOGGER.warn("Rejected unsafe export output path for pack {}", name);
-                return false;
-            }
+            String filename = outputPath.getFileName() != null ? outputPath.getFileName().toString() : "[Ponderer] " + normalizedName + ".zip";
+            String packJson = createPackMetadata(normalizedName, version, author);
 
-            // Create pack.json metadata
-            String packJson = createPackMetadata(name, version, author);
-
-            // Collect all scene files (flat + pack subdirectories)
             List<Path> allScriptFiles = collectAllScriptFiles();
             Set<String> allStructureRefs = new HashSet<>();
 
             try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath), StandardCharsets.UTF_8)) {
-                // Write pack.mcmeta
                 writeZipEntry(zos, "pack.mcmeta", "{\"pack\": {\"pack_format\": 15, \"description\": \"Ponderer scene collection\"}}");
-
-                // Write pack.json (Ponderer metadata)
                 writeZipEntry(zos, "pack.json", packJson);
 
-                // Write scripts: update pack field and strip filename prefix
                 int count = 0;
                 Set<String> usedEntryNames = new HashSet<>();
                 for (Path p : allScriptFiles) {
-                    String cleanJson = readAndUpdatePackField(p, name);
+                    String cleanJson = readAndUpdatePackField(p, normalizedName);
                     if (cleanJson == null) continue;
                     collectStructureReferences(cleanJson, allStructureRefs);
                     String cleanFilename = stripPackPrefix(p.getFileName().toString());
@@ -741,23 +1009,22 @@ public final class SceneStore {
                     count++;
                 }
 
-                // Write structures (strip prefix from filenames)
                 count += writeStructuresToZip(zos, allStructureRefs);
-
                 LOGGER.info("Packed {} files into {}", count, filename);
             }
 
-            // Auto-update registry on export
-            updateRegistryAfterExport(outputPath, name, version, author);
-
-            // Reorganize files on disk: move all to _packs/{name}/ with proper naming
-            reorganizeFilesForPack(name, allScriptFiles);
-
-            return true;
+            updateRegistryAfterExport(outputPath, normalizedName, version, author);
+            reorganizeFilesForPack(normalizedName, allScriptFiles);
+            return PackExportResult.success(outputPath, "Exported pack '" + normalizedName + "' to " + outputPath);
         } catch (IOException e) {
-            LOGGER.error("Failed to pack Ponderer scenes and structures", e);
-            return false;
+            PackExportResult failure = mapPackExportIoFailure(normalizedName, outputPath, e);
+            LOGGER.error(failure.englishMessage(), e);
+            return failure;
         }
+    }
+
+    public static boolean packScenesAndStructures(String name, String version, String author) {
+        return packScenesAndStructuresDetailed(name, version, author).isSuccess();
     }
 
     /**
@@ -766,57 +1033,53 @@ public final class SceneStore {
      * File will be created at: resourcepacks/[Ponderer] {name}.zip
      * After export: reorganizes exported files into _packs/{name}/ and reloads.
      */
-    public static boolean packSelectedScenesAndStructures(String name, String version, String author, Set<String> selectedSceneIds) {
+    public static PackExportResult packSelectedScenesAndStructuresDetailed(String name, String version, String author, Set<String> selectedSceneIds) {
         if (selectedSceneIds == null || selectedSceneIds.isEmpty()) {
-            return packScenesAndStructures(name, version, author);
+            return packScenesAndStructuresDetailed(name, version, author);
+        }
+
+        PackExportResult nameFailure = validatePackExportName(name);
+        if (nameFailure != null) {
+            LOGGER.warn(nameFailure.englishMessage());
+            return nameFailure;
+        }
+
+        String normalizedName = name.trim();
+        Path resourcepacksDir = PondererServices.PLATFORM.getGameDir().resolve("resourcepacks");
+        Path outputPath = resolvePackExportOutputPath(resourcepacksDir, normalizedName);
+        if (outputPath == null) {
+            PackExportResult failure = PackExportResult.failure(
+                "Cannot export pack '" + normalizedName + "' because the output path could not be resolved safely",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid"
+            );
+            LOGGER.warn(failure.englishMessage());
+            return failure;
         }
 
         try {
-            if (!SafePaths.isValidWindowsFileNameSegment(name)) {
-                LOGGER.warn("Rejected pack export with invalid Windows-safe name: {}", name);
-                return false;
-            }
-            // Prepare output directory
-            Path gameDir = PondererServices.PLATFORM.getGameDir();
-            Path resourcepacksDir = gameDir.resolve("resourcepacks");
             Files.createDirectories(resourcepacksDir);
-
-            String filename = "[Ponderer] " + name + ".zip";
-            Path outputPath = SafePaths.resolveFileName(resourcepacksDir, filename);
-            if (outputPath == null) {
-                LOGGER.warn("Rejected unsafe export output path for pack {}", name);
-                return false;
-            }
-
-            // Create pack.json metadata
-            String packJson = createPackMetadata(name, version, author);
+            String filename = outputPath.getFileName() != null ? outputPath.getFileName().toString() : "[Ponderer] " + normalizedName + ".zip";
+            String packJson = createPackMetadata(normalizedName, version, author);
 
             Set<String> requiredStructures = new HashSet<>();
             List<Path> exportedFiles = new ArrayList<>();
 
             try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath), StandardCharsets.UTF_8)) {
-                // Write pack.mcmeta
                 writeZipEntry(zos, "pack.mcmeta", "{\"pack\": {\"pack_format\": 15, \"description\": \"Ponderer scene collection\"}}");
-
-                // Write pack.json (Ponderer metadata)
                 writeZipEntry(zos, "pack.json", packJson);
 
-                // Write selected scripts
                 int count = 0;
                 Set<String> usedEntryNames = new HashSet<>();
                 List<Path> allScriptFiles = collectAllScriptFiles();
                 for (Path p : allScriptFiles) {
-                    // Read scene to check if it's selected
                     try {
                         String rawJson = Files.readString(p, StandardCharsets.UTF_8);
                         DslScene scene = GSON.fromJson(rawJson, DslScene.class);
                         if (scene == null || scene.id == null) continue;
 
-                        // Check if this scene is in the selected set
                         boolean isSelected = selectedSceneIds.contains(scene.id) ||
                             selectedSceneIds.contains(scene.sceneKey());
                         if (!isSelected) {
-                            // Also try matching by filename without extension
                             String fileBase = p.getFileName().toString();
                             if (fileBase.endsWith(".json")) fileBase = fileBase.substring(0, fileBase.length() - 5);
                             String stripped = stripPackPrefix(fileBase);
@@ -825,8 +1088,7 @@ public final class SceneStore {
                         }
 
                         if (isSelected) {
-                            // Update pack field and write to zip
-                            scene.pack = name;
+                            scene.pack = normalizedName;
                             String cleanJson = GSON_PRETTY.toJson(scene);
                             collectStructureReferences(cleanJson, requiredStructures);
                             String cleanFilename = stripPackPrefix(p.getFileName().toString());
@@ -843,23 +1105,96 @@ public final class SceneStore {
                     }
                 }
 
-                // Write only referenced structures (strip prefix)
                 count += writeStructuresToZip(zos, requiredStructures);
-
                 LOGGER.info("Packed {} files into {} (selected {} scenes)", count, filename, selectedSceneIds.size());
             }
 
-            // Auto-update registry on export
-            updateRegistryAfterExport(outputPath, name, version, author);
-
-            // Reorganize exported files on disk
-            reorganizeFilesForPack(name, exportedFiles);
-
-            return true;
+            updateRegistryAfterExport(outputPath, normalizedName, version, author);
+            reorganizeFilesForPack(normalizedName, exportedFiles);
+            return PackExportResult.success(outputPath, "Exported pack '" + normalizedName + "' to " + outputPath);
         } catch (IOException e) {
-            LOGGER.error("Failed to pack selected Ponderer scenes and structures", e);
-            return false;
+            PackExportResult failure = mapPackExportIoFailure(normalizedName, outputPath, e);
+            LOGGER.error(failure.englishMessage(), e);
+            return failure;
         }
+    }
+
+    public static boolean packSelectedScenesAndStructures(String name, String version, String author, Set<String> selectedSceneIds) {
+        return packSelectedScenesAndStructuresDetailed(name, version, author, selectedSceneIds).isSuccess();
+    }
+
+    @javax.annotation.Nullable
+    private static PackExportResult validatePackExportName(String name) {
+        if (name == null || name.isBlank()) {
+            return PackExportResult.failure(
+                "Cannot export pack because the pack name is blank",
+                "ponderer.ui.export.name_empty"
+            );
+        }
+
+        SafePaths.FileNameValidationError error = SafePaths.diagnosePortableAssetName(name);
+        if (error == null) {
+            return null;
+        }
+
+        return switch (error.code()) {
+            case INVALID_CHARACTER -> PackExportResult.failure(
+                "Cannot export pack '" + name + "' because the pack name contains invalid character '" + error.offendingText() + "'",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid_char",
+                error.offendingText()
+            );
+            case RESERVED_NAME -> PackExportResult.failure(
+                "Cannot export pack '" + name + "' because the pack name is a reserved Windows name",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_reserved",
+                name
+            );
+            case TRAILING_SPACE_OR_DOT -> PackExportResult.failure(
+                "Cannot export pack '" + name + "' because the pack name ends with a space or dot",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_trailing"
+            );
+            case EMPTY, DOT_SEGMENT -> PackExportResult.failure(
+                "Cannot export pack '" + name + "' because the pack name is invalid",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid"
+            );
+        };
+    }
+
+    @javax.annotation.Nullable
+    private static Path resolvePackExportOutputPath(Path resourcepacksDir, String packName) {
+        String filename = "[Ponderer] " + packName + ".zip";
+        return SafePaths.resolveFileName(resourcepacksDir, filename);
+    }
+
+    private static PackExportResult mapPackExportIoFailure(String packName, @javax.annotation.Nullable Path outputPath, IOException e) {
+        String target = outputPath == null ? packName : outputPath.toString();
+        if (e instanceof AccessDeniedException) {
+            return PackExportResult.failure(
+                "Failed to export pack '" + packName + "' to " + target + ": access denied",
+                SAVE_ERROR_KEY_PREFIX + "access_denied",
+                outputPath != null && outputPath.getFileName() != null ? outputPath.getFileName().toString() : target
+            );
+        }
+        if (e instanceof NoSuchFileException) {
+            return PackExportResult.failure(
+                "Failed to export pack '" + packName + "' to " + target + ": target path does not exist",
+                SAVE_ERROR_KEY_PREFIX + "path_missing",
+                target
+            );
+        }
+
+        String detail = "I/O error";
+        if (e instanceof FileSystemException fileSystemException && fileSystemException.getReason() != null
+            && !fileSystemException.getReason().isBlank()) {
+            detail = "filesystem error: " + fileSystemException.getReason();
+        } else if (e.getMessage() != null && !e.getMessage().isBlank()) {
+            detail = "I/O error: " + e.getMessage();
+        }
+
+        return PackExportResult.failure(
+            "Failed to export pack '" + packName + "' to " + target + ": " + detail,
+            SAVE_ERROR_KEY_PREFIX + "io",
+            detail
+        );
     }
 
     /**

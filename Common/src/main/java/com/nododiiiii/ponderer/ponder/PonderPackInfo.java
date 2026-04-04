@@ -73,8 +73,8 @@ public class PonderPackInfo {
                         info.version = getStringOrDefault(ponderData, "version", "1.0.0");
                         info.author = getStringOrDefault(ponderData, "author", "Unknown");
                         info.description = getStringOrDefault(ponderData, "description", "");
-                        if (!SafePaths.isValidWindowsFileNameSegment(info.name)) {
-                            LOGGER.warn("Ignoring pack with invalid Windows-safe name '{}' from {}", info.name, zipPath);
+                        if (SafePaths.diagnosePortableAssetName(info.name) != null) {
+                            LOGGER.warn("Ignoring pack with invalid portable pack name '{}' from {}", info.name, zipPath);
                             return null;
                         }
                         info.sourcePath = zipPath;

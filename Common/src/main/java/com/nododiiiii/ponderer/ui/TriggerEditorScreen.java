@@ -444,9 +444,15 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
         }
         pendingItemDuplicateConfirm = false;
 
-        scene.items = List.of(newItemId);
+        DslScene candidate = SceneStore.copyScene(scene);
+        if (candidate == null) {
+            errorMessage = UIText.of("ponderer.ui.save_error.io", "Unable to prepare scene copy");
+            return false;
+        }
+
+        candidate.items = List.of(newItemId);
         String nbt = itemNbtField != null ? itemNbtField.getValue().trim() : "";
-        scene.nbtFilter = nbt.isEmpty() ? null : nbt;
+        candidate.nbtFilter = nbt.isEmpty() ? null : nbt;
 
         String triggerMode = TRIGGER_MODES[triggerModeIndex];
 
@@ -460,46 +466,67 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
         }
 
         // Save trigger settings
-        scene.triggerMode = "none".equals(triggerMode) ? null : triggerMode;
+        candidate.triggerMode = "none".equals(triggerMode) ? null : triggerMode;
 
         // Save per-style frequencies
-        scene.hintAuto = FREQ_VALUES[autoFreqIndex];
-        scene.hintTitle = FREQ_VALUES[titleFreqIndex];
-        scene.hintSubtitle = FREQ_VALUES[subtitleFreqIndex];
+        candidate.hintAuto = FREQ_VALUES[autoFreqIndex];
+        candidate.hintTitle = FREQ_VALUES[titleFreqIndex];
+        candidate.hintSubtitle = FREQ_VALUES[subtitleFreqIndex];
 
         // Save custom hint text
-        scene.hintTitleText = titleTextField != null ? emptyToNull(titleTextField.getValue()) : null;
-        scene.hintSubtitleText = subtitleTextField != null ? emptyToNull(subtitleTextField.getValue()) : null;
+        candidate.hintTitleText = titleTextField != null ? emptyToNull(titleTextField.getValue()) : null;
+        candidate.hintSubtitleText = subtitleTextField != null ? emptyToNull(subtitleTextField.getValue()) : null;
 
         // Clear legacy fields
-        scene.hintStyle = null;
-        scene.hintFrequency = null;
-        scene.onlyFirstTime = null;
+        candidate.hintStyle = null;
+        candidate.hintFrequency = null;
+        candidate.onlyFirstTime = null;
 
         if ("structure".equals(triggerMode)) {
-            scene.triggerStructure = structureField != null ? structureField.getValue().trim() : null;
-            scene.triggerStructureRange = null;
-            scene.triggerCoord1 = null;
-            scene.triggerCoord2 = null;
+            candidate.triggerStructure = structureField != null ? structureField.getValue().trim() : null;
+            candidate.triggerStructureRange = null;
+            candidate.triggerCoord1 = null;
+            candidate.triggerCoord2 = null;
         } else if ("coordinate".equals(triggerMode)) {
-            scene.triggerCoord1 = List.of(
+            candidate.triggerCoord1 = List.of(
                     parseIntOr(coord1Group != null ? coord1Group.x() : null, 0),
                     parseIntOr(coord1Group != null ? coord1Group.y() : null, 0),
                     parseIntOr(coord1Group != null ? coord1Group.z() : null, 0));
-            scene.triggerCoord2 = List.of(
+            candidate.triggerCoord2 = List.of(
                     parseIntOr(coord2Group != null ? coord2Group.x() : null, 0),
                     parseIntOr(coord2Group != null ? coord2Group.y() : null, 0),
                     parseIntOr(coord2Group != null ? coord2Group.z() : null, 0));
-            scene.triggerStructure = null;
-            scene.triggerStructureRange = null;
+            candidate.triggerStructure = null;
+            candidate.triggerStructureRange = null;
         } else {
-            scene.triggerStructure = null;
-            scene.triggerStructureRange = null;
-            scene.triggerCoord1 = null;
-            scene.triggerCoord2 = null;
+            candidate.triggerStructure = null;
+            candidate.triggerStructureRange = null;
+            candidate.triggerCoord1 = null;
+            candidate.triggerCoord2 = null;
         }
 
-        SceneStore.saveSceneToLocal(scene);
+        SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(candidate);
+        if (!saveResult.isSuccess()) {
+            errorMessage = UIText.saveError(saveResult);
+            return false;
+        }
+
+        scene.items = candidate.items;
+        scene.nbtFilter = candidate.nbtFilter;
+        scene.triggerMode = candidate.triggerMode;
+        scene.hintAuto = candidate.hintAuto;
+        scene.hintTitle = candidate.hintTitle;
+        scene.hintSubtitle = candidate.hintSubtitle;
+        scene.hintTitleText = candidate.hintTitleText;
+        scene.hintSubtitleText = candidate.hintSubtitleText;
+        scene.hintStyle = candidate.hintStyle;
+        scene.hintFrequency = candidate.hintFrequency;
+        scene.onlyFirstTime = candidate.onlyFirstTime;
+        scene.triggerStructure = candidate.triggerStructure;
+        scene.triggerStructureRange = candidate.triggerStructureRange;
+        scene.triggerCoord1 = candidate.triggerCoord1;
+        scene.triggerCoord2 = candidate.triggerCoord2;
+
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
         return true;

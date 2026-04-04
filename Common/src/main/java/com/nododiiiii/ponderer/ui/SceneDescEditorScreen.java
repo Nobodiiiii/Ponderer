@@ -189,32 +189,59 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
 
         // ---- Save all fields ----
 
+        DslScene candidate = SceneStore.copyScene(scene);
+        if (candidate == null) {
+            errorMessage = UIText.of("ponderer.ui.save_error.io", "Unable to prepare scene copy");
+            return;
+        }
+
+        LocalizedText candidatePonderTitle = copyLocalizedText(workingPonderTitle);
         String pTitle = ponderTitleRow.field().getValue();
         if (!pTitle.isEmpty()) {
-            workingPonderTitle.setForLang(ponderTitleLang, pTitle);
+            candidatePonderTitle.setForLang(ponderTitleLang, pTitle);
         }
-        scene.title = workingPonderTitle;
+        candidate.title = candidatePonderTitle;
 
+        LocalizedText candidateSceneTitle = null;
         if (hasMultiScene && sceneTitleRow != null) {
+            candidateSceneTitle = copyLocalizedText(workingSceneTitle);
             String scTitle = sceneTitleRow.field().getValue();
             if (!scTitle.isEmpty()) {
-                workingSceneTitle.setForLang(sceneTitleLang, scTitle);
+                candidateSceneTitle.setForLang(sceneTitleLang, scTitle);
             }
-            scene.scenes.get(sceneIndex).title = workingSceneTitle;
+            candidate.scenes.get(sceneIndex).title = candidateSceneTitle;
         }
 
         if (!newPonderId.isEmpty()) {
-            scene.id = newPonderId;
+            candidate.id = newPonderId;
         }
 
         if (hasMultiScene && sceneIdField != null) {
             String newSceneId = sceneIdField.getValue().trim();
             if (!newSceneId.isEmpty()) {
-                scene.scenes.get(sceneIndex).id = newSceneId;
+                candidate.scenes.get(sceneIndex).id = newSceneId;
             }
         }
 
-        SceneStore.saveSceneToLocal(scene);
+        workingPonderTitle = candidatePonderTitle;
+        if (candidateSceneTitle != null) {
+            workingSceneTitle = candidateSceneTitle;
+        }
+
+        SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(candidate);
+        if (!saveResult.isSuccess()) {
+            errorMessage = UIText.saveError(saveResult);
+            return;
+        }
+
+        scene.title = candidate.title;
+        scene.id = candidate.id;
+        if (hasMultiScene && candidate.scenes != null && scene.scenes != null
+                && sceneIndex >= 0 && sceneIndex < candidate.scenes.size() && sceneIndex < scene.scenes.size()) {
+            scene.scenes.get(sceneIndex).title = candidate.scenes.get(sceneIndex).title;
+            scene.scenes.get(sceneIndex).id = candidate.scenes.get(sceneIndex).id;
+        }
+
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
         returnToParent();
@@ -258,5 +285,14 @@ public class SceneDescEditorScreen extends AbstractStepEditorScreen {
         } catch (Exception e) {
             return "en_us";
         }
+    }
+
+    private static LocalizedText copyLocalizedText(@Nullable LocalizedText text) {
+        if (text == null) {
+            return LocalizedText.of("");
+        }
+        return text.isPlain()
+            ? LocalizedText.of(text.resolve())
+            : LocalizedText.ofMap(new java.util.LinkedHashMap<>(text.getAllTranslations()));
     }
 }

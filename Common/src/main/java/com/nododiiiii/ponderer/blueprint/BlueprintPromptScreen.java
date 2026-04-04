@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
+import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -23,6 +24,8 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
 
     private EditBox nameField;
     private boolean awaitingOverrideConfirm;
+    @Nullable
+    private String errorMessage;
 
     // Simi-style clickable button areas
     private int saveX, saveY, saveW, saveH;
@@ -44,7 +47,10 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
         nameField.setBordered(true);
         nameField.setMaxLength(35);
         nameField.setFocused(true);
-        nameField.setResponder(s -> resetOverrideState());
+        nameField.setResponder(s -> {
+            resetOverrideState();
+            errorMessage = null;
+        });
         setFocused(nameField);
         addRenderableWidget(nameField);
 
@@ -82,11 +88,15 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
                 .at(guiLeft + 8, guiTop + 22, 0)
                 .render(graphics);
 
-        // Override warning
+        // Override warning / save error
         if (awaitingOverrideConfirm) {
             Component warn = Component.translatable("ponderer.ui.blueprint.prompt.override_warn");
             int warnWidth = font.width(warn);
             graphics.drawString(font, warn, guiLeft + (WIDTH - warnWidth) / 2, guiTop + HEIGHT - 34, 0xFF6666, true);
+        } else if (errorMessage != null && !errorMessage.isEmpty()) {
+            String clippedError = font.plainSubstrByWidth(errorMessage, WIDTH - 20);
+            int errorWidth = font.width(clippedError);
+            graphics.drawString(font, clippedError, guiLeft + (WIDTH - errorWidth) / 2, guiTop + HEIGHT - 34, 0xFF6666, true);
         }
 
         // Simi-style save button (left)
@@ -155,10 +165,16 @@ public class BlueprintPromptScreen extends AbstractSimiScreen {
         String name = nameField.getValue().trim();
         if (!awaitingOverrideConfirm && SceneStore.isBuiltinStructureName(name)) {
             awaitingOverrideConfirm = true;
+            errorMessage = null;
             return;
         }
-        BlueprintHandler.INSTANCE.saveBlueprint(nameField.getValue());
-        onClose();
+        BlueprintExport.SaveResult result = BlueprintHandler.INSTANCE.saveBlueprint(nameField.getValue());
+        if (result.isSuccess()) {
+            onClose();
+            return;
+        }
+        resetOverrideState();
+        errorMessage = UIText.of(result.uiMessageKey(), result.uiMessageArgs());
     }
 
     private void resetOverrideState() {
