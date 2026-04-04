@@ -16,6 +16,9 @@ import java.util.function.Supplier;
 
 public class XyzListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
+    private static final int TRAILING_GAP = 8;
+    private static final int TRAILING_BUTTON_GAP = 4;
+
     private record TrailingButton(BoxWidget widget, int width, Supplier<String> labelGetter, IntSupplier colorGetter) {
     }
 
@@ -31,9 +34,9 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
-        this.xField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 52, 20);
-        this.yField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 52, 20);
-        this.zField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 52, 20);
+        this.xField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 52, 20);
+        this.yField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 52, 20);
+        this.zField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 52, 20);
         this.xField.setMaxLength(32);
         this.yField.setMaxLength(32);
         this.zField.setMaxLength(32);
@@ -80,7 +83,7 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
 
     @Override
     protected int getLabelWidth(int totalWidth) {
-        return (int) (totalWidth * labelWidthMult) + 30;
+        return EntryTextSupport.compactLabelWidth(totalWidth);
     }
 
     @Override
@@ -100,14 +103,17 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         int labelWidth = getLabelWidth(width);
-        int buttonsWidth = 0;
-        for (TrailingButton trailingButton : trailingButtons) {
-            buttonsWidth += trailingButton.width() + 4;
+        int buttonsWidth = trailingButtons.isEmpty() ? 0 : TRAILING_GAP;
+        for (int i = 0; i < trailingButtons.size(); i++) {
+            buttonsWidth += trailingButtons.get(i).width();
+            if (i + 1 < trailingButtons.size()) {
+                buttonsWidth += TRAILING_BUTTON_GAP;
+            }
         }
 
         int available = Math.max(120, width - labelWidth - buttonsWidth - 16);
         int fieldWidth = Math.max(34, (available - 10) / 3);
-        int fieldX = x + labelWidth + 4;
+        int fieldX = x + width - 4 - buttonsWidth - (fieldWidth * 3 + 10);
         int fieldY = y + 8;
 
         xField.setX(fieldX);

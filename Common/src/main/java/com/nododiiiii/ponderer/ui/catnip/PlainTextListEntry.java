@@ -17,6 +17,9 @@ import java.util.function.Supplier;
 
 public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
+    protected static final int TRAILING_GAP = 8;
+    protected static final int TRAILING_BUTTON_GAP = 4;
+
     protected record TrailingButton(BoxWidget widget, int width, Supplier<String> labelGetter, IntSupplier colorGetter) {
     }
 
@@ -25,6 +28,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     protected final List<TrailingButton> trailingButtons = new ArrayList<>();
     @Nullable
     private Supplier<String> unitTextGetter;
+    private int preferredFieldWidth = -1;
 
     public PlainTextListEntry(String labelKey, @Nullable String tooltipKey, @Nullable String hintKey,
                               String initialValue, Consumer<String> responder) {
@@ -32,7 +36,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
-        this.textField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 200, 20);
+        this.textField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 200, 20);
         EntryTextSupport.applyHint(textField, hintKey);
         this.textField.setResponder(responder);
         this.textField.setValue(initialValue);
@@ -63,6 +67,10 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         this.unitTextGetter = unitTextGetter;
     }
 
+    public void setPreferredFieldWidth(int preferredFieldWidth) {
+        this.preferredFieldWidth = preferredFieldWidth;
+    }
+
     @Override
     public boolean matchesQuery(String query) {
         return searchText.contains(query);
@@ -75,7 +83,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
     @Override
     protected int getLabelWidth(int totalWidth) {
-        return (int) (totalWidth * labelWidthMult) + 30;
+        return EntryTextSupport.compactLabelWidth(totalWidth);
     }
 
     @Override
@@ -93,12 +101,16 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         int labelWidth = getLabelWidth(width);
-        int fieldX = x + labelWidth + 4;
         int trailingWidth = getTrailingWidth();
+        int maxFieldWidth = Math.max(60, width - labelWidth - trailingWidth - 16);
+        int actualFieldWidth = preferredFieldWidth > 0
+            ? Math.min(preferredFieldWidth, maxFieldWidth)
+            : maxFieldWidth;
+        int fieldX = x + width - 4 - trailingWidth - actualFieldWidth;
 
         textField.setX(fieldX);
         textField.setY(y + 8);
-        textField.setWidth(Math.max(60, width - labelWidth - trailingWidth - 4));
+        textField.setWidth(actualFieldWidth);
         textField.setHeight(20);
         textField.render(graphics, mouseX, mouseY, partialTicks);
 
@@ -110,8 +122,14 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         if (unitTextGetter != null) {
             width += Minecraft.getInstance().font.width(unitTextGetter.get()) + 8;
         }
-        for (TrailingButton trailingButton : trailingButtons) {
-            width += trailingButton.width() + 4;
+        if (!trailingButtons.isEmpty()) {
+            width += TRAILING_GAP;
+        }
+        for (int i = 0; i < trailingButtons.size(); i++) {
+            width += trailingButtons.get(i).width();
+            if (i + 1 < trailingButtons.size()) {
+                width += TRAILING_BUTTON_GAP;
+            }
         }
         return width;
     }

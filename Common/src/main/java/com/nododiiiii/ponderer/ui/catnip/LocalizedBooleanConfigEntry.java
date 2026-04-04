@@ -25,4 +25,9 @@ public class LocalizedBooleanConfigEntry extends BooleanEntry implements Searcha
     public void highlightEntry() {
         annotations.put("highlight", ":)");
     }
+
+    @Override
+    protected int getLabelWidth(int totalWidth) {
+        return EntryTextSupport.compactLabelWidth(totalWidth);
+    }
 }

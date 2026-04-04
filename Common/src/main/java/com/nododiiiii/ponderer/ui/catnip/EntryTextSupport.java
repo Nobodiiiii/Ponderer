@@ -41,4 +41,8 @@ public final class EntryTextSupport {
         }
         hintableField.setHint(UIText.of(hintKey));
     }
+
+    public static int compactLabelWidth(int totalWidth) {
+        return (int) (totalWidth * 0.34f) + 18;
+    }
 }

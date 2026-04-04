@@ -1,6 +1,9 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import net.createmod.catnip.gui.UIRenderHelper;
+import net.createmod.catnip.gui.widget.AbstractSimiWidget;
 import net.createmod.catnip.config.ui.entries.NumberEntry;
+import net.minecraft.client.Minecraft;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 import javax.annotation.Nullable;
@@ -14,6 +17,25 @@ public class LocalizedIntegerConfigEntry extends NumberEntry.IntegerEntry implem
         super(com.nododiiiii.ponderer.ui.UIText.of(labelKey), value, spec);
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        listeners.remove(textField);
+        ClippedConfigTextField clippedField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 200, 20);
+        clippedField.setValue(textField.getValue());
+        clippedField.setTextColor(UIRenderHelper.COLOR_TEXT.getFirst().getRGB());
+        clippedField.setResponder(s -> {
+            try {
+                Integer number = getParser().apply(s);
+                if (!spec.test(number)) {
+                    throw new IllegalArgumentException();
+                }
+                clippedField.setTextColor(UIRenderHelper.COLOR_TEXT.getFirst().getRGB());
+                setValue(number);
+            } catch (IllegalArgumentException ignored) {
+                clippedField.setTextColor(AbstractSimiWidget.COLOR_FAIL.getFirst().getRGB());
+            }
+        });
+        clippedField.moveCursorToStart();
+        textField = clippedField;
+        listeners.add(textField);
         EntryTextSupport.applyHint(textField, hintKey);
     }
 
@@ -25,5 +47,10 @@ public class LocalizedIntegerConfigEntry extends NumberEntry.IntegerEntry implem
     @Override
     public void highlightEntry() {
         annotations.put("highlight", ":)");
+    }
+
+    @Override
+    protected int getLabelWidth(int totalWidth) {
+        return EntryTextSupport.compactLabelWidth(totalWidth);
     }
 }

@@ -8,6 +8,7 @@ import com.nododiiiii.ponderer.ui.catnip.ButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DualTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
+import com.nododiiiii.ponderer.ui.catnip.ToggleListEntry;
 import com.nododiiiii.ponderer.ui.catnip.XyzListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
@@ -413,6 +414,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
         });
         entry.field().setHint(hint);
+        entry.setPreferredFieldWidth(fieldW);
         appendEntry(entry);
         return entry.field();
     }
@@ -422,6 +424,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
         });
         entry.field().setHint(hint);
+        entry.setPreferredFieldWidth(fieldW);
         BoxWidget jeiBtn = entry.addTrailingButton(
             20,
             () -> toggleJei(entry.field(), mode),
@@ -444,6 +447,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
         });
         entry.field().setHint(hint);
+        entry.setPreferredFieldWidth(124);
         BoxWidget jeiBtn = entry.addTrailingButton(
             20,
             () -> toggleJei(entry.field(), mode),
@@ -467,6 +471,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
         });
         entry.field().setHint(hint);
+        entry.setPreferredFieldWidth(124);
         BoxWidget jeiBtn = entry.addTrailingButton(
             20,
             () -> toggleJei(entry.field(), mode),
@@ -490,6 +495,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
         });
         entry.field().setHint(hint);
+        entry.setPreferredFieldWidth(124);
         BoxWidget jeiBtn = entry.addTrailingButton(
             20,
             () -> toggleJei(entry.field(), mode),
@@ -511,6 +517,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
         });
         entry.field().setHint(hint);
+        entry.setPreferredFieldWidth(fieldW);
         entry.addTrailingButton(
             20,
             () -> startNbtPick(nbtSnapshotKey, false),
@@ -529,6 +536,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
         });
         entry.field().setHint(hint);
+        entry.setPreferredFieldWidth(fieldW);
         BoxWidget button = entry.addTrailingButton(20, onClick, buttonLabelGetter, buttonColorGetter, buttonTooltip);
         appendEntry(entry);
         return new FieldWithButton(entry.field(), button);
@@ -571,14 +579,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
 
     protected BoxWidget addFormToggle(String labelKey, @Nullable String tooltipKey,
                                       BooleanSupplier stateGetter, Runnable onToggle) {
-        ButtonListEntry entry = new ButtonListEntry(
-            labelKey,
-            tooltipKey,
-            28,
-            onToggle,
-            () -> stateGetter.getAsBoolean() ? "V" : "X",
-            () -> stateGetter.getAsBoolean() ? 0x55FF55 : 0xFF5555,
-            null);
+        ToggleListEntry entry = new ToggleListEntry(labelKey, tooltipKey, stateGetter, onToggle);
         appendEntry(entry);
         return entry.button();
     }
@@ -601,6 +602,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
         });
         entry.field().setHint(hint);
+        entry.setPreferredFieldWidth(fieldW);
         if (unitKey != null) {
             entry.setUnitText(() -> UIText.of(unitKey));
         }
@@ -619,6 +621,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         LocalizedTextListEntry entry = new LocalizedTextListEntry(labelKey, tooltipKey, null, "", langGetter, onToggle, value -> {
         });
         entry.field().setHint(hint);
+        entry.setPreferredFieldWidth(fieldW);
         appendEntry(entry);
         return new FieldWithLang(entry.field(), entry.langButton());
     }
@@ -627,6 +630,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
                                                     String firstHint, int firstWidth,
                                                     String secondHint, int secondWidth) {
         DualTextListEntry entry = new DualTextListEntry(labelKey, tooltipKey, firstHint, secondHint);
+        entry.setPreferredWidths(firstWidth, secondWidth);
         appendEntry(entry);
         return new DualFieldGroup(entry.firstField(), entry.secondField());
     }

@@ -1,17 +1,15 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeConfigSubMenuScreen;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeConfigListScreen;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ModConfig;
 
 import java.util.List;
 
-public class AiConfigScreen extends AbstractDeclarativeConfigSubMenuScreen {
+public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
 
     public AiConfigScreen() {
         this(new FunctionScreen());
@@ -23,8 +21,7 @@ public class AiConfigScreen extends AbstractDeclarativeConfigSubMenuScreen {
             "ponderer.ui.scope.client",
             "ponderer.ui.ai_config.title",
             ModConfig.Type.CLIENT,
-            Config.SPEC,
-            findConfigGroup(Config.SPEC, "ai"));
+            Config.SPEC);
     }
 
     @Override
@@ -61,31 +58,4 @@ public class AiConfigScreen extends AbstractDeclarativeConfigSubMenuScreen {
             Config.AI_WEB_USE_PROXY);
     }
 
-    @Override
-    protected String getResetLabelKey() {
-        return "ponderer.ui.ai_config.reset";
-    }
-
-    @Override
-    protected String getResetTooltipKey() {
-        return "ponderer.ui.ai_config.reset.tooltip";
-    }
-
-    @Override
-    protected String getResetConfirmKey() {
-        return "ponderer.ui.ai_config.reset.confirm";
-    }
-
-    private static UnmodifiableConfig findConfigGroup(ForgeConfigSpec spec, String... path) {
-        UnmodifiableConfig current = spec.getValues();
-        for (String segment : path) {
-            Object next = current.valueMap().get(segment);
-            if (next instanceof UnmodifiableConfig nested) {
-                current = nested;
-                continue;
-            }
-            throw new IllegalStateException("Missing config group: " + String.join(".", path));
-        }
-        return current;
-    }
 }

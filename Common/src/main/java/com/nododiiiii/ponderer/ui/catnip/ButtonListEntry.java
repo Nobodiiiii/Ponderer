@@ -53,7 +53,7 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
 
     @Override
     protected int getLabelWidth(int totalWidth) {
-        return (int) (totalWidth * labelWidthMult) + 30;
+        return EntryTextSupport.compactLabelWidth(totalWidth);
     }
 
     @Override

@@ -22,8 +22,8 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
-        this.keyField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 70, 20);
-        this.valueField = new ConfigTextField(Minecraft.getInstance().font, 0, 0, 70, 20);
+        this.keyField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 70, 20);
+        this.valueField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 70, 20);
         this.keyField.setValue(keyValue);
         this.valueField.setValue(propertyValue);
         this.keyField.moveCursorToStart();
@@ -56,7 +56,7 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
 
     @Override
     protected int getLabelWidth(int totalWidth) {
-        return (int) (totalWidth * labelWidthMult) + 30;
+        return EntryTextSupport.compactLabelWidth(totalWidth);
     }
 
     @Override
@@ -74,9 +74,10 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
 
         int labelWidth = getLabelWidth(width);
         int buttonWidth = 20;
-        int available = Math.max(140, width - labelWidth - buttonWidth - 16);
+        int available = Math.max(140, width - labelWidth - buttonWidth - 24);
         int fieldWidth = Math.max(48, (available - 17) / 2);
-        int fieldX = x + labelWidth + 4;
+        int clusterWidth = fieldWidth * 2 + 17 + buttonWidth + 8;
+        int fieldX = x + width - 4 - clusterWidth;
         int fieldY = y + 8;
 
         keyField.setX(fieldX);
@@ -97,7 +98,7 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
             0xA0A0A0);
 
         int buttonHeight = Math.max(16, height - 20);
-        removeButton.setX(x + width - buttonWidth - 4);
+        removeButton.setX(fieldX + fieldWidth * 2 + 17 + 8);
         removeButton.setY(y + 10);
         removeButton.setWidth(buttonWidth);
         removeButton.setHeight(buttonHeight);
