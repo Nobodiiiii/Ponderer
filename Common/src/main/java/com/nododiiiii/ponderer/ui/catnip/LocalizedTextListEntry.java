@@ -11,6 +11,8 @@ import java.util.function.Supplier;
 
 public class LocalizedTextListEntry extends PlainTextListEntry {
 
+    private static final int LANG_BUTTON_WIDTH = 28;
+
     private final Supplier<String> langGetter;
     private final BoxWidget langButton;
     private final TextStencilElement langText;
@@ -22,7 +24,7 @@ public class LocalizedTextListEntry extends PlainTextListEntry {
         this.langGetter = langGetter;
         this.langText = new TextStencilElement(Minecraft.getInstance().font, "en_us")
             .centered(true, true);
-        this.langButton = new BoxWidget(0, 0, 28, 16)
+        this.langButton = new BoxWidget(0, 0, LANG_BUTTON_WIDTH, 16)
             .showingElement(langText)
             .withCallback(onToggle);
         this.langText.withElementRenderer(BoxWidget.gradientFactory.apply(langButton));
@@ -41,15 +43,16 @@ public class LocalizedTextListEntry extends PlainTextListEntry {
 
     @Override
     protected int getTrailingWidth() {
-        return 34;
+        return LANG_BUTTON_WIDTH + CONTROL_GAP;
     }
 
     @Override
     protected void renderTrailing(GuiGraphics graphics, int y, int x, int width, int height,
                                   int mouseX, int mouseY, float partialTicks) {
         langText.withText(shortLang(langGetter.get()));
-        langButton.setX(x + width - 30);
+        langButton.setX(x + width - 4 - LANG_BUTTON_WIDTH);
         langButton.setY(y + 10);
+        langButton.setWidth(LANG_BUTTON_WIDTH);
         langButton.setHeight(height - 20);
         langButton.render(graphics, mouseX, mouseY, partialTicks);
     }

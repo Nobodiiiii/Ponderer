@@ -16,8 +16,7 @@ import java.util.function.Supplier;
 
 public class XyzListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int TRAILING_GAP = 8;
-    private static final int TRAILING_BUTTON_GAP = 4;
+    private static final int CONTROL_GAP = EntryTextSupport.rightControlGap();
 
     private record TrailingButton(BoxWidget widget, int width, Supplier<String> labelGetter, IntSupplier colorGetter) {
     }
@@ -103,34 +102,40 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         int labelWidth = getLabelWidth(width);
-        int buttonsWidth = trailingButtons.isEmpty() ? 0 : TRAILING_GAP;
+        int buttonsWidth = trailingButtons.isEmpty() ? 0 : CONTROL_GAP;
         for (int i = 0; i < trailingButtons.size(); i++) {
             buttonsWidth += trailingButtons.get(i).width();
             if (i + 1 < trailingButtons.size()) {
-                buttonsWidth += TRAILING_BUTTON_GAP;
+                buttonsWidth += CONTROL_GAP;
             }
         }
 
-        int available = Math.max(120, width - labelWidth - buttonsWidth - 16);
-        int fieldWidth = Math.max(34, (available - 10) / 3);
-        int fieldX = x + width - 4 - buttonsWidth - (fieldWidth * 3 + 10);
+        int minControlWidth = 34 * 3 + CONTROL_GAP * 2 + buttonsWidth;
+        int controlWidth = Math.max(minControlWidth, EntryTextSupport.controlAreaWidth(width, labelWidth));
+        int fieldsWidth = controlWidth - buttonsWidth - CONTROL_GAP * 2;
+        int baseFieldWidth = Math.max(34, fieldsWidth / 3);
+        int remainder = Math.max(0, fieldsWidth - baseFieldWidth * 3);
+        int xWidth = baseFieldWidth;
+        int yWidth = baseFieldWidth;
+        int zWidth = baseFieldWidth + remainder;
+        int fieldX = x + labelWidth + 4;
         int fieldY = y + 8;
 
         xField.setX(fieldX);
         xField.setY(fieldY);
-        xField.setWidth(fieldWidth);
+        xField.setWidth(xWidth);
         xField.setHeight(20);
         xField.render(graphics, mouseX, mouseY, partialTicks);
 
-        yField.setX(fieldX + fieldWidth + 5);
+        yField.setX(fieldX + xWidth + CONTROL_GAP);
         yField.setY(fieldY);
-        yField.setWidth(fieldWidth);
+        yField.setWidth(yWidth);
         yField.setHeight(20);
         yField.render(graphics, mouseX, mouseY, partialTicks);
 
-        zField.setX(fieldX + (fieldWidth + 5) * 2);
+        zField.setX(fieldX + xWidth + CONTROL_GAP + yWidth + CONTROL_GAP);
         zField.setY(fieldY);
-        zField.setWidth(fieldWidth);
+        zField.setWidth(zWidth);
         zField.setHeight(20);
         zField.render(graphics, mouseX, mouseY, partialTicks);
 
@@ -151,7 +156,7 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
                 button.getX() + button.getWidth() / 2,
                 button.getY() + (button.getHeight() - 8) / 2,
                 trailingButton.colorGetter().getAsInt());
-            cursorX -= 4;
+            cursorX -= CONTROL_GAP;
         }
     }
 }

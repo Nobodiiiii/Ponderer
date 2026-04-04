@@ -11,6 +11,8 @@ import javax.annotation.Nullable;
 
 public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
+    private static final int CONTROL_GAP = EntryTextSupport.rightControlGap();
+
     private final String searchText;
     private final ConfigTextField keyField;
     private final ConfigTextField valueField;
@@ -74,31 +76,36 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
 
         int labelWidth = getLabelWidth(width);
         int buttonWidth = 20;
-        int available = Math.max(140, width - labelWidth - buttonWidth - 24);
-        int fieldWidth = Math.max(48, (available - 17) / 2);
-        int clusterWidth = fieldWidth * 2 + 17 + buttonWidth + 8;
-        int fieldX = x + width - 4 - clusterWidth;
+        int equalsWidth = Minecraft.getInstance().font.width("=");
+        int minControlWidth = 48 * 2 + buttonWidth + equalsWidth + CONTROL_GAP * 3;
+        int controlWidth = Math.max(minControlWidth, EntryTextSupport.controlAreaWidth(width, labelWidth));
+        int fieldsWidth = controlWidth - buttonWidth - equalsWidth - CONTROL_GAP * 3;
+        int keyWidth = Math.max(48, fieldsWidth / 2);
+        int valueWidth = Math.max(48, fieldsWidth - keyWidth);
+        int fieldX = x + labelWidth + 4;
         int fieldY = y + 8;
 
         keyField.setX(fieldX);
         keyField.setY(fieldY);
-        keyField.setWidth(fieldWidth);
+        keyField.setWidth(keyWidth);
         keyField.setHeight(20);
         keyField.render(graphics, mouseX, mouseY, partialTicks);
 
-        valueField.setX(fieldX + fieldWidth + 17);
+        int equalsX = fieldX + keyWidth + CONTROL_GAP;
+        int valueX = equalsX + equalsWidth + CONTROL_GAP;
+        valueField.setX(valueX);
         valueField.setY(fieldY);
-        valueField.setWidth(fieldWidth);
+        valueField.setWidth(valueWidth);
         valueField.setHeight(20);
         valueField.render(graphics, mouseX, mouseY, partialTicks);
 
         graphics.drawString(Minecraft.getInstance().font, "=",
-            fieldX + fieldWidth + 6,
+            equalsX,
             y + 14,
             0xA0A0A0);
 
         int buttonHeight = Math.max(16, height - 20);
-        removeButton.setX(fieldX + fieldWidth * 2 + 17 + 8);
+        removeButton.setX(valueX + valueWidth + CONTROL_GAP);
         removeButton.setY(y + 10);
         removeButton.setWidth(buttonWidth);
         removeButton.setHeight(buttonHeight);

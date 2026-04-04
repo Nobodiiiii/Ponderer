@@ -589,7 +589,8 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
     protected BoxWidget addFormCycleButton(String labelKey, @Nullable String tooltipKey,
                                            int btnW, Runnable onClick,
                                            Supplier<String> labelGetter, IntSupplier colorGetter) {
-        ButtonListEntry entry = new ButtonListEntry(labelKey, tooltipKey, btnW, onClick, labelGetter, colorGetter, null);
+        ButtonListEntry entry = new ButtonListEntry(labelKey, tooltipKey, btnW, onClick, labelGetter, colorGetter, null)
+            .setControlWidthScale(0.5f);
         appendEntry(entry);
         return entry.button();
     }
@@ -605,6 +606,9 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeListSc
         });
         entry.field().setHint(hint);
         entry.setPreferredFieldWidth(fieldW);
+        if ("ponderer.ui.duration".equals(labelKey)) {
+            entry.setControlWidthScale(0.5f);
+        }
         if (unitKey != null) {
             entry.setUnitText(() -> UIText.of(unitKey));
         }

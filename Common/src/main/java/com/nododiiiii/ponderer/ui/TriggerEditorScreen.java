@@ -249,10 +249,14 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
                 () -> "+",
                 () -> 0x80FFFF,
                 UIText.of("ponderer.ui.pick.tooltip")));
-            entries.add(StepEditorEntries.xyz(
+            entries.add(StepEditorEntries.xyzWithButton(
                 coord2Field,
                 "ponderer.ui.trigger_editor.trigger_coord2",
-                null));
+                null,
+                this::startCoordinatePick,
+                () -> "+",
+                () -> 0x80FFFF,
+                UIText.of("ponderer.ui.pick.tooltip")));
         }
     }
 

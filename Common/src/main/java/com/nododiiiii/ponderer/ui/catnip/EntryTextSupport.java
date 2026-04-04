@@ -14,6 +14,8 @@ import java.util.Locale;
 
 public final class EntryTextSupport {
 
+    private static final int RIGHT_CONTROL_GAP = 8;
+
     private EntryTextSupport() {
     }
 
@@ -44,5 +46,13 @@ public final class EntryTextSupport {
 
     public static int compactLabelWidth(int totalWidth) {
         return (int) (totalWidth * 0.30f) + 14;
+    }
+
+    public static int controlAreaWidth(int totalWidth, int labelWidth) {
+        return Math.max(60, totalWidth - labelWidth - 8);
+    }
+
+    public static int rightControlGap() {
+        return RIGHT_CONTROL_GAP;
     }
 }

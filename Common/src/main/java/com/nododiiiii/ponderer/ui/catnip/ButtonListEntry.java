@@ -17,7 +17,8 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
     private final BoxWidget button;
     private final Supplier<String> labelGetter;
     private final IntSupplier colorGetter;
-    private final int buttonWidth;
+    protected final int buttonWidth;
+    private float controlWidthScale = 1.0f;
 
     public ButtonListEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                            Runnable onClick, Supplier<String> labelGetter, IntSupplier colorGetter,
@@ -41,6 +42,11 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
         return button;
     }
 
+    public ButtonListEntry setControlWidthScale(float controlWidthScale) {
+        this.controlWidthScale = Math.max(0.1f, Math.min(1.0f, controlWidthScale));
+        return this;
+    }
+
     @Override
     public boolean matchesQuery(String query) {
         return searchText.contains(query);
@@ -56,6 +62,11 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
         return EntryTextSupport.compactLabelWidth(totalWidth);
     }
 
+    protected int getRenderedButtonWidth(int totalWidth) {
+        int controlWidth = EntryTextSupport.controlAreaWidth(totalWidth, getLabelWidth(totalWidth));
+        return Math.max(buttonWidth, Math.round(controlWidth * controlWidthScale));
+    }
+
     @Override
     public void tick() {
         super.tick();
@@ -67,10 +78,11 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
+        int renderedButtonWidth = getRenderedButtonWidth(width);
         int buttonHeight = Math.max(16, height - 20);
-        button.setX(x + width - buttonWidth - 4);
+        button.setX(x + width - renderedButtonWidth - 4);
         button.setY(y + 10);
-        button.setWidth(buttonWidth);
+        button.setWidth(renderedButtonWidth);
         button.setHeight(buttonHeight);
         button.render(graphics, mouseX, mouseY, partialTicks);
 

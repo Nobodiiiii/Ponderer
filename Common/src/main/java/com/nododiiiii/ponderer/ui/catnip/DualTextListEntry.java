@@ -10,6 +10,8 @@ import javax.annotation.Nullable;
 
 public class DualTextListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
+    private static final int FIELD_GAP = EntryTextSupport.rightControlGap();
+
     private final String searchText;
     private final ConfigTextField firstField;
     private final ConfigTextField secondField;
@@ -73,17 +75,26 @@ public class DualTextListEntry extends ConfigScreenList.LabeledEntry implements 
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         int labelWidth = getLabelWidth(width);
-        int available = Math.max(120, width - labelWidth - 16);
-        int firstWidth = firstPreferredWidth > 0 ? firstPreferredWidth : Math.max(40, (available - 5) / 2);
-        int secondWidth = secondPreferredWidth > 0 ? secondPreferredWidth : Math.max(40, (available - 5) / 2);
-        int clusterWidth = firstWidth + 5 + secondWidth;
-        if (clusterWidth > available) {
-            int fieldWidth = Math.max(40, (available - 5) / 2);
-            firstWidth = fieldWidth;
-            secondWidth = fieldWidth;
-            clusterWidth = firstWidth + 5 + secondWidth;
+        int controlWidth = Math.max(120, EntryTextSupport.controlAreaWidth(width, labelWidth));
+        int fieldsWidth = Math.max(80, controlWidth - FIELD_GAP);
+        int firstWidth;
+        int secondWidth;
+        if (firstPreferredWidth > 0 && secondPreferredWidth > 0) {
+            int preferredTotal = firstPreferredWidth + secondPreferredWidth;
+            firstWidth = Math.max(40, fieldsWidth * firstPreferredWidth / preferredTotal);
+            secondWidth = Math.max(40, fieldsWidth - firstWidth);
+            if (firstWidth + secondWidth > fieldsWidth) {
+                secondWidth = Math.max(40, fieldsWidth - firstWidth);
+            }
+        } else {
+            firstWidth = Math.max(40, fieldsWidth / 2);
+            secondWidth = Math.max(40, fieldsWidth - firstWidth);
         }
-        int fieldX = x + width - 4 - clusterWidth;
+        int widthOverflow = firstWidth + secondWidth - fieldsWidth;
+        if (widthOverflow > 0) {
+            secondWidth = Math.max(40, secondWidth - widthOverflow);
+        }
+        int fieldX = x + labelWidth + 4;
         int fieldY = y + 8;
 
         firstField.setX(fieldX);
@@ -92,7 +103,7 @@ public class DualTextListEntry extends ConfigScreenList.LabeledEntry implements 
         firstField.setHeight(20);
         firstField.render(graphics, mouseX, mouseY, partialTicks);
 
-        secondField.setX(fieldX + firstWidth + 5);
+        secondField.setX(fieldX + firstWidth + FIELD_GAP);
         secondField.setY(fieldY);
         secondField.setWidth(secondWidth);
         secondField.setHeight(20);

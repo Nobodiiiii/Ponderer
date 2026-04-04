@@ -31,6 +31,11 @@ public class ToggleListEntry extends ButtonListEntry {
     }
 
     @Override
+    protected int getRenderedButtonWidth(int totalWidth) {
+        return buttonWidth;
+    }
+
+    @Override
     public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
         button().showingElement(stateGetter.getAsBoolean() ? enabled : disabled);
