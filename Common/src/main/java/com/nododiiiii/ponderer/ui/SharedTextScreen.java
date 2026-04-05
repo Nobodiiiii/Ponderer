@@ -49,13 +49,12 @@ public class SharedTextScreen extends AbstractStepEditorScreen {
             "ponderer.ui.point.tooltip",
             PickState.TargetField.POINT,
             true));
-        entries.add(FieldSpecs.number(
+        entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.duration.tooltip.text",
             "60",
-            50,
-            "ponderer.ui.ticks"));
+            50));
         entries.add(FieldSpecs.choice(
             "ponderer.ui.color",
             "ponderer.ui.color.tooltip",

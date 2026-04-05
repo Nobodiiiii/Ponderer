@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 
 public abstract class AbstractDeclarativeFormScreen extends AbstractDeclarativeListScreen {
 
-    protected static final float DEFAULT_CHOICE_CONTROL_SCALE = 0.5f;
+    protected static final float DEFAULT_CHOICE_CONTROL_SCALE = EntryTextSupport.halfWidthControlScale();
     private final List<DeclarativeFormEntry> formEntries = new ArrayList<>();
     @Nullable
     private List<ConfigScreenList.Entry> currentEntries;
@@ -109,8 +109,12 @@ public abstract class AbstractDeclarativeFormScreen extends AbstractDeclarativeL
                                                        @Nullable Supplier<String> buttonTooltipGetter,
                                                        float controlWidthScale) {
         ButtonListEntry entry = new ButtonListEntry(
-            labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, buttonTooltipGetter)
-            .setControlWidthScale(controlWidthScale);
+            labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, buttonTooltipGetter);
+        if (Math.abs(controlWidthScale - EntryTextSupport.halfWidthControlScale()) < 0.0001f) {
+            entry.setHalfWidthControl(buttonWidth);
+        } else {
+            entry.setControlWidthScale(controlWidthScale).setMinimumControlWidth(buttonWidth);
+        }
         appendEntry(entry);
         return entry;
     }

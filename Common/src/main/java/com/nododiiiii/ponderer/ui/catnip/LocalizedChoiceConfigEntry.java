@@ -26,7 +26,7 @@ public class LocalizedChoiceConfigEntry extends ButtonListEntry {
             (String) null);
         this.path = metadata.path();
         this.annotations.putAll(metadata.annotations());
-        setControlWidthScale(0.5f);
+        setHalfWidthControl(buttonWidth);
     }
 
     private static void cycleValue(ForgeConfigSpec.ConfigValue<String> value, List<String> optionValues,

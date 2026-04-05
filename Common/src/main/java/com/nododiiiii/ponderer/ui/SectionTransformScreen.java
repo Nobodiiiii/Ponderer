@@ -57,13 +57,12 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
             xyzField,
             "ponderer.ui." + stepType + ".xyz",
             "ponderer.ui." + stepType + ".xyz.tooltip"));
-        entries.add(FieldSpecs.number(
+        entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.duration.tooltip.section_animation",
             "20",
-            60,
-            null));
+            60));
     }
 
     @Override

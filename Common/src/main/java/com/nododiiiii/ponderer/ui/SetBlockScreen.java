@@ -156,20 +156,18 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
                 "ponderer.ui.show_section_and_merge.link.tooltip",
                 "",
                 140));
-            entries.add(FieldSpecs.number(
+            entries.add(FieldSpecs.ticksNumber(
                 durationField,
                 "ponderer.ui.duration",
                 "ponderer.ui.duration.tooltip.section_animation",
                 "20",
-                60,
-                null));
-            entries.add(FieldSpecs.number(
+                60));
+            entries.add(FieldSpecs.ticksNumber(
                 intervalField,
                 "ponderer.ui.entrance_interval",
                 "ponderer.ui.entrance_interval.tooltip",
                 "1",
-                60,
-                null));
+                60));
             entries.add(FieldSpecs.toggle(
                 smartDisplayBinding,
                 "ponderer.ui.smart_display",

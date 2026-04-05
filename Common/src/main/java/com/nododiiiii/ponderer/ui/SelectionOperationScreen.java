@@ -133,22 +133,20 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
                 140));
         }
         if (withDuration) {
-            entries.add(FieldSpecs.number(
+            entries.add(FieldSpecs.ticksNumber(
                 durationField,
                 "ponderer.ui.duration",
                 "ponderer.ui.duration.tooltip.section_animation",
                 "20",
-                60,
-                null));
+                60));
         }
         if (supportsEntranceAnimation()) {
-            entries.add(FieldSpecs.number(
+            entries.add(FieldSpecs.ticksNumber(
                 intervalField,
                 "ponderer.ui.entrance_interval",
                 "ponderer.ui.entrance_interval.tooltip",
                 "1",
-                60,
-                null));
+                60));
             entries.add(FieldSpecs.toggle(
                 smartDisplayBinding,
                 "ponderer.ui.smart_display",

@@ -43,13 +43,12 @@ public class HighlightSectionScreen extends AbstractStepEditorScreen {
             "ponderer.ui.highlight_section.pos_to",
             "ponderer.ui.highlight_section.pos_to.tooltip",
             PickState.TargetField.POS2));
-        entries.add(FieldSpecs.number(
+        entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.highlight_section.duration.tooltip",
             "40",
-            50,
-            "ponderer.ui.ticks"));
+            50));
         entries.add(FieldSpecs.choice(
             "ponderer.ui.color",
             "ponderer.ui.color.tooltip",

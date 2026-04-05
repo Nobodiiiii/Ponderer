@@ -26,7 +26,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     private final String searchText;
     protected final List<TrailingButton> trailingButtons = new ArrayList<>();
     @Nullable
-    private Supplier<String> unitTextGetter;
+    private Supplier<String> trailingTextGetter;
     private int preferredFieldWidth = -1;
     private int minimumControlWidth = -1;
     private float controlWidthScale = 1.0f;
@@ -64,21 +64,32 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         return button;
     }
 
+    public void setTrailingText(@Nullable Supplier<String> trailingTextGetter) {
+        this.trailingTextGetter = trailingTextGetter;
+    }
+
     public void setUnitText(@Nullable Supplier<String> unitTextGetter) {
-        this.unitTextGetter = unitTextGetter;
+        setTrailingText(unitTextGetter);
     }
 
-    public void setPreferredFieldWidth(int preferredFieldWidth) {
-        this.preferredFieldWidth = preferredFieldWidth;
+    public PlainTextListEntry setPreferredFieldWidth(int preferredFieldWidth) {
+        this.preferredFieldWidth = preferredFieldWidth <= 0 ? -1 : preferredFieldWidth;
+        return this;
     }
 
-    public void setMinimumControlWidth(int minimumControlWidth) {
-        this.minimumControlWidth = minimumControlWidth;
+    public PlainTextListEntry setMinimumControlWidth(int minimumControlWidth) {
+        this.minimumControlWidth = minimumControlWidth <= 0 ? -1 : minimumControlWidth;
+        return this;
     }
 
     public PlainTextListEntry setControlWidthScale(float controlWidthScale) {
         this.controlWidthScale = Math.max(0.1f, Math.min(1.0f, controlWidthScale));
         return this;
+    }
+
+    public PlainTextListEntry setHalfWidthControl(int minimumControlWidth) {
+        return setControlWidthScale(EntryTextSupport.halfWidthControlScale())
+            .setMinimumControlWidth(minimumControlWidth);
     }
 
     @Override
@@ -113,10 +124,13 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         int labelWidth = getLabelWidth(width);
         int trailingWidth = getTrailingWidth();
         int controlMinimum = minimumControlWidth > 0 ? minimumControlWidth : trailingWidth + 60;
-        int renderedControlWidth = EntryTextSupport.scaledControlWidth(
-            width, labelWidth, controlWidthScale, controlMinimum);
-        int actualFieldWidth = Math.max(60, renderedControlWidth - trailingWidth);
-        int fieldX = EntryTextSupport.rightAlignedControlX(x, width, renderedControlWidth);
+        if (preferredFieldWidth > 0) {
+            controlMinimum = Math.max(controlMinimum, preferredFieldWidth + trailingWidth);
+        }
+        EntryTextSupport.AlignedControlBounds controlBounds = EntryTextSupport.rightAlignedControlBounds(
+            x, width, labelWidth, controlWidthScale, controlMinimum);
+        int actualFieldWidth = Math.max(60, controlBounds.width() - trailingWidth);
+        int fieldX = controlBounds.x();
 
         textField.setX(fieldX);
         textField.setY(y + 8);
@@ -129,8 +143,9 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
     protected int getTrailingWidth() {
         int width = 0;
-        if (unitTextGetter != null) {
-            width += Minecraft.getInstance().font.width(unitTextGetter.get()) + CONTROL_GAP;
+        String trailingText = getTrailingText();
+        if (!trailingText.isEmpty()) {
+            width += Minecraft.getInstance().font.width(trailingText) + CONTROL_GAP;
         }
         if (!trailingButtons.isEmpty()) {
             width += CONTROL_GAP;
@@ -167,12 +182,20 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
             cursorX -= CONTROL_GAP;
         }
 
-        if (unitTextGetter != null) {
-            String unitText = unitTextGetter.get();
-            graphics.drawString(font, unitText,
-                cursorX - font.width(unitText),
+        String trailingText = getTrailingText();
+        if (!trailingText.isEmpty()) {
+            graphics.drawString(font, trailingText,
+                cursorX - font.width(trailingText),
                 y + 14,
                 0xA0A0A0);
         }
+    }
+
+    private String getTrailingText() {
+        if (trailingTextGetter == null) {
+            return "";
+        }
+        String trailingText = trailingTextGetter.get();
+        return trailingText == null ? "" : trailingText;
     }
 }

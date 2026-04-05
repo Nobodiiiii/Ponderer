@@ -24,13 +24,12 @@ public class IdleScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(FieldSpecs.number(
+        entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.duration.tooltip.idle",
             "20",
-            60,
-            "ponderer.ui.ticks"));
+            60));
     }
 
     @Override

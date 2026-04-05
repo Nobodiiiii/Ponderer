@@ -13,6 +13,9 @@ import java.util.function.Supplier;
 
 public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
+    private static final int BOX_WIDGET_VISUAL_INSET = 4;
+    private static final int TEXT_FIELD_BORDER_NUDGE = 2;
+
     private final String searchText;
     private final BoxWidget button;
     private final Supplier<String> labelGetter;
@@ -20,6 +23,7 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
     @Nullable
     private final Supplier<String> buttonTooltipGetter;
     protected final int buttonWidth;
+    private int minimumControlWidth = -1;
     private float controlWidthScale = 1.0f;
 
     public ButtonListEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
@@ -55,6 +59,16 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
         return this;
     }
 
+    public ButtonListEntry setMinimumControlWidth(int minimumControlWidth) {
+        this.minimumControlWidth = minimumControlWidth <= 0 ? -1 : minimumControlWidth;
+        return this;
+    }
+
+    public ButtonListEntry setHalfWidthControl(int minimumControlWidth) {
+        return setControlWidthScale(EntryTextSupport.halfWidthControlScale())
+            .setMinimumControlWidth(minimumControlWidth);
+    }
+
     @Override
     public boolean matchesQuery(String query) {
         return searchText.contains(query);
@@ -70,9 +84,12 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
         return EntryTextSupport.compactLabelWidth(totalWidth);
     }
 
-    protected int getRenderedButtonWidth(int totalWidth) {
-        return EntryTextSupport.scaledControlWidth(
-            totalWidth, getLabelWidth(totalWidth), controlWidthScale, buttonWidth);
+    protected int getMinimumControlWidth() {
+        return minimumControlWidth > 0 ? minimumControlWidth : buttonWidth;
+    }
+
+    protected int getRenderedButtonWidth(int controlWidth) {
+        return controlWidth;
     }
 
     @Override
@@ -87,11 +104,16 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         refreshButtonTooltip();
-        int renderedButtonWidth = getRenderedButtonWidth(width);
+        EntryTextSupport.AlignedControlBounds controlBounds = EntryTextSupport.rightAlignedControlBounds(
+            x, width, getLabelWidth(width), controlWidthScale, getMinimumControlWidth());
+        int renderedButtonWidth = Math.min(controlBounds.width(), getRenderedButtonWidth(controlBounds.width()));
+        int visibleButtonX = controlBounds.rightAlignedContentX(renderedButtonWidth) - TEXT_FIELD_BORDER_NUDGE;
+        int widgetX = visibleButtonX + BOX_WIDGET_VISUAL_INSET;
+        int widgetWidth = Math.max(1, renderedButtonWidth - BOX_WIDGET_VISUAL_INSET * 2);
         int buttonHeight = Math.max(16, height - 20);
-        button.setX(EntryTextSupport.rightAlignedControlX(x, width, renderedButtonWidth));
+        button.setX(widgetX);
         button.setY(y + 10);
-        button.setWidth(renderedButtonWidth);
+        button.setWidth(widgetWidth);
         button.setHeight(buttonHeight);
         button.render(graphics, mouseX, mouseY, partialTicks);
 

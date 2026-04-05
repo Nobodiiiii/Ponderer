@@ -51,13 +51,12 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
             100,
             () -> dirIndex = (dirIndex + 1) % DIRECTIONS.length,
             () -> optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[dirIndex])));
-        entries.add(FieldSpecs.number(
+        entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.duration.tooltip.controls",
             "60",
-            50,
-            "ponderer.ui.ticks"));
+            50));
         entries.add(FieldSpecs.choice(
             "ponderer.ui.show_controls.action",
             "ponderer.ui.show_controls.action.tooltip",

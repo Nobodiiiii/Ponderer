@@ -89,6 +89,12 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
         return UILayoutConstants.COMPACT_LIST_ENTRY_H;
     }
 
+    @Override
+    protected int fixedVisibleRowCount() {
+        // Keep the selector window stable: 1 page-turn row + 6 step rows.
+        return 7;
+    }
+
     private void openPage(int newPageIndex) {
         ScreenOpener.open(new StepTypeSelectorScreen(scene, sceneIndex, parent, newPageIndex, insertAfterIndex));
     }

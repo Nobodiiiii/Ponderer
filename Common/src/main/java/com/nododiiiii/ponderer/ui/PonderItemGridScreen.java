@@ -156,7 +156,11 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             list = null;
         }
 
-        gridPanel = new GridContentPanel(panelLeft(), 35, currentListWidthValue(), height - 80);
+        gridPanel = new GridContentPanel(
+            panelLeft(),
+            contentAreaTop(),
+            currentListWidthValue(),
+            contentAreaHeight());
         addRenderableWidget(gridPanel);
 
         initControlButtons();
@@ -173,6 +177,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         }
 
         if (gridPanel != null) {
+            relayoutGridPanel();
             gridPanel.setScroll(pendingPanelScroll);
             gridPanel.clampScroll();
         }
@@ -342,8 +347,8 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 : UIRenderHelper.COLOR_TEXT.getFirst().getRGB());
         }
         if (gridPanel != null) {
+            relayoutGridPanel();
             gridPanel.setScroll(0);
-            gridPanel.clampScroll();
         }
     }
 
@@ -351,8 +356,8 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         groupMode = (groupMode == GroupMode.BY_PACK) ? GroupMode.BY_ITEM : GroupMode.BY_PACK;
         refreshVisibleSections();
         if (gridPanel != null) {
+            relayoutGridPanel();
             gridPanel.setScroll(0);
-            gridPanel.clampScroll();
         }
         layoutControlButtons();
     }
@@ -461,6 +466,18 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
     private int panelLeft() {
         return width / 2 - currentListWidthValue() / 2;
+    }
+
+    private void relayoutGridPanel() {
+        if (gridPanel == null) {
+            return;
+        }
+
+        int panelHeight = Math.min(contentAreaHeight(), gridPanel.contentHeight());
+        gridPanel.setY(centeredContentTop(panelHeight));
+        gridPanel.setHeight(panelHeight);
+        gridPanel.clampScroll();
+        layoutControlButtons();
     }
 
     private boolean confirmSelection() {
@@ -769,7 +786,10 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             }
         }
 
-        ScreenOpener.transitionTo(ui);
+        // PonderUI inherits Catnip's NavigatableSimiScreen transition, which
+        // re-renders the previous screen underneath during entry animation.
+        // For the item grid we want an immediate handoff to avoid old-screen overlap.
+        ScreenOpener.open(ui);
     }
 
     private static int rowsFor(int size, int columns) {

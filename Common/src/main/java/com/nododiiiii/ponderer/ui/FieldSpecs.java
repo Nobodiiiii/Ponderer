@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.BlockPropertyListEntry;
 import com.nododiiiii.ponderer.ui.catnip.ButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DualTextListEntry;
+import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.XyzListEntry;
@@ -18,7 +19,7 @@ import java.util.function.Supplier;
 
 public final class FieldSpecs {
 
-    private static final float DEFAULT_CHOICE_CONTROL_SCALE = 0.5f;
+    private static final float DEFAULT_CHOICE_CONTROL_SCALE = EntryTextSupport.halfWidthControlScale();
     private static final int HALF_WIDTH_CONTROL_MIN = 100;
 
     private FieldSpecs() {
@@ -112,14 +113,16 @@ public final class FieldSpecs {
     public static FieldSpec number(FieldBinding<String> binding, String labelKey, @Nullable String tooltipKey,
                                    String hintKey, int fieldWidth, @Nullable String unitKey) {
         return text(binding, labelKey, tooltipKey, hintKey, fieldWidth, entry -> {
-            if ("ponderer.ui.duration".equals(labelKey)) {
-                entry.setControlWidthScale(0.5f);
-                entry.setMinimumControlWidth(HALF_WIDTH_CONTROL_MIN);
-            }
+            entry.setHalfWidthControl(Math.max(HALF_WIDTH_CONTROL_MIN, fieldWidth));
             if (unitKey != null) {
-                entry.setUnitText(() -> UIText.of(unitKey));
+                entry.setTrailingText(() -> UIText.of(unitKey));
             }
         });
+    }
+
+    public static FieldSpec ticksNumber(FieldBinding<String> binding, String labelKey, @Nullable String tooltipKey,
+                                        String hintKey, int fieldWidth) {
+        return number(binding, labelKey, tooltipKey, hintKey, fieldWidth, "ponderer.ui.ticks");
     }
 
     public static FieldSpec toggle(FieldBinding<Boolean> binding, String labelKey, @Nullable String tooltipKey) {
@@ -198,7 +201,7 @@ public final class FieldSpecs {
             @Override
             public void build(AbstractDeclarativeFormScreen screen) {
                 int alignedHalfWidth = Math.min(buttonWidth, HALF_WIDTH_CONTROL_MIN);
-                screen.createChoiceEntry(
+                ButtonListEntry entry = screen.createChoiceEntry(
                     labelKey,
                     tooltipKey,
                     alignedHalfWidth,
@@ -210,7 +213,8 @@ public final class FieldSpecs {
                     labelGetter,
                     colorGetter,
                     (String) null,
-                    0.5f);
+                    1.0f);
+                entry.setHalfWidthControl(alignedHalfWidth);
             }
 
             @Override

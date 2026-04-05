@@ -39,13 +39,12 @@ public class ZoomSceneScreen extends AbstractStepEditorScreen {
             "1.0",
             60,
             null));
-        entries.add(FieldSpecs.number(
+        entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.zoom_scene.duration.tooltip",
             "20",
-            60,
-            null));
+            60));
     }
 
     @Override

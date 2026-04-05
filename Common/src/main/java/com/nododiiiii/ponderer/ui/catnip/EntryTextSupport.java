@@ -15,6 +15,17 @@ import java.util.Locale;
 public final class EntryTextSupport {
 
     private static final int RIGHT_CONTROL_GAP = 8;
+    private static final float HALF_WIDTH_CONTROL_SCALE = 0.5f;
+
+    public record AlignedControlBounds(int x, int width) {
+        public int right() {
+            return x + width;
+        }
+
+        public int rightAlignedContentX(int contentWidth) {
+            return right() - contentWidth;
+        }
+    }
 
     private EntryTextSupport() {
     }
@@ -58,8 +69,18 @@ public final class EntryTextSupport {
         return Math.min(fullControlWidth, scaledWidth);
     }
 
+    public static AlignedControlBounds rightAlignedControlBounds(int x, int totalWidth, int labelWidth,
+                                                                 float controlWidthScale, int minimumWidth) {
+        int renderedControlWidth = scaledControlWidth(totalWidth, labelWidth, controlWidthScale, minimumWidth);
+        return new AlignedControlBounds(rightAlignedControlX(x, totalWidth, renderedControlWidth), renderedControlWidth);
+    }
+
     public static int rightAlignedControlX(int x, int totalWidth, int renderedControlWidth) {
         return x + totalWidth - 4 - renderedControlWidth;
+    }
+
+    public static float halfWidthControlScale() {
+        return HALF_WIDTH_CONTROL_SCALE;
     }
 
     public static int rightControlGap() {

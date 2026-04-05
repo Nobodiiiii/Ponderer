@@ -20,6 +20,11 @@ import java.util.List;
 public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeScreen {
 
     protected static final int DEFAULT_LIST_WIDTH = 300;
+    protected static final int CONTENT_TOP = 35;
+    protected static final int CONTENT_BOTTOM_MARGIN = 45;
+
+    private static final int LIST_HEADER_HEIGHT = 3;
+    private static final int LIST_VERTICAL_PADDING = 8;
 
     @Nullable
     protected BoxWidget saveChanges;
@@ -85,7 +90,13 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         goBack.getToolTip().add(Component.translatable("catnip.ui.go_back_button"));
         addRenderableWidget(goBack);
 
-        list = new ConfigScreenList(minecraft, listWidth, height - 80, 35, height - 45, getEntryHeight());
+        list = new ConfigScreenList(
+            minecraft,
+            listWidth,
+            contentAreaHeight(),
+            contentAreaTop(),
+            contentAreaTop() + contentAreaHeight(),
+            getEntryHeight());
         list.setLeftPos(width / 2 - list.getWidth() / 2);
         addRenderableWidget(list);
 
@@ -167,6 +178,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
         list.children().clear();
         collectEntries(list.children());
+        relayoutListViewport();
 
         if (preservedScroll != null) {
             list.setScrollAmount(preservedScroll);
@@ -200,6 +212,22 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     protected final int currentListWidthValue() {
         return listWidth;
+    }
+
+    protected final int contentAreaTop() {
+        return CONTENT_TOP;
+    }
+
+    protected final int contentAreaHeight() {
+        return Math.max(0, height - CONTENT_TOP - CONTENT_BOTTOM_MARGIN);
+    }
+
+    protected final int centeredContentTop(int contentHeight) {
+        return contentAreaTop() + Math.max(0, (contentAreaHeight() - contentHeight) / 2);
+    }
+
+    protected int fixedVisibleRowCount() {
+        return -1;
     }
 
     protected abstract void collectEntries(List<ConfigScreenList.Entry> entries);
@@ -250,6 +278,33 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     protected boolean isDiscardButtonActive() {
         return hasUnsavedChanges();
+    }
+
+    private void relayoutListViewport() {
+        if (list == null) {
+            return;
+        }
+
+        int viewportHeight = desiredListViewportHeight();
+        int top = centeredContentTop(viewportHeight);
+        list.updateSize(listWidth, viewportHeight, top, top + viewportHeight);
+        list.setLeftPos(width / 2 - listWidth / 2);
+    }
+
+    private int desiredListViewportHeight() {
+        if (list == null) {
+            return contentAreaHeight();
+        }
+
+        int fixedRows = fixedVisibleRowCount();
+        if (fixedRows > 0) {
+            return Math.min(contentAreaHeight(),
+                fixedRows * getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING);
+        }
+
+        int contentHeight = list.children().size() * getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
+        int minimumHeight = getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
+        return Math.min(contentAreaHeight(), Math.max(minimumHeight, contentHeight));
     }
 
     private void updateButtonState(@Nullable BoxWidget button, boolean active) {
