@@ -169,7 +169,7 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = "show_controls";
         Double px = parseDouble(pointField.x(), "X");
@@ -187,7 +187,7 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
             try {
                 TagParser.parseTag(nbt);
             } catch (Exception e) {
-                errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid");
+                setErrorMessage(UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid"));
                 return null;
             }
             s.nbt = nbt;

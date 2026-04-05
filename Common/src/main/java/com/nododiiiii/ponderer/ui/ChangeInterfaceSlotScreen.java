@@ -79,9 +79,9 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
     @Override
     protected DslScene.DslStep buildStep() {
         ensureInitialBindingsLoaded();
-        errorMessage = null;
+        clearStatusMessages();
         if (slotBindings.isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.change_interface_slot.error.empty");
+            setErrorMessage(UIText.of("ponderer.ui.change_interface_slot.error.empty"));
             return null;
         }
 
@@ -100,8 +100,7 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
 
     private void openSlotEditor() {
         ensureInitialBindingsLoaded();
-        errorMessage = null;
-        infoMessage = null;
+        clearStatusMessages();
 
         Map<String, String> snapshot = snapshotForm();
         snapshot.put("_keyFrame", String.valueOf(attachKeyFrame));
@@ -188,7 +187,7 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
 
     private void refreshInfoMessage() {
         ensureInitialBindingsCountSafe();
-        infoMessage = UIText.of("ponderer.ui.change_interface_slot.info", slotBindings.size());
+        setInfoMessage(UIText.of("ponderer.ui.change_interface_slot.info", slotBindings.size()));
     }
 
     private void ensureInitialBindingsCountSafe() {

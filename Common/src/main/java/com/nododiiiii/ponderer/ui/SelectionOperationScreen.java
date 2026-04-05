@@ -225,14 +225,14 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
 
         FormParsers.ParseResult<FormParsers.IntRange> range = FormParsers.intRange(
             posField,
             pos2Field,
             UIText.of("ponderer.ui." + stepType + ".error.partial_to"));
         if (range.failed()) {
-            errorMessage = range.errorMessage();
+            setErrorMessage(range.errorMessage());
             return null;
         }
 

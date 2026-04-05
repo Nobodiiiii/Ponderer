@@ -57,7 +57,7 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         String raw = degreesField.getValue() == null ? "" : degreesField.getValue().trim();
         raw = raw.replaceAll("[^0-9+\\-\\.]", "").trim();
         if (raw.isEmpty()) {
@@ -74,7 +74,7 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
         s.degrees = degrees;
         s.duration = parseIntOr(durationField.getValue(), 20);
         if (s.duration < 0) {
-            errorMessage = UIText.of("ponderer.ui.rotate_camera.error.duration");
+            setErrorMessage(UIText.of("ponderer.ui.rotate_camera.error.duration"));
             return null;
         }
         return s;

@@ -129,9 +129,9 @@ public class TextStepScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         String text = textField.getValue();
-        if (text.isEmpty()) { errorMessage = UIText.of("ponderer.ui.text.error.required"); return null; }
+        if (text.isEmpty()) { setErrorMessage(UIText.of("ponderer.ui.text.error.required")); return null; }
 
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = "text";

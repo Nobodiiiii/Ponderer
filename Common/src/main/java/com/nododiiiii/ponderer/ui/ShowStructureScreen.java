@@ -139,7 +139,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
                 fileName = SafePaths.sanitizeWindowsFileName(fileName, "structure");
                 Path target = SafePaths.resolveFileName(structuresDir, fileName + ".nbt");
                 if (target == null) {
-                    errorMessage = UIText.of("ponderer.ui.show_structure.structure.error.copy_failed");
+                    setErrorMessage(UIText.of("ponderer.ui.show_structure.structure.error.copy_failed"));
                     return;
                 }
                 try {
@@ -147,7 +147,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
                     Files.copy(selected, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     structureField.setValue("ponderer:" + fileName);
                 } catch (Exception e) {
-                    errorMessage = UIText.of("ponderer.ui.show_structure.structure.error.copy_failed");
+                    setErrorMessage(UIText.of("ponderer.ui.show_structure.structure.error.copy_failed"));
                 }
             }
         }, Minecraft.getInstance());
@@ -160,10 +160,10 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     @Override
     protected DslScene.DslStep buildStep() {
         if (waitingDownload) {
-            errorMessage = UIText.of("ponderer.ui.show_structure.structure.error.wait_download");
+            setErrorMessage(UIText.of("ponderer.ui.show_structure.structure.error.wait_download"));
             return null;
         }
-        errorMessage = null;
+        clearStatusMessages();
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = "show_structure";
         String sv = scaleField.getValue().trim();
@@ -184,7 +184,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         Integer pz = parseOptionalInt(posField.z(), "From Z");
         boolean hasPos1 = px != null || py != null || pz != null;
         if (hasPos1 && (px == null || py == null || pz == null)) {
-            errorMessage = UIText.of("ponderer.ui.show_structure.error.partial_from");
+            setErrorMessage(UIText.of("ponderer.ui.show_structure.error.partial_from"));
             return null;
         }
 
@@ -197,7 +197,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         Integer pz2 = null;
         if (hasPos2) {
             if (pos2X.isEmpty() || pos2Y.isEmpty() || pos2Z.isEmpty()) {
-                errorMessage = UIText.of("ponderer.ui.show_structure.error.partial_to");
+                setErrorMessage(UIText.of("ponderer.ui.show_structure.error.partial_to"));
                 return null;
             }
             px2 = parseInt(pos2X, "To X");
@@ -206,7 +206,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
             if (px2 == null || py2 == null || pz2 == null) return null;
         }
         if (hasPos2 && !hasPos1) {
-            errorMessage = UIText.of("ponderer.ui.show_structure.error.partial_from");
+            setErrorMessage(UIText.of("ponderer.ui.show_structure.error.partial_from"));
             return null;
         }
         if (hasPos1) s.blockPos = java.util.List.of(px, py, pz);
@@ -215,14 +215,14 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         String structure = structureField.getValue().trim();
         if (!structure.isEmpty()) {
             if (isNumeric(structure)) {
-                errorMessage = UIText.of("ponderer.ui.show_structure.structure.error.no_index");
+                setErrorMessage(UIText.of("ponderer.ui.show_structure.structure.error.no_index"));
                 return null;
             }
 
             if (structure.toLowerCase().startsWith("minecraft:") || structure.toLowerCase().startsWith("ponderer:")) {
                 ResourceLocation source = ResourceLocation.tryParse(structure);
                 if (source == null) {
-                    errorMessage = UIText.of("ponderer.ui.show_structure.structure.error.invalid_id");
+                    setErrorMessage(UIText.of("ponderer.ui.show_structure.structure.error.invalid_id"));
                     return null;
                 }
 
@@ -252,7 +252,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
                     structureField.widget().setEditable(false);
                 }
                 PondererClientCommands.requestStructureDownload(source);
-                errorMessage = UIText.of("ponderer.ui.show_structure.structure.error.wait_download");
+                setErrorMessage(UIText.of("ponderer.ui.show_structure.structure.error.wait_download"));
                 return null;
             }
 
@@ -294,9 +294,9 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
 
         if (!success || pendingStep == null) {
             pendingStep = null;
-            errorMessage = message == null || message.isBlank()
+            setErrorMessage(message == null || message.isBlank()
                 ? UIText.of("ponderer.ui.show_structure.structure.error.not_found", sourceId)
-                : message;
+                : message);
             return;
         }
 

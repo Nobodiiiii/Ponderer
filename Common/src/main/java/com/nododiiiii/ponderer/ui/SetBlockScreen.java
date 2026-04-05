@@ -244,7 +244,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
 
         FormParsers.ParseResult<String> blockId = FormParsers.registryId(
             blockField.getValue(),
@@ -253,7 +253,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             value -> UIText.of("ponderer.ui.set_block.error.unknown", value),
             BuiltInRegistries.BLOCK);
         if (blockId.failed()) {
-            errorMessage = blockId.errorMessage();
+            setErrorMessage(blockId.errorMessage());
             return null;
         }
 
@@ -262,7 +262,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             pos2Field,
             UIText.of("ponderer.ui.set_block.error.partial_to"));
         if (range.failed()) {
-            errorMessage = range.errorMessage();
+            setErrorMessage(range.errorMessage());
             return null;
         }
 
@@ -270,7 +270,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             nbtField.getValue(),
             UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid"));
         if (nbt.failed()) {
-            errorMessage = nbt.errorMessage();
+            setErrorMessage(nbt.errorMessage());
             return null;
         }
 

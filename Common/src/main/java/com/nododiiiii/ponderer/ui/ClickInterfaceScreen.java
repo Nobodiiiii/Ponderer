@@ -86,13 +86,13 @@ public class ClickInterfaceScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
 
         Double x = parseDouble(pointField.x());
         Double y = parseDouble(pointField.y());
         Double z = parseDouble(pointField.z());
         if (x == null || y == null) {
-            errorMessage = UIText.of("ponderer.ui.click_interface.error.invalid_point");
+            setErrorMessage(UIText.of("ponderer.ui.click_interface.error.invalid_point"));
             return null;
         }
 

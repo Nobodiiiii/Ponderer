@@ -121,13 +121,13 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         String entityId = entityField.getValue().trim();
-        if (entityId.isEmpty()) { errorMessage = UIText.of("ponderer.ui.create_entity.error.required"); return null; }
+        if (entityId.isEmpty()) { setErrorMessage(UIText.of("ponderer.ui.create_entity.error.required")); return null; }
         ResourceLocation loc = ResourceLocation.tryParse(entityId);
-        if (loc == null) { errorMessage = UIText.of("ponderer.ui.create_entity.error.invalid_id"); return null; }
+        if (loc == null) { setErrorMessage(UIText.of("ponderer.ui.create_entity.error.invalid_id")); return null; }
         if (BuiltInRegistries.ENTITY_TYPE.getOptional(loc).isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.create_entity.error.unknown", entityId); return null;
+            setErrorMessage(UIText.of("ponderer.ui.create_entity.error.unknown", entityId)); return null;
         }
         Double px = parseDouble(posField.x(), "X");
         Double py = parseDouble(posField.y(), "Y");
@@ -152,7 +152,7 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             try {
                 TagParser.parseTag(nbt);
             } catch (Exception e) {
-                errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid");
+                setErrorMessage(UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid"));
                 return null;
             }
             s.nbt = nbt;

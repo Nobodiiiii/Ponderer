@@ -149,15 +149,15 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         String blockId = blockField.getValue().trim();
         if (blockId.isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.error.required_field", UIText.of("ponderer.ui.show_interface.block"));
+            setErrorMessage(UIText.of("ponderer.ui.error.required_field", UIText.of("ponderer.ui.show_interface.block")));
             return null;
         }
 
         if (contextPos == null || contextPos.size() < 3) {
-            errorMessage = UIText.of("ponderer.ui.show_interface.error.no_context");
+            setErrorMessage(UIText.of("ponderer.ui.show_interface.error.no_context"));
             return null;
         }
 

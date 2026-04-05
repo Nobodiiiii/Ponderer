@@ -44,11 +44,11 @@ public class IdleScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = "idle";
         s.duration = parseIntOr(durationField.getValue(), 20);
-        if (s.duration < 0) { errorMessage = UIText.of("ponderer.ui.idle.error.duration"); return null; }
+        if (s.duration < 0) { setErrorMessage(UIText.of("ponderer.ui.idle.error.duration")); return null; }
         return s;
     }
 }

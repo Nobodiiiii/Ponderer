@@ -48,7 +48,7 @@ public class IndicateEffectScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
 
         Integer px = parseInt(posField.x(), "X");
         Integer py = parseInt(posField.y(), "Y");

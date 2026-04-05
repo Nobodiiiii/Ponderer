@@ -101,10 +101,10 @@ public class PlaySoundScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         String sound = soundField.getValue().trim();
         if (sound.isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.play_sound.error.required");
+            setErrorMessage(UIText.of("ponderer.ui.play_sound.error.required"));
             return null;
         }
         DslScene.DslStep s = new DslScene.DslStep();

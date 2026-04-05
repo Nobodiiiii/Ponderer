@@ -115,8 +115,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
 
     @Override
     protected boolean saveEdits() {
-        errorMessage = null;
-        infoMessage = null;
+        clearStatusMessages();
 
         DslScene.DslStep step = buildStep();
         if (step == null) {

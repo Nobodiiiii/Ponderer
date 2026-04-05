@@ -327,11 +327,11 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
     }
 
     private boolean doSave() {
-        errorMessage = null;
+        clearStatusMessages();
 
         String newItemId = itemField.getValue().trim();
         if (newItemId.isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.scene_desc.empty_item");
+            setErrorMessage(UIText.of("ponderer.ui.scene_desc.empty_item"));
             return false;
         }
 
@@ -359,7 +359,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
         DslScene candidate = SceneStore.copyScene(scene);
         if (candidate == null) {
-            errorMessage = UIText.of("ponderer.ui.save_error.io", "Unable to prepare scene copy");
+            setErrorMessage(UIText.of("ponderer.ui.save_error.io", "Unable to prepare scene copy"));
             return false;
         }
 
@@ -371,7 +371,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         if ("structure".equals(triggerMode)) {
             String structId = structureField.getValue().trim();
             if (!structId.isEmpty() && !isValidStructureId(structId)) {
-                errorMessage = UIText.of("ponderer.ui.trigger_editor.error.invalid_structure");
+                setErrorMessage(UIText.of("ponderer.ui.trigger_editor.error.invalid_structure"));
                 return false;
             }
         }
@@ -412,7 +412,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
         SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(candidate);
         if (!saveResult.isSuccess()) {
-            errorMessage = UIText.saveError(saveResult);
+            setErrorMessage(UIText.saveError(saveResult));
             return false;
         }
 

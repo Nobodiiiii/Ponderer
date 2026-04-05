@@ -47,7 +47,7 @@ public class EncapsulateBoundsScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         Integer bx = parseInt(boundsField.x(), "X");
         Integer by = parseInt(boundsField.y(), "Y");
         Integer bz = parseInt(boundsField.z(), "Z");

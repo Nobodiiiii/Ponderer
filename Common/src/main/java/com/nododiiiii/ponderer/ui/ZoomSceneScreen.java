@@ -67,14 +67,14 @@ public class ZoomSceneScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
 
         Double x = parseOptionalDouble(centerField.x(), "Center X");
         Double y = parseOptionalDouble(centerField.y(), "Center Y");
         Double z = parseOptionalDouble(centerField.z(), "Center Z");
         boolean hasCenter = x != null || y != null || z != null;
         if (hasCenter && (x == null || y == null || z == null)) {
-            errorMessage = UIText.of("ponderer.ui.zoom_scene.error.partial_center");
+            setErrorMessage(UIText.of("ponderer.ui.zoom_scene.error.partial_center"));
             return null;
         }
 
@@ -84,7 +84,7 @@ public class ZoomSceneScreen extends AbstractStepEditorScreen {
             scale = parseFloat(scaleRaw, "Scale");
             if (scale == null) return null;
             if (scale <= 0) {
-                errorMessage = UIText.of("ponderer.ui.zoom_scene.error.scale_positive");
+                setErrorMessage(UIText.of("ponderer.ui.zoom_scene.error.scale_positive"));
                 return null;
             }
         }

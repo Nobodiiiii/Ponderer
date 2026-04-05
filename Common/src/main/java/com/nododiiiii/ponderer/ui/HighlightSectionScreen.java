@@ -99,7 +99,7 @@ public class HighlightSectionScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
 
         Integer p1x = parseInt(pos1Field.x(), "From X");
         Integer p1y = parseInt(pos1Field.y(), "From Y");
@@ -111,7 +111,7 @@ public class HighlightSectionScreen extends AbstractStepEditorScreen {
         Integer p2z = parseOptionalInt(pos2Field.z(), "To Z");
         boolean hasPos2 = p2x != null || p2y != null || p2z != null;
         if (hasPos2 && (p2x == null || p2y == null || p2z == null)) {
-            errorMessage = UIText.of("ponderer.ui.highlight_section.error.partial_to");
+            setErrorMessage(UIText.of("ponderer.ui.highlight_section.error.partial_to"));
             return null;
         }
 

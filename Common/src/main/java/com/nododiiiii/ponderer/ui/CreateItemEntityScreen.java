@@ -97,20 +97,20 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         String itemId = itemField.getValue().trim();
         if (itemId.isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.create_item_entity.error.required");
+            setErrorMessage(UIText.of("ponderer.ui.create_item_entity.error.required"));
             return null;
         }
 
         ResourceLocation itemLoc = ResourceLocation.tryParse(itemId);
         if (itemLoc == null) {
-            errorMessage = UIText.of("ponderer.ui.create_item_entity.error.invalid_id");
+            setErrorMessage(UIText.of("ponderer.ui.create_item_entity.error.invalid_id"));
             return null;
         }
         if (BuiltInRegistries.ITEM.getOptional(itemLoc).isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.create_item_entity.error.unknown", itemId);
+            setErrorMessage(UIText.of("ponderer.ui.create_item_entity.error.unknown", itemId));
             return null;
         }
 
@@ -135,7 +135,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             try {
                 TagParser.parseTag(nbt);
             } catch (Exception e) {
-                errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid");
+                setErrorMessage(UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid"));
                 return null;
             }
             s.nbt = nbt;

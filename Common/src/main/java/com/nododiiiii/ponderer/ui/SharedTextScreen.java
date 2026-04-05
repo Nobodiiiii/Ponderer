@@ -111,9 +111,9 @@ public class SharedTextScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
         String key = keyField.getValue().trim();
-        if (key.isEmpty()) { errorMessage = UIText.of("ponderer.ui.shared_text.error.required"); return null; }
+        if (key.isEmpty()) { setErrorMessage(UIText.of("ponderer.ui.shared_text.error.required")); return null; }
 
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = "shared_text";

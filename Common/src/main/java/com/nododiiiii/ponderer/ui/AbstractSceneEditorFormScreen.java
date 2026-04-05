@@ -30,8 +30,6 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
     protected BoxWidget confirmButton;
     @Nullable
     protected BoxWidget cancelButton;
-    protected String errorMessage = null;
-    protected String infoMessage = null;
 
     private final List<SnapshotParticipant> formStateParticipants = new ArrayList<>();
     private boolean formStateParticipantsConfigured = false;
@@ -102,13 +100,10 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
         } else if (!isBaselineCaptured()) {
             markStateSaved();
         }
-
-        syncStatusMessages();
     }
 
     @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        syncStatusMessages();
         super.renderWindow(graphics, mouseX, mouseY, partialTicks);
         renderFormForeground(graphics, mouseX, mouseY, partialTicks);
     }
@@ -211,18 +206,12 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
     }
 
     @Override
-    protected void afterSnapshotRestored(Map<String, String> snapshot) {
-        syncStatusMessages();
-    }
-
-    @Override
     public final void startNbtPickFromButton(String nbtSnapshotKey, boolean captureBlockId) {
         var mc = Minecraft.getInstance();
         if (mc.player == null) {
             return;
         }
-        errorMessage = null;
-        infoMessage = null;
+        clearStatusMessages();
         NbtPickState.startPick(snapshotForm(), nbtSnapshotKey, captureBlockId, createReturnContext());
         mc.setScreen(null);
     }
@@ -238,14 +227,12 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
             held = mc.player.getOffhandItem();
         }
         if (held.isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.held_item.error.empty");
-            infoMessage = null;
+            setErrorMessage(UIText.of("ponderer.ui.held_item.error.empty"));
             return;
         }
-        errorMessage = null;
-        infoMessage = null;
+        clearStatusMessages();
         onItemPicked.accept(held);
-        infoMessage = UIText.of("ponderer.ui.nbt_pick.filled", held.getHoverName().getString());
+        setInfoMessage(UIText.of("ponderer.ui.nbt_pick.filled", held.getHoverName().getString()));
     }
 
     protected void restoreNbtPickNotice(Map<String, String> snapshot) {
@@ -254,21 +241,21 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
         }
         String pickedName = snapshot.get(NbtPickState.SNAPSHOT_NOTICE_KEY);
         String translated = UIText.of("ponderer.ui.nbt_pick.filled", pickedName);
-        infoMessage = "ponderer.ui.nbt_pick.filled".equals(translated)
+        setInfoMessage("ponderer.ui.nbt_pick.filled".equals(translated)
             ? ("NBT <- " + pickedName)
-            : translated;
+            : translated);
     }
 
     @Nullable
     protected Double parseDouble(String value, String fieldName) {
         if (value == null || value.trim().isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.error.required_field", fieldName);
+            setErrorMessage(UIText.of("ponderer.ui.error.required_field", fieldName));
             return null;
         }
         try {
             return Double.parseDouble(value.trim());
         } catch (NumberFormatException e) {
-            errorMessage = UIText.of("ponderer.ui.error.invalid_number", fieldName);
+            setErrorMessage(UIText.of("ponderer.ui.error.invalid_number", fieldName));
             return null;
         }
     }
@@ -293,13 +280,13 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
     @Nullable
     protected Integer parseInt(String value, String fieldName) {
         if (value == null || value.trim().isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.error.required_field", fieldName);
+            setErrorMessage(UIText.of("ponderer.ui.error.required_field", fieldName));
             return null;
         }
         try {
             return Integer.parseInt(value.trim());
         } catch (NumberFormatException e) {
-            errorMessage = UIText.of("ponderer.ui.error.invalid_integer", fieldName);
+            setErrorMessage(UIText.of("ponderer.ui.error.invalid_integer", fieldName));
             return null;
         }
     }
@@ -324,17 +311,5 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
         formStateParticipantsConfigured = true;
         addBaseFormStateParticipants(formStateParticipants);
         configureFormState(formStateParticipants);
-    }
-
-    private void syncStatusMessages() {
-        if (errorMessage != null && !errorMessage.isBlank()) {
-            setErrorMessage(errorMessage);
-            return;
-        }
-        if (infoMessage != null && !infoMessage.isBlank()) {
-            setInfoMessage(infoMessage);
-            return;
-        }
-        clearStatusMessages();
     }
 }

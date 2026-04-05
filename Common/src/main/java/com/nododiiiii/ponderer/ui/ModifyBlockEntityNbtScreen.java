@@ -104,14 +104,14 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
 
         FormParsers.ParseResult<FormParsers.IntRange> range = FormParsers.intRange(
             posField,
             pos2Field,
             UIText.of("ponderer.ui.modify_block_entity_nbt.error.partial_to"));
         if (range.failed()) {
-            errorMessage = range.errorMessage();
+            setErrorMessage(range.errorMessage());
             return null;
         }
 
@@ -119,13 +119,13 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
             nbtField.getValue(),
             UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid"));
         if (nbt.failed()) {
-            errorMessage = nbt.errorMessage();
+            setErrorMessage(nbt.errorMessage());
             return null;
         }
 
         Map<String, String> props = blockProperties.toFilteredMap();
         if (nbt.value() == null && props == null) {
-            errorMessage = UIText.of("ponderer.ui.modify_block_entity_nbt.error.required");
+            setErrorMessage(UIText.of("ponderer.ui.modify_block_entity_nbt.error.required"));
             return null;
         }
 

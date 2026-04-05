@@ -91,7 +91,7 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
-        errorMessage = null;
+        clearStatusMessages();
 
         Double x = parseDouble(xyzField.x(), "X");
         Double y = parseDouble(xyzField.y(), "Y");
@@ -105,7 +105,7 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
         Integer pz = parseOptionalInt(posField.z(), "From Z");
         boolean hasPos1 = px != null || py != null || pz != null;
         if (hasPos1 && (px == null || py == null || pz == null)) {
-            errorMessage = UIText.of("ponderer.ui." + stepType + ".error.partial_from");
+            setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.partial_from"));
             return null;
         }
 
@@ -118,7 +118,7 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
         Integer pz2 = null;
         if (hasPos2) {
             if (pos2X.isEmpty() || pos2Y.isEmpty() || pos2Z.isEmpty()) {
-                errorMessage = UIText.of("ponderer.ui." + stepType + ".error.partial_to");
+                setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.partial_to"));
                 return null;
             }
             px2 = parseInt(pos2X, "To X");
@@ -128,7 +128,7 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
         }
 
         if (hasPos2 && !hasPos1) {
-            errorMessage = UIText.of("ponderer.ui." + stepType + ".error.partial_from");
+            setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.partial_from"));
             return null;
         }
 
