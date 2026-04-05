@@ -153,4 +153,54 @@ public abstract class AbstractDeclarativeFormScreen extends AbstractDeclarativeL
         }
         currentEntries.add(entry);
     }
+
+    public final PlainTextListEntry createTextEntry(String labelKey,
+                                                    @Nullable String tooltipKey, @Nullable String hintKey,
+                                                    String initialValue, Consumer<String> responder,
+                                                    FormTextButtonSpec... buttonSpecs) {
+        return addTextFormEntry(labelKey, tooltipKey, hintKey, initialValue, responder, buttonSpecs);
+    }
+
+    public final LocalizedTextListEntry createLocalizedTextEntry(String labelKey, @Nullable String tooltipKey,
+                                                                 @Nullable String hintKey, String initialValue,
+                                                                 Supplier<String> langGetter, Runnable onToggle,
+                                                                 Consumer<String> responder) {
+        return addLocalizedTextFormEntry(labelKey, tooltipKey, hintKey, initialValue, langGetter, onToggle, responder);
+    }
+
+    public final ToggleListEntry createToggleEntry(String labelKey, @Nullable String tooltipKey,
+                                                   BooleanSupplier stateGetter, Runnable onToggle) {
+        return addToggleFormEntry(labelKey, tooltipKey, stateGetter, onToggle);
+    }
+
+    public final ButtonListEntry createChoiceEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                                                   Runnable onClick, Supplier<String> labelGetter,
+                                                   IntSupplier colorGetter, @Nullable String buttonTooltipText,
+                                                   float controlWidthScale) {
+        return addChoiceFormEntry(labelKey, tooltipKey, buttonWidth, onClick, labelGetter,
+            colorGetter, buttonTooltipText, controlWidthScale);
+    }
+
+    public final FullButtonListEntry createFullButtonEntry(String label, @Nullable String tooltipText, Runnable onClick) {
+        return addFullButtonFormEntry(label, tooltipText, onClick);
+    }
+
+    public final FullButtonListEntry createFullButtonEntry(Supplier<String> labelGetter,
+                                                           @Nullable Supplier<String> tooltipGetter,
+                                                           Runnable onClick, IntSupplier colorGetter,
+                                                           BooleanSupplier activeGetter) {
+        return addFullButtonFormEntry(labelGetter, tooltipGetter, onClick, colorGetter, activeGetter);
+    }
+
+    public final SectionHeaderListEntry createSectionHeaderEntry(String title) {
+        return addSectionHeaderEntry(title);
+    }
+
+    public final SectionHeaderListEntry createSectionHeaderEntry(Supplier<String> titleGetter) {
+        return addSectionHeaderEntry(titleGetter);
+    }
+
+    public final void appendBuiltEntry(ConfigScreenList.Entry entry) {
+        appendEntry(entry);
+    }
 }

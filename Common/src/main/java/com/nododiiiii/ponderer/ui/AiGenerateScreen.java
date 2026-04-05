@@ -20,8 +20,9 @@ import javax.annotation.Nullable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements JeiTextButtonHost {
@@ -39,20 +40,9 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
     private static boolean cachedStatusIsError = false;
     private static boolean cachedGenerating = false;
 
-    private final List<Path> baselineStructurePaths = new ArrayList<>();
-    private final List<StructureDescriber.StructureInfo> baselineStructureInfos = new ArrayList<>();
-    private final List<String> baselineUrls = new ArrayList<>();
-    private final List<Boolean> baselineUrlAutoAdded = new ArrayList<>();
-    private int baselineStructureIndex = 0;
-    private String baselineCarrier = "";
-    private String baselinePrompt = "";
-    private boolean baselineBuildTutorial = false;
-    private boolean baselineIncludeImages = false;
     private boolean initialSnapshotCaptured = false;
-
-    private boolean jeiActive = false;
-    @Nullable
-    private HintableTextFieldWidget jeiTargetField = null;
+    private final FormState formState = new FormState(this::snapshotState, this::restoreSnapshot);
+    private final JeiFieldController jeiController = new JeiFieldController(JeiCompat::setActiveScreen);
 
     public AiGenerateScreen() {
         super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.ai_generate.title", UILayoutConstants.EDITOR_LIST_W);
@@ -63,7 +53,7 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
         super.init();
         applyCachedStatus();
         if (!initialSnapshotCaptured) {
-            captureBaseline();
+            formState.captureBaseline();
             initialSnapshotCaptured = true;
         }
     }
@@ -141,40 +131,12 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
 
     @Override
     protected boolean hasUnsavedChanges() {
-        if (!initialSnapshotCaptured) {
-            return false;
-        }
-        return baselineStructureIndex != cachedStructureIndex
-            || !baselineStructurePaths.equals(cachedStructurePaths)
-            || !Objects.equals(baselineCarrier, cachedCarrier)
-            || !Objects.equals(baselinePrompt, cachedPrompt)
-            || !baselineUrls.equals(referenceUrlManager.getUrlValues())
-            || baselineBuildTutorial != cachedBuildTutorial
-            || baselineIncludeImages != cachedIncludeImages;
+        return initialSnapshotCaptured && formState.hasUnsavedChanges();
     }
 
     @Override
     protected int getUnsavedChangeCount() {
-        int dirty = 0;
-        if (baselineStructureIndex != cachedStructureIndex || !baselineStructurePaths.equals(cachedStructurePaths)) {
-            dirty++;
-        }
-        if (!Objects.equals(baselineCarrier, cachedCarrier)) {
-            dirty++;
-        }
-        if (!Objects.equals(baselinePrompt, cachedPrompt)) {
-            dirty++;
-        }
-        if (!baselineUrls.equals(referenceUrlManager.getUrlValues())) {
-            dirty++;
-        }
-        if (baselineBuildTutorial != cachedBuildTutorial) {
-            dirty++;
-        }
-        if (baselineIncludeImages != cachedIncludeImages) {
-            dirty++;
-        }
-        return dirty;
+        return initialSnapshotCaptured ? formState.dirtyCount() : 0;
     }
 
     @Override
@@ -184,16 +146,7 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
 
     @Override
     protected void discardEdits() {
-        cachedStructurePaths.clear();
-        cachedStructurePaths.addAll(baselineStructurePaths);
-        cachedStructureInfos.clear();
-        cachedStructureInfos.addAll(baselineStructureInfos);
-        cachedStructureIndex = baselineStructureIndex;
-        cachedCarrier = baselineCarrier;
-        cachedPrompt = baselinePrompt;
-        referenceUrlManager.replaceWith(List.copyOf(baselineUrls), List.copyOf(baselineUrlAutoAdded));
-        cachedBuildTutorial = baselineBuildTutorial;
-        cachedIncludeImages = baselineIncludeImages;
+        formState.restoreBaseline();
         applyCachedStatus();
         rebuildEntries(currentListScroll());
     }
@@ -201,35 +154,23 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
     @Override
     @Nullable
     public HintableTextFieldWidget getJeiTargetField() {
-        return jeiTargetField;
+        return jeiController.targetField();
     }
 
     @Override
     public void toggleJeiForField(HintableTextFieldWidget field, IdFieldMode mode) {
-        if (!JeiCompat.isAvailable()) {
-            return;
-        }
-        if (jeiActive && jeiTargetField == field) {
-            deactivateJei();
-            rebuildEntries(currentListScroll());
-            return;
-        }
-        jeiActive = true;
-        jeiTargetField = field;
-        JeiCompat.setActiveScreen(this, mode);
+        jeiController.toggle(this, field, mode);
         rebuildEntries(currentListScroll());
     }
 
     @Override
     public boolean isJeiActiveForField(HintableTextFieldWidget field) {
-        return jeiActive && jeiTargetField == field;
+        return jeiController.isActiveFor(field);
     }
 
     @Override
     public void deactivateJei() {
-        jeiActive = false;
-        jeiTargetField = null;
-        JeiCompat.clearActiveEditor();
+        jeiController.deactivate();
         if (list != null) {
             rebuildEntries(currentListScroll());
         }
@@ -267,7 +208,7 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
     @Override
     public void removed() {
         super.removed();
-        if (jeiActive) {
+        if (jeiController.isActive()) {
             deactivateJei();
         }
     }
@@ -456,22 +397,6 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
         return true;
     }
 
-    private void captureBaseline() {
-        baselineStructurePaths.clear();
-        baselineStructurePaths.addAll(cachedStructurePaths);
-        baselineStructureInfos.clear();
-        baselineStructureInfos.addAll(cachedStructureInfos);
-        baselineStructureIndex = cachedStructureIndex;
-        baselineCarrier = cachedCarrier;
-        baselinePrompt = cachedPrompt;
-        baselineUrls.clear();
-        baselineUrls.addAll(referenceUrlManager.getUrlValues());
-        baselineUrlAutoAdded.clear();
-        baselineUrlAutoAdded.addAll(referenceUrlManager.getUrlAutoAdded());
-        baselineBuildTutorial = cachedBuildTutorial;
-        baselineIncludeImages = cachedIncludeImages;
-    }
-
     private void applyCachedStatus() {
         if (cachedStatusMessage == null || cachedStatusMessage.isBlank()) {
             clearStatusMessages();
@@ -496,6 +421,64 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
     private static void setCachedStatus(@Nullable String status, boolean isError) {
         cachedStatusMessage = status;
         cachedStatusIsError = status != null && isError;
+    }
+
+    private Map<String, String> snapshotState() {
+        Map<String, String> snapshot = new LinkedHashMap<>();
+        snapshot.put("structure_index", String.valueOf(cachedStructureIndex));
+        snapshot.put("structure_count", String.valueOf(cachedStructurePaths.size()));
+        for (int i = 0; i < cachedStructurePaths.size(); i++) {
+            snapshot.put("structure_" + i, cachedStructurePaths.get(i).toString());
+        }
+        snapshot.put("carrier", cachedCarrier);
+        snapshot.put("prompt", cachedPrompt);
+        snapshot.put("build_tutorial", String.valueOf(cachedBuildTutorial));
+        snapshot.put("include_images", String.valueOf(cachedIncludeImages));
+        referenceUrlManager.snapshot(snapshot);
+        return snapshot;
+    }
+
+    private void restoreSnapshot(Map<String, String> snapshot) {
+        cachedStructurePaths.clear();
+        cachedStructureInfos.clear();
+
+        int count = 0;
+        try {
+            count = Integer.parseInt(snapshot.getOrDefault("structure_count", "0"));
+        } catch (NumberFormatException ignored) {
+        }
+        for (int i = 0; i < count; i++) {
+            String rawPath = snapshot.get("structure_" + i);
+            if (rawPath == null || rawPath.isBlank()) {
+                continue;
+            }
+            Path path = Path.of(rawPath);
+            cachedStructurePaths.add(path);
+            cachedStructureInfos.add(describeStructureSafe(path));
+        }
+
+        try {
+            cachedStructureIndex = Integer.parseInt(snapshot.getOrDefault("structure_index", "0"));
+        } catch (NumberFormatException ignored) {
+            cachedStructureIndex = 0;
+        }
+        if (cachedStructureIndex < 0 || cachedStructureIndex >= cachedStructurePaths.size()) {
+            cachedStructureIndex = Math.max(0, cachedStructurePaths.size() - 1);
+        }
+
+        cachedCarrier = snapshot.getOrDefault("carrier", "");
+        cachedPrompt = snapshot.getOrDefault("prompt", "");
+        cachedBuildTutorial = Boolean.parseBoolean(snapshot.getOrDefault("build_tutorial", "false"));
+        cachedIncludeImages = Boolean.parseBoolean(snapshot.getOrDefault("include_images", "false"));
+        referenceUrlManager.restore(snapshot);
+    }
+
+    private static StructureDescriber.StructureInfo describeStructureSafe(Path path) {
+        try {
+            return StructureDescriber.describe(path);
+        } catch (Exception ignored) {
+            return new StructureDescriber.StructureInfo(0, 0, 0, "", List.of());
+        }
     }
 
     private String structureSummaryLine() {

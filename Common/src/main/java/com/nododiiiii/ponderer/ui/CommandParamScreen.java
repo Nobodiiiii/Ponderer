@@ -55,11 +55,8 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
     private boolean suppressFieldResponder = false;
     private boolean collectingEntries = false;
     private boolean initialSnapshotCaptured = false;
-    private Map<String, String> baselineSnapshot = new HashMap<>();
-
-    private boolean jeiActive = false;
-    @Nullable
-    private HintableTextFieldWidget jeiTargetField = null;
+    private final FormState formState = new FormState(this::snapshotState, this::restoreSnapshot);
+    private final JeiFieldController jeiController = new JeiFieldController(JeiCompat::setActiveScreen);
 
     private CommandParamScreen(String titleKey, List<FieldDef> fieldDefs, Consumer<Map<String, String>> onExecute) {
         super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, UILayoutConstants.EDITOR_LIST_W);
@@ -92,7 +89,7 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
     protected void init() {
         super.init();
         if (!initialSnapshotCaptured) {
-            baselineSnapshot = snapshotState();
+            formState.captureBaseline();
             initialSnapshotCaptured = true;
         }
     }
@@ -150,24 +147,12 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
 
     @Override
     protected boolean hasUnsavedChanges() {
-        return getUnsavedChangeCount() > 0;
+        return initialSnapshotCaptured && formState.hasUnsavedChanges();
     }
 
     @Override
     protected int getUnsavedChangeCount() {
-        Map<String, String> snapshot = snapshotState();
-        int dirty = 0;
-        for (String key : baselineSnapshot.keySet()) {
-            if (!java.util.Objects.equals(baselineSnapshot.get(key), snapshot.get(key))) {
-                dirty++;
-            }
-        }
-        for (String key : snapshot.keySet()) {
-            if (!baselineSnapshot.containsKey(key)) {
-                dirty++;
-            }
-        }
-        return dirty;
+        return initialSnapshotCaptured ? formState.dirtyCount() : 0;
     }
 
     @Override
@@ -194,7 +179,7 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
             values.put(toggleDef.id, String.valueOf(toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue)));
         }
 
-        if (jeiActive) {
+        if (jeiController.isActive()) {
             deactivateJei();
         }
         Minecraft.getInstance().setScreen(null);
@@ -205,14 +190,14 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
     @Override
     protected void discardEdits() {
         clearStatusMessages();
-        restoreSnapshot(baselineSnapshot);
+        formState.restoreBaseline();
         rebuildEntries(currentListScroll());
     }
 
     @Override
     public void removed() {
         super.removed();
-        if (jeiActive) {
+        if (jeiController.isActive()) {
             deactivateJei();
         }
     }
@@ -220,35 +205,23 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
     @Override
     @Nullable
     public HintableTextFieldWidget getJeiTargetField() {
-        return jeiTargetField;
+        return jeiController.targetField();
     }
 
     @Override
     public void toggleJeiForField(HintableTextFieldWidget field, IdFieldMode mode) {
-        if (!JeiCompat.isAvailable()) {
-            return;
-        }
-        if (jeiActive && jeiTargetField == field) {
-            deactivateJei();
-            rebuildEntries(currentListScroll());
-            return;
-        }
-        jeiActive = true;
-        jeiTargetField = field;
-        JeiCompat.setActiveScreen(this, mode);
+        jeiController.toggle(this, field, mode);
         rebuildEntries(currentListScroll());
     }
 
     @Override
     public boolean isJeiActiveForField(HintableTextFieldWidget field) {
-        return jeiActive && jeiTargetField == field;
+        return jeiController.isActiveFor(field);
     }
 
     @Override
     public void deactivateJei() {
-        jeiActive = false;
-        jeiTargetField = null;
-        JeiCompat.clearActiveEditor();
+        jeiController.deactivate();
     }
 
     @Override

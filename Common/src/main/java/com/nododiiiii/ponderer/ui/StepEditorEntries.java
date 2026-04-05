@@ -29,80 +29,26 @@ public final class StepEditorEntries {
     public static StepEditorEntry text(StepTextFieldHandle handle, String labelKey, @Nullable String tooltipKey,
                                        String hint, int fieldWidth, Consumer<HintableTextFieldWidget> afterBuild,
                                        StepTextButtonSpec... buttonSpecs) {
-        return new StepEditorEntry() {
-            @Override
-            public int rows() {
-                return 1;
-            }
-
-            @Override
-            public void buildStep(AbstractStepEditorScreen screen) {
-                HintableTextFieldWidget field = screen.addFormTextField(labelKey, tooltipKey, hint, fieldWidth, buttonSpecs);
-                handle.attach(field);
-                afterBuild.accept(field);
-            }
-
-            @Override
-            public void snapshot(Map<String, String> snapshot) {
-                handle.snapshot(snapshot);
-            }
-
-            @Override
-            public void restore(Map<String, String> snapshot) {
-                handle.restore(snapshot);
-            }
-        };
+        return wrap(FieldSpecs.text(
+            handle,
+            labelKey,
+            tooltipKey,
+            hint,
+            fieldWidth,
+            entry -> afterBuild.accept((HintableTextFieldWidget) entry.field()),
+            buttonSpecs));
     }
 
     public static StepEditorEntry number(StepTextFieldHandle handle, String labelKey, @Nullable String tooltipKey,
                                          String hint, int fieldWidth, @Nullable String unitKey) {
-        return new StepEditorEntry() {
-            @Override
-            public int rows() {
-                return 1;
-            }
-
-            @Override
-            public void buildStep(AbstractStepEditorScreen screen) {
-                handle.attach(screen.addFormNumberField(labelKey, tooltipKey, hint, fieldWidth, unitKey));
-            }
-
-            @Override
-            public void snapshot(Map<String, String> snapshot) {
-                handle.snapshot(snapshot);
-            }
-
-            @Override
-            public void restore(Map<String, String> snapshot) {
-                handle.restore(snapshot);
-            }
-        };
+        return wrap(FieldSpecs.number(handle, labelKey, tooltipKey, hint, fieldWidth, unitKey));
     }
 
     public static StepEditorEntry localizedText(StepTextFieldHandle handle, String labelKey, @Nullable String tooltipKey,
                                                 String hint, int fieldWidth,
                                                 Supplier<String> langGetter, Runnable onToggle) {
-        return new StepEditorEntry() {
-            @Override
-            public int rows() {
-                return 1;
-            }
-
-            @Override
-            public void buildStep(AbstractStepEditorScreen screen) {
-                handle.attach(screen.addFormTextFieldWithLang(labelKey, tooltipKey, hint, fieldWidth, langGetter, onToggle).field());
-            }
-
-            @Override
-            public void snapshot(Map<String, String> snapshot) {
-                handle.snapshot(snapshot);
-            }
-
-            @Override
-            public void restore(Map<String, String> snapshot) {
-                handle.restore(snapshot);
-            }
-        };
+        return wrap(FieldSpecs.localizedText(handle, labelKey, tooltipKey, hint, fieldWidth, langGetter, onToggle, entry -> {
+        }));
     }
 
     public static StepEditorEntry xyz(StepXyzFieldHandle handle, String labelKey, @Nullable String tooltipKey,
@@ -116,30 +62,7 @@ public final class StepEditorEntries {
     public static StepEditorEntry xyz(StepXyzFieldHandle handle, String labelKey, @Nullable String tooltipKey,
                                       @Nullable String xHint, @Nullable String yHint, @Nullable String zHint,
                                       StepXyzButtonSpec... buttonSpecs) {
-        return new StepEditorEntry() {
-            @Override
-            public int rows() {
-                return 1;
-            }
-
-            @Override
-            public void buildStep(AbstractStepEditorScreen screen) {
-                var group = screen.addFormXyzRow(labelKey, tooltipKey, xHint, yHint, zHint, buttonSpecs);
-                handle.xHandle().attach(group.x());
-                handle.yHandle().attach(group.y());
-                handle.zHandle().attach(group.z());
-            }
-
-            @Override
-            public void snapshot(Map<String, String> snapshot) {
-                handle.snapshot(snapshot);
-            }
-
-            @Override
-            public void restore(Map<String, String> snapshot) {
-                handle.restore(snapshot);
-            }
-        };
+        return wrap(FieldSpecs.xyz(handle, labelKey, tooltipKey, xHint, yHint, zHint, buttonSpecs));
     }
 
     public static StepEditorEntry xyzWithHints(StepXyzFieldHandle handle, String labelKey, @Nullable String tooltipKey,
@@ -164,62 +87,20 @@ public final class StepEditorEntries {
                                                    String labelKey, @Nullable String tooltipKey,
                                                    String firstHint, int firstWidth,
                                                    String secondHint, int secondWidth) {
-        return new StepEditorEntry() {
-            @Override
-            public int rows() {
-                return 1;
-            }
-
-            @Override
-            public void buildStep(AbstractStepEditorScreen screen) {
-                var pair = screen.addFormDualNumberField(labelKey, tooltipKey, firstHint, firstWidth, secondHint, secondWidth);
-                firstHandle.attach(pair.first());
-                secondHandle.attach(pair.second());
-            }
-
-            @Override
-            public void snapshot(Map<String, String> snapshot) {
-                firstHandle.snapshot(snapshot);
-                secondHandle.snapshot(snapshot);
-            }
-
-            @Override
-            public void restore(Map<String, String> snapshot) {
-                firstHandle.restore(snapshot);
-                secondHandle.restore(snapshot);
-            }
-        };
+        return wrap(FieldSpecs.dualText(firstHandle, secondHandle, labelKey, tooltipKey, firstHint, firstWidth, secondHint, secondWidth));
     }
 
     public static StepEditorEntry toggle(String labelKey, @Nullable String tooltipKey,
                                          BooleanSupplier stateGetter, Runnable onToggle) {
-        return new StepEditorEntry() {
-            @Override
-            public int rows() {
-                return 1;
-            }
-
-            @Override
-            public void buildStep(AbstractStepEditorScreen screen) {
-                screen.addFormToggle(labelKey, tooltipKey, stateGetter, onToggle);
-            }
-        };
+        return wrap(FieldSpecs.toggle(labelKey, tooltipKey, stateGetter, onToggle));
     }
 
     public static StepEditorEntry cycleButton(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                                               Runnable onClick, Supplier<String> labelGetter,
                                               IntSupplier colorGetter) {
-        return new StepEditorEntry() {
-            @Override
-            public int rows() {
-                return 1;
-            }
-
-            @Override
-            public void buildStep(AbstractStepEditorScreen screen) {
-                screen.addFormCycleButton(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter);
-            }
-        };
+        return wrap(FieldSpecs.choice(
+            labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter,
+            null, 0.5f));
     }
 
     public static StepEditorEntry cycleButton(String labelKey, @Nullable String tooltipKey, int buttonWidth,
@@ -230,18 +111,27 @@ public final class StepEditorEntries {
     public static StepEditorEntry blockProps(String labelKey, @Nullable String tooltipKey, IntSupplier rowCountSupplier) {
         return new StepEditorEntry() {
             @Override
-            public int rows() {
-                return rowCountSupplier.getAsInt();
-            }
-
-            @Override
             public void buildStep(AbstractStepEditorScreen screen) {
                 screen.addFormBlockProps(labelKey, tooltipKey);
+            }
+        };
+    }
+
+    private static StepEditorEntry wrap(FieldSpec spec) {
+        return new StepEditorEntry() {
+            @Override
+            public void buildStep(AbstractStepEditorScreen screen) {
+                spec.build(screen);
             }
 
             @Override
             public void snapshot(Map<String, String> snapshot) {
-                // Filled by the screen base because block props live on the screen itself.
+                spec.snapshot(snapshot);
+            }
+
+            @Override
+            public void restore(Map<String, String> snapshot) {
+                spec.restore(snapshot);
             }
         };
     }

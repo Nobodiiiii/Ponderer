@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import java.util.Map;
 
-public class StepXyzFieldHandle {
+public class StepXyzFieldHandle implements SnapshotParticipant {
 
     private final StepTextFieldHandle x;
     private final StepTextFieldHandle y;

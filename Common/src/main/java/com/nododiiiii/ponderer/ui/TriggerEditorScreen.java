@@ -24,7 +24,6 @@ import java.util.Map;
 public class TriggerEditorScreen extends AbstractStepEditorScreen {
 
     private static final String[] TRIGGER_MODES = {"none", "structure", "coordinate"};
-    /** Frequency options: 0=off, 1=always, 2=first_time, 3=until_read */
     private static final String[] FREQ_VALUES = {null, "always", "first_time", "until_read"};
     private static final String[] FREQ_KEYS = {"off", "always", "first_time", "until_read"};
 
@@ -43,6 +42,15 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     private boolean pendingItemDuplicateConfirm = false;
     @Nullable
     private String pendingStructureSelection = null;
+
+    private final FieldBinding<Integer> triggerModeBinding =
+        FieldBindings.integer("triggerMode", () -> triggerModeIndex, value -> triggerModeIndex = value);
+    private final FieldBinding<Integer> autoFreqBinding =
+        FieldBindings.integer("autoFreq", () -> autoFreqIndex, value -> autoFreqIndex = value);
+    private final FieldBinding<Integer> titleFreqBinding =
+        FieldBindings.integer("titleFreq", () -> titleFreqIndex, value -> titleFreqIndex = value);
+    private final FieldBinding<Integer> subtitleFreqBinding =
+        FieldBindings.integer("subtitleFreq", () -> subtitleFreqIndex, value -> subtitleFreqIndex = value);
 
     public TriggerEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.trigger_editor"), scene, sceneIndex, parent);
@@ -104,33 +112,22 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     }
 
     public void setPendingFormRestore(Map<String, String> snapshot) {
-        if (snapshot.containsKey("triggerMode")) {
-            try {
-                triggerModeIndex = Integer.parseInt(snapshot.get("triggerMode"));
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        if (snapshot.containsKey("autoFreq")) {
-            try {
-                autoFreqIndex = Integer.parseInt(snapshot.get("autoFreq"));
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        if (snapshot.containsKey("titleFreq")) {
-            try {
-                titleFreqIndex = Integer.parseInt(snapshot.get("titleFreq"));
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        if (snapshot.containsKey("subtitleFreq")) {
-            try {
-                subtitleFreqIndex = Integer.parseInt(snapshot.get("subtitleFreq"));
-            } catch (NumberFormatException ignored) {
-            }
-        }
-
-        restoreHandleValues(snapshot);
         setPendingPickRestore(snapshot);
+    }
+
+    @Override
+    protected void configureFormState(List<SnapshotParticipant> participants) {
+        participants.add(triggerModeBinding);
+        participants.add(autoFreqBinding);
+        participants.add(titleFreqBinding);
+        participants.add(subtitleFreqBinding);
+        participants.add(itemField);
+        participants.add(itemNbtField);
+        participants.add(titleTextField);
+        participants.add(subtitleTextField);
+        participants.add(structureField);
+        participants.add(coord1Field);
+        participants.add(coord2Field);
     }
 
     @Override
@@ -156,54 +153,57 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
             pendingStructureSelection = null;
         }
 
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             itemField,
             "ponderer.ui.scene_desc.item_id",
             null,
             UIText.of("ponderer.ui.scene_desc.hint.item_id"),
             124,
-            StepTextButtonSpec.jei(IdFieldMode.ITEM),
-            StepTextButtonSpec.heldItem(this::applyHeldItem)));
-        entries.add(StepEditorEntries.text(
+            FieldDecorators.jei(IdFieldMode.ITEM),
+            FieldDecorators.heldItem(this::applyHeldItem)));
+        entries.add(FieldSpecs.text(
             itemNbtField,
             "ponderer.ui.scene_desc.item_nbt",
             null,
             UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
             124,
-            StepTextButtonSpec.nbtPick("nbt")));
-        entries.add(StepEditorEntries.cycleButton(
+            FieldDecorators.nbtPick("itemNbt")));
+        entries.add(FieldSpecs.cycle(
+            triggerModeBinding,
             "ponderer.ui.trigger_editor.trigger_mode",
             "ponderer.ui.trigger_editor.trigger_mode.tooltip",
             100,
-            () -> {
-                triggerModeIndex = (triggerModeIndex + 1) % TRIGGER_MODES.length;
-                rebuildFormPreservingState();
-            },
-            () -> UIText.of("ponderer.ui.trigger_editor.trigger_mode." + TRIGGER_MODES[triggerModeIndex])));
+            TRIGGER_MODES.length,
+            this::rebuildFormPreservingState,
+            () -> UIText.of("ponderer.ui.trigger_editor.trigger_mode." + TRIGGER_MODES[triggerModeIndex]),
+            () -> 0xFFFFFF));
 
         if (triggerModeIndex == 0) {
             return;
         }
 
-        entries.add(StepEditorEntries.cycleButton(
+        entries.add(FieldSpecs.cycle(
+            autoFreqBinding,
             "ponderer.ui.trigger_editor.hint_style.auto",
             "ponderer.ui.trigger_editor.hint_style.auto.tooltip",
             100,
-            () -> autoFreqIndex = (autoFreqIndex + 1) % FREQ_VALUES.length,
+            FREQ_VALUES.length,
+            () -> {
+            },
             () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[autoFreqIndex]),
             () -> autoFreqIndex != 0 ? 0xFF5555 : 0xFFFFFF));
 
-        entries.add(StepEditorEntries.cycleButton(
+        entries.add(FieldSpecs.cycle(
+            titleFreqBinding,
             "ponderer.ui.trigger_editor.hint_style.title",
             "ponderer.ui.trigger_editor.hint_style.title.tooltip",
             100,
-            () -> {
-                titleFreqIndex = (titleFreqIndex + 1) % FREQ_VALUES.length;
-                rebuildFormPreservingState();
-            },
-            () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[titleFreqIndex])));
+            FREQ_VALUES.length,
+            this::rebuildFormPreservingState,
+            () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[titleFreqIndex]),
+            () -> 0xFFFFFF));
         if (titleFreqIndex != 0) {
-            entries.add(StepEditorEntries.text(
+            entries.add(FieldSpecs.text(
                 titleTextField,
                 "ponderer.ui.trigger_editor.hint_text",
                 "ponderer.ui.trigger_editor.hint_text.tooltip",
@@ -211,17 +211,17 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
                 120));
         }
 
-        entries.add(StepEditorEntries.cycleButton(
+        entries.add(FieldSpecs.cycle(
+            subtitleFreqBinding,
             "ponderer.ui.trigger_editor.hint_style.subtitle",
             "ponderer.ui.trigger_editor.hint_style.subtitle.tooltip",
             100,
-            () -> {
-                subtitleFreqIndex = (subtitleFreqIndex + 1) % FREQ_VALUES.length;
-                rebuildFormPreservingState();
-            },
-            () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[subtitleFreqIndex])));
+            FREQ_VALUES.length,
+            this::rebuildFormPreservingState,
+            () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[subtitleFreqIndex]),
+            () -> 0xFFFFFF));
         if (subtitleFreqIndex != 0) {
-            entries.add(StepEditorEntries.text(
+            entries.add(FieldSpecs.text(
                 subtitleTextField,
                 "ponderer.ui.trigger_editor.hint_text",
                 "ponderer.ui.trigger_editor.hint_text.tooltip",
@@ -231,40 +231,40 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
 
         String mode = TRIGGER_MODES[triggerModeIndex];
         if ("structure".equals(mode)) {
-            entries.add(StepEditorEntries.text(
+            entries.add(FieldSpecs.text(
                 structureField,
                 "ponderer.ui.trigger_editor.trigger_structure",
                 null,
                 UIText.of("ponderer.ui.trigger_editor.hint.trigger_structure"),
                 124,
-                StepTextButtonSpec.action(
+                FieldDecorators.textAction(
                     20,
                     this::openStructureList,
                     () -> "L",
                     () -> 0xFFFFFF,
                     UIText.of("ponderer.ui.scene_desc.structure_list_title"))));
         } else if ("coordinate".equals(mode)) {
-            entries.add(StepEditorEntries.xyz(
+            entries.add(FieldSpecs.xyz(
                 coord1Field,
                 "ponderer.ui.trigger_editor.trigger_coord1",
                 null,
                 "X",
                 "Y",
                 "Z",
-                StepXyzButtonSpec.action(
+                FieldDecorators.xyzAction(
                     20,
                     this::startCoordinatePick,
                     () -> "+",
                     () -> 0x80FFFF,
                     UIText.of("ponderer.ui.pick.tooltip"))));
-            entries.add(StepEditorEntries.xyz(
+            entries.add(FieldSpecs.xyz(
                 coord2Field,
                 "ponderer.ui.trigger_editor.trigger_coord2",
                 null,
                 "X",
                 "Y",
                 "Z",
-                StepXyzButtonSpec.action(
+                FieldDecorators.xyzAction(
                     20,
                     this::startCoordinatePick,
                     () -> "+",
@@ -305,64 +305,8 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected void appendCustomSnapshot(Map<String, String> snapshot) {
-        snapshot.put("triggerMode", String.valueOf(triggerModeIndex));
-        snapshot.put("autoFreq", String.valueOf(autoFreqIndex));
-        snapshot.put("titleFreq", String.valueOf(titleFreqIndex));
-        snapshot.put("subtitleFreq", String.valueOf(subtitleFreqIndex));
-        titleTextField.snapshot(snapshot);
-        subtitleTextField.snapshot(snapshot);
-        structureField.snapshot(snapshot);
-        coord1Field.snapshot(snapshot);
-        coord2Field.snapshot(snapshot);
-    }
-
-    @Override
     protected void restoreCustomSnapshot(Map<String, String> snapshot) {
-        if (snapshot.containsKey("triggerMode")) {
-            try {
-                triggerModeIndex = Integer.parseInt(snapshot.get("triggerMode"));
-            } catch (NumberFormatException ignored) {
-                triggerModeIndex = 0;
-            }
-        }
-        if (snapshot.containsKey("autoFreq")) {
-            try {
-                autoFreqIndex = Integer.parseInt(snapshot.get("autoFreq"));
-            } catch (NumberFormatException ignored) {
-                autoFreqIndex = 0;
-            }
-        }
-        if (snapshot.containsKey("titleFreq")) {
-            try {
-                titleFreqIndex = Integer.parseInt(snapshot.get("titleFreq"));
-            } catch (NumberFormatException ignored) {
-                titleFreqIndex = 0;
-            }
-        }
-        if (snapshot.containsKey("subtitleFreq")) {
-            try {
-                subtitleFreqIndex = Integer.parseInt(snapshot.get("subtitleFreq"));
-            } catch (NumberFormatException ignored) {
-                subtitleFreqIndex = 0;
-            }
-        }
-
-        restoreHandleValues(snapshot);
-        if (snapshot.containsKey("nbt")) {
-            itemNbtField.setValue(snapshot.get("nbt"));
-        }
         restoreNbtPickNotice(snapshot);
-    }
-
-    private void restoreHandleValues(Map<String, String> snapshot) {
-        itemField.restore(snapshot);
-        itemNbtField.restore(snapshot);
-        titleTextField.restore(snapshot);
-        subtitleTextField.restore(snapshot);
-        structureField.restore(snapshot);
-        coord1Field.restore(snapshot);
-        coord2Field.restore(snapshot);
     }
 
     @Override
@@ -382,7 +326,9 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     }
 
     private void doConfirm() {
-        if (!doSave()) return;
+        if (!doSave()) {
+            return;
+        }
         returnToParent();
     }
 

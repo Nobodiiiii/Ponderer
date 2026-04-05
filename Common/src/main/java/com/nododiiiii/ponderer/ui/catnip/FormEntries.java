@@ -1,5 +1,9 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.FieldBindings;
+import com.nododiiiii.ponderer.ui.FieldDecorators;
+import com.nododiiiii.ponderer.ui.FieldSpecs;
+
 import javax.annotation.Nullable;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -22,8 +26,8 @@ public final class FormEntries {
                                             String initialValue, Consumer<String> responder,
                                             Consumer<PlainTextListEntry> afterBuild,
                                             FormTextButtonSpec... buttonSpecs) {
-        return screen -> afterBuild.accept(
-            screen.addTextFormEntry(labelKey, tooltipKey, hintKey, initialValue, responder, buttonSpecs));
+        var binding = FieldBindings.transientString(() -> initialValue, responder);
+        return FieldSpecs.text(binding, labelKey, tooltipKey, hintKey, -1, afterBuild, buttonSpecs);
     }
 
     public static DeclarativeFormEntry localizedText(String labelKey, @Nullable String tooltipKey,
@@ -39,13 +43,13 @@ public final class FormEntries {
                                                      Supplier<String> langGetter, Runnable onToggle,
                                                      Consumer<String> responder,
                                                      Consumer<LocalizedTextListEntry> afterBuild) {
-        return screen -> afterBuild.accept(
-            screen.addLocalizedTextFormEntry(labelKey, tooltipKey, hintKey, initialValue, langGetter, onToggle, responder));
+        var binding = FieldBindings.transientString(() -> initialValue, responder);
+        return FieldSpecs.localizedText(binding, labelKey, tooltipKey, hintKey, -1, langGetter, onToggle, afterBuild);
     }
 
     public static DeclarativeFormEntry toggle(String labelKey, @Nullable String tooltipKey,
                                               BooleanSupplier stateGetter, Runnable onToggle) {
-        return screen -> screen.addToggleFormEntry(labelKey, tooltipKey, stateGetter, onToggle);
+        return FieldSpecs.toggle(labelKey, tooltipKey, stateGetter, onToggle);
     }
 
     public static DeclarativeFormEntry choice(String labelKey, @Nullable String tooltipKey, int buttonWidth,
@@ -59,26 +63,26 @@ public final class FormEntries {
                                               Runnable onClick, Supplier<String> labelGetter,
                                               IntSupplier colorGetter, @Nullable String buttonTooltipText,
                                               float controlWidthScale) {
-        return screen -> screen.addChoiceFormEntry(
-            labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, buttonTooltipText, controlWidthScale);
+        return FieldSpecs.choice(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter,
+            buttonTooltipText, controlWidthScale);
     }
 
     public static DeclarativeFormEntry fullButton(String label, @Nullable String tooltipText, Runnable onClick) {
-        return screen -> screen.addFullButtonFormEntry(label, tooltipText, onClick);
+        return FieldSpecs.fullButton(label, tooltipText, onClick);
     }
 
     public static DeclarativeFormEntry fullButton(Supplier<String> labelGetter,
                                                   @Nullable Supplier<String> tooltipGetter,
                                                   Runnable onClick, IntSupplier colorGetter,
                                                   BooleanSupplier activeGetter) {
-        return screen -> screen.addFullButtonFormEntry(labelGetter, tooltipGetter, onClick, colorGetter, activeGetter);
+        return FieldSpecs.fullButton(labelGetter, tooltipGetter, onClick, colorGetter, activeGetter);
     }
 
     public static DeclarativeFormEntry sectionHeader(String title) {
-        return screen -> screen.addSectionHeaderEntry(title);
+        return FieldSpecs.sectionHeader(title);
     }
 
     public static DeclarativeFormEntry sectionHeader(Supplier<String> titleGetter) {
-        return screen -> screen.addSectionHeaderEntry(titleGetter);
+        return FieldSpecs.sectionHeader(titleGetter);
     }
 }

@@ -1,17 +1,14 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,6 +17,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     private static final BlockPos SANITIZED_CONTEXT_POS = BlockPos.ZERO;
 
     private final StepTextFieldHandle blockField = new StepTextFieldHandle("block");
+    private final KeyValueListState capturedBlockProperties = new KeyValueListState("prop", 0);
 
     @Nullable
     private List<Integer> contextPos;
@@ -31,9 +29,9 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     private Boolean contextInside;
     @Nullable
     private String capturedNbt;
-    @Nullable
-    private Map<String, String> capturedBlockProperties;
     private boolean enableNbt = true;
+    private final FieldBinding<Boolean> enableNbtBinding =
+        FieldBindings.bool("enable_nbt", () -> enableNbt, value -> enableNbt = Boolean.TRUE.equals(value));
 
     public ShowInterfaceScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.show_interface"), scene, sceneIndex, parent);
@@ -45,28 +43,33 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     }
 
     @Override
+    protected void configureFormState(List<SnapshotParticipant> participants) {
+        participants.add(capturedBlockProperties);
+        participants.add(enableNbtBinding);
+    }
+
+    @Override
     protected String getHeaderTitle() {
         return UIText.of("ponderer.ui.show_interface");
     }
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             blockField,
             "ponderer.ui.show_interface.block",
             "ponderer.ui.show_interface.block.tooltip",
             UIText.of("ponderer.ui.show_interface.block.hint"),
             124,
-            field -> {
-                field.setEditable(false);
-                field.setCanLoseFocus(true);
+            entry -> {
+                entry.field().setEditable(false);
+                entry.field().setCanLoseFocus(true);
             },
-            StepTextButtonSpec.blockPick(NBT_SNAPSHOT_KEY)));
-        entries.add(StepEditorEntries.toggle(
+            FieldDecorators.blockPick(NBT_SNAPSHOT_KEY)));
+        entries.add(FieldSpecs.toggle(
+            enableNbtBinding,
             "ponderer.ui.show_interface.enable_nbt",
-            "ponderer.ui.show_interface.enable_nbt.tooltip",
-            () -> enableNbt,
-            () -> enableNbt = !enableNbt));
+            "ponderer.ui.show_interface.enable_nbt.tooltip"));
     }
 
     @Override
@@ -78,10 +81,9 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         contextPos = step.blockPos;
         contextFace = step.direction;
         contextHit = step.point;
-        // show_interface does not use whileSneaking semantics; reuse it to carry hit-inside parity.
         contextInside = step.whileSneaking;
         capturedNbt = step.nbt;
-        capturedBlockProperties = copyProps(step.blockProperties);
+        capturedBlockProperties.replaceFromMap(step.blockProperties);
         enableNbt = !Boolean.FALSE.equals(step.enableNbt);
     }
 
@@ -107,8 +109,6 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         if (capturedNbt != null) {
             snapshot.put(NBT_SNAPSHOT_KEY, capturedNbt);
         }
-        snapshot.put("enable_nbt", String.valueOf(enableNbt));
-        snapshotProps(snapshot, capturedBlockProperties);
     }
 
     @Override
@@ -117,9 +117,11 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
             blockField.setValue(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_ID_KEY));
         }
         if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_POS_KEY)) {
-            contextPos = parseInt3(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_POS_KEY));
+            FormParsers.Int3 pos = FormParsers.parseInt3(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_POS_KEY));
+            contextPos = pos == null ? null : pos.toList();
         } else if (snapshot.containsKey("ctx_pos")) {
-            contextPos = parseInt3(snapshot.get("ctx_pos"));
+            FormParsers.Int3 pos = FormParsers.parseInt3(snapshot.get("ctx_pos"));
+            contextPos = pos == null ? null : pos.toList();
         }
         if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_FACE_KEY)) {
             contextFace = snapshot.get(NbtPickState.SNAPSHOT_BLOCK_FACE_KEY);
@@ -127,24 +129,20 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
             contextFace = snapshot.get("ctx_face");
         }
         if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_HIT_KEY)) {
-            contextHit = parseDouble3(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_HIT_KEY));
+            FormParsers.Double3 hit = FormParsers.parseDouble3(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_HIT_KEY));
+            contextHit = hit == null ? null : hit.toList();
         } else if (snapshot.containsKey("ctx_hit")) {
-            contextHit = parseDouble3(snapshot.get("ctx_hit"));
+            FormParsers.Double3 hit = FormParsers.parseDouble3(snapshot.get("ctx_hit"));
+            contextHit = hit == null ? null : hit.toList();
         }
         if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_INSIDE_KEY)) {
-            contextInside = parseBoolean(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_INSIDE_KEY));
+            contextInside = FormParsers.parseBoolean(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_INSIDE_KEY));
         } else if (snapshot.containsKey("ctx_inside")) {
-            contextInside = parseBoolean(snapshot.get("ctx_inside"));
+            contextInside = FormParsers.parseBoolean(snapshot.get("ctx_inside"));
         }
         if (snapshot.containsKey(NBT_SNAPSHOT_KEY)) {
             capturedNbt = snapshot.get(NBT_SNAPSHOT_KEY);
         }
-        if (snapshot.containsKey("enable_nbt")) {
-            enableNbt = parseBoolean(snapshot.get("enable_nbt")) != Boolean.FALSE;
-        } else {
-            enableNbt = true;
-        }
-        capturedBlockProperties = parseProps(snapshot);
         restoreNbtPickNotice(snapshot);
     }
 
@@ -178,101 +176,18 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
                 contextHit.get(2) - contextPos.get(2));
         }
         if (contextInside != null) {
-            // Transport BlockHitResult#isInside parity without adding a new DSL schema dependency.
             step.whileSneaking = contextInside;
         }
         step.enableNbt = enableNbt;
         if (enableNbt && capturedNbt != null && !capturedNbt.isBlank()) {
             step.nbt = sanitizeCapturedNbt(capturedNbt, contextPos);
         }
-        if (capturedBlockProperties != null && !capturedBlockProperties.isEmpty()) {
-            step.blockProperties = new LinkedHashMap<>(capturedBlockProperties);
+        Map<String, String> props = capturedBlockProperties.toFilteredMap();
+        if (props != null && !props.isEmpty()) {
+            step.blockProperties = props;
         }
 
         return step;
-    }
-
-    private static void snapshotProps(Map<String, String> snapshot, @Nullable Map<String, String> props) {
-        if (props == null || props.isEmpty()) {
-            return;
-        }
-        List<Map.Entry<String, String>> entries = new ArrayList<>(props.entrySet());
-        snapshot.put("prop_count", String.valueOf(entries.size()));
-        for (int i = 0; i < entries.size(); i++) {
-            snapshot.put("prop_key_" + i, entries.get(i).getKey());
-            snapshot.put("prop_val_" + i, entries.get(i).getValue());
-        }
-    }
-
-    @Nullable
-    private static Map<String, String> parseProps(Map<String, String> snapshot) {
-        if (!snapshot.containsKey("prop_count")) {
-            return null;
-        }
-        int count;
-        try {
-            count = Integer.parseInt(snapshot.get("prop_count"));
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-        Map<String, String> props = new LinkedHashMap<>();
-        for (int i = 0; i < count; i++) {
-            String key = snapshot.get("prop_key_" + i);
-            String value = snapshot.get("prop_val_" + i);
-            if (key == null || key.isBlank() || value == null || value.isBlank()) {
-                continue;
-            }
-            props.put(key, value);
-        }
-        return props.isEmpty() ? null : props;
-    }
-
-    @Nullable
-    private static Map<String, String> copyProps(@Nullable Map<String, String> props) {
-        if (props == null || props.isEmpty()) {
-            return null;
-        }
-        return new LinkedHashMap<>(props);
-    }
-
-    @Nullable
-    private static List<Integer> parseInt3(String raw) {
-        try {
-            String[] parts = raw.split(",");
-            if (parts.length < 3) return null;
-            return List.of(
-                Integer.parseInt(parts[0].trim()),
-                Integer.parseInt(parts[1].trim()),
-                Integer.parseInt(parts[2].trim()));
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    @Nullable
-    private static List<Double> parseDouble3(String raw) {
-        try {
-            String[] parts = raw.split(",");
-            if (parts.length < 3) return null;
-            return List.of(
-                Double.parseDouble(parts[0].trim()),
-                Double.parseDouble(parts[1].trim()),
-                Double.parseDouble(parts[2].trim()));
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    @Nullable
-    private static Boolean parseBoolean(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        String v = raw.trim();
-        if (v.isEmpty()) {
-            return null;
-        }
-        return Boolean.parseBoolean(v);
     }
 
     private static String sanitizeCapturedNbt(String rawNbt, List<Integer> sourcePos) {

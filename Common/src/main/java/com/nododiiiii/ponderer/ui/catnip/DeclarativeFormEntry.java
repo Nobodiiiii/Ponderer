@@ -1,14 +1,8 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
-import java.util.Map;
+import com.nododiiiii.ponderer.ui.SnapshotParticipant;
 
-public interface DeclarativeFormEntry {
+public interface DeclarativeFormEntry extends SnapshotParticipant {
 
     void build(AbstractDeclarativeFormScreen screen);
-
-    default void snapshot(Map<String, String> snapshot) {
-    }
-
-    default void restore(Map<String, String> snapshot) {
-    }
 }

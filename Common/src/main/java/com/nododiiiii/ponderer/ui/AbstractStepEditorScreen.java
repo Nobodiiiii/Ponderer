@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +65,8 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
     private Map<String, String> pendingPickRestore = null;
     @Nullable
     private Map<String, String> baselineSnapshot = null;
+    private final List<SnapshotParticipant> formStateParticipants = new ArrayList<>();
+    private boolean formStateParticipantsConfigured = false;
 
     private boolean jeiActive = false;
     @Nullable
@@ -137,6 +140,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
 
     @Override
     protected void init() {
+        ensureFormStateParticipants();
         if (usesBlockProps()) {
             preExtractBlockProps();
         }
@@ -306,18 +310,21 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
 
     protected abstract String getStepType();
 
+    protected void configureFormState(List<SnapshotParticipant> participants) {
+    }
+
     protected final Map<String, String> snapshotForm() {
         Map<String, String> snapshot = new HashMap<>();
         for (DeclarativeFormEntry entry : builtFormEntries()) {
             entry.snapshot(snapshot);
         }
-        snapshot.put("_keyFrame", String.valueOf(attachKeyFrame));
+        FormState.snapshotOf(formStateParticipants).forEach(snapshot::put);
         appendCustomSnapshot(snapshot);
         return snapshot;
     }
 
     protected final void restoreFromSnapshot(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
+        FormState.restoreInto(snapshot, formStateParticipants);
         for (DeclarativeFormEntry entry : builtFormEntries()) {
             entry.restore(snapshot);
         }
@@ -376,11 +383,20 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
     }
 
     private void prepareSnapshotForBuild(Map<String, String> snapshot) {
-        restoreKeyFrame(snapshot);
+        FormState.restoreInto(snapshot, formStateParticipants);
         if (usesBlockProps()) {
             applyBlockPropsSnapshot(snapshot);
         }
         restoreCustomSnapshot(snapshot);
+    }
+
+    private void ensureFormStateParticipants() {
+        if (formStateParticipantsConfigured) {
+            return;
+        }
+        formStateParticipantsConfigured = true;
+        formStateParticipants.add(FieldBindings.bool("_keyFrame", () -> attachKeyFrame, value -> attachKeyFrame = value));
+        configureFormState(formStateParticipants);
     }
 
     protected HintableTextFieldWidget addFormTextField(String labelKey, @Nullable String tooltipKey,
