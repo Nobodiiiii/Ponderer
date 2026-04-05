@@ -1,13 +1,8 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
-import com.nododiiiii.ponderer.ui.UIText;
-import net.createmod.catnip.config.ui.ConfigScreen;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.createmod.catnip.gui.ConfirmationScreen;
-import net.createmod.catnip.gui.ScreenOpener;
-import net.createmod.catnip.gui.UIRenderHelper;
-import net.createmod.catnip.gui.widget.AbstractSimiWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.lang.FontHelper;
 import net.createmod.catnip.lang.FontHelper.Palette;
@@ -21,14 +16,10 @@ import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.function.Consumer;
 
-public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
+public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeScreen {
 
     protected static final int DEFAULT_LIST_WIDTH = 300;
-
-    protected final String scopeKey;
-    protected final String titleKey;
 
     @Nullable
     protected BoxWidget saveChanges;
@@ -41,11 +32,6 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
     @Nullable
     protected ConfigScreenList list;
 
-    @Nullable
-    private String errorMessage;
-    @Nullable
-    private String infoMessage;
-
     private final int preferredListWidth;
     private String searchQuery = "";
     private int listWidth;
@@ -55,9 +41,7 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
     }
 
     protected AbstractDeclarativeListScreen(@Nullable Screen parent, String scopeKey, String titleKey, int preferredListWidth) {
-        super(parent);
-        this.scopeKey = scopeKey;
-        this.titleKey = titleKey;
+        super(parent, scopeKey, titleKey);
         this.preferredListWidth = preferredListWidth;
     }
 
@@ -149,32 +133,8 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
 
     @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        String breadcrumb = UIText.of("ponderer.ui.mod_name")
-            + " > "
-            + getBreadcrumbScopeText()
-            + " > "
-            + getBreadcrumbTitleText();
-        graphics.drawCenteredString(
-            minecraft.font,
-            breadcrumb,
-            width / 2,
-            15,
-            UIRenderHelper.COLOR_TEXT.getFirst().getRGB());
-
-        String message = errorMessage != null && !errorMessage.isBlank() ? errorMessage : infoMessage;
-        if (message == null || message.isBlank()) {
-            return;
-        }
-
-        int color = errorMessage != null && !errorMessage.isBlank()
-            ? AbstractSimiWidget.COLOR_FAIL.getFirst().getRGB()
-            : AbstractSimiWidget.COLOR_SUCCESS.getFirst().getRGB();
-        graphics.drawString(
-            minecraft.font,
-            minecraft.font.plainSubstrByWidth(message, listWidth),
-            width / 2 - listWidth / 2,
-            height - 48,
-            color);
+        renderBreadcrumb(graphics, width / 2, 15);
+        renderStatusMessage(graphics, width / 2 - listWidth / 2, height - 48, listWidth);
     }
 
     @Override
@@ -194,11 +154,6 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
         }
 
         return false;
-    }
-
-    @Override
-    public void onClose() {
-        attemptBackToParent();
     }
 
     protected final void rebuildEntries() {
@@ -226,25 +181,6 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
         return list != null ? list.getScrollAmount() : 0;
     }
 
-    protected final void clearStatusMessages() {
-        errorMessage = null;
-        infoMessage = null;
-    }
-
-    protected final void setErrorMessage(@Nullable String message) {
-        errorMessage = message;
-        if (message != null && !message.isBlank()) {
-            infoMessage = null;
-        }
-    }
-
-    protected final void setInfoMessage(@Nullable String message) {
-        infoMessage = message;
-        if (message != null && !message.isBlank()) {
-            errorMessage = null;
-        }
-    }
-
     protected final PlainTextListEntry textEntry(String labelKey, @Nullable String tooltipKey, @Nullable String hintKey,
                                                  String initialValue, java.util.function.Consumer<String> responder) {
         return new PlainTextListEntry(labelKey, tooltipKey, hintKey, initialValue, responder);
@@ -262,51 +198,8 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
         return 40;
     }
 
-    protected String getBreadcrumbScopeText() {
-        return UIText.of(scopeKey);
-    }
-
-    protected String getBreadcrumbTitleText() {
-        return UIText.of(titleKey);
-    }
-
     protected final int currentListWidthValue() {
         return listWidth;
-    }
-
-    protected void attemptBackToParent() {
-        if (!hasUnsavedChanges()) {
-            ScreenOpener.open(parent);
-            return;
-        }
-
-        showLeavingPrompt(response -> {
-            if (response == ConfirmationScreen.Response.Cancel) {
-                return;
-            }
-            if (response == ConfirmationScreen.Response.Confirm) {
-                if (!saveEdits()) {
-                    return;
-                }
-            } else {
-                discardEdits();
-            }
-            ScreenOpener.open(parent);
-        });
-    }
-
-    protected void showLeavingPrompt(Consumer<ConfirmationScreen.Response> action) {
-        int dirtyFields = getUnsavedChangeCount();
-        new ConfirmationScreen()
-            .centered()
-            .withThreeActions(action)
-            .addText(Component.translatable(
-                "catnip.ui.leaving_with_changes_message",
-                dirtyFields,
-                Component.translatable(dirtyFields != 1
-                    ? "catnip.ui.value_changes_plural"
-                    : "catnip.ui.value_changes_singular")))
-            .open(this);
     }
 
     protected abstract void collectEntries(List<ConfigScreenList.Entry> entries);

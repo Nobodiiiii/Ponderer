@@ -1,0 +1,137 @@
+package com.nododiiiii.ponderer.ui.catnip;
+
+import com.nododiiiii.ponderer.ui.UIText;
+import net.createmod.catnip.config.ui.ConfigScreen;
+import net.createmod.catnip.gui.ConfirmationScreen;
+import net.createmod.catnip.gui.ScreenOpener;
+import net.createmod.catnip.gui.UIRenderHelper;
+import net.createmod.catnip.gui.widget.AbstractSimiWidget;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+
+import javax.annotation.Nullable;
+import java.util.function.Consumer;
+
+public abstract class AbstractDeclarativeScreen extends ConfigScreen {
+
+    protected final String scopeKey;
+    protected final String titleKey;
+
+    @Nullable
+    private String errorMessage;
+    @Nullable
+    private String infoMessage;
+
+    protected AbstractDeclarativeScreen(@Nullable Screen parent, String scopeKey, String titleKey) {
+        super(parent);
+        this.scopeKey = scopeKey;
+        this.titleKey = titleKey;
+    }
+
+    protected final void clearStatusMessages() {
+        errorMessage = null;
+        infoMessage = null;
+    }
+
+    protected final void setErrorMessage(@Nullable String message) {
+        errorMessage = message;
+        if (message != null && !message.isBlank()) {
+            infoMessage = null;
+        }
+    }
+
+    protected final void setInfoMessage(@Nullable String message) {
+        infoMessage = message;
+        if (message != null && !message.isBlank()) {
+            errorMessage = null;
+        }
+    }
+
+    protected final void renderBreadcrumb(GuiGraphics graphics, int centerX, int y) {
+        String breadcrumb = UIText.of("ponderer.ui.mod_name")
+            + " > "
+            + getBreadcrumbScopeText()
+            + " > "
+            + getBreadcrumbTitleText();
+        graphics.drawCenteredString(
+            minecraft.font,
+            breadcrumb,
+            centerX,
+            y,
+            UIRenderHelper.COLOR_TEXT.getFirst().getRGB());
+    }
+
+    protected final void renderStatusMessage(GuiGraphics graphics, int x, int y, int maxWidth) {
+        String message = errorMessage != null && !errorMessage.isBlank() ? errorMessage : infoMessage;
+        if (message == null || message.isBlank()) {
+            return;
+        }
+
+        int color = errorMessage != null && !errorMessage.isBlank()
+            ? AbstractSimiWidget.COLOR_FAIL.getFirst().getRGB()
+            : AbstractSimiWidget.COLOR_SUCCESS.getFirst().getRGB();
+        graphics.drawString(
+            minecraft.font,
+            minecraft.font.plainSubstrByWidth(message, maxWidth),
+            x,
+            y,
+            color);
+    }
+
+    protected String getBreadcrumbScopeText() {
+        return UIText.of(scopeKey);
+    }
+
+    protected String getBreadcrumbTitleText() {
+        return UIText.of(titleKey);
+    }
+
+    protected void attemptBackToParent() {
+        if (!hasUnsavedChanges()) {
+            ScreenOpener.open(parent);
+            return;
+        }
+
+        showLeavingPrompt(response -> {
+            if (response == ConfirmationScreen.Response.Cancel) {
+                return;
+            }
+            if (response == ConfirmationScreen.Response.Confirm) {
+                if (!saveEdits()) {
+                    return;
+                }
+            } else {
+                discardEdits();
+            }
+            ScreenOpener.open(parent);
+        });
+    }
+
+    protected void showLeavingPrompt(Consumer<ConfirmationScreen.Response> action) {
+        int dirtyFields = getUnsavedChangeCount();
+        new ConfirmationScreen()
+            .centered()
+            .withThreeActions(action)
+            .addText(Component.translatable(
+                "catnip.ui.leaving_with_changes_message",
+                dirtyFields,
+                Component.translatable(dirtyFields != 1
+                    ? "catnip.ui.value_changes_plural"
+                    : "catnip.ui.value_changes_singular")))
+            .open(this);
+    }
+
+    @Override
+    public void onClose() {
+        attemptBackToParent();
+    }
+
+    protected abstract boolean hasUnsavedChanges();
+
+    protected abstract int getUnsavedChangeCount();
+
+    protected abstract boolean saveEdits();
+
+    protected abstract void discardEdits();
+}

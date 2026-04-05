@@ -3,15 +3,18 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
-import net.createmod.catnip.gui.AbstractSimiScreen;
-import net.createmod.catnip.gui.ScreenOpener;
-import net.createmod.catnip.gui.element.BoxElement;
-import net.createmod.catnip.theme.Color;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
-import net.createmod.ponder.foundation.ui.PonderButton;
+import net.createmod.catnip.data.Couple;
+import net.createmod.catnip.gui.ScreenOpener;
+import net.createmod.catnip.gui.UIRenderHelper;
+import net.createmod.catnip.gui.element.BoxElement;
+import net.createmod.catnip.gui.element.TextStencilElement;
+import net.createmod.catnip.gui.widget.AbstractSimiWidget;
+import net.createmod.catnip.gui.widget.BoxWidget;
+import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -21,6 +24,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -28,38 +32,34 @@ import net.minecraft.world.item.TooltipFlag;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * Unified item grid screen with smooth scrolling and pack-based grouping.
- * <p>
- * Three modes:
- * <ul>
- * <li>LIST – browse all items with ponder scenes; click opens PonderUI</li>
- * <li>SINGLE_SELECT – pick one scene key via callback</li>
- * <li>MULTI_SELECT – pick multiple scene keys with confirm/cancel</li>
- * </ul>
- * All modes support pressing [W] to preview ponder for the hovered item.
+ * Uses the standard declarative list screen shell and replaces only the list content
+ * with a custom scrollable grid panel, so the chrome/background/buttons match the
+ * rest of the catnip-based screens.
  */
-public class PonderItemGridScreen extends AbstractSimiScreen {
+public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
     public enum Mode {
         LIST, SINGLE_SELECT, MULTI_SELECT
     }
 
-    // -- Layout constants --
-    private static final int WINDOW_W = 256;
-    private static final int COLS = 11;
+    private static final int INFO_ENTRY_H = 40;
+    private static final int CONTROL_ENTRY_H = 32;
     private static final int CELL_SIZE = 20;
-    private static final int GRID_LEFT = 14;
-    private static final int GRID_TOP = 42;
-    private static final int VISIBLE_ROWS = 6;
-    private static final int VISIBLE_H = VISIBLE_ROWS * CELL_SIZE;
+    private static final int GRID_PAD_X = 12;
+    private static final int GRID_PAD_Y = 8;
     private static final int SECTION_HEADER_H = 16;
     private static final int SCROLL_SPEED = UILayoutConstants.SCROLL_SPEED;
 
-    // -- Data model --
     record ItemEntry(ItemStack stack, @Nullable String nbtFilter, List<String> sceneKeys) {
     }
 
@@ -70,79 +70,503 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         BY_PACK, BY_ITEM
     }
 
-    // -- State --
     private final Mode mode;
-    private List<PackSection> sections;
     private final @Nullable Consumer<String> onSelectSingle;
     private final @Nullable Consumer<Set<String>> onSelectMulti;
     private final @Nullable Runnable onCancel;
+
     private final Set<String> selectedSceneKeys = new HashSet<>();
-    private double scrollY = 0;
-    private double maxScrollY = 0;
+    private final Set<String> baselineSelectedSceneKeys = new HashSet<>();
+
+    private List<PackSection> sections = List.of();
+    private List<PackSection> visibleSections = List.of();
+    private GroupMode groupMode = GroupMode.BY_PACK;
+    private String searchFilter = "";
+    private String initialSearchText = "";
+    private double pendingPanelScroll = 0;
     private int totalSceneCount;
     private int totalItemCount;
-    private int lastMouseX, lastMouseY;
-    private GroupMode groupMode = GroupMode.BY_PACK;
+    private int lastMouseX;
+    private int lastMouseY;
 
-    /** When non-null, PonderUI close will return to this screen (via Mixin). */
+    @Nullable
+    private GridContentPanel gridPanel;
+    @Nullable
+    private TextButton selectAllButton;
+    @Nullable
+    private TextButton deselectAllButton;
+    @Nullable
+    private TextButton groupToggleButton;
+
+    /** When non-null, PonderUI close will return to this screen (via mixin). */
     @Nullable
     public static PonderItemGridScreen returnScreen;
 
-    // -- Constructors --
-
-    /** LIST mode – browse items, click opens PonderUI */
     public PonderItemGridScreen() {
         this(Mode.LIST, null, null, null);
     }
 
-    /** SINGLE_SELECT mode – pick one scene key */
     public PonderItemGridScreen(Consumer<String> onSelect, Runnable onCancel) {
         this(Mode.SINGLE_SELECT, onSelect, null, onCancel);
     }
 
-    /** MULTI_SELECT mode – pick multiple scene keys */
     public PonderItemGridScreen(Consumer<Set<String>> onSelectMulti, Runnable onCancel, boolean multi) {
         this(Mode.MULTI_SELECT, null, onSelectMulti, onCancel);
     }
 
-    private PonderItemGridScreen(Mode mode, @Nullable Consumer<String> onSelectSingle,
-            @Nullable Consumer<Set<String>> onSelectMulti,
-            @Nullable Runnable onCancel) {
-        super(Component.translatable(switch (mode) {
+    private static String titleKeyFor(Mode mode) {
+        return switch (mode) {
             case LIST -> "ponderer.ui.item_grid.select_scene";
             case SINGLE_SELECT -> "ponderer.ui.item_grid.select_scene";
             case MULTI_SELECT -> "ponderer.ui.item_grid.select_scenes";
-        }));
+        };
+    }
+
+    private PonderItemGridScreen(Mode mode, @Nullable Consumer<String> onSelectSingle,
+                                 @Nullable Consumer<Set<String>> onSelectMulti,
+                                 @Nullable Runnable onCancel) {
+        super(null, "ponderer.ui.scope.editor", titleKeyFor(mode), UILayoutConstants.EDITOR_LIST_W);
         this.mode = mode;
         this.onSelectSingle = onSelectSingle;
         this.onSelectMulti = onSelectMulti;
         this.onCancel = onCancel;
-        this.sections = collectGroupedSections();
-        recomputeCounts();
+        refreshVisibleSections();
     }
 
-    private void recomputeCounts() {
+    @Override
+    protected void init() {
+        super.init();
+
+        if (list != null) {
+            removeWidget(list);
+            list = null;
+        }
+
+        gridPanel = new GridContentPanel(panelLeft(), 35, currentListWidthValue(), height - 80);
+        addRenderableWidget(gridPanel);
+
+        initControlButtons();
+        configureActionButtons();
+
+        if (search != null) {
+            search.setResponder(this::updateSearchFilter);
+            if (!initialSearchText.isBlank()) {
+                search.setValue(initialSearchText);
+            }
+            updateSearchFilter(search.getValue());
+        } else {
+            updateSearchFilter(searchFilter);
+        }
+
+        if (gridPanel != null) {
+            gridPanel.setScroll(pendingPanelScroll);
+            gridPanel.clampScroll();
+        }
+    }
+
+    @Override
+    public void resize(Minecraft client, int width, int height) {
+        pendingPanelScroll = gridPanel != null ? gridPanel.scrollY() : 0;
+        initialSearchText = search != null ? search.getValue() : initialSearchText;
+        super.resize(client, width, height);
+    }
+
+    @Override
+    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
+    }
+
+    @Override
+    protected boolean hasUnsavedChanges() {
+        return mode == Mode.MULTI_SELECT && !baselineSelectedSceneKeys.equals(selectedSceneKeys);
+    }
+
+    @Override
+    protected int getUnsavedChangeCount() {
+        return hasUnsavedChanges() ? 1 : 0;
+    }
+
+    @Override
+    protected boolean saveEdits() {
+        return confirmSelection();
+    }
+
+    @Override
+    protected void discardEdits() {
+        selectedSceneKeys.clear();
+        selectedSceneKeys.addAll(baselineSelectedSceneKeys);
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
+        return mode == Mode.MULTI_SELECT;
+    }
+
+    @Override
+    protected boolean isDiscardButtonActive() {
+        return mode == Mode.MULTI_SELECT;
+    }
+
+    @Override
+    protected void attemptBackToParent() {
+        if (mode != Mode.MULTI_SELECT || !hasUnsavedChanges()) {
+            runCancelAction();
+            return;
+        }
+
+        showLeavingPrompt(response -> {
+            if (response == net.createmod.catnip.gui.ConfirmationScreen.Response.Cancel) {
+                return;
+            }
+            if (response == net.createmod.catnip.gui.ConfirmationScreen.Response.Confirm) {
+                if (!saveEdits()) {
+                    return;
+                }
+            } else {
+                discardEdits();
+                runCancelAction();
+                return;
+            }
+            runCancelAction();
+        });
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (gridPanel != null && gridPanel.mouseScrolled(mouseX, mouseY, delta)) {
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (super.keyPressed(keyCode, scanCode, modifiers)) {
+            return true;
+        }
+
+        if (keyCode == GLFW.GLFW_KEY_W) {
+            HitResult hit = hitTest(lastMouseX, lastMouseY);
+            if (hit != null) {
+                returnScreen = copyForReturn();
+                openFilteredPonderUI(hit.entry);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void refreshVisibleSections() {
+        sections = collectSectionsForCurrentMode();
+        visibleSections = searchFilter.isBlank() ? sections : filterSections(searchFilter);
+        recomputeCounts(visibleSections);
+    }
+
+    private List<PackSection> collectSectionsForCurrentMode() {
+        return groupMode == GroupMode.BY_PACK ? collectGroupedSections() : collectFlatSections();
+    }
+
+    private void recomputeCounts(List<PackSection> source) {
         int items = 0;
         Set<String> allKeys = new HashSet<>();
-        for (PackSection sec : sections) {
-            items += sec.entries.size();
-            for (ItemEntry entry : sec.entries) {
+        for (PackSection section : source) {
+            items += section.entries.size();
+            for (ItemEntry entry : section.entries) {
                 allKeys.addAll(entry.sceneKeys);
             }
         }
-        this.totalItemCount = items;
-        this.totalSceneCount = allKeys.size();
+        totalItemCount = items;
+        totalSceneCount = allKeys.size();
     }
 
-    /** Collect entries grouped by pack prefix. Local first, then sorted by pack name. */
+    private List<PackSection> filterSections(String normalizedQuery) {
+        List<PackSection> filtered = new ArrayList<>();
+        for (PackSection section : sections) {
+            boolean sectionMatches = section.displayName.toLowerCase(Locale.ROOT).contains(normalizedQuery);
+            List<ItemEntry> matched = new ArrayList<>();
+            for (ItemEntry entry : section.entries) {
+                if (sectionMatches || matchesQuery(entry, normalizedQuery)) {
+                    matched.add(entry);
+                }
+            }
+            if (!matched.isEmpty()) {
+                filtered.add(new PackSection(section.packPrefix, section.displayName, matched));
+            }
+        }
+        return filtered;
+    }
+
+    private static boolean matchesQuery(ItemEntry entry, String normalizedQuery) {
+        if (entry.stack.getHoverName().getString().toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+            return true;
+        }
+
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(entry.stack.getItem());
+        if (itemId != null && itemId.toString().toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+            return true;
+        }
+
+        if (entry.nbtFilter != null && entry.nbtFilter.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+            return true;
+        }
+
+        for (String sceneKey : entry.sceneKeys) {
+            if (sceneKey.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void updateSearchFilter(String query) {
+        searchFilter = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        initialSearchText = query == null ? "" : query;
+        refreshVisibleSections();
+        if (search != null) {
+            search.setTextColor(visibleSections.isEmpty() && !searchFilter.isBlank()
+                ? AbstractSimiWidget.COLOR_FAIL.getFirst().getRGB()
+                : UIRenderHelper.COLOR_TEXT.getFirst().getRGB());
+        }
+        if (gridPanel != null) {
+            gridPanel.setScroll(0);
+            gridPanel.clampScroll();
+        }
+    }
+
+    private void toggleGroupMode() {
+        groupMode = (groupMode == GroupMode.BY_PACK) ? GroupMode.BY_ITEM : GroupMode.BY_PACK;
+        refreshVisibleSections();
+        if (gridPanel != null) {
+            gridPanel.setScroll(0);
+            gridPanel.clampScroll();
+        }
+        layoutControlButtons();
+    }
+
+    private void handleSelectAll() {
+        for (PackSection section : visibleSections) {
+            for (ItemEntry entry : section.entries) {
+                selectedSceneKeys.addAll(entry.sceneKeys);
+            }
+        }
+    }
+
+    private void handleDeselectAll() {
+        selectedSceneKeys.clear();
+    }
+
+    private void initControlButtons() {
+        groupToggleButton = createTextButton(this::toggleGroupMode);
+        selectAllButton = createTextButton(this::handleSelectAll);
+        deselectAllButton = createTextButton(this::handleDeselectAll);
+        layoutControlButtons();
+    }
+
+    private void configureActionButtons() {
+        if (saveChanges != null) {
+            if (mode == Mode.MULTI_SELECT) {
+                saveChanges.visible = true;
+                saveChanges.active = true;
+                saveChanges.withCallback(this::confirmSelection);
+                saveChanges.getToolTip().clear();
+                saveChanges.getToolTip().add(Component.translatable("ponderer.ui.confirm"));
+            } else {
+                saveChanges.visible = false;
+                saveChanges.active = false;
+            }
+        }
+
+        if (discardChanges != null) {
+            if (mode == Mode.MULTI_SELECT) {
+                discardChanges.visible = true;
+                discardChanges.active = true;
+                discardChanges.withCallback(this::cancelSelection);
+                discardChanges.getToolTip().clear();
+                discardChanges.getToolTip().add(Component.translatable("ponderer.ui.cancel"));
+            } else {
+                discardChanges.visible = false;
+                discardChanges.active = false;
+            }
+        }
+    }
+
+    private TextButton createTextButton(Runnable callback) {
+        BoxWidget box = new BoxWidget(0, 0, 20, 16).withCallback(callback);
+        TextStencilElement text = new TextStencilElement(Minecraft.getInstance().font, Component.empty())
+            .centered(true, true);
+        text.withElementRenderer(BoxWidget.gradientFactory.apply(box));
+        box.showingElement(text);
+        addRenderableWidget(box);
+        return new TextButton(box, text);
+    }
+
+    private void layoutControlButtons() {
+        if (groupToggleButton == null || gridPanel == null) {
+            return;
+        }
+
+        int contentX = gridPanel.entryContentLeft();
+        int contentRight = gridPanel.entryContentRight();
+        int buttonH = 14;
+
+        String groupLabel = groupMode == GroupMode.BY_PACK
+            ? UIText.of("ponderer.ui.item_grid.group_by_pack")
+            : UIText.of("ponderer.ui.item_grid.group_by_item");
+        String selectAllLabel = UIText.of("ponderer.ui.item_grid.select_all");
+        String deselectAllLabel = UIText.of("ponderer.ui.item_grid.deselect_all");
+        int buttonW = Math.max(40, Math.max(
+            Math.max(font.width(groupLabel), font.width(selectAllLabel)),
+            font.width(deselectAllLabel)) + 10);
+
+        int infoRowY = gridPanel.infoRowY();
+        boolean infoVisible = gridPanel.isRowVisible(infoRowY, INFO_ENTRY_H);
+        layoutButton(groupToggleButton, groupLabel,
+            contentRight - buttonW, infoRowY + 8, buttonW, buttonH, infoVisible);
+
+        int rowY = gridPanel.controlsRowY();
+        boolean multiVisible = mode == Mode.MULTI_SELECT && gridPanel.isRowVisible(rowY, gridPanel.controlsRowHeight());
+        if (selectAllButton != null) {
+            layoutButton(selectAllButton, selectAllLabel,
+                contentX, rowY + 9, buttonW, buttonH, multiVisible);
+        }
+        if (deselectAllButton != null) {
+            layoutButton(deselectAllButton, deselectAllLabel,
+                contentX + buttonW + 6, rowY + 9, buttonW, buttonH, multiVisible);
+        }
+    }
+
+    private static void layoutButton(TextButton textButton, String label, int x, int y, int w, int h, boolean visible) {
+        textButton.box.setX(x);
+        textButton.box.setY(y);
+        textButton.box.setWidth(w);
+        textButton.box.setHeight(h);
+        textButton.box.visible = visible;
+        textButton.box.active = visible;
+        textButton.text.withText(Component.literal(label));
+    }
+
+    private int panelLeft() {
+        return width / 2 - currentListWidthValue() / 2;
+    }
+
+    private boolean confirmSelection() {
+        if (mode != Mode.MULTI_SELECT || onSelectMulti == null) {
+            return false;
+        }
+        baselineSelectedSceneKeys.clear();
+        baselineSelectedSceneKeys.addAll(selectedSceneKeys);
+        onSelectMulti.accept(new HashSet<>(selectedSceneKeys));
+        return true;
+    }
+
+    private void cancelSelection() {
+        discardEdits();
+        runCancelAction();
+    }
+
+    private void runCancelAction() {
+        if (onCancel != null) {
+            onCancel.run();
+        } else {
+            ScreenOpener.open(parent);
+        }
+    }
+
+    private int getSelectionState(ItemEntry entry) {
+        if (mode != Mode.MULTI_SELECT) {
+            return 0;
+        }
+        boolean any = false;
+        boolean all = true;
+        for (String key : entry.sceneKeys) {
+            if (selectedSceneKeys.contains(key)) {
+                any = true;
+            } else {
+                all = false;
+            }
+        }
+        if (all) {
+            return 2;
+        }
+        return any ? 1 : 0;
+    }
+
+    @Nullable
+    private HitResult hitTest(double mouseX, double mouseY) {
+        if (gridPanel == null) {
+            return null;
+        }
+        return gridPanel.hitTest(mouseX, mouseY);
+    }
+
+    private void handleItemClick(ItemEntry entry) {
+        switch (mode) {
+            case LIST -> {
+                returnScreen = copyForReturn();
+                openFilteredPonderUI(entry);
+            }
+            case SINGLE_SELECT -> {
+                if (entry.sceneKeys.size() == 1) {
+                    if (onSelectSingle != null) {
+                        onSelectSingle.accept(entry.sceneKeys.get(0));
+                    }
+                } else {
+                    Minecraft.getInstance().setScreen(new SceneIdListScreen(
+                        entry.sceneKeys, SceneIdListScreen.SelectMode.SINGLE,
+                        onSelectSingle, null, null,
+                        () -> Minecraft.getInstance().setScreen(this)));
+                }
+            }
+            case MULTI_SELECT -> {
+                if (entry.sceneKeys.size() == 1) {
+                    String key = entry.sceneKeys.get(0);
+                    if (selectedSceneKeys.contains(key)) {
+                        selectedSceneKeys.remove(key);
+                    } else {
+                        selectedSceneKeys.add(key);
+                    }
+                } else {
+                    Set<String> pre = new HashSet<>();
+                    for (String key : entry.sceneKeys) {
+                        if (selectedSceneKeys.contains(key)) {
+                            pre.add(key);
+                        }
+                    }
+                    PonderItemGridScreen self = this;
+                    Minecraft.getInstance().setScreen(new SceneIdListScreen(
+                        entry.sceneKeys, SceneIdListScreen.SelectMode.MULTI,
+                        null,
+                        returnedKeys -> {
+                            entry.sceneKeys.forEach(selectedSceneKeys::remove);
+                            selectedSceneKeys.addAll(returnedKeys);
+                            Minecraft.getInstance().setScreen(self);
+                        },
+                        pre,
+                        () -> Minecraft.getInstance().setScreen(self)));
+                }
+            }
+        }
+    }
+
+    private PonderItemGridScreen copyForReturn() {
+        PonderItemGridScreen copy = new PonderItemGridScreen(mode, onSelectSingle, onSelectMulti, onCancel);
+        copy.groupMode = this.groupMode;
+        copy.initialSearchText = search != null ? search.getValue() : initialSearchText;
+        copy.pendingPanelScroll = gridPanel != null ? gridPanel.scrollY() : 0;
+        copy.selectedSceneKeys.addAll(this.selectedSceneKeys);
+        copy.baselineSelectedSceneKeys.addAll(this.baselineSelectedSceneKeys);
+        copy.refreshVisibleSections();
+        return copy;
+    }
+
     private static List<PackSection> collectGroupedSections() {
-        // Group scenes by pack prefix
         Map<String, Map<String, List<String>>> packGroups = new LinkedHashMap<>();
-        // packPrefix -> (itemKey -> list of sceneKeys)
         Map<String, Map<String, List<String>>> packItemFilters = new LinkedHashMap<>();
 
         for (DslScene scene : SceneRuntime.getScenes()) {
-            if (scene.items == null || scene.id == null) continue;
+            if (scene.items == null || scene.id == null) {
+                continue;
+            }
             String packPrefix = scene.getPackPrefix();
             String packKey = packPrefix != null ? packPrefix : "";
             String sceneKey = scene.sceneKey();
@@ -151,118 +575,108 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                 String nf = scene.nbtFilter;
                 String entryKey = normalizedEntryKey(itemId, nf);
 
-                packGroups.computeIfAbsent(packKey, k -> new LinkedHashMap<>())
-                        .computeIfAbsent(entryKey, k -> new ArrayList<>());
+                packGroups.computeIfAbsent(packKey, ignored -> new LinkedHashMap<>())
+                    .computeIfAbsent(entryKey, ignored -> new ArrayList<>());
                 List<String> keys = packGroups.get(packKey).get(entryKey);
-                if (!keys.contains(sceneKey)) keys.add(sceneKey);
+                if (!keys.contains(sceneKey)) {
+                    keys.add(sceneKey);
+                }
 
-                packItemFilters.computeIfAbsent(packKey, k -> new LinkedHashMap<>())
-                        .computeIfAbsent(itemId, k -> new ArrayList<>());
+                packItemFilters.computeIfAbsent(packKey, ignored -> new LinkedHashMap<>())
+                    .computeIfAbsent(itemId, ignored -> new ArrayList<>());
                 List<String> filters = packItemFilters.get(packKey).get(itemId);
                 if (nf != null && !nf.isBlank()) {
-                    if (!filters.contains(nf)) filters.add(nf);
-                } else {
-                    if (!filters.contains(null)) filters.add(0, null);
+                    if (!filters.contains(nf)) {
+                        filters.add(nf);
+                    }
+                } else if (!filters.contains(null)) {
+                    filters.add(0, null);
                 }
             }
         }
 
-        // Build sections: local first, then packs sorted alphabetically
         List<PackSection> result = new ArrayList<>();
         List<String> packKeys = new ArrayList<>(packGroups.keySet());
         packKeys.sort((a, b) -> {
-            if (a.isEmpty() && !b.isEmpty()) return -1;
-            if (!a.isEmpty() && b.isEmpty()) return 1;
+            if (a.isEmpty() && !b.isEmpty()) {
+                return -1;
+            }
+            if (!a.isEmpty() && b.isEmpty()) {
+                return 1;
+            }
             return a.compareToIgnoreCase(b);
         });
 
         for (String packKey : packKeys) {
             Map<String, List<String>> entryMap = packGroups.get(packKey);
             Map<String, List<String>> filterMap = packItemFilters.getOrDefault(packKey, Map.of());
-            List<ItemEntry> entries = new ArrayList<>();
-
-            for (var itemEntry : filterMap.entrySet()) {
-                String itemId = itemEntry.getKey();
-                ResourceLocation rl = ResourceLocation.tryParse(itemId);
-                if (rl == null) continue;
-                Item item = BuiltInRegistries.ITEM.get(rl);
-                if (item == null || item == Items.AIR) continue;
-
-                Set<String> seenNormalizedKeys = new HashSet<>();
-
-                for (String nf : itemEntry.getValue()) {
-                    ItemStack stack = new ItemStack(item);
-                    if (nf != null) {
-                        try {
-                            CompoundTag filterTag = TagParser.parseTag(nf);
-                            CompoundTag fullTag = new CompoundTag();
-                            fullTag.putString("id", rl.toString());
-                            fullTag.putByte("Count", (byte) 1);
-                            fullTag.put("tag", filterTag);
-                            ItemStack parsed = ItemStack.of(fullTag);
-                            if (!parsed.isEmpty()) stack = parsed;
-                        } catch (Exception ignored) {
-                        }
-                    }
-                    String key = normalizedEntryKey(itemId, nf);
-                    if (!seenNormalizedKeys.add(key)) {
-                        continue;
-                    }
-                    List<String> sceneKeys = entryMap.getOrDefault(key, List.of());
-                    if (!sceneKeys.isEmpty()) {
-                        entries.add(new ItemEntry(stack, nf, sceneKeys));
-                    }
-                }
-            }
-
+            List<ItemEntry> entries = buildEntries(entryMap, filterMap);
             if (!entries.isEmpty()) {
                 String prefix = packKey.isEmpty() ? null : packKey;
                 String displayName = packKey.isEmpty()
-                        ? UIText.of("ponderer.ui.item_grid.section_local")
-                        : packKey;
+                    ? UIText.of("ponderer.ui.item_grid.section_local")
+                    : packKey;
                 result.add(new PackSection(prefix, displayName, entries));
             }
         }
+
         return result;
     }
 
-    /** Collect all entries into a single flat list (grouped by item, no pack separation). */
     private static List<PackSection> collectFlatSections() {
         Map<String, List<String>> entryMap = new LinkedHashMap<>();
         Map<String, List<String>> itemFilters = new LinkedHashMap<>();
 
         for (DslScene scene : SceneRuntime.getScenes()) {
-            if (scene.items == null || scene.id == null) continue;
+            if (scene.items == null || scene.id == null) {
+                continue;
+            }
             String sceneKey = scene.sceneKey();
 
             for (String itemId : scene.items) {
                 String nf = scene.nbtFilter;
                 String key = normalizedEntryKey(itemId, nf);
 
-                entryMap.computeIfAbsent(key, k -> new ArrayList<>());
+                entryMap.computeIfAbsent(key, ignored -> new ArrayList<>());
                 List<String> keys = entryMap.get(key);
-                if (!keys.contains(sceneKey)) keys.add(sceneKey);
+                if (!keys.contains(sceneKey)) {
+                    keys.add(sceneKey);
+                }
 
-                itemFilters.computeIfAbsent(itemId, k -> new ArrayList<>());
+                itemFilters.computeIfAbsent(itemId, ignored -> new ArrayList<>());
                 List<String> filters = itemFilters.get(itemId);
                 if (nf != null && !nf.isBlank()) {
-                    if (!filters.contains(nf)) filters.add(nf);
-                } else {
-                    if (!filters.contains(null)) filters.add(0, null);
+                    if (!filters.contains(nf)) {
+                        filters.add(nf);
+                    }
+                } else if (!filters.contains(null)) {
+                    filters.add(0, null);
                 }
             }
         }
 
+        List<ItemEntry> entries = buildEntries(entryMap, itemFilters);
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+        return List.of(new PackSection(null, UIText.of("ponderer.ui.item_grid.section_all"), entries));
+    }
+
+    private static List<ItemEntry> buildEntries(Map<String, List<String>> entryMap,
+                                                Map<String, List<String>> filterMap) {
         List<ItemEntry> entries = new ArrayList<>();
-        for (var itemEntry : itemFilters.entrySet()) {
+        for (var itemEntry : filterMap.entrySet()) {
             String itemId = itemEntry.getKey();
             ResourceLocation rl = ResourceLocation.tryParse(itemId);
-            if (rl == null) continue;
+            if (rl == null) {
+                continue;
+            }
             Item item = BuiltInRegistries.ITEM.get(rl);
-            if (item == null || item == Items.AIR) continue;
+            if (item == null || item == Items.AIR) {
+                continue;
+            }
 
             Set<String> seenNormalizedKeys = new HashSet<>();
-
             for (String nf : itemEntry.getValue()) {
                 ItemStack stack = new ItemStack(item);
                 if (nf != null) {
@@ -273,10 +687,13 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                         fullTag.putByte("Count", (byte) 1);
                         fullTag.put("tag", filterTag);
                         ItemStack parsed = ItemStack.of(fullTag);
-                        if (!parsed.isEmpty()) stack = parsed;
+                        if (!parsed.isEmpty()) {
+                            stack = parsed;
+                        }
                     } catch (Exception ignored) {
                     }
                 }
+
                 String key = normalizedEntryKey(itemId, nf);
                 if (!seenNormalizedKeys.add(key)) {
                     continue;
@@ -287,243 +704,7 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
                 }
             }
         }
-
-        if (entries.isEmpty()) return List.of();
-        return List.of(new PackSection(null,
-                UIText.of("ponderer.ui.item_grid.section_all"), entries));
-    }
-
-    private void toggleGroupMode() {
-        groupMode = (groupMode == GroupMode.BY_PACK) ? GroupMode.BY_ITEM : GroupMode.BY_PACK;
-        sections = (groupMode == GroupMode.BY_PACK) ? collectGroupedSections() : collectFlatSections();
-        recomputeCounts();
-        scrollY = 0;
-        maxScrollY = Math.max(0, computeTotalContentHeight() - VISIBLE_H);
-    }
-
-    /** For ExportPackScreen to read current selection state. */
-    public Set<String> getSelectedSceneIds() {
-        return selectedSceneKeys;
-    }
-
-    private int getWindowHeight() {
-        return GRID_TOP + VISIBLE_H + (mode == Mode.MULTI_SELECT ? 70 : 40);
-    }
-
-    private double computeTotalContentHeight() {
-        double h = 0;
-        for (PackSection section : sections) {
-            h += SECTION_HEADER_H;
-            int rows = (section.entries.size() + COLS - 1) / COLS;
-            h += rows * CELL_SIZE;
-        }
-        return h;
-    }
-
-    @Override
-    protected void init() {
-        setWindowSize(WINDOW_W, getWindowHeight());
-        super.init();
-        maxScrollY = Math.max(0, computeTotalContentHeight() - VISIBLE_H);
-        scrollY = Math.min(scrollY, maxScrollY);
-    }
-
-    /** 0=none, 1=partial, 2=full */
-    private int getSelectionState(ItemEntry entry) {
-        if (mode != Mode.MULTI_SELECT) return 0;
-        boolean any = false, all = true;
-        for (String key : entry.sceneKeys) {
-            if (selectedSceneKeys.contains(key)) any = true;
-            else all = false;
-        }
-        if (all) return 2;
-        if (any) return 1;
-        return 0;
-    }
-
-    // -- Rendering --
-
-    @Override
-    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        lastMouseX = mouseX;
-        lastMouseY = mouseY;
-        int wH = getWindowHeight();
-
-        // Background
-        new BoxElement()
-                .withBackground(new Color(UILayoutConstants.COLOR_BG, true))
-                .gradientBorder(new Color(UILayoutConstants.COLOR_BORDER_TOP, true), new Color(UILayoutConstants.COLOR_BORDER_BOT, true))
-                .at(guiLeft, guiTop, 0)
-                .withBounds(WINDOW_W, wH)
-                .render(graphics);
-
-        var font = Minecraft.getInstance().font;
-
-        // Title
-        graphics.drawCenteredString(font, this.title, guiLeft + WINDOW_W / 2, guiTop + 8, 0xFFFFFF);
-        graphics.fill(guiLeft + 5, guiTop + 20, guiLeft + WINDOW_W - 5, guiTop + 21, UILayoutConstants.COLOR_SEPARATOR);
-
-        // Subtitle
-        String subtitle;
-        if (mode == Mode.MULTI_SELECT) {
-            subtitle = UIText.of("ponderer.ui.item_grid.selected_count",
-                    selectedSceneKeys.size(), totalSceneCount);
-        } else {
-            subtitle = UIText.of("ponderer.ui.item_grid.total_scenes",
-                    totalItemCount, totalSceneCount);
-        }
-        graphics.drawString(font, subtitle, guiLeft + 10, guiTop + 25, 0x999999);
-
-        // [W] hint
-        String wHint = UIText.of("ponderer.ui.item_grid.press_w_hint");
-        int wHintW = font.width(wHint);
-        graphics.drawString(font, wHint, guiLeft + WINDOW_W - 10 - wHintW, guiTop + 25, 0x555555);
-
-        // Group mode toggle button
-        String groupLabel = groupMode == GroupMode.BY_PACK
-                ? UIText.of("ponderer.ui.item_grid.group_by_pack")
-                : UIText.of("ponderer.ui.item_grid.group_by_item");
-        int groupBtnW = font.width(groupLabel) + 8;
-        int groupBtnX = guiLeft + WINDOW_W - 10 - wHintW - groupBtnW - 6;
-        int groupBtnY = guiTop + 22;
-        int groupBtnH = 12;
-        boolean groupHovered = mouseX >= groupBtnX && mouseX < groupBtnX + groupBtnW
-                && mouseY >= groupBtnY && mouseY < groupBtnY + groupBtnH;
-        int gbg = groupHovered ? 0x80_4466aa : 0x60_333366;
-        int gbdr = groupHovered ? 0xCC_6688cc : 0x60_555588;
-        graphics.fill(groupBtnX, groupBtnY, groupBtnX + groupBtnW, groupBtnY + groupBtnH, gbg);
-        graphics.fill(groupBtnX, groupBtnY, groupBtnX + groupBtnW, groupBtnY + 1, gbdr);
-        graphics.fill(groupBtnX, groupBtnY + groupBtnH - 1, groupBtnX + groupBtnW, groupBtnY + groupBtnH, gbdr);
-        graphics.fill(groupBtnX, groupBtnY, groupBtnX + 1, groupBtnY + groupBtnH, gbdr);
-        graphics.fill(groupBtnX + groupBtnW - 1, groupBtnY, groupBtnX + groupBtnW, groupBtnY + groupBtnH, gbdr);
-        graphics.drawString(font, groupLabel, groupBtnX + 4, groupBtnY + 2, groupHovered ? 0xFFFFFF : 0xAAAAAA);
-
-        // Empty state
-        if (sections.isEmpty()) {
-            graphics.drawCenteredString(font,
-                    Component.translatable("ponderer.ui.item_grid.empty"),
-                    guiLeft + WINDOW_W / 2, guiTop + GRID_TOP + 30, 0x999999);
-            return;
-        }
-
-        // -- Scrollable grid with scissor clipping --
-        int clipLeft = guiLeft + GRID_LEFT - 2;
-        int clipTop = guiTop + GRID_TOP;
-        int clipRight = guiLeft + GRID_LEFT + COLS * CELL_SIZE + 2;
-        int clipBottom = clipTop + VISIBLE_H;
-        graphics.enableScissor(clipLeft, clipTop, clipRight, clipBottom);
-
-        double currentY = 0;
-        for (PackSection section : sections) {
-            // Section header
-            int headerScreenY = (int) (clipTop + currentY - scrollY);
-            if (headerScreenY + SECTION_HEADER_H > clipTop && headerScreenY < clipBottom) {
-                graphics.drawString(font, section.displayName,
-                        guiLeft + GRID_LEFT + 2, headerScreenY + 3, 0xCCCC00);
-                graphics.fill(guiLeft + GRID_LEFT, headerScreenY + SECTION_HEADER_H - 1,
-                        guiLeft + GRID_LEFT + COLS * CELL_SIZE,
-                        headerScreenY + SECTION_HEADER_H, 0x40_FFFFFF);
-            }
-            currentY += SECTION_HEADER_H;
-
-            // Items
-            int rows = (section.entries.size() + COLS - 1) / COLS;
-            for (int i = 0; i < section.entries.size(); i++) {
-                int col = i % COLS;
-                int row = i / COLS;
-                int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
-                int iy = (int) (clipTop + currentY + row * CELL_SIZE - scrollY);
-
-                if (iy + CELL_SIZE <= clipTop || iy >= clipBottom) continue;
-
-                ItemEntry entry = section.entries.get(i);
-                boolean hovered = mouseX >= ix && mouseX < ix + CELL_SIZE
-                        && mouseY >= iy && mouseY < iy + CELL_SIZE;
-                int selState = getSelectionState(entry);
-
-                // Selection highlight
-                if (selState == 2) {
-                    graphics.fill(ix, iy, ix + CELL_SIZE, iy + CELL_SIZE, 0x60_4080FF);
-                } else if (selState == 1) {
-                    graphics.fill(ix, iy, ix + CELL_SIZE, iy + CELL_SIZE, 0x30_FFAA00);
-                }
-
-                // Hover highlight
-                if (hovered) {
-                    graphics.fill(ix, iy, ix + CELL_SIZE, iy + CELL_SIZE, 0x40_FFFFFF);
-                }
-
-                graphics.renderItem(entry.stack, ix + 2, iy + 2);
-
-                // NBT indicator
-                if (entry.nbtFilter != null) {
-                    graphics.fill(ix + CELL_SIZE - 5, iy + 1, ix + CELL_SIZE - 1, iy + 5, 0xFF_FFAA00);
-                }
-                // Multi-scene indicator
-                if (entry.sceneKeys.size() > 1) {
-                    graphics.fill(ix + 1, iy + 1, ix + 5, iy + 5, 0xFF_55AAFF);
-                }
-            }
-            currentY += rows * CELL_SIZE;
-        }
-
-        graphics.disableScissor();
-
-        // Scrollbar
-        if (maxScrollY > 0) {
-            int barX = guiLeft + GRID_LEFT + COLS * CELL_SIZE + 2;
-            int barH = VISIBLE_H;
-            double ratio = scrollY / maxScrollY;
-            int thumbH = Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB, (int) (barH * (double) barH / (maxScrollY + barH)));
-            int thumbY = clipTop + (int) ((barH - thumbH) * ratio);
-            graphics.fill(barX, clipTop, barX + UILayoutConstants.SCROLLBAR_W, clipTop + barH, UILayoutConstants.COLOR_SCROLLBAR_BG);
-            graphics.fill(barX, thumbY, barX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH, UILayoutConstants.COLOR_SCROLLBAR_FG);
-        }
-
-        // MULTI_SELECT action buttons
-        if (mode == Mode.MULTI_SELECT) {
-            renderMultiSelectButtons(graphics, font, mouseX, mouseY, wH);
-        }
-    }
-
-    private void renderMultiSelectButtons(GuiGraphics graphics, net.minecraft.client.gui.Font font,
-            int mouseX, int mouseY, int wH) {
-        int btnW = 50, btnH = 16;
-        int btnY = guiTop + wH - 44;
-        int allX = guiLeft + 10;
-        int noneX = allX + btnW + 6;
-        int cancelX = guiLeft + WINDOW_W - 10 - btnW;
-        int okX = cancelX - btnW - 6;
-
-        String allLbl = UIText.of("ponderer.ui.item_grid.select_all");
-        String noneLbl = UIText.of("ponderer.ui.item_grid.deselect_all");
-        String okLbl = UIText.of("ponderer.ui.confirm");
-        String cancelLbl = UIText.of("ponderer.ui.cancel");
-
-        renderTextButton(graphics, font, allX, btnY, btnW, btnH, allLbl, mouseX, mouseY);
-        renderTextButton(graphics, font, noneX, btnY, btnW, btnH, noneLbl, mouseX, mouseY);
-        renderTextButton(graphics, font, okX, btnY, btnW, btnH, okLbl, mouseX, mouseY);
-        renderTextButton(graphics, font, cancelX, btnY, btnW, btnH, cancelLbl, mouseX, mouseY);
-    }
-
-    private void renderTextButton(GuiGraphics graphics, net.minecraft.client.gui.Font font,
-            int x, int y, int w, int h, String label,
-            int mouseX, int mouseY) {
-        boolean hov = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
-        int bg = hov ? 0x80_4466aa : 0x60_333366;
-        int bdr = hov ? 0xCC_6688cc : 0x60_555588;
-        renderBoxButton(graphics, x, y, w, h, bg, bdr);
-        int tc = hov ? 0xFFFFFF : UILayoutConstants.COLOR_LABEL;
-        int tw = font.width(label);
-        graphics.drawString(font, label, x + (w - tw) / 2, y + (h - font.lineHeight) / 2 + 1, tc);
-    }
-
-    private void renderBoxButton(GuiGraphics graphics, int x, int y, int w, int h, int bg, int bdr) {
-        graphics.fill(x, y, x + w, y + h, bg);
-        graphics.fill(x, y, x + w, y + 1, bdr);
-        graphics.fill(x, y + h - 1, x + w, y + h, bdr);
-        graphics.fill(x, y, x + 1, y + h, bdr);
-        graphics.fill(x + w - 1, y, x + w, y + h, bdr);
+        return entries;
     }
 
     private static String normalizedEntryKey(String itemId, @Nullable String nbtFilter) {
@@ -538,7 +719,9 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
     }
 
     private static String formatNbtFilterForTooltip(ItemEntry entry) {
-        if (entry.nbtFilter == null) return "";
+        if (entry.nbtFilter == null) {
+            return "";
+        }
         ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(entry.stack.getItem());
         if (itemId != null && "minecraft:written_book".equals(itemId.toString())) {
             String title = NbtSceneFilter.extractWrittenBookTitleFromFilterSnbt(entry.nbtFilter);
@@ -549,221 +732,20 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         return entry.nbtFilter;
     }
 
-    @Override
-    protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        if (sections.isEmpty()) return;
-
-        HitResult hit = hitTest(mouseX, mouseY);
-        if (hit == null) return;
-
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 600);
-
-        ItemEntry entry = hit.entry;
-        List<Component> tooltip = new ArrayList<>(
-                entry.stack.getTooltipLines(Minecraft.getInstance().player, TooltipFlag.NORMAL));
-        tooltip.add(Component.literal(""));
-
-        // Scene keys
-        if (entry.sceneKeys.size() == 1) {
-            String key = entry.sceneKeys.get(0);
-            String prefix = mode == Mode.MULTI_SELECT && selectedSceneKeys.contains(key) ? "\u2713 " : "";
-            tooltip.add(Component.literal(prefix)
-                    .append(Component.translatable("ponderer.ui.item_grid.scene_label", key))
-                    .withStyle(ChatFormatting.AQUA));
-        } else {
-            tooltip.add(Component.translatable("ponderer.ui.item_grid.scenes_count", entry.sceneKeys.size())
-                    .withStyle(ChatFormatting.AQUA));
-            for (int j = 0; j < Math.min(entry.sceneKeys.size(), 8); j++) {
-                String key = entry.sceneKeys.get(j);
-                String prefix = mode == Mode.MULTI_SELECT && selectedSceneKeys.contains(key) ? "\u2713 " : "  ";
-                tooltip.add(Component.literal(prefix + key)
-                        .withStyle(ChatFormatting.DARK_AQUA));
-            }
-            if (entry.sceneKeys.size() > 8) {
-                tooltip.add(Component.literal("  ...")
-                        .withStyle(ChatFormatting.GRAY));
-            }
-        }
-
-        // NBT filter
-        if (entry.nbtFilter != null) {
-            tooltip.add(Component.translatable("ponderer.ui.item_list.nbt_filter")
-                    .withStyle(ChatFormatting.GOLD));
-            tooltip.add(Component.literal(formatNbtFilterForTooltip(entry))
-                    .withStyle(ChatFormatting.GRAY));
-        }
-
-        graphics.renderComponentTooltip(Minecraft.getInstance().font, tooltip, mouseX, mouseY);
-        graphics.pose().popPose();
-    }
-
-    // -- Hit testing --
-
-    private record HitResult(PackSection section, ItemEntry entry) {
-    }
-
-    @Nullable
-    private HitResult hitTest(double mx, double my) {
-        int clipTop = guiTop + GRID_TOP;
-        int clipBottom = clipTop + VISIBLE_H;
-        if (my < clipTop || my >= clipBottom) return null;
-
-        double currentY = 0;
-        for (PackSection section : sections) {
-            currentY += SECTION_HEADER_H;
-            for (int i = 0; i < section.entries.size(); i++) {
-                int col = i % COLS;
-                int row = i / COLS;
-                int ix = guiLeft + GRID_LEFT + col * CELL_SIZE;
-                int iy = (int) (clipTop + currentY + row * CELL_SIZE - scrollY);
-                if (mx >= ix && mx < ix + CELL_SIZE && my >= iy && my < iy + CELL_SIZE
-                        && iy >= clipTop && iy + CELL_SIZE <= clipBottom) {
-                    return new HitResult(section, section.entries.get(i));
-                }
-            }
-            int rows = (section.entries.size() + COLS - 1) / COLS;
-            currentY += rows * CELL_SIZE;
-        }
-        return null;
-    }
-
-    // -- Input handling --
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button != 0)
-            return super.mouseClicked(mouseX, mouseY, button);
-
-        // Group mode toggle button
-        var font = Minecraft.getInstance().font;
-        String wHint = UIText.of("ponderer.ui.item_grid.press_w_hint");
-        int wHintW = font.width(wHint);
-        String groupLabel = groupMode == GroupMode.BY_PACK
-                ? UIText.of("ponderer.ui.item_grid.group_by_pack")
-                : UIText.of("ponderer.ui.item_grid.group_by_item");
-        int groupBtnW = font.width(groupLabel) + 8;
-        int groupBtnX = guiLeft + WINDOW_W - 10 - wHintW - groupBtnW - 6;
-        int groupBtnY = guiTop + 22;
-        int groupBtnH = 12;
-        if (isInBox(mouseX, mouseY, groupBtnX, groupBtnY, groupBtnW, groupBtnH)) {
-            toggleGroupMode();
-            return true;
-        }
-
-        int wH = getWindowHeight();
-
-        // MULTI_SELECT action buttons
-        if (mode == Mode.MULTI_SELECT) {
-            int btnW = 50, btnH = 16;
-            int btnY = guiTop + wH - 44;
-            int allX = guiLeft + 10;
-            int noneX = allX + btnW + 6;
-            int cancelX = guiLeft + WINDOW_W - 10 - btnW;
-            int okX = cancelX - btnW - 6;
-
-            if (isInBox(mouseX, mouseY, allX, btnY, btnW, btnH)) {
-                handleSelectAll();
-                return true;
-            }
-            if (isInBox(mouseX, mouseY, noneX, btnY, btnW, btnH)) {
-                handleDeselectAll();
-                return true;
-            }
-            if (isInBox(mouseX, mouseY, okX, btnY, btnW, btnH)) {
-                if (onSelectMulti != null)
-                    onSelectMulti.accept(selectedSceneKeys);
-                return true;
-            }
-            if (isInBox(mouseX, mouseY, cancelX, btnY, btnW, btnH)) {
-                if (onCancel != null)
-                    onCancel.run();
-                return true;
-            }
-        }
-
-        // Item grid click
-        HitResult hit = hitTest(mouseX, mouseY);
-        if (hit != null) {
-            handleItemClick(hit.entry);
-            return true;
-        }
-
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    private void handleItemClick(ItemEntry entry) {
-        switch (mode) {
-            case LIST -> {
-                PonderItemGridScreen returning = new PonderItemGridScreen();
-                returning.scrollY = this.scrollY;
-                returnScreen = returning;
-                openFilteredPonderUI(entry);
-            }
-            case SINGLE_SELECT -> {
-                if (entry.sceneKeys.size() == 1) {
-                    if (onSelectSingle != null)
-                        onSelectSingle.accept(entry.sceneKeys.get(0));
-                } else {
-                    Minecraft.getInstance().setScreen(new SceneIdListScreen(
-                            entry.sceneKeys, SceneIdListScreen.SelectMode.SINGLE,
-                            onSelectSingle, null, null,
-                            () -> Minecraft.getInstance().setScreen(this)));
-                }
-            }
-            case MULTI_SELECT -> {
-                if (entry.sceneKeys.size() == 1) {
-                    String key = entry.sceneKeys.get(0);
-                    if (selectedSceneKeys.contains(key))
-                        selectedSceneKeys.remove(key);
-                    else
-                        selectedSceneKeys.add(key);
-                } else {
-                    Set<String> pre = new HashSet<>();
-                    for (String key : entry.sceneKeys) {
-                        if (selectedSceneKeys.contains(key))
-                            pre.add(key);
-                    }
-                    PonderItemGridScreen self = this;
-                    Minecraft.getInstance().setScreen(new SceneIdListScreen(
-                            entry.sceneKeys, SceneIdListScreen.SelectMode.MULTI,
-                            null,
-                            returnedKeys -> {
-                                entry.sceneKeys.forEach(selectedSceneKeys::remove);
-                                selectedSceneKeys.addAll(returnedKeys);
-                                Minecraft.getInstance().setScreen(self);
-                            },
-                            pre,
-                            () -> Minecraft.getInstance().setScreen(self)));
-                }
-            }
-        }
-    }
-
-    /**
-     * Open PonderUI filtered to only show scenes matching the entry's sceneKeys.
-     * This ensures that clicking an item in a specific pack/NBT group only shows
-     * the relevant scenes, not all scenes for that item across all packs.
-     */
     private static void openFilteredPonderUI(ItemEntry entry) {
         PonderUI ui = PonderUI.of(entry.stack);
         var accessor = (com.nododiiiii.ponderer.mixin.PonderUIAccessor) (Object) ui;
         List<net.createmod.ponder.foundation.PonderScene> allScenes = accessor.ponderer$getScenes();
 
-        // Resolve which PonderScene IDs + occurrence indices belong to this entry's sceneKeys
-        Set<com.nododiiiii.ponderer.ponder.SceneRuntime.PonderSceneRef> refs =
-                com.nododiiiii.ponderer.ponder.SceneRuntime.resolvePonderSceneRefs(entry.sceneKeys);
-
+        Set<SceneRuntime.PonderSceneRef> refs = SceneRuntime.resolvePonderSceneRefs(entry.sceneKeys);
         if (!refs.isEmpty()) {
-            // Build a set of (sceneId, occurrenceIndex) to keep
-            // Count occurrences as we iterate to match the correct one
-            Map<String, int[]> idCounters = new java.util.HashMap<>();
-            List<net.createmod.ponder.foundation.PonderScene> filtered = new java.util.ArrayList<>();
+            Map<String, int[]> idCounters = new LinkedHashMap<>();
+            List<net.createmod.ponder.foundation.PonderScene> filtered = new ArrayList<>();
             for (net.createmod.ponder.foundation.PonderScene ps : allScenes) {
                 String psId = ps.getId().toString();
-                int[] counter = idCounters.computeIfAbsent(psId, k -> new int[]{0});
+                int[] counter = idCounters.computeIfAbsent(psId, ignored -> new int[]{0});
                 int occ = counter[0]++;
-                if (refs.contains(new com.nododiiiii.ponderer.ponder.SceneRuntime.PonderSceneRef(psId, occ))) {
+                if (refs.contains(new SceneRuntime.PonderSceneRef(psId, occ))) {
                     filtered.add(ps);
                 }
             }
@@ -776,69 +758,461 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         ScreenOpener.transitionTo(ui);
     }
 
-    private void handleSelectAll() {
-        for (PackSection section : sections) {
-            for (ItemEntry entry : section.entries) {
-                selectedSceneKeys.addAll(entry.sceneKeys);
-            }
+    private static int rowsFor(int size, int columns) {
+        return (size + columns - 1) / columns;
+    }
+
+    private String screenTitleText() {
+        return UIText.of(titleKey);
+    }
+
+    private record TextButton(BoxWidget box, TextStencilElement text) {
+    }
+
+    private record HitResult(ItemEntry entry) {
+    }
+
+    private final class GridContentPanel extends AbstractSimiWidget {
+
+        private double scrollY = 0;
+        private boolean draggingScrollbar = false;
+        private double scrollbarGrabOffset = 0;
+
+        private GridContentPanel(int x, int y, int width, int height) {
+            super(x, y, width, height);
         }
-    }
 
-    private void handleDeselectAll() {
-        selectedSceneKeys.clear();
-    }
+        @Override
+        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
 
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        scrollY = Math.max(0, Math.min(maxScrollY, scrollY - delta * SCROLL_SPEED));
-        return true;
-    }
+            clampScroll();
+            renderPanelFrame(graphics);
 
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // W key – preview ponder for hovered item
-        if (keyCode == GLFW.GLFW_KEY_W) {
-            HitResult hit = hitTest(lastMouseX, lastMouseY);
-            if (hit != null) {
-                PonderItemGridScreen returning = new PonderItemGridScreen();
-                returning.scrollY = this.scrollY;
-                returnScreen = returning;
-                openFilteredPonderUI(hit.entry);
+            graphics.enableScissor(getX(), getY(), getX() + getWidth(), getY() + getHeight());
+            try {
+                int drawY = infoRowY();
+                renderInfoEntry(graphics, drawY);
+                drawY += INFO_ENTRY_H;
+                renderControlsEntry(graphics, drawY);
+                drawY += controlsRowHeight();
+                renderGridEntry(graphics, drawY, mouseX, mouseY);
+            } finally {
+                graphics.disableScissor();
+            }
+
+            renderScrollbar(graphics, mouseX, mouseY);
+            renderTooltip(graphics, mouseX, mouseY);
+            layoutControlButtons();
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button != 0 || !isMouseOver(mouseX, mouseY)) {
+                return false;
+            }
+
+            if (isOverScrollbar(mouseX, mouseY)) {
+                if (contentHeight() <= getHeight()) {
+                    return true;
+                }
+                if (isOverScrollbarThumb(mouseX, mouseY)) {
+                    draggingScrollbar = true;
+                    scrollbarGrabOffset = mouseY - scrollbarThumbY();
+                } else {
+                    jumpScrollbar(mouseY);
+                }
                 return true;
             }
+
+            HitResult hit = hitTest(mouseX, mouseY);
+            if (hit != null) {
+                handleItemClick(hit.entry);
+                return true;
+            }
+            return false;
         }
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            return super.keyPressed(keyCode, scanCode, modifiers);
+
+        @Override
+        public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+            if (!draggingScrollbar || button != 0) {
+                return false;
+            }
+            dragScrollbar(mouseY - scrollbarGrabOffset + scrollbarThumbHeight() / 2.0);
+            return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
-    }
 
-    private static boolean isInBox(double mx, double my, int x, int y, int w, int h) {
-        return mx >= x && mx < x + w && my >= y && my < y + h;
-    }
+        @Override
+        public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            if (button == 0 && draggingScrollbar) {
+                draggingScrollbar = false;
+                return true;
+            }
+            return super.mouseReleased(mouseX, mouseY, button);
+        }
 
-    @Override
-    public void onClose() {
-        if (onCancel != null) {
-            onCancel.run();
-        } else {
-            super.onClose();
+        @Override
+        public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+            if (!isMouseOver(mouseX, mouseY)) {
+                return false;
+            }
+            setScroll(scrollY - delta * SCROLL_SPEED);
+            return true;
+        }
+
+        private double scrollY() {
+            return scrollY;
+        }
+
+        private void setScroll(double value) {
+            scrollY = Mth.clamp(value, 0, Math.max(0, contentHeight() - getHeight()));
+        }
+
+        private void clampScroll() {
+            setScroll(scrollY);
+        }
+
+        private int infoRowY() {
+            return getY() - Mth.floor(scrollY);
+        }
+
+        private int controlsRowY() {
+            return infoRowY() + INFO_ENTRY_H;
+        }
+
+        private int controlsRowHeight() {
+            return mode == Mode.MULTI_SELECT ? CONTROL_ENTRY_H : 0;
+        }
+
+        private int gridRowY() {
+            return controlsRowY() + controlsRowHeight();
+        }
+
+        private boolean isRowVisible(int rowY, int rowHeight) {
+            return rowY + rowHeight > getY() && rowY < getY() + getHeight();
+        }
+
+        private int contentHeight() {
+            return INFO_ENTRY_H + controlsRowHeight() + gridEntryHeight();
+        }
+
+        private int gridEntryHeight() {
+            if (visibleSections.isEmpty()) {
+                return 88;
+            }
+            int columns = columns();
+            int height = GRID_PAD_Y * 2;
+            for (PackSection section : visibleSections) {
+                height += SECTION_HEADER_H;
+                height += rowsFor(section.entries.size(), columns) * CELL_SIZE;
+            }
+            return Math.max(88, height);
+        }
+
+        private int entryLeft() {
+            return getX() + 4;
+        }
+
+        private int entryWidth() {
+            return getWidth() - 8;
+        }
+
+        private int entryContentLeft() {
+            return getX() + 12;
+        }
+
+        private int entryContentRight() {
+            return getX() + getWidth() - 12;
+        }
+
+        private int scrollbarX() {
+            return getX() + getWidth() - UILayoutConstants.SCROLLBAR_W - 4;
+        }
+
+        private int scrollbarTop() {
+            return getY() + 4;
+        }
+
+        private int scrollbarHeight() {
+            return getHeight() - 8;
+        }
+
+        private int scrollbarThumbHeight() {
+            if (contentHeight() <= getHeight()) {
+                return scrollbarHeight();
+            }
+            return Math.max(UILayoutConstants.SCROLLBAR_MIN_THUMB,
+                scrollbarHeight() * getHeight() / contentHeight());
+        }
+
+        private int scrollbarThumbY() {
+            if (contentHeight() <= getHeight()) {
+                return scrollbarTop();
+            }
+            int trackRange = scrollbarHeight() - scrollbarThumbHeight();
+            int contentRange = contentHeight() - getHeight();
+            return scrollbarTop() + Mth.floor(scrollY / contentRange * trackRange);
+        }
+
+        private boolean isOverScrollbar(double mouseX, double mouseY) {
+            return mouseX >= scrollbarX() && mouseX < scrollbarX() + UILayoutConstants.SCROLLBAR_W
+                && mouseY >= scrollbarTop() && mouseY < scrollbarTop() + scrollbarHeight();
+        }
+
+        private boolean isOverScrollbarThumb(double mouseX, double mouseY) {
+            int thumbY = scrollbarThumbY();
+            int thumbH = scrollbarThumbHeight();
+            return mouseX >= scrollbarX() && mouseX < scrollbarX() + UILayoutConstants.SCROLLBAR_W
+                && mouseY >= thumbY && mouseY < thumbY + thumbH;
+        }
+
+        private void jumpScrollbar(double mouseY) {
+            dragScrollbar(mouseY);
+        }
+
+        private void dragScrollbar(double thumbCenterY) {
+            if (contentHeight() <= getHeight()) {
+                setScroll(0);
+                return;
+            }
+            int thumbH = scrollbarThumbHeight();
+            int trackRange = scrollbarHeight() - thumbH;
+            double clampedCenter = Mth.clamp(thumbCenterY,
+                scrollbarTop() + thumbH / 2.0,
+                scrollbarTop() + scrollbarHeight() - thumbH / 2.0);
+            double trackOffset = clampedCenter - scrollbarTop() - thumbH / 2.0;
+            double ratio = trackRange <= 0 ? 0 : trackOffset / trackRange;
+            setScroll(ratio * (contentHeight() - getHeight()));
+        }
+
+        private int columns() {
+            int availableWidth = Math.max(CELL_SIZE, gridRightLimit() - gridLeft());
+            return Math.max(1, availableWidth / CELL_SIZE);
+        }
+
+        private int gridInnerWidth() {
+            return columns() * CELL_SIZE;
+        }
+
+        private int gridLeft() {
+            return entryContentLeft();
+        }
+
+        private int gridRightLimit() {
+            return scrollbarX() - 6;
+        }
+
+        private int gridRight() {
+            return gridLeft() + gridInnerWidth();
+        }
+
+        private void renderPanelFrame(GuiGraphics graphics) {
+            Color c = new Color(0x60_000000);
+            UIRenderHelper.angledGradient(graphics, 90, getX() + getWidth() / 2, getY(), getWidth(), 5, c, Color.TRANSPARENT_BLACK);
+            UIRenderHelper.angledGradient(graphics, -90, getX() + getWidth() / 2, getY() + getHeight(), getWidth(), 5, c, Color.TRANSPARENT_BLACK);
+            UIRenderHelper.angledGradient(graphics, 0, getX(), getY() + getHeight() / 2, getHeight(), 5, c, Color.TRANSPARENT_BLACK);
+            UIRenderHelper.angledGradient(graphics, 180, getX() + getWidth(), getY() + getHeight() / 2, getHeight(), 5, c, Color.TRANSPARENT_BLACK);
+        }
+
+        private void renderEntryShell(GuiGraphics graphics, int y, int height, boolean accent) {
+            int entryX = entryLeft();
+            int entryW = entryWidth();
+            graphics.fill(entryX, y + 4, entryX + entryW, y + height - 4, 0x08_FFFFFF);
+            UIRenderHelper.streak(graphics, 0, entryX - 6, y + height / 2, Math.max(8, height - 10),
+                entryW * 7 / 8, new Color(accent ? 0xE0_10182C : 0xDD_000000, true));
+            UIRenderHelper.streak(graphics, 180, entryX + entryW + 6, y + height / 2, Math.max(8, height - 10),
+                entryW * 7 / 8, new Color(accent ? 0xE0_10182C : 0xDD_000000, true));
+            graphics.fill(entryX + 4, y + height - 10, entryX + entryW - 4, y + height - 9,
+                accent ? 0x45_F3D46B : 0x25_FFFFFF);
+        }
+
+        private void renderInfoEntry(GuiGraphics graphics, int y) {
+            if (!isRowVisible(y, INFO_ENTRY_H)) {
+                return;
+            }
+            renderEntryShell(graphics, y, INFO_ENTRY_H, true);
+
+            String subtitle = mode == Mode.MULTI_SELECT
+                ? UIText.of("ponderer.ui.item_grid.selected_count", selectedSceneKeys.size(), totalSceneCount)
+                : UIText.of("ponderer.ui.item_grid.total_scenes", totalItemCount, totalSceneCount);
+
+            graphics.drawString(font, screenTitleText(), entryContentLeft(), y + 8,
+                UIRenderHelper.COLOR_TEXT_STRONG_ACCENT.getFirst().getRGB());
+            graphics.drawString(font, subtitle, entryContentLeft(), y + 22,
+                UIRenderHelper.COLOR_TEXT.getSecond().getRGB());
+        }
+
+        private void renderGridEntry(GuiGraphics graphics, int y, int mouseX, int mouseY) {
+            int height = gridEntryHeight();
+            renderEntryShell(graphics, y, height, false);
+            graphics.fill(gridLeft() - 2, y + 4, gridRightLimit() + 2, y + height - 4, 0x08_000000);
+
+            if (visibleSections.isEmpty()) {
+                if (isRowVisible(y, height)) {
+                    graphics.drawCenteredString(font, Component.translatable("ponderer.ui.item_grid.empty"),
+                        getX() + getWidth() / 2, y + height / 2 - 4,
+                        UIRenderHelper.COLOR_TEXT_DARKER.getFirst().getRGB());
+                }
+                return;
+            }
+
+            int contentY = y + GRID_PAD_Y;
+            int columns = columns();
+            for (PackSection section : visibleSections) {
+                int headerY = contentY;
+                if (headerY + SECTION_HEADER_H > getY() && headerY < getY() + getHeight()) {
+                    graphics.drawString(font, section.displayName, gridLeft() + 2, headerY + 3,
+                        UIRenderHelper.COLOR_TEXT_STRONG_ACCENT.getFirst().getRGB());
+                    graphics.fill(gridLeft(), headerY + SECTION_HEADER_H - 1, gridRight(),
+                        headerY + SECTION_HEADER_H, 0x20_FFFFFF);
+                }
+                contentY += SECTION_HEADER_H;
+
+                for (int index = 0; index < section.entries.size(); index++) {
+                    int col = index % columns;
+                    int row = index / columns;
+                    int itemX = gridLeft() + col * CELL_SIZE;
+                    int itemY = contentY + row * CELL_SIZE;
+                    if (itemY + CELL_SIZE <= getY() || itemY >= getY() + getHeight()) {
+                        continue;
+                    }
+
+                    ItemEntry entry = section.entries.get(index);
+                    boolean hovered = mouseX >= itemX && mouseX < itemX + CELL_SIZE
+                        && mouseY >= itemY && mouseY < itemY + CELL_SIZE;
+                    renderItemCell(graphics, itemX, itemY, entry, hovered);
+                }
+                contentY += rowsFor(section.entries.size(), columns) * CELL_SIZE;
+            }
+        }
+
+        private void renderControlsEntry(GuiGraphics graphics, int y) {
+            int rowHeight = controlsRowHeight();
+            if (rowHeight == 0 || !isRowVisible(y, rowHeight)) {
+                return;
+            }
+            renderEntryShell(graphics, y, rowHeight, false);
+        }
+
+        private void renderItemCell(GuiGraphics graphics, int x, int y, ItemEntry entry, boolean hovered) {
+            int selectionState = getSelectionState(entry);
+            Couple<Color> border = null;
+            Color background = null;
+            int frameInset = 1;
+
+            if (selectionState == 2) {
+                border = AbstractSimiWidget.COLOR_SUCCESS;
+                background = new Color(0x24_88F788, true);
+            } else if (selectionState == 1) {
+                border = Couple.create(new Color(0xdd_ffcf75, true), new Color(0x90_ff9a30, true));
+                background = new Color(0x20_ffb347, true);
+            } else if (hovered) {
+                border = AbstractSimiWidget.COLOR_HOVER;
+                background = new Color(0x14_ffffff, true);
+            }
+
+            if (border != null) {
+                new BoxElement()
+                    .withBackground(background)
+                    .gradientBorder(border.getFirst(), border.getSecond())
+                    .at(x + frameInset, y + frameInset, 0)
+                    .withBounds(CELL_SIZE - frameInset * 2, CELL_SIZE - frameInset * 2)
+                    .render(graphics);
+            }
+
+            graphics.renderItem(entry.stack, x + 2, y + 2);
+            if (entry.nbtFilter != null) {
+                graphics.fill(x + CELL_SIZE - 5, y + 1, x + CELL_SIZE - 1, y + 5, 0xFF_FFAA00);
+            }
+            if (entry.sceneKeys.size() > 1) {
+                graphics.fill(x + 1, y + 1, x + 5, y + 5, 0xFF_55AAFF);
+            }
+        }
+
+        @Nullable
+        private HitResult hitTest(double mouseX, double mouseY) {
+            if (!isMouseOver(mouseX, mouseY)) {
+                return null;
+            }
+
+            int columns = columns();
+            int contentY = gridRowY() + GRID_PAD_Y;
+            for (PackSection section : visibleSections) {
+                contentY += SECTION_HEADER_H;
+                for (int index = 0; index < section.entries.size(); index++) {
+                    int col = index % columns;
+                    int row = index / columns;
+                    int itemX = gridLeft() + col * CELL_SIZE;
+                    int itemY = contentY + row * CELL_SIZE;
+                    if (mouseX >= itemX && mouseX < itemX + CELL_SIZE
+                        && mouseY >= itemY && mouseY < itemY + CELL_SIZE
+                        && itemY >= getY() && itemY + CELL_SIZE <= getY() + getHeight()) {
+                        return new HitResult(section.entries.get(index));
+                    }
+                }
+                contentY += rowsFor(section.entries.size(), columns) * CELL_SIZE;
+            }
+            return null;
+        }
+
+        private void renderScrollbar(GuiGraphics graphics, int mouseX, int mouseY) {
+            if (contentHeight() <= getHeight()) {
+                return;
+            }
+            int trackX = scrollbarX();
+            int trackY = scrollbarTop();
+            int trackH = scrollbarHeight();
+            int thumbY = scrollbarThumbY();
+            int thumbH = scrollbarThumbHeight();
+            boolean hovered = isOverScrollbarThumb(mouseX, mouseY) || draggingScrollbar;
+            graphics.fill(trackX, trackY, trackX + UILayoutConstants.SCROLLBAR_W, trackY + trackH,
+                UILayoutConstants.COLOR_SCROLLBAR_BG);
+            graphics.fill(trackX, thumbY, trackX + UILayoutConstants.SCROLLBAR_W, thumbY + thumbH,
+                hovered ? UILayoutConstants.COLOR_SCROLLBAR_HOVER : UILayoutConstants.COLOR_SCROLLBAR_FG);
+        }
+
+        private void renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+            HitResult hit = hitTest(mouseX, mouseY);
+            if (hit == null) {
+                return;
+            }
+
+            ItemEntry entry = hit.entry;
+            List<Component> tooltip = new ArrayList<>(
+                entry.stack.getTooltipLines(Minecraft.getInstance().player, TooltipFlag.NORMAL));
+            tooltip.add(Component.literal(""));
+
+            if (entry.sceneKeys.size() == 1) {
+                String key = entry.sceneKeys.get(0);
+                String prefix = mode == Mode.MULTI_SELECT && selectedSceneKeys.contains(key) ? "\u2713 " : "";
+                tooltip.add(Component.literal(prefix)
+                    .append(Component.translatable("ponderer.ui.item_grid.scene_label", key))
+                    .withStyle(ChatFormatting.AQUA));
+            } else {
+                tooltip.add(Component.translatable("ponderer.ui.item_grid.scenes_count", entry.sceneKeys.size())
+                    .withStyle(ChatFormatting.AQUA));
+                for (int i = 0; i < Math.min(entry.sceneKeys.size(), 8); i++) {
+                    String key = entry.sceneKeys.get(i);
+                    String prefix = mode == Mode.MULTI_SELECT && selectedSceneKeys.contains(key) ? "\u2713 " : "  ";
+                    tooltip.add(Component.literal(prefix + key).withStyle(ChatFormatting.DARK_AQUA));
+                }
+                if (entry.sceneKeys.size() > 8) {
+                    tooltip.add(Component.literal("  ...").withStyle(ChatFormatting.GRAY));
+                }
+            }
+
+            if (entry.nbtFilter != null) {
+                tooltip.add(Component.translatable("ponderer.ui.item_list.nbt_filter")
+                    .withStyle(ChatFormatting.GOLD));
+                tooltip.add(Component.literal(formatNbtFilterForTooltip(entry))
+                    .withStyle(ChatFormatting.GRAY));
+            }
+
+            graphics.renderComponentTooltip(font, tooltip, mouseX, mouseY);
         }
     }
 
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
-    // =========================================================================
-    // Inner class: SceneIdListScreen (for multi-scene items)
-    // =========================================================================
-
-    /**
-     * List screen for selecting one or more scene keys from a single item
-     * that is associated with multiple scenes.
-     */
     static class SceneIdListScreen extends AbstractDeclarativeListScreen {
         public enum SelectMode {
             SINGLE, MULTI
@@ -857,10 +1231,10 @@ public class PonderItemGridScreen extends AbstractSimiScreen {
         }
 
         SceneIdListScreen(List<String> sceneKeys, SelectMode selectMode,
-                @Nullable Consumer<String> onSelectSingle,
-                @Nullable Consumer<Set<String>> onSelectMulti,
-                @Nullable Set<String> preSelected,
-                Runnable onCancel) {
+                          @Nullable Consumer<String> onSelectSingle,
+                          @Nullable Consumer<Set<String>> onSelectMulti,
+                          @Nullable Set<String> preSelected,
+                          Runnable onCancel) {
             super(null, "ponderer.ui.scope.editor", "ponderer.ui.item_grid.select_scene_id", UILayoutConstants.EDITOR_LIST_W);
             this.sceneKeys = sceneKeys;
             this.selectMode = selectMode;
