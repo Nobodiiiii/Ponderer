@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
-import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PageTurnListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.ScreenOpener;
 
@@ -67,21 +67,14 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
 
     @Override
     protected void collectEntries(List<ConfigScreenList.Entry> entries) {
-        String pageLabel = UIText.of(pageKeys[pageIndex]) + " [" + (pageIndex + 1) + "/" + pageTypes.length + "]";
-        entries.add(new SectionHeaderListEntry(pageLabel));
-
-        if (pageIndex > 0) {
-            entries.add(new FullButtonListEntry(
-                "< " + UIText.of(pageKeys[pageIndex - 1]),
-                null,
-                () -> openPage(pageIndex - 1)));
-        }
-        if (pageIndex + 1 < pageTypes.length) {
-            entries.add(new FullButtonListEntry(
-                UIText.of(pageKeys[pageIndex + 1]) + " >",
-                null,
-                () -> openPage(pageIndex + 1)));
-        }
+        entries.add(new PageTurnListEntry(
+            this::currentPageLabel,
+            () -> openPage(pageIndex - 1),
+            () -> openPage(pageIndex + 1),
+            this::previousPageTooltip,
+            this::nextPageTooltip,
+            () -> pageIndex > 0,
+            () -> pageIndex + 1 < pageTypes.length));
 
         for (String type : pageTypes[pageIndex]) {
             entries.add(new FullButtonListEntry(UIText.of(stepTypeLabelKey(type)), null, () -> openEditorForType(type)));
@@ -95,6 +88,18 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
 
     private void openPage(int newPageIndex) {
         ScreenOpener.open(new StepTypeSelectorScreen(scene, sceneIndex, parent, newPageIndex, insertAfterIndex));
+    }
+
+    private String currentPageLabel() {
+        return UIText.of(pageKeys[pageIndex]) + " [" + (pageIndex + 1) + "/" + pageTypes.length + "]";
+    }
+
+    private String previousPageTooltip() {
+        return pageIndex > 0 ? UIText.of(pageKeys[pageIndex - 1]) : "";
+    }
+
+    private String nextPageTooltip() {
+        return pageIndex + 1 < pageTypes.length ? UIText.of(pageKeys[pageIndex + 1]) : "";
     }
 
     private static boolean isInterfaceStartScene(DslScene scene, int sceneIndex) {

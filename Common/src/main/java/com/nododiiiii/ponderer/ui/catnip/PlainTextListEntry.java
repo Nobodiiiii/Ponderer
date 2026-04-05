@@ -28,6 +28,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     @Nullable
     private Supplier<String> unitTextGetter;
     private int preferredFieldWidth = -1;
+    private int minimumControlWidth = -1;
     private float controlWidthScale = 1.0f;
 
     public PlainTextListEntry(String labelKey, @Nullable String tooltipKey, @Nullable String hintKey,
@@ -71,6 +72,10 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         this.preferredFieldWidth = preferredFieldWidth;
     }
 
+    public void setMinimumControlWidth(int minimumControlWidth) {
+        this.minimumControlWidth = minimumControlWidth;
+    }
+
     public PlainTextListEntry setControlWidthScale(float controlWidthScale) {
         this.controlWidthScale = Math.max(0.1f, Math.min(1.0f, controlWidthScale));
         return this;
@@ -107,13 +112,11 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
         int labelWidth = getLabelWidth(width);
         int trailingWidth = getTrailingWidth();
-        int fullControlWidth = EntryTextSupport.controlAreaWidth(width, labelWidth);
-        int renderedControlWidth = Math.max(trailingWidth + 60, Math.round(fullControlWidth * controlWidthScale));
-        renderedControlWidth = Math.min(fullControlWidth, renderedControlWidth);
+        int controlMinimum = minimumControlWidth > 0 ? minimumControlWidth : trailingWidth + 60;
+        int renderedControlWidth = EntryTextSupport.scaledControlWidth(
+            width, labelWidth, controlWidthScale, controlMinimum);
         int actualFieldWidth = Math.max(60, renderedControlWidth - trailingWidth);
-        int fieldX = controlWidthScale < 0.999f
-            ? x + width - 4 - trailingWidth - actualFieldWidth
-            : x + labelWidth + 4;
+        int fieldX = EntryTextSupport.rightAlignedControlX(x, width, renderedControlWidth);
 
         textField.setX(fieldX);
         textField.setY(y + 8);

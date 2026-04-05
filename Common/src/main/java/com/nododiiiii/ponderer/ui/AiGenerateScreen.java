@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.ai.StructureDescriber;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.PageTurnListEntry;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -49,8 +50,19 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
-        entries.add(FieldSpecs.sectionHeader(this::structureSummaryLine));
-        entries.add(FieldSpecs.sectionHeader(this::structureDetailsLine));
+        if (cachedStructurePaths.isEmpty()) {
+            entries.add(FieldSpecs.sectionHeader(this::structureSummaryLine));
+        } else {
+            entries.add(screen -> screen.appendBuiltEntry(new PageTurnListEntry(
+                this::structureSummaryLine,
+                this::prevStructure,
+                this::nextStructure,
+                () -> UIText.of("ponderer.ui.ai_generate.prev.tooltip"),
+                () -> UIText.of("ponderer.ui.ai_generate.next.tooltip"),
+                () -> cachedStructurePaths.size() > 1,
+                () -> cachedStructurePaths.size() > 1)));
+            entries.add(FieldSpecs.sectionHeader(this::structureDetailsLine));
+        }
         entries.add(FieldSpecs.fullButton(
             UIText.of("ponderer.ui.ai_generate.add"),
             UIText.of("ponderer.ui.ai_generate.add.tooltip"),
@@ -61,14 +73,6 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 UIText.of("ponderer.ui.ai_generate.delete"),
                 UIText.of("ponderer.ui.ai_generate.delete.tooltip"),
                 this::deleteStructure));
-            entries.add(FieldSpecs.fullButton(
-                "< " + UIText.of("ponderer.ui.ai_generate.prev.tooltip"),
-                UIText.of("ponderer.ui.ai_generate.prev.tooltip"),
-                this::prevStructure));
-            entries.add(FieldSpecs.fullButton(
-                UIText.of("ponderer.ui.ai_generate.next.tooltip") + " >",
-                UIText.of("ponderer.ui.ai_generate.next.tooltip"),
-                this::nextStructure));
         }
 
         entries.add(FieldSpecs.text(

@@ -17,7 +17,7 @@ public class Config {
     public static final ForgeConfigSpec.ConfigValue<String> AI_PROVIDER = BUILDER
         .comment("LLM provider type: 'anthropic' or 'openai' (OpenAI-compatible).",
                  "Use 'openai' for OpenAI, DeepSeek, Groq, Ollama, LM Studio, etc.")
-        .define("ai.provider", "anthropic");
+        .define("ai.provider", "openai");
 
     public static final ForgeConfigSpec.ConfigValue<String> AI_API_BASE_URL = BUILDER
         .comment("API base URL. Leave empty to use provider defaults.",

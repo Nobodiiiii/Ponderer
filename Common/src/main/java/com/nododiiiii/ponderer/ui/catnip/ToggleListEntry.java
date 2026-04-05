@@ -18,7 +18,7 @@ public class ToggleListEntry extends ButtonListEntry {
 
     public ToggleListEntry(String labelKey, @Nullable String tooltipKey,
                            BooleanSupplier stateGetter, Runnable onToggle) {
-        super(labelKey, tooltipKey, 35, onToggle, () -> "", () -> 0xFFFFFF, null);
+        super(labelKey, tooltipKey, 35, onToggle, () -> "", () -> 0xFFFFFF, (String) null);
         this.stateGetter = stateGetter;
         this.enabled = PonderGuiTextures.ICON_CONFIRM.asStencil()
             .withElementRenderer((ms, width, height, alpha) ->

@@ -52,6 +52,16 @@ public final class EntryTextSupport {
         return Math.max(60, totalWidth - labelWidth - 8);
     }
 
+    public static int scaledControlWidth(int totalWidth, int labelWidth, float controlWidthScale, int minimumWidth) {
+        int fullControlWidth = controlAreaWidth(totalWidth, labelWidth);
+        int scaledWidth = Math.max(minimumWidth, Math.round(fullControlWidth * controlWidthScale));
+        return Math.min(fullControlWidth, scaledWidth);
+    }
+
+    public static int rightAlignedControlX(int x, int totalWidth, int renderedControlWidth) {
+        return x + totalWidth - 4 - renderedControlWidth;
+    }
+
     public static int rightControlGap() {
         return RIGHT_CONTROL_GAP;
     }

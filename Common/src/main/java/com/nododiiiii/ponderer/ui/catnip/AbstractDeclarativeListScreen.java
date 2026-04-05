@@ -69,8 +69,9 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
 
         int yCenter = height / 2;
         int listLeft = width / 2 - listWidth / 2;
+        int actionLeft = listLeft + listWidth + 10;
 
-        saveChanges = new BoxWidget(listLeft - 30, yCenter - 25, 20, 20)
+        saveChanges = new BoxWidget(actionLeft, yCenter - 25, 20, 20)
             .withPadding(2, 2)
             .withCallback(this::saveEdits);
         saveChanges.showingElement(PonderGuiTextures.ICON_CONFIG_SAVE.asStencil()
@@ -81,7 +82,7 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
             Palette.ALL_GRAY));
         addRenderableWidget(saveChanges);
 
-        discardChanges = new BoxWidget(listLeft - 30, yCenter + 5, 20, 20)
+        discardChanges = new BoxWidget(actionLeft, yCenter + 5, 20, 20)
             .withPadding(2, 2)
             .withCallback(this::confirmDiscardChanges);
         discardChanges.showingElement(PonderGuiTextures.ICON_CONFIG_DISCARD.asStencil()
@@ -92,7 +93,7 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
             Palette.ALL_GRAY));
         addRenderableWidget(discardChanges);
 
-        goBack = new BoxWidget(listLeft - 30, yCenter + 65, 20, 20)
+        goBack = new BoxWidget(actionLeft, yCenter + 65, 20, 20)
             .withPadding(2, 2)
             .withCallback(this::attemptBackToParent);
         goBack.showingElement(PonderGuiTextures.ICON_CONFIG_BACK.asStencil()
@@ -346,9 +347,16 @@ public abstract class AbstractDeclarativeListScreen extends ConfigScreen {
     }
 
     private void refreshActionButtons() {
-        boolean dirty = hasUnsavedChanges();
-        updateButtonState(saveChanges, dirty);
-        updateButtonState(discardChanges, dirty);
+        updateButtonState(saveChanges, isSaveButtonActive());
+        updateButtonState(discardChanges, isDiscardButtonActive());
+    }
+
+    protected boolean isSaveButtonActive() {
+        return hasUnsavedChanges();
+    }
+
+    protected boolean isDiscardButtonActive() {
+        return hasUnsavedChanges();
     }
 
     private void updateButtonState(@Nullable BoxWidget button, boolean active) {

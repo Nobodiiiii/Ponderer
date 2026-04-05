@@ -27,10 +27,14 @@ public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
-        entries.add(ConfigEntries.stringEntry("ponderer.ui.ai_config.provider",
-            "ponderer.ui.ai_config.provider.hint",
+        entries.add(ConfigEntries.choiceEntry("ponderer.ui.ai_config.provider",
             "ponderer.ui.ai_config.provider.tooltip",
-            Config.AI_PROVIDER));
+            Config.AI_PROVIDER,
+            100,
+            List.of(
+                "ponderer.ui.ai_config.provider.default_openai",
+                "ponderer.ui.ai_config.provider.claude_anthropic"),
+            List.of("openai", "anthropic")));
         entries.add(ConfigEntries.stringEntry("ponderer.ui.ai_config.base_url",
             "ponderer.ui.ai_config.base_url.hint",
             "ponderer.ui.ai_config.base_url.tooltip",

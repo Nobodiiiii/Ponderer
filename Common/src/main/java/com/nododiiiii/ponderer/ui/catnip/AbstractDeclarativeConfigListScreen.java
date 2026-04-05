@@ -85,6 +85,13 @@ public abstract class AbstractDeclarativeConfigListScreen extends AbstractDeclar
         appendEntry(new LocalizedIntegerConfigEntry(labelKey, hintKey, tooltipKey, value, specOf(value)));
     }
 
+    protected final void addChoiceConfigEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                                              ForgeConfigSpec.ConfigValue<String> value,
+                                              List<String> optionLabelKeys, List<String> optionValues) {
+        appendEntry(new LocalizedChoiceConfigEntry(
+            labelKey, tooltipKey, buttonWidth, value, specOf(value), optionLabelKeys, optionValues));
+    }
+
     private <T> ForgeConfigSpec.ValueSpec specOf(ForgeConfigSpec.ConfigValue<T> value) {
         return spec.getRaw(value.getPath());
     }

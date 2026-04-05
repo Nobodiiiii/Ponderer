@@ -269,7 +269,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
     private static CommandParamScreen buildCopyPage() {
         return CommandParamScreen.builder("ponderer.ui.function_page.copy_scene.title")
             .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
-                "ponderer.ui.function_page.param.scene_id.hint", true)
+                null, true)
             .itemField("target_item", "ponderer.ui.function_page.param.target_item",
                 "ponderer.ui.function_page.param.target_item.hint", true)
             .onExecute(values -> {
@@ -283,12 +283,12 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
     }
 
     private static CommandParamScreen buildDeletePage() {
-        return CommandParamScreen.builder("ponderer.ui.function_page.delete_scene.title")
+        CommandParamScreen screen = CommandParamScreen.builder("ponderer.ui.function_page.delete_scene.title")
             .choiceField("mode", "ponderer.ui.function_page.param.mode",
                 List.of("ponderer.ui.function_page.delete.by_scene", "ponderer.ui.function_page.delete.by_item"),
                 List.of("by_scene", "by_item"))
             .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
-                "ponderer.ui.function_page.param.scene_id.hint", false, true)
+                null, false, true)
             .itemField("item_id", "ponderer.ui.function_page.param.item_id",
                 "ponderer.ui.function_page.param.item_id.hint", false)
             .onExecute(values -> {
@@ -316,6 +316,9 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 }
             })
             .build();
+        screen.showFieldWhenValue("scene_id", "mode", "by_scene");
+        screen.showFieldWhenValue("item_id", "mode", "by_item");
+        return screen;
     }
 
     private static CommandParamScreen buildDownloadPage() {

@@ -17,25 +17,33 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
     private final BoxWidget button;
     private final Supplier<String> labelGetter;
     private final IntSupplier colorGetter;
+    @Nullable
+    private final Supplier<String> buttonTooltipGetter;
     protected final int buttonWidth;
     private float controlWidthScale = 1.0f;
 
     public ButtonListEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                            Runnable onClick, Supplier<String> labelGetter, IntSupplier colorGetter,
                            @Nullable String buttonTooltipText) {
+        this(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter,
+            buttonTooltipText == null ? null : () -> buttonTooltipText);
+    }
+
+    public ButtonListEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                           Runnable onClick, Supplier<String> labelGetter, IntSupplier colorGetter,
+                           @Nullable Supplier<String> buttonTooltipGetter) {
         super(UIText.of(labelKey));
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         this.labelGetter = labelGetter;
         this.colorGetter = colorGetter;
+        this.buttonTooltipGetter = buttonTooltipGetter;
         this.buttonWidth = buttonWidth;
 
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
         this.button = new BoxWidget(0, 0, buttonWidth, 16).withCallback(onClick);
-        if (buttonTooltipText != null && !buttonTooltipText.isBlank()) {
-            this.button.getToolTip().add(Component.literal(buttonTooltipText));
-        }
         listeners.add(button);
+        refreshButtonTooltip();
     }
 
     public BoxWidget button() {
@@ -63,8 +71,8 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
     }
 
     protected int getRenderedButtonWidth(int totalWidth) {
-        int controlWidth = EntryTextSupport.controlAreaWidth(totalWidth, getLabelWidth(totalWidth));
-        return Math.max(buttonWidth, Math.round(controlWidth * controlWidthScale));
+        return EntryTextSupport.scaledControlWidth(
+            totalWidth, getLabelWidth(totalWidth), controlWidthScale, buttonWidth);
     }
 
     @Override
@@ -78,9 +86,10 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
+        refreshButtonTooltip();
         int renderedButtonWidth = getRenderedButtonWidth(width);
         int buttonHeight = Math.max(16, height - 20);
-        button.setX(x + width - renderedButtonWidth - 4);
+        button.setX(EntryTextSupport.rightAlignedControlX(x, width, renderedButtonWidth));
         button.setY(y + 10);
         button.setWidth(renderedButtonWidth);
         button.setHeight(buttonHeight);
@@ -90,5 +99,16 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
             button.getX() + button.getWidth() / 2,
             button.getY() + (button.getHeight() - 8) / 2,
             colorGetter.getAsInt());
+    }
+
+    private void refreshButtonTooltip() {
+        button.getToolTip().clear();
+        if (buttonTooltipGetter == null) {
+            return;
+        }
+        String tooltipText = buttonTooltipGetter.get();
+        if (tooltipText != null && !tooltipText.isBlank()) {
+            button.getToolTip().add(Component.literal(tooltipText));
+        }
     }
 }

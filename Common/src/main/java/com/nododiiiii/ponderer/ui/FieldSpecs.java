@@ -19,6 +19,7 @@ import java.util.function.Supplier;
 public final class FieldSpecs {
 
     private static final float DEFAULT_CHOICE_CONTROL_SCALE = 0.5f;
+    private static final int HALF_WIDTH_CONTROL_MIN = 100;
 
     private FieldSpecs() {
     }
@@ -113,6 +114,7 @@ public final class FieldSpecs {
         return text(binding, labelKey, tooltipKey, hintKey, fieldWidth, entry -> {
             if ("ponderer.ui.duration".equals(labelKey)) {
                 entry.setControlWidthScale(0.5f);
+                entry.setMinimumControlWidth(HALF_WIDTH_CONTROL_MIN);
             }
             if (unitKey != null) {
                 entry.setUnitText(() -> UIText.of(unitKey));
@@ -163,6 +165,14 @@ public final class FieldSpecs {
 
     public static FieldSpec choice(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                                    Runnable onClick, Supplier<String> labelGetter,
+                                   IntSupplier colorGetter, @Nullable Supplier<String> buttonTooltipGetter,
+                                   float controlWidthScale) {
+        return screen -> screen.createChoiceEntry(
+            labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, buttonTooltipGetter, controlWidthScale);
+    }
+
+    public static FieldSpec choice(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                                   Runnable onClick, Supplier<String> labelGetter,
                                    IntSupplier colorGetter, @Nullable String buttonTooltipText) {
         return choice(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter,
             buttonTooltipText, DEFAULT_CHOICE_CONTROL_SCALE);
@@ -171,13 +181,13 @@ public final class FieldSpecs {
     public static FieldSpec choice(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                                    Runnable onClick, Supplier<String> labelGetter,
                                    IntSupplier colorGetter) {
-        return choice(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, null,
+        return choice(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, (String) null,
             DEFAULT_CHOICE_CONTROL_SCALE);
     }
 
     public static FieldSpec choice(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                                    Runnable onClick, Supplier<String> labelGetter) {
-        return choice(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, () -> 0xFFFFFF, null,
+        return choice(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, () -> 0xFFFFFF, (String) null,
             DEFAULT_CHOICE_CONTROL_SCALE);
     }
 
@@ -198,7 +208,7 @@ public final class FieldSpecs {
                     },
                     labelGetter,
                     colorGetter,
-                    null,
+                    (String) null,
                     0.5f);
             }
 
@@ -221,6 +231,13 @@ public final class FieldSpecs {
     public static FieldSpec fullButton(Supplier<String> labelGetter, @Nullable Supplier<String> tooltipGetter,
                                        Runnable onClick, IntSupplier colorGetter, BooleanSupplier activeGetter) {
         return screen -> screen.createFullButtonEntry(labelGetter, tooltipGetter, onClick, colorGetter, activeGetter);
+    }
+
+    public static FieldSpec labeledButton(String labelKey, @Nullable String tooltipKey,
+                                          Runnable onClick, Supplier<String> buttonLabelGetter,
+                                          @Nullable Supplier<String> buttonTooltipGetter) {
+        return choice(labelKey, tooltipKey, 0, onClick, buttonLabelGetter, () -> 0xFFFFFF,
+            buttonTooltipGetter, 1.0f);
     }
 
     public static FieldSpec sectionHeader(String title) {

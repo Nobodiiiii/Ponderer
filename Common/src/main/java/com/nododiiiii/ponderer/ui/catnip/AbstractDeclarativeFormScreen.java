@@ -98,8 +98,18 @@ public abstract class AbstractDeclarativeFormScreen extends AbstractDeclarativeL
                                                        Runnable onClick, Supplier<String> labelGetter,
                                                        IntSupplier colorGetter, @Nullable String buttonTooltipText,
                                                        float controlWidthScale) {
+        return addChoiceFormEntry(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter,
+            buttonTooltipText == null ? null : () -> buttonTooltipText, controlWidthScale);
+    }
+
+    protected final ButtonListEntry addChoiceFormEntry(String labelKey,
+                                                       @Nullable String tooltipKey, int buttonWidth,
+                                                       Runnable onClick, Supplier<String> labelGetter,
+                                                       IntSupplier colorGetter,
+                                                       @Nullable Supplier<String> buttonTooltipGetter,
+                                                       float controlWidthScale) {
         ButtonListEntry entry = new ButtonListEntry(
-            labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, buttonTooltipText)
+            labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, buttonTooltipGetter)
             .setControlWidthScale(controlWidthScale);
         appendEntry(entry);
         return entry;
@@ -179,6 +189,15 @@ public abstract class AbstractDeclarativeFormScreen extends AbstractDeclarativeL
                                                    float controlWidthScale) {
         return addChoiceFormEntry(labelKey, tooltipKey, buttonWidth, onClick, labelGetter,
             colorGetter, buttonTooltipText, controlWidthScale);
+    }
+
+    public final ButtonListEntry createChoiceEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                                                   Runnable onClick, Supplier<String> labelGetter,
+                                                   IntSupplier colorGetter,
+                                                   @Nullable Supplier<String> buttonTooltipGetter,
+                                                   float controlWidthScale) {
+        return addChoiceFormEntry(labelKey, tooltipKey, buttonWidth, onClick, labelGetter,
+            colorGetter, buttonTooltipGetter, controlWidthScale);
     }
 
     public final FullButtonListEntry createFullButtonEntry(String label, @Nullable String tooltipText, Runnable onClick) {

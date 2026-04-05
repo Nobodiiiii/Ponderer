@@ -51,10 +51,12 @@ public class ExportPackScreen extends AbstractStatefulDeclarativeFormScreen {
             null,
             "ponderer.ui.export.author",
             -1));
-        entries.add(FieldSpecs.fullButton(
-            currentSceneSelectionLabel(),
-            UIText.of("ponderer.ui.export.all_scenes"),
-            this::openSceneSelector));
+        entries.add(FieldSpecs.labeledButton(
+            "ponderer.ui.export.scene",
+            null,
+            this::openSceneSelector,
+            this::currentSceneSelectionButtonLabel,
+            this::currentSceneSelectionTooltip));
     }
 
     @Override
@@ -84,6 +86,11 @@ public class ExportPackScreen extends AbstractStatefulDeclarativeFormScreen {
 
         markStateSaved();
         setInfoMessage(UIText.of("ponderer.ui.export.success", name));
+        return true;
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
         return true;
     }
 
@@ -133,7 +140,13 @@ public class ExportPackScreen extends AbstractStatefulDeclarativeFormScreen {
             true));
     }
 
-    private String currentSceneSelectionLabel() {
+    private String currentSceneSelectionButtonLabel() {
+        return selectedSceneIds.isEmpty()
+            ? UIText.of("ponderer.ui.export.select_scenes")
+            : UIText.of("ponderer.ui.export.selected_scenes", selectedSceneIds.size());
+    }
+
+    private String currentSceneSelectionTooltip() {
         return selectedSceneIds.isEmpty()
             ? UIText.of("ponderer.ui.export.all_scenes")
             : UIText.of("ponderer.ui.export.selected_scenes", selectedSceneIds.size());

@@ -23,7 +23,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     public sealed interface FieldDef permits TextFieldDef, ChoiceFieldDef, ToggleFieldDef {
     }
 
-    public record TextFieldDef(String id, String labelKey, String hintKey, boolean required,
+    public record TextFieldDef(String id, String labelKey, @Nullable String hintKey, boolean required,
                                @Nullable IdFieldMode jeiMode,
                                boolean sceneSelector, boolean sceneMultiSelect) implements FieldDef {
     }
@@ -33,6 +33,9 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     }
 
     public record ToggleFieldDef(String id, String labelKey, boolean defaultValue) implements FieldDef {
+    }
+
+    private record VisibilityRule(String controllerFieldId, String expectedValue) {
     }
 
     private final List<FieldDef> fieldDefs;
@@ -47,6 +50,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     private final Map<String, String> toggleDependencies = new HashMap<>();
     private final Map<String, String> fieldDisablesToggle = new HashMap<>();
     private final Map<String, Map<String, Supplier<String>>> toggleAutoFill = new HashMap<>();
+    private final Map<String, VisibilityRule> fieldVisibility = new HashMap<>();
 
     private boolean suppressFieldResponder = false;
     private boolean collectingEntries = false;
@@ -78,6 +82,10 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         toggleAutoFill.computeIfAbsent(toggleId, key -> new HashMap<>()).put(fieldId, valueSupplier);
     }
 
+    public void showFieldWhenValue(String fieldId, String controllerFieldId, String expectedValue) {
+        fieldVisibility.put(fieldId, new VisibilityRule(controllerFieldId, expectedValue));
+    }
+
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         textInputs.clear();
@@ -85,7 +93,21 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
 
         try {
             for (FieldDef def : fieldDefs) {
+                if (!isFieldVisible(def)) {
+                    continue;
+                }
+
                 if (def instanceof TextFieldDef textDef) {
+                    if (textDef.sceneSelector) {
+                        entries.add(FieldSpecs.labeledButton(
+                            textDef.labelKey,
+                            textDef.hintKey,
+                            () -> openSceneSelector(textDef.id, textDef.sceneMultiSelect),
+                            () -> currentSceneSelectionButtonLabel(textDef),
+                            sceneSelectorTooltipGetter(textDef)));
+                        continue;
+                    }
+
                     entries.add(FieldSpecs.text(
                         FieldBindings.transientString(
                             () -> currentTextValue(textDef.id),
@@ -165,6 +187,11 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
 
     @Override
     protected boolean rebuildOnJeiStateChange() {
+        return true;
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
         return true;
     }
 
@@ -304,6 +331,44 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         return textValues.getOrDefault(fieldId, defaultValues.getOrDefault(fieldId, ""));
     }
 
+    private String currentSceneSelectionButtonLabel(TextFieldDef textDef) {
+        int selectedCount = selectedSceneCount(currentTextValue(textDef.id));
+        if (selectedCount <= 0) {
+            return UIText.of(textDef.sceneMultiSelect
+                ? "ponderer.ui.export.select_scenes"
+                : "ponderer.ui.function_page.select_scene");
+        }
+        return UIText.of("ponderer.ui.export.selected_scenes", selectedCount);
+    }
+
+    private int selectedSceneCount(String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) {
+            return 0;
+        }
+
+        int count = 0;
+        for (String part : rawValue.split(",")) {
+            if (!part.trim().isEmpty()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    @Nullable
+    private Supplier<String> sceneSelectorTooltipGetter(TextFieldDef textDef) {
+        return () -> {
+            int selectedCount = selectedSceneCount(currentTextValue(textDef.id));
+            if (selectedCount > 0) {
+                return UIText.of("ponderer.ui.export.selected_scenes", selectedCount);
+            }
+            if (textDef.hintKey == null || textDef.hintKey.isBlank()) {
+                return "";
+            }
+            return UIText.of(textDef.hintKey);
+        };
+    }
+
     private FieldDecorator[] textDecoratorsFor(TextFieldDef textDef) {
         List<FieldDecorator> specs = new ArrayList<>();
         if (textDef.jeiMode != null) {
@@ -315,7 +380,50 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         return specs.toArray(FieldDecorator[]::new);
     }
 
+    private boolean isFieldVisible(FieldDef def) {
+        VisibilityRule rule = fieldVisibility.get(fieldId(def));
+        if (rule == null) {
+            return true;
+        }
+        return rule.expectedValue().equals(currentFieldValue(rule.controllerFieldId()));
+    }
+
+    private String currentFieldValue(String fieldId) {
+        FieldDef def = findFieldDef(fieldId);
+        if (def instanceof TextFieldDef textDef) {
+            return currentTextValue(textDef.id);
+        }
+        if (def instanceof ChoiceFieldDef choiceDef) {
+            ensureChoiceState(choiceDef);
+            return choiceDef.values.get(choiceSelections.get(choiceDef.id));
+        }
+        if (def instanceof ToggleFieldDef toggleDef) {
+            return String.valueOf(toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue));
+        }
+        return "";
+    }
+
+    private FieldDef findFieldDef(String fieldId) {
+        for (FieldDef def : fieldDefs) {
+            if (fieldId(def).equals(fieldId)) {
+                return def;
+            }
+        }
+        throw new IllegalArgumentException("Unknown field id: " + fieldId);
+    }
+
+    private static String fieldId(FieldDef def) {
+        if (def instanceof TextFieldDef textDef) {
+            return textDef.id;
+        }
+        if (def instanceof ChoiceFieldDef choiceDef) {
+            return choiceDef.id;
+        }
+        return ((ToggleFieldDef) def).id;
+    }
+
     private void setTextValue(String fieldId, @Nullable String value) {
+        clearStatusMessages();
         textValues.put(fieldId, value == null ? "" : value);
         HintableTextFieldWidget field = textInputs.get(fieldId);
         if (field != null) {
@@ -345,12 +453,12 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
             return this;
         }
 
-        public Builder sceneIdField(String id, String labelKey, String hintKey, boolean required) {
+        public Builder sceneIdField(String id, String labelKey, @Nullable String hintKey, boolean required) {
             fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, false));
             return this;
         }
 
-        public Builder sceneIdField(String id, String labelKey, String hintKey, boolean required,
+        public Builder sceneIdField(String id, String labelKey, @Nullable String hintKey, boolean required,
                                     boolean multiSelect) {
             fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, multiSelect));
             return this;

@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui.catnip;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 import javax.annotation.Nullable;
+import java.util.List;
 
 public final class ConfigEntries {
 
@@ -24,6 +25,15 @@ public final class ConfigEntries {
                                                     @Nullable String tooltipKey,
                                                     ForgeConfigSpec.ConfigValue<Integer> value) {
         return screen -> requireConfigScreen(screen).addIntegerConfigEntry(labelKey, hintKey, tooltipKey, value);
+    }
+
+    public static DeclarativeFormEntry choiceEntry(String labelKey, @Nullable String tooltipKey,
+                                                   ForgeConfigSpec.ConfigValue<String> value,
+                                                   int buttonWidth,
+                                                   List<String> optionLabelKeys,
+                                                   List<String> optionValues) {
+        return screen -> requireConfigScreen(screen)
+            .addChoiceConfigEntry(labelKey, tooltipKey, buttonWidth, value, optionLabelKeys, optionValues);
     }
 
     private static AbstractDeclarativeConfigListScreen requireConfigScreen(AbstractDeclarativeFormScreen screen) {
