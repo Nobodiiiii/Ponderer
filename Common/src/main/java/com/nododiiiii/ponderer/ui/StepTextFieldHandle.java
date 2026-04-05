@@ -25,7 +25,7 @@ public class StepTextFieldHandle implements HintableTextWidgetBinding {
     }
 
     public void setValue(@Nullable String value) {
-        this.value = value != null ? value : "";
+        this.value = normalize(value);
         if (widget != null && !this.value.equals(widget.getValue())) {
             widget.setValue(this.value);
         }
@@ -33,7 +33,7 @@ public class StepTextFieldHandle implements HintableTextWidgetBinding {
 
     @Override
     public void set(@Nullable String value) {
-        setValue(value);
+        this.value = normalize(value);
     }
 
     public String getValue() {
@@ -72,5 +72,9 @@ public class StepTextFieldHandle implements HintableTextWidgetBinding {
         if (snapshot.containsKey(snapshotKey)) {
             setValue(snapshot.get(snapshotKey));
         }
+    }
+
+    private static String normalize(@Nullable String value) {
+        return value != null ? value : "";
     }
 }

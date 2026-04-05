@@ -19,6 +19,7 @@ import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
@@ -103,15 +104,28 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
     public static PonderItemGridScreen returnScreen;
 
     public PonderItemGridScreen() {
-        this(Mode.LIST, null, null, null);
+        this(new FunctionScreen());
+    }
+
+    public PonderItemGridScreen(@Nullable Screen parent) {
+        this(parent, Mode.LIST, null, null, null);
     }
 
     public PonderItemGridScreen(Consumer<String> onSelect, Runnable onCancel) {
-        this(Mode.SINGLE_SELECT, onSelect, null, onCancel);
+        this(null, onSelect, onCancel);
+    }
+
+    public PonderItemGridScreen(@Nullable Screen parent, Consumer<String> onSelect, Runnable onCancel) {
+        this(parent, Mode.SINGLE_SELECT, onSelect, null, onCancel);
     }
 
     public PonderItemGridScreen(Consumer<Set<String>> onSelectMulti, Runnable onCancel, boolean multi) {
-        this(Mode.MULTI_SELECT, null, onSelectMulti, onCancel);
+        this(null, onSelectMulti, onCancel, multi);
+    }
+
+    public PonderItemGridScreen(@Nullable Screen parent, Consumer<Set<String>> onSelectMulti,
+                                Runnable onCancel, boolean multi) {
+        this(parent, Mode.MULTI_SELECT, null, onSelectMulti, onCancel);
     }
 
     private static String titleKeyFor(Mode mode) {
@@ -122,10 +136,10 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         };
     }
 
-    private PonderItemGridScreen(Mode mode, @Nullable Consumer<String> onSelectSingle,
+    private PonderItemGridScreen(@Nullable Screen parent, Mode mode, @Nullable Consumer<String> onSelectSingle,
                                  @Nullable Consumer<Set<String>> onSelectMulti,
                                  @Nullable Runnable onCancel) {
-        super(null, "ponderer.ui.scope.editor", titleKeyFor(mode), UILayoutConstants.EDITOR_LIST_W);
+        super(parent, "ponderer.ui.scope.editor", titleKeyFor(mode), UILayoutConstants.EDITOR_LIST_W);
         this.mode = mode;
         this.onSelectSingle = onSelectSingle;
         this.onSelectMulti = onSelectMulti;
@@ -407,16 +421,16 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
         int contentX = gridPanel.entryContentLeft();
         int contentRight = gridPanel.entryContentRight();
-        int buttonH = 14;
+        int buttonH = 8;
 
         String groupLabel = groupMode == GroupMode.BY_PACK
             ? UIText.of("ponderer.ui.item_grid.group_by_pack")
             : UIText.of("ponderer.ui.item_grid.group_by_item");
         String selectAllLabel = UIText.of("ponderer.ui.item_grid.select_all");
         String deselectAllLabel = UIText.of("ponderer.ui.item_grid.deselect_all");
-        int buttonW = Math.max(40, Math.max(
+        int buttonW = Math.max(12, Math.max(
             Math.max(font.width(groupLabel), font.width(selectAllLabel)),
-            font.width(deselectAllLabel)) + 10);
+            font.width(deselectAllLabel)) + 2);
 
         int infoRowY = gridPanel.infoRowY();
         boolean infoVisible = gridPanel.isRowVisible(infoRowY, INFO_ENTRY_H);
@@ -431,7 +445,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         }
         if (deselectAllButton != null) {
             layoutButton(deselectAllButton, deselectAllLabel,
-                contentX + buttonW + 6, rowY + 9, buttonW, buttonH, multiVisible);
+                contentX + buttonW + 10, rowY + 9, buttonW, buttonH, multiVisible);
         }
     }
 
@@ -549,7 +563,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
     }
 
     private PonderItemGridScreen copyForReturn() {
-        PonderItemGridScreen copy = new PonderItemGridScreen(mode, onSelectSingle, onSelectMulti, onCancel);
+        PonderItemGridScreen copy = new PonderItemGridScreen(parent, mode, onSelectSingle, onSelectMulti, onCancel);
         copy.groupMode = this.groupMode;
         copy.initialSearchText = search != null ? search.getValue() : initialSearchText;
         copy.pendingPanelScroll = gridPanel != null ? gridPanel.scrollY() : 0;
@@ -1018,13 +1032,8 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         private void renderEntryShell(GuiGraphics graphics, int y, int height, boolean accent) {
             int entryX = entryLeft();
             int entryW = entryWidth();
-            graphics.fill(entryX, y + 4, entryX + entryW, y + height - 4, 0x08_FFFFFF);
-            UIRenderHelper.streak(graphics, 0, entryX - 6, y + height / 2, Math.max(8, height - 10),
-                entryW * 7 / 8, new Color(accent ? 0xE0_10182C : 0xDD_000000, true));
-            UIRenderHelper.streak(graphics, 180, entryX + entryW + 6, y + height / 2, Math.max(8, height - 10),
-                entryW * 7 / 8, new Color(accent ? 0xE0_10182C : 0xDD_000000, true));
-            graphics.fill(entryX + 4, y + height - 10, entryX + entryW - 4, y + height - 9,
-                accent ? 0x45_F3D46B : 0x25_FFFFFF);
+            graphics.fill(entryX, y + 4, entryX + entryW, y + height - 4,
+                accent ? 0x0C_F3D46B : 0x08_FFFFFF);
         }
 
         private void renderInfoEntry(GuiGraphics graphics, int y) {
@@ -1099,7 +1108,9 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             int selectionState = getSelectionState(entry);
             Couple<Color> border = null;
             Color background = null;
-            int frameInset = 1;
+            int iconX = x + 2;
+            int iconY = y + 2;
+            int iconSize = 16;
 
             if (selectionState == 2) {
                 border = AbstractSimiWidget.COLOR_SUCCESS;
@@ -1116,12 +1127,12 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 new BoxElement()
                     .withBackground(background)
                     .gradientBorder(border.getFirst(), border.getSecond())
-                    .at(x + frameInset, y + frameInset, 0)
-                    .withBounds(CELL_SIZE - frameInset * 2, CELL_SIZE - frameInset * 2)
+                    .at(iconX + 1, iconY + 1, 0)
+                    .withBounds(iconSize - 2, iconSize - 2)
                     .render(graphics);
             }
 
-            graphics.renderItem(entry.stack, x + 2, y + 2);
+            graphics.renderItem(entry.stack, iconX, iconY);
             if (entry.nbtFilter != null) {
                 graphics.fill(x + CELL_SIZE - 5, y + 1, x + CELL_SIZE - 1, y + 5, 0xFF_FFAA00);
             }

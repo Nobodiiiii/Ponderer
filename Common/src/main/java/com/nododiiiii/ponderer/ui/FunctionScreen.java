@@ -8,6 +8,7 @@ import com.nododiiiii.ponderer.ui.catnip.ButtonPairListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.controls.KeyBindsScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -121,7 +122,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
     @Override
     protected void collectEntries(List<ConfigScreenList.Entry> entries) {
         for (Section section : sections) {
-            entries.add(new SectionHeaderListEntry(UIText.of(section.titleKey)));
+            entries.add(compactSectionHeader(UIText.of(section.titleKey)));
             for (int i = 0; i < section.buttons.size(); i += 2) {
                 ButtonDef left = section.buttons.get(i);
                 ButtonDef right = i + 1 < section.buttons.size() ? section.buttons.get(i + 1) : null;
@@ -138,7 +139,22 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
 
     @Override
     protected int getEntryHeight() {
-        return 40;
+        return 24;
+    }
+
+    private static SectionHeaderListEntry compactSectionHeader(String title) {
+        return new SectionHeaderListEntry(title) {
+            @Override
+            public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
+                               int mouseX, int mouseY, boolean hovered, float partialTicks) {
+                var font = Minecraft.getInstance().font;
+                int color = annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFCCCC77;
+                int titleY = y + 8;
+                int lineY = y + height - 3;
+                graphics.drawString(font, title, x + 4, titleY, color);
+                graphics.fill(x + 4, lineY, x + width - 4, lineY + 1, 0x40FFFFFF);
+            }
+        };
     }
 
     private static CommandParamScreen buildPushPage() {
