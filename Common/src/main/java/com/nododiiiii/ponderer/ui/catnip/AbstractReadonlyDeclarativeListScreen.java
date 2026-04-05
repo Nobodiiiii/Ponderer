@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.gui.screens.Screen;
 
@@ -40,6 +41,11 @@ public abstract class AbstractReadonlyDeclarativeListScreen extends AbstractDecl
 
     @Override
     protected final void discardEdits() {
+    }
+
+    @Override
+    protected int getEntryHeight() {
+        return UILayoutConstants.COMPACT_LIST_ENTRY_H;
     }
 
     private static void hideActionButton(@Nullable BoxWidget button) {

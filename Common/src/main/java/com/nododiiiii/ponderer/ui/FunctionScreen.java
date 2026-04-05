@@ -139,7 +139,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
 
     @Override
     protected int getEntryHeight() {
-        return 24;
+        return UILayoutConstants.COMPACT_LIST_ENTRY_H;
     }
 
     private static SectionHeaderListEntry compactSectionHeader(String title) {

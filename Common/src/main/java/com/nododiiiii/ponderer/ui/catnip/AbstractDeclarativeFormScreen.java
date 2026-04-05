@@ -30,7 +30,7 @@ public abstract class AbstractDeclarativeFormScreen extends AbstractDeclarativeL
 
     @Override
     protected int getEntryHeight() {
-        return 40;
+        return UILayoutConstants.LIST_ENTRY_H;
     }
 
     @Override

@@ -51,7 +51,7 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
 
     @Override
     protected int getEntryHeight() {
-        return 40;
+        return UILayoutConstants.COMPACT_LIST_ENTRY_H;
     }
 
     private void scanResourcePacks() {

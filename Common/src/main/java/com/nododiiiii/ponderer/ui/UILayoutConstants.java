@@ -23,6 +23,10 @@ public final class UILayoutConstants {
     // ─── Row layout ─────────────────────────────────────────────────────
     /** Standard form row height (all editors). */
     public static final int ROW_H = 22;
+    /** Standard entry height for regular list/form rows. */
+    public static final int LIST_ENTRY_H = 40;
+    /** Compact entry height used by menu-style selection lists. */
+    public static final int COMPACT_LIST_ENTRY_H = 24;
     /** Y offset from window top to first form row. */
     public static final int FORM_TOP = 26;
     /** Left margin for labels. */

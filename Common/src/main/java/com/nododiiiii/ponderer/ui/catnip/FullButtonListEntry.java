@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
@@ -20,6 +21,7 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
     private final Supplier<String> tooltipGetter;
     private final IntSupplier colorGetter;
     private final BooleanSupplier activeGetter;
+    private int maxButtonWidth = -1;
 
     public FullButtonListEntry(String label, @Nullable String tooltipText, Runnable onClick) {
         this(() -> label, tooltipText == null ? null : () -> tooltipText, onClick, () -> 0xFFFFFF, () -> true);
@@ -39,6 +41,11 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
 
     public BoxWidget button() {
         return button;
+    }
+
+    public FullButtonListEntry setMaxButtonWidth(int maxButtonWidth) {
+        this.maxButtonWidth = maxButtonWidth <= 0 ? -1 : maxButtonWidth;
+        return this;
     }
 
     @Override
@@ -63,10 +70,12 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
         refreshTooltip();
 
-        int buttonX = x + 4;
-        int buttonY = y + 10;
-        int buttonWidth = Math.max(40, width - 8);
-        int buttonHeight = Math.max(16, height - 20);
+        boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
+        int buttonY = compact ? y + 4 : y + 10;
+        int availableWidth = Math.max(40, width - 8);
+        int buttonWidth = maxButtonWidth > 0 ? Math.min(availableWidth, maxButtonWidth) : availableWidth;
+        int buttonX = x + (width - buttonWidth) / 2;
+        int buttonHeight = compact ? 16 : Math.max(16, height - 20);
         button.setX(buttonX);
         button.setY(buttonY);
         button.setWidth(buttonWidth);

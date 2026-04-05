@@ -12,6 +12,8 @@ import java.util.Locale;
 
 public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScreen {
 
+    private static final int STEP_TYPE_BUTTON_W = 180;
+
     private static final String[][] PAGE_TYPES = {
         {"idle", "text", "show_controls", "rotate_camera_y", "zoom_scene"},
         {"set_block", "destroy_block", "replace_blocks", "modify_block_entity_nbt"},
@@ -77,13 +79,14 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
             () -> pageIndex + 1 < pageTypes.length));
 
         for (String type : pageTypes[pageIndex]) {
-            entries.add(new FullButtonListEntry(UIText.of(stepTypeLabelKey(type)), null, () -> openEditorForType(type)));
+            entries.add(new FullButtonListEntry(UIText.of(stepTypeLabelKey(type)), null, () -> openEditorForType(type))
+                .setMaxButtonWidth(STEP_TYPE_BUTTON_W));
         }
     }
 
     @Override
     protected int getEntryHeight() {
-        return 40;
+        return UILayoutConstants.COMPACT_LIST_ENTRY_H;
     }
 
     private void openPage(int newPageIndex) {

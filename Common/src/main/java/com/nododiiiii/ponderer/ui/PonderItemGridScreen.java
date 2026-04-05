@@ -1320,7 +1320,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
         @Override
         protected int getEntryHeight() {
-            return 40;
+            return UILayoutConstants.COMPACT_LIST_ENTRY_H;
         }
 
         @Override

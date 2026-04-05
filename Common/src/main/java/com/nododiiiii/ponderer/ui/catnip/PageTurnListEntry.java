@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
@@ -79,8 +80,9 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         refreshTooltip(prevButton, prevTooltipGetter);
         refreshTooltip(nextButton, nextTooltipGetter);
 
-        int buttonHeight = Math.max(16, height - 20);
-        int buttonY = y + 10;
+        boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
+        int buttonHeight = compact ? 16 : Math.max(16, height - 20);
+        int buttonY = compact ? y + 4 : y + 10;
 
         prevButton.setX(x + OUTER_GAP);
         prevButton.setY(buttonY);

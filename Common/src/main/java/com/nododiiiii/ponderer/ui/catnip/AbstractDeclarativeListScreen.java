@@ -195,7 +195,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     }
 
     protected int getEntryHeight() {
-        return 40;
+        return com.nododiiiii.ponderer.ui.UILayoutConstants.LIST_ENTRY_H;
     }
 
     protected final int currentListWidthValue() {

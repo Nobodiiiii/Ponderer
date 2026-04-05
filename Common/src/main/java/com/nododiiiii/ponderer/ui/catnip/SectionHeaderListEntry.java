@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -36,8 +37,9 @@ public class SectionHeaderListEntry extends ConfigScreenList.LabeledEntry implem
         String title = titleGetter.get();
         var font = Minecraft.getInstance().font;
         int color = annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFCCCC77;
-        graphics.drawString(font, title, x + 4, y + 11, color);
-        int lineY = y + height - 10;
+        boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
+        graphics.drawString(font, title, x + 4, compact ? y + 8 : y + 11, color);
+        int lineY = compact ? y + height - 3 : y + height - 10;
         graphics.fill(x + 4, lineY, x + width - 4, lineY + 1, 0x40FFFFFF);
     }
 }
