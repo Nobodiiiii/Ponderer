@@ -197,10 +197,11 @@ public final class FieldSpecs {
         return new FieldSpec() {
             @Override
             public void build(AbstractDeclarativeFormScreen screen) {
+                int alignedHalfWidth = Math.min(buttonWidth, HALF_WIDTH_CONTROL_MIN);
                 screen.createChoiceEntry(
                     labelKey,
                     tooltipKey,
-                    buttonWidth,
+                    alignedHalfWidth,
                     () -> {
                         int current = binding.get() == null ? 0 : binding.get();
                         binding.set((current + 1 + optionCount) % optionCount);

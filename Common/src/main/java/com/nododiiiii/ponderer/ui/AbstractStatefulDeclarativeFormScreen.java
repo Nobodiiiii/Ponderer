@@ -14,6 +14,10 @@ import java.util.Map;
  */
 public abstract class AbstractStatefulDeclarativeFormScreen extends AbstractDeclarativeFormScreen {
 
+    private static final String BASELINE_COUNT_KEY = "__ponderer_baseline_count";
+    private static final String BASELINE_KEY_PREFIX = "__ponderer_baseline_key_";
+    private static final String BASELINE_VALUE_PREFIX = "__ponderer_baseline_value_";
+
     private final FormState formState = new FormState(this::snapshotState, this::restoreSnapshot);
     private boolean baselineCaptured = false;
 
@@ -66,6 +70,11 @@ public abstract class AbstractStatefulDeclarativeFormScreen extends AbstractDecl
         captureBaselineState();
     }
 
+    protected final void restoreBaselineState(Map<String, String> snapshot) {
+        formState.setBaselineSnapshot(snapshot);
+        baselineCaptured = true;
+    }
+
     protected final boolean isBaselineCaptured() {
         return baselineCaptured;
     }
@@ -87,6 +96,47 @@ public abstract class AbstractStatefulDeclarativeFormScreen extends AbstractDecl
     protected abstract Map<String, String> snapshotState();
 
     protected abstract void restoreSnapshot(Map<String, String> snapshot);
+
+    protected final void appendBaselineSnapshotMetadata(Map<String, String> snapshot) {
+        if (!baselineCaptured) {
+            return;
+        }
+
+        Map<String, String> baseline = baselineStateSnapshot();
+        snapshot.put(BASELINE_COUNT_KEY, String.valueOf(baseline.size()));
+
+        int index = 0;
+        for (Map.Entry<String, String> entry : baseline.entrySet()) {
+            snapshot.put(BASELINE_KEY_PREFIX + index, entry.getKey());
+            snapshot.put(BASELINE_VALUE_PREFIX + index, entry.getValue());
+            index++;
+        }
+    }
+
+    @Nullable
+    protected final Map<String, String> extractBaselineSnapshotMetadata(Map<String, String> snapshot) {
+        String rawCount = snapshot.remove(BASELINE_COUNT_KEY);
+        if (rawCount == null) {
+            return null;
+        }
+
+        int count;
+        try {
+            count = Integer.parseInt(rawCount);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+
+        Map<String, String> baseline = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < count; i++) {
+            String key = snapshot.remove(BASELINE_KEY_PREFIX + i);
+            String value = snapshot.remove(BASELINE_VALUE_PREFIX + i);
+            if (key != null && value != null) {
+                baseline.put(key, value);
+            }
+        }
+        return baseline;
+    }
 
     private void restoreStateWithRebuild(Map<String, String> snapshot) {
         prepareSnapshotForBuild(snapshot);

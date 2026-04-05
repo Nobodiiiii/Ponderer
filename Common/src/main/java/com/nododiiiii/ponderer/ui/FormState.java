@@ -37,6 +37,10 @@ public final class FormState {
         return new LinkedHashMap<>(baselineSnapshot);
     }
 
+    public void setBaselineSnapshot(Map<String, String> snapshot) {
+        baselineSnapshot = new LinkedHashMap<>(snapshot);
+    }
+
     public int dirtyCount() {
         return diffCount(baselineSnapshot, snapshot());
     }

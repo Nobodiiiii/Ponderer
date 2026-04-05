@@ -85,6 +85,11 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     }
 
     @Override
+    protected boolean isSaveButtonActive() {
+        return !isEditMode() || super.isSaveButtonActive();
+    }
+
+    @Override
     protected void addBaseFormStateParticipants(List<SnapshotParticipant> participants) {
         participants.add(FieldBindings.bool("_keyFrame", () -> attachKeyFrame, value -> attachKeyFrame = value));
     }

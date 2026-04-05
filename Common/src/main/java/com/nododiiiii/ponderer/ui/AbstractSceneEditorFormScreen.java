@@ -38,6 +38,8 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
     private boolean initialStatePrepared = false;
     @Nullable
     private Map<String, String> pendingFormRestore = null;
+    @Nullable
+    private Map<String, String> pendingBaselineRestore = null;
 
     protected AbstractSceneEditorFormScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent,
                                             String scopeKey, String titleKey, int preferredListWidth,
@@ -54,9 +56,16 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
     }
 
     public AbstractSceneEditorFormScreen setPendingFormRestore(@Nullable Map<String, String> snapshot) {
-        this.pendingFormRestore = snapshot;
-        if (snapshot != null) {
-            prepareSnapshotForBuild(snapshot);
+        this.pendingBaselineRestore = null;
+        if (snapshot == null) {
+            this.pendingFormRestore = null;
+            return this;
+        }
+
+        this.pendingFormRestore = new HashMap<>(snapshot);
+        this.pendingBaselineRestore = extractBaselineSnapshotMetadata(this.pendingFormRestore);
+        if (pendingFormRestore != null) {
+            prepareSnapshotForBuild(pendingFormRestore);
         }
         return this;
     }
@@ -85,9 +94,12 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
 
         if (pendingFormRestore != null) {
             restoreFromSnapshot(pendingFormRestore);
+            if (pendingBaselineRestore != null) {
+                restoreBaselineState(pendingBaselineRestore);
+            }
             pendingFormRestore = null;
-        }
-        if (!isBaselineCaptured()) {
+            pendingBaselineRestore = null;
+        } else if (!isBaselineCaptured()) {
             markStateSaved();
         }
 
@@ -183,7 +195,9 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
     }
 
     protected final Map<String, String> snapshotForm() {
-        return snapshotState();
+        Map<String, String> snapshot = snapshotState();
+        appendBaselineSnapshotMetadata(snapshot);
+        return snapshot;
     }
 
     protected final void restoreFromSnapshot(Map<String, String> snapshot) {
