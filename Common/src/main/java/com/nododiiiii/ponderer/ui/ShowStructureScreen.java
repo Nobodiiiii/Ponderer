@@ -44,7 +44,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             structureField,
             "ponderer.ui.show_structure.structure",
             "ponderer.ui.show_structure.structure.tooltip",
@@ -56,26 +56,26 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
                 () -> "S",
                 () -> 0xFFFFFF,
                 UIText.of("ponderer.ui.show_structure.browse.tooltip"))));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             scaleField,
             "ponderer.ui.show_structure.scale",
             "ponderer.ui.show_structure.scale.tooltip",
             "1.0",
             60,
             null));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             rotationField,
             "ponderer.ui.show_structure.rotation",
             "ponderer.ui.show_structure.rotation.tooltip",
             "0",
             60,
             null));
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui.show_structure.pos_from",
             "ponderer.ui.show_structure.pos_from.tooltip",
             PickState.TargetField.POS1));
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             pos2Field,
             "ponderer.ui.show_structure.pos_to",
             "ponderer.ui.show_structure.pos_to.tooltip",

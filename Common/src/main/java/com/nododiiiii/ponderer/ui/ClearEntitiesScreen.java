@@ -40,7 +40,7 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
         if (jeiMode == IdFieldMode.ITEM) {
-            entries.add(StepEditorEntries.text(
+            entries.add(FieldSpecs.text(
                 idField,
                 "ponderer.ui." + stepType + ".id",
                 "ponderer.ui." + stepType + ".id.tooltip",
@@ -50,7 +50,7 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 StepTextButtonSpec.heldItem(
                     stack -> idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString()))));
         } else {
-            entries.add(StepEditorEntries.text(
+            entries.add(FieldSpecs.text(
                 idField,
                 "ponderer.ui." + stepType + ".id",
                 "ponderer.ui." + stepType + ".id.tooltip",
@@ -58,17 +58,17 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 124,
                 StepTextButtonSpec.jei(jeiMode)));
         }
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui." + stepType + ".pos_from",
             "ponderer.ui." + stepType + ".pos_from.tooltip",
             PickState.TargetField.POS1));
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             pos2Field,
             "ponderer.ui." + stepType + ".pos_to",
             "ponderer.ui." + stepType + ".pos_to.tooltip",
             PickState.TargetField.POS2));
-        entries.add(StepEditorEntries.toggle(
+        entries.add(FieldSpecs.toggle(
             "ponderer.ui." + stepType + ".full_scene",
             "ponderer.ui." + stepType + ".full_scene.tooltip",
             () -> fullScene,

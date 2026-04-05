@@ -39,32 +39,32 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             pointField,
             "ponderer.ui.point",
             "ponderer.ui.show_controls.point.tooltip",
             PickState.TargetField.POINT,
             true));
-        entries.add(StepEditorEntries.cycleButton(
+        entries.add(FieldSpecs.choice(
             "ponderer.ui.show_controls.direction",
             "ponderer.ui.show_controls.direction.tooltip",
             100,
             () -> dirIndex = (dirIndex + 1) % DIRECTIONS.length,
             () -> optionLabel("ponderer.ui.show_controls.direction", DIRECTIONS[dirIndex])));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.duration.tooltip.controls",
             "60",
             50,
             "ponderer.ui.ticks"));
-        entries.add(StepEditorEntries.cycleButton(
+        entries.add(FieldSpecs.choice(
             "ponderer.ui.show_controls.action",
             "ponderer.ui.show_controls.action.tooltip",
             100,
             () -> actionIndex = (actionIndex + 1) % ACTIONS.length,
             () -> actionIndex == 0 ? UIText.of("ponderer.ui.none") : optionLabel("ponderer.ui.show_controls.action", ACTIONS[actionIndex])));
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             itemField,
             "ponderer.ui.show_controls.item",
             "ponderer.ui.show_controls.item.tooltip",
@@ -81,19 +81,19 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
                     nbtField.setValue("");
                 }
             })));
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             nbtField,
             "ponderer.ui.show_controls.nbt",
             "ponderer.ui.show_controls.nbt.tooltip",
             "{}",
             124,
             StepTextButtonSpec.nbtPick("nbt")));
-        entries.add(StepEditorEntries.toggle(
+        entries.add(FieldSpecs.toggle(
             "ponderer.ui.show_controls.sneaking",
             "ponderer.ui.show_controls.sneaking.tooltip",
             () -> whileSneaking,
             () -> whileSneaking = !whileSneaking));
-        entries.add(StepEditorEntries.toggle(
+        entries.add(FieldSpecs.toggle(
             "ponderer.ui.show_controls.ctrl",
             "ponderer.ui.show_controls.ctrl.tooltip",
             () -> whileCTRL,

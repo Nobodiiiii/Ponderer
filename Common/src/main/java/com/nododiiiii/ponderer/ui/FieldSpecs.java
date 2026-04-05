@@ -18,6 +18,8 @@ import java.util.function.Supplier;
 
 public final class FieldSpecs {
 
+    private static final float DEFAULT_CHOICE_CONTROL_SCALE = 0.5f;
+
     private FieldSpecs() {
     }
 
@@ -99,6 +101,13 @@ public final class FieldSpecs {
         };
     }
 
+    public static FieldSpec localizedText(FieldBinding<String> binding, String labelKey, @Nullable String tooltipKey,
+                                          @Nullable String hintKey, int fieldWidth,
+                                          Supplier<String> langGetter, Runnable onToggle) {
+        return localizedText(binding, labelKey, tooltipKey, hintKey, fieldWidth, langGetter, onToggle, entry -> {
+        });
+    }
+
     public static FieldSpec number(FieldBinding<String> binding, String labelKey, @Nullable String tooltipKey,
                                    String hintKey, int fieldWidth, @Nullable String unitKey) {
         return text(binding, labelKey, tooltipKey, hintKey, fieldWidth, entry -> {
@@ -150,6 +159,26 @@ public final class FieldSpecs {
                                    float controlWidthScale) {
         return screen -> screen.createChoiceEntry(
             labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, buttonTooltipText, controlWidthScale);
+    }
+
+    public static FieldSpec choice(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                                   Runnable onClick, Supplier<String> labelGetter,
+                                   IntSupplier colorGetter, @Nullable String buttonTooltipText) {
+        return choice(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter,
+            buttonTooltipText, DEFAULT_CHOICE_CONTROL_SCALE);
+    }
+
+    public static FieldSpec choice(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                                   Runnable onClick, Supplier<String> labelGetter,
+                                   IntSupplier colorGetter) {
+        return choice(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, colorGetter, null,
+            DEFAULT_CHOICE_CONTROL_SCALE);
+    }
+
+    public static FieldSpec choice(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                                   Runnable onClick, Supplier<String> labelGetter) {
+        return choice(labelKey, tooltipKey, buttonWidth, onClick, labelGetter, () -> 0xFFFFFF, null,
+            DEFAULT_CHOICE_CONTROL_SCALE);
     }
 
     public static FieldSpec cycle(FieldBinding<Integer> binding, String labelKey, @Nullable String tooltipKey,
@@ -229,6 +258,23 @@ public final class FieldSpecs {
                 handle.restore(snapshot);
             }
         };
+    }
+
+    public static FieldSpec xyz(StepXyzFieldHandle handle, String labelKey, @Nullable String tooltipKey,
+                                @Nullable PickState.TargetField target, boolean halfOffset) {
+        StepXyzButtonSpec[] decorators = target == null
+            ? new StepXyzButtonSpec[0]
+            : new StepXyzButtonSpec[]{StepXyzButtonSpec.pick(target, halfOffset)};
+        return xyz(handle, labelKey, tooltipKey, "X", "Y", "Z", decorators);
+    }
+
+    public static FieldSpec xyz(StepXyzFieldHandle handle, String labelKey, @Nullable String tooltipKey,
+                                PickState.TargetField target) {
+        return xyz(handle, labelKey, tooltipKey, target, false);
+    }
+
+    public static FieldSpec xyz(StepXyzFieldHandle handle, String labelKey, @Nullable String tooltipKey) {
+        return xyz(handle, labelKey, tooltipKey, "X", "Y", "Z");
     }
 
     public static FieldSpec dualText(FieldBinding<String> firstBinding, FieldBinding<String> secondBinding,

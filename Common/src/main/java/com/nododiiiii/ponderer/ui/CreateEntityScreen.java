@@ -34,7 +34,7 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             entityField,
             "ponderer.ui.create_entity",
             "ponderer.ui.create_entity.tooltip",
@@ -42,13 +42,13 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             124,
             StepTextButtonSpec.jei(IdFieldMode.ENTITY),
             StepTextButtonSpec.nbtPick("nbt")));
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui.create_entity.pos",
             "ponderer.ui.create_entity.pos.tooltip",
             PickState.TargetField.POS1,
             true));
-        entries.add(StepEditorEntries.cycleButton(
+        entries.add(FieldSpecs.choice(
             "ponderer.ui.create_entity.orient",
             "ponderer.ui.create_entity.orient.tooltip",
             100,
@@ -58,7 +58,7 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             },
             () -> useYawPitch ? UIText.of("ponderer.ui.create_entity.yaw_pitch") : UIText.of("ponderer.ui.create_entity.lookat")));
         if (useYawPitch) {
-            entries.add(StepEditorEntries.dualNumberFields(
+            entries.add(FieldSpecs.dualText(
                 yawField,
                 pitchField,
                 "ponderer.ui.create_entity.yaw_pitch",
@@ -68,14 +68,14 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
                 "0.0",
                 53));
         } else {
-            entries.add(StepEditorEntries.xyz(
+            entries.add(FieldSpecs.xyz(
                 lookAtField,
                 "ponderer.ui.create_entity.lookat",
                 null,
                 PickState.TargetField.LOOK_AT,
                 true));
         }
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             nbtField,
             "ponderer.ui.create_entity.nbt",
             "ponderer.ui.create_entity.nbt.tooltip",

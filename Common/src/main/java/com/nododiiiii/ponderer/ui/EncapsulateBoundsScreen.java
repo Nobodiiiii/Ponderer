@@ -27,7 +27,7 @@ public class EncapsulateBoundsScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             boundsField,
             "ponderer.ui.encapsulate_bounds.bounds",
             "ponderer.ui.encapsulate_bounds.bounds.tooltip"));

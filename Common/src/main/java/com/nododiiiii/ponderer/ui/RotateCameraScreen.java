@@ -25,14 +25,14 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             degreesField,
             "ponderer.ui.rotate_camera.degrees",
             "ponderer.ui.rotate_camera.degrees.tooltip",
             "90",
             60,
             "ponderer.ui.rotate_camera.degrees.unit"));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.rotate_camera.duration.tooltip",

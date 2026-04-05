@@ -49,7 +49,7 @@ public class TextStepScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.localizedText(
+        entries.add(FieldSpecs.localizedText(
             textField,
             "ponderer.ui.text",
             "ponderer.ui.text.tooltip",
@@ -57,27 +57,27 @@ public class TextStepScreen extends AbstractStepEditorScreen {
             104,
             () -> editingLang,
             this::toggleLang));
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             pointField,
             "ponderer.ui.point",
             "ponderer.ui.point.tooltip",
             PickState.TargetField.POINT,
             true));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.duration.tooltip.text",
             "60",
             50,
             "ponderer.ui.ticks"));
-        entries.add(StepEditorEntries.cycleButton(
+        entries.add(FieldSpecs.choice(
             "ponderer.ui.color",
             "ponderer.ui.color.tooltip",
             100,
             () -> colorIndex = (colorIndex + 1) % COLORS.length,
             () -> colorIndex == 0 ? UIText.of("ponderer.ui.none") : colorLabel(COLORS[colorIndex]),
             () -> colorIndex == 0 ? 0xFFFFFF : getPaletteColor(COLORS[colorIndex])));
-        entries.add(StepEditorEntries.toggle(
+        entries.add(FieldSpecs.toggle(
             "ponderer.ui.place_near",
             "ponderer.ui.place_near.tooltip",
             () -> placeNearTarget,

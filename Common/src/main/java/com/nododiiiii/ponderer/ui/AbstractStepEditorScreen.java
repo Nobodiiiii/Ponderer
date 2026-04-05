@@ -3,14 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
-import com.nododiiiii.ponderer.ui.catnip.BlockPropertyListEntry;
-import com.nododiiiii.ponderer.ui.catnip.ButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
-import com.nododiiiii.ponderer.ui.catnip.DualTextListEntry;
-import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
-import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
-import com.nododiiiii.ponderer.ui.catnip.ToggleListEntry;
-import com.nododiiiii.ponderer.ui.catnip.XyzListEntry;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.widget.BoxWidget;
@@ -23,14 +16,10 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.IntSupplier;
-import java.util.function.Supplier;
 
 public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormScreen implements JeiTextButtonHost {
 
@@ -54,11 +43,6 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
     protected String infoMessage = null;
     protected boolean attachKeyFrame = false;
     protected int insertAfterIndex = -1;
-
-    @Nullable
-    protected List<String[]> blockPropEntries;
-    @Nullable
-    protected List<HintableTextFieldWidget[]> blockPropFields;
 
     private boolean initialPopulateDone = false;
     @Nullable
@@ -85,16 +69,6 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
         Map.entry("fast", 0xFF55FF),
         Map.entry("input", 0x7FCDE0),
         Map.entry("output", 0xDDC166));
-
-    protected record XyzFieldGroup(HintableTextFieldWidget x, HintableTextFieldWidget y,
-                                   HintableTextFieldWidget z, @Nullable BoxWidget pickBtn) {
-    }
-
-    protected record FieldWithLang(HintableTextFieldWidget field, BoxWidget langBtn) {
-    }
-
-    protected record DualFieldGroup(HintableTextFieldWidget first, HintableTextFieldWidget second) {
-    }
 
     protected static int getPaletteColor(String name) {
         return PALETTE_COLORS.getOrDefault(name.toLowerCase(), 0xFFFFFF);
@@ -141,9 +115,6 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
     @Override
     protected void init() {
         ensureFormStateParticipants();
-        if (usesBlockProps()) {
-            preExtractBlockProps();
-        }
         if (!initialPopulateDone && isEditMode()) {
             populateFromStep(existingStep);
         }
@@ -175,7 +146,7 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
     protected final void collectFormEntries(List<DeclarativeFormEntry> entries) {
         collectStepEntries(entries);
         if (showsKeyFrame()) {
-            entries.add(StepEditorEntries.toggle(
+            entries.add(FieldSpecs.toggle(
                 "ponderer.ui.key_frame",
                 "ponderer.ui.key_frame.tooltip",
                 () -> attachKeyFrame,
@@ -384,9 +355,6 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
 
     private void prepareSnapshotForBuild(Map<String, String> snapshot) {
         FormState.restoreInto(snapshot, formStateParticipants);
-        if (usesBlockProps()) {
-            applyBlockPropsSnapshot(snapshot);
-        }
         restoreCustomSnapshot(snapshot);
     }
 
@@ -397,172 +365,6 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
         formStateParticipantsConfigured = true;
         formStateParticipants.add(FieldBindings.bool("_keyFrame", () -> attachKeyFrame, value -> attachKeyFrame = value));
         configureFormState(formStateParticipants);
-    }
-
-    protected HintableTextFieldWidget addFormTextField(String labelKey, @Nullable String tooltipKey,
-                                                       String hint, int fieldW) {
-        return addFormTextField(labelKey, tooltipKey, hint, fieldW, new StepTextButtonSpec[0]);
-    }
-
-    protected HintableTextFieldWidget addFormTextField(String labelKey, @Nullable String tooltipKey,
-                                                       String hint, int fieldW, StepTextButtonSpec... buttonSpecs) {
-        PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
-        });
-        entry.field().setHint(hint);
-        entry.setPreferredFieldWidth(fieldW);
-        applyStepTextButtonSpecs(entry, buttonSpecs);
-        appendEntry(entry);
-        return entry.field();
-    }
-
-    protected void applyStepTextButtonSpecs(PlainTextListEntry entry, StepTextButtonSpec... buttonSpecs) {
-        if (buttonSpecs == null || buttonSpecs.length == 0) {
-            return;
-        }
-        if (buttonSpecs.length > 2) {
-            throw new IllegalArgumentException("Step text rows support at most 2 trailing buttons");
-        }
-        for (StepTextButtonSpec buttonSpec : buttonSpecs) {
-            if (buttonSpec != null) {
-                buttonSpec.attach(this, entry);
-            }
-        }
-    }
-
-    protected void applyStepXyzButtonSpecs(XyzListEntry entry, StepXyzButtonSpec... buttonSpecs) {
-        if (buttonSpecs == null || buttonSpecs.length == 0) {
-            return;
-        }
-        if (buttonSpecs.length > 2) {
-            throw new IllegalArgumentException("Step XYZ rows support at most 2 trailing buttons");
-        }
-        for (StepXyzButtonSpec buttonSpec : buttonSpecs) {
-            if (buttonSpec != null) {
-                buttonSpec.attach(this, entry);
-            }
-        }
-    }
-
-    protected XyzFieldGroup addFormXyzRow(String labelKey, @Nullable String tooltipKey,
-                                          @Nullable PickState.TargetField target, boolean halfOffset) {
-        StepXyzButtonSpec[] buttonSpecs = target == null
-            ? new StepXyzButtonSpec[0]
-            : new StepXyzButtonSpec[]{StepXyzButtonSpec.pick(target, halfOffset)};
-        XyzListEntry entry = new XyzListEntry(labelKey, tooltipKey, "X", "Y", "Z");
-        applyStepXyzButtonSpecs(entry, buttonSpecs);
-        appendEntry(entry);
-        return new XyzFieldGroup(entry.xField(), entry.yField(), entry.zField(), null);
-    }
-
-    protected XyzFieldGroup addFormXyzRow(String labelKey, @Nullable String tooltipKey,
-                                          PickState.TargetField target) {
-        return addFormXyzRow(labelKey, tooltipKey, target, false);
-    }
-
-    protected XyzFieldGroup addFormXyzRow(String labelKey, @Nullable String tooltipKey) {
-        return addFormXyzRow(labelKey, tooltipKey, null, false);
-    }
-
-    protected XyzFieldGroup addFormXyzRow(String labelKey, @Nullable String tooltipKey,
-                                          @Nullable String xHint, @Nullable String yHint, @Nullable String zHint,
-                                          StepXyzButtonSpec... buttonSpecs) {
-        XyzListEntry entry = new XyzListEntry(labelKey, tooltipKey, xHint, yHint, zHint);
-        applyStepXyzButtonSpecs(entry, buttonSpecs);
-        appendEntry(entry);
-        return new XyzFieldGroup(entry.xField(), entry.yField(), entry.zField(), null);
-    }
-
-    protected BoxWidget addFormToggle(String labelKey, @Nullable String tooltipKey,
-                                      BooleanSupplier stateGetter, Runnable onToggle) {
-        ToggleListEntry entry = new ToggleListEntry(labelKey, tooltipKey, stateGetter, onToggle);
-        appendEntry(entry);
-        return entry.button();
-    }
-
-    protected BoxWidget addFormCycleButton(String labelKey, @Nullable String tooltipKey,
-                                           int btnW, Runnable onClick,
-                                           Supplier<String> labelGetter, IntSupplier colorGetter) {
-        ButtonListEntry entry = new ButtonListEntry(labelKey, tooltipKey, btnW, onClick, labelGetter, colorGetter, null)
-            .setControlWidthScale(DEFAULT_CHOICE_CONTROL_SCALE);
-        appendEntry(entry);
-        return entry.button();
-    }
-
-    protected BoxWidget addFormCycleButton(String labelKey, @Nullable String tooltipKey,
-                                           int btnW, Runnable onClick, Supplier<String> labelGetter) {
-        return addFormCycleButton(labelKey, tooltipKey, btnW, onClick, labelGetter, () -> 0xFFFFFF);
-    }
-
-    protected HintableTextFieldWidget addFormNumberField(String labelKey, @Nullable String tooltipKey,
-                                                         String hint, int fieldW, @Nullable String unitKey) {
-        PlainTextListEntry entry = new PlainTextListEntry(labelKey, tooltipKey, null, "", value -> {
-        });
-        entry.field().setHint(hint);
-        entry.setPreferredFieldWidth(fieldW);
-        if ("ponderer.ui.duration".equals(labelKey)) {
-            entry.setControlWidthScale(0.5f);
-        }
-        if (unitKey != null) {
-            entry.setUnitText(() -> UIText.of(unitKey));
-        }
-        appendEntry(entry);
-        return entry.field();
-    }
-
-    protected HintableTextFieldWidget addFormNumberField(String labelKey, @Nullable String tooltipKey,
-                                                         String hint, int fieldW) {
-        return addFormNumberField(labelKey, tooltipKey, hint, fieldW, null);
-    }
-
-    protected FieldWithLang addFormTextFieldWithLang(String labelKey, @Nullable String tooltipKey,
-                                                     String hint, int fieldW, Supplier<String> langGetter,
-                                                     Runnable onToggle) {
-        LocalizedTextListEntry entry = new LocalizedTextListEntry(labelKey, tooltipKey, null, "", langGetter, onToggle, value -> {
-        });
-        entry.field().setHint(hint);
-        entry.setPreferredFieldWidth(fieldW);
-        appendEntry(entry);
-        return new FieldWithLang(entry.field(), entry.langButton());
-    }
-
-    protected DualFieldGroup addFormDualNumberField(String labelKey, @Nullable String tooltipKey,
-                                                    String firstHint, int firstWidth,
-                                                    String secondHint, int secondWidth) {
-        DualTextListEntry entry = new DualTextListEntry(labelKey, tooltipKey, firstHint, secondHint);
-        entry.setPreferredWidths(firstWidth, secondWidth);
-        appendEntry(entry);
-        return new DualFieldGroup(entry.firstField(), entry.secondField());
-    }
-
-    protected void addFormBlockProps(String labelKey, @Nullable String tooltipKey) {
-        blockPropFields = new ArrayList<>();
-        if (blockPropEntries == null || blockPropEntries.isEmpty()) {
-            blockPropEntries = new ArrayList<>();
-            blockPropEntries.add(new String[]{"", ""});
-        }
-
-        for (int i = 0; i < blockPropEntries.size(); i++) {
-            final int idx = i;
-            String[] pair = blockPropEntries.get(i);
-            BlockPropertyListEntry entry = new BlockPropertyListEntry(
-                i == 0 ? labelKey : "",
-                i == 0 ? tooltipKey : null,
-                pair[0],
-                pair[1],
-                () -> removeBlockPropEntry(idx));
-            appendEntry(entry);
-            blockPropFields.add(new HintableTextFieldWidget[]{entry.keyField(), entry.valueField()});
-        }
-
-        ButtonListEntry addEntry = new ButtonListEntry(
-            "",
-            null,
-            40,
-            this::addBlockPropEntry,
-            () -> "+",
-            () -> 0x80FF80,
-            UIText.of("ponderer.ui.block_properties"));
-        appendEntry(addEntry);
     }
 
     @Override
@@ -758,134 +560,4 @@ public abstract class AbstractStepEditorScreen extends AbstractDeclarativeFormSc
         }
     }
 
-    protected boolean usesBlockProps() {
-        return false;
-    }
-
-    protected int blockPropRowCount() {
-        return blockPropEntries == null ? 0 : blockPropEntries.size() + 1;
-    }
-
-    private void preExtractBlockProps() {
-        if (blockPropEntries != null) {
-            return;
-        }
-
-        if (pendingPickRestore != null && pendingPickRestore.containsKey("prop_count")) {
-            applyBlockPropsSnapshot(pendingPickRestore);
-            if (blockPropEntries != null && !blockPropEntries.isEmpty()) {
-                return;
-            }
-        }
-
-        if (isEditMode() && existingStep != null
-            && existingStep.blockProperties != null && !existingStep.blockProperties.isEmpty()) {
-            blockPropEntries = new ArrayList<>();
-            for (Map.Entry<String, String> entry : existingStep.blockProperties.entrySet()) {
-                blockPropEntries.add(new String[]{entry.getKey(), entry.getValue()});
-            }
-            return;
-        }
-
-        blockPropEntries = new ArrayList<>();
-        blockPropEntries.add(new String[]{"", ""});
-    }
-
-    private void addBlockPropEntry() {
-        syncBlockPropFieldsToEntries();
-        if (blockPropEntries == null) {
-            blockPropEntries = new ArrayList<>();
-        }
-        blockPropEntries.add(new String[]{"", ""});
-        rebuildFormPreservingState();
-    }
-
-    private void removeBlockPropEntry(int idx) {
-        syncBlockPropFieldsToEntries();
-        if (blockPropEntries == null || idx < 0 || idx >= blockPropEntries.size()) {
-            return;
-        }
-        blockPropEntries.remove(idx);
-        if (blockPropEntries.isEmpty()) {
-            blockPropEntries.add(new String[]{"", ""});
-        }
-        rebuildFormPreservingState();
-    }
-
-    protected void syncBlockPropFieldsToEntries() {
-        if (blockPropFields == null || blockPropEntries == null) {
-            return;
-        }
-        for (int i = 0; i < blockPropFields.size() && i < blockPropEntries.size(); i++) {
-            blockPropEntries.get(i)[0] = blockPropFields.get(i)[0].getValue();
-            blockPropEntries.get(i)[1] = blockPropFields.get(i)[1].getValue();
-        }
-    }
-
-    @Nullable
-    protected Map<String, String> collectBlockProperties() {
-        syncBlockPropFieldsToEntries();
-        if (blockPropEntries == null) {
-            return null;
-        }
-        Map<String, String> map = new HashMap<>();
-        for (String[] entry : blockPropEntries) {
-            String key = entry[0].trim();
-            String value = entry[1].trim();
-            if (!key.isEmpty() && !value.isEmpty()) {
-                map.put(key, value);
-            }
-        }
-        return map.isEmpty() ? null : map;
-    }
-
-    protected void snapshotBlockProps(Map<String, String> snapshot) {
-        syncBlockPropFieldsToEntries();
-        if (blockPropEntries == null) {
-            return;
-        }
-        snapshot.put("prop_count", String.valueOf(blockPropEntries.size()));
-        for (int i = 0; i < blockPropEntries.size(); i++) {
-            snapshot.put("prop_key_" + i, blockPropEntries.get(i)[0]);
-            snapshot.put("prop_val_" + i, blockPropEntries.get(i)[1]);
-        }
-    }
-
-    protected void restoreBlockProps(Map<String, String> snapshot) {
-        if (blockPropFields == null || !snapshot.containsKey("prop_count")) {
-            return;
-        }
-        int count;
-        try {
-            count = Integer.parseInt(snapshot.get("prop_count"));
-        } catch (NumberFormatException e) {
-            return;
-        }
-        for (int i = 0; i < count && i < blockPropFields.size(); i++) {
-            blockPropFields.get(i)[0].setValue(snapshot.getOrDefault("prop_key_" + i, ""));
-            blockPropFields.get(i)[1].setValue(snapshot.getOrDefault("prop_val_" + i, ""));
-        }
-    }
-
-    private void applyBlockPropsSnapshot(Map<String, String> snapshot) {
-        if (!snapshot.containsKey("prop_count")) {
-            return;
-        }
-        int count;
-        try {
-            count = Integer.parseInt(snapshot.get("prop_count"));
-        } catch (NumberFormatException e) {
-            return;
-        }
-        blockPropEntries = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            blockPropEntries.add(new String[]{
-                snapshot.getOrDefault("prop_key_" + i, ""),
-                snapshot.getOrDefault("prop_val_" + i, "")
-            });
-        }
-        if (blockPropEntries.isEmpty()) {
-            blockPropEntries.add(new String[]{"", ""});
-        }
-    }
 }

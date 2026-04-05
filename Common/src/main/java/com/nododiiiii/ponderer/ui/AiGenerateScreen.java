@@ -7,7 +7,6 @@ import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
-import com.nododiiiii.ponderer.ui.catnip.FormEntries;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;
@@ -60,69 +59,71 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
-        entries.add(FormEntries.sectionHeader(this::structureSummaryLine));
-        entries.add(FormEntries.sectionHeader(this::structureDetailsLine));
-        entries.add(FormEntries.fullButton(
+        entries.add(FieldSpecs.sectionHeader(this::structureSummaryLine));
+        entries.add(FieldSpecs.sectionHeader(this::structureDetailsLine));
+        entries.add(FieldSpecs.fullButton(
             UIText.of("ponderer.ui.ai_generate.add"),
             UIText.of("ponderer.ui.ai_generate.add.tooltip"),
             this::addStructure));
 
         if (!cachedStructurePaths.isEmpty()) {
-            entries.add(FormEntries.fullButton(
+            entries.add(FieldSpecs.fullButton(
                 UIText.of("ponderer.ui.ai_generate.delete"),
                 UIText.of("ponderer.ui.ai_generate.delete.tooltip"),
                 this::deleteStructure));
-            entries.add(FormEntries.fullButton(
+            entries.add(FieldSpecs.fullButton(
                 "< " + UIText.of("ponderer.ui.ai_generate.prev.tooltip"),
                 UIText.of("ponderer.ui.ai_generate.prev.tooltip"),
                 this::prevStructure));
-            entries.add(FormEntries.fullButton(
+            entries.add(FieldSpecs.fullButton(
                 UIText.of("ponderer.ui.ai_generate.next.tooltip") + " >",
                 UIText.of("ponderer.ui.ai_generate.next.tooltip"),
                 this::nextStructure));
         }
 
-        entries.add(FormEntries.text(
+        entries.add(FieldSpecs.text(
+            FieldBindings.transientString(() -> cachedCarrier, value -> cachedCarrier = value),
             "ponderer.ui.ai_generate.carrier",
             null,
             "ponderer.ui.ai_generate.carrier.hint",
-            cachedCarrier,
-            value -> cachedCarrier = value,
+            -1,
             entry -> entry.field().setMaxLength(128),
             FormTextButtonSpec.jei(IdFieldMode.ITEM)));
 
-        entries.add(FormEntries.text(
+        entries.add(FieldSpecs.text(
+            FieldBindings.transientString(() -> cachedPrompt, value -> cachedPrompt = value),
             "ponderer.ui.ai_generate.prompt",
             null,
             "ponderer.ui.ai_generate.prompt.hint",
-            cachedPrompt,
-            value -> cachedPrompt = value,
+            -1,
             entry -> entry.field().setMaxLength(2048)));
 
-        entries.add(FormEntries.sectionHeader(UIText.of("ponderer.ui.ai_generate.urls")));
+        entries.add(FieldSpecs.sectionHeader(UIText.of("ponderer.ui.ai_generate.urls")));
         List<String> urlValues = referenceUrlManager.getUrlValues();
         for (int i = 0; i < urlValues.size(); i++) {
             final int index = i;
-            entries.add(FormEntries.text(
+            entries.add(FieldSpecs.text(
+                FieldBindings.transientString(
+                    () -> referenceUrlManager.getUrlValues().get(index),
+                    value -> referenceUrlManager.updateUrl(index, value)),
                 i == 0 ? "ponderer.ui.ai_generate.urls" : "",
                 null,
                 "ponderer.ui.ai_generate.url.hint",
-                urlValues.get(i),
-                value -> referenceUrlManager.updateUrl(index, value),
+                -1,
                 entry -> entry.field().setMaxLength(512),
                 FormTextButtonSpec.action("-", 0xFF6666, null, () -> removeUrl(index))));
         }
-        entries.add(FormEntries.fullButton(
+        entries.add(FieldSpecs.fullButton(
             UIText.of("ponderer.ui.ai_generate.add_url"),
             UIText.of("ponderer.ui.ai_generate.add_url.tooltip"),
             this::addUrl));
 
-        entries.add(FormEntries.toggle(
+        entries.add(FieldSpecs.toggle(
             "ponderer.ui.ai_generate.build_tutorial",
             "ponderer.ui.ai_generate.build_tutorial.tooltip",
             () -> cachedBuildTutorial,
             this::toggleBuildTutorial));
-        entries.add(FormEntries.toggle(
+        entries.add(FieldSpecs.toggle(
             "ponderer.ui.ai_generate.include_images",
             "ponderer.ui.ai_generate.include_images.tooltip",
             () -> cachedIncludeImages,

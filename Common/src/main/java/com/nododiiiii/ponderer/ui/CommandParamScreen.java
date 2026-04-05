@@ -6,8 +6,6 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
-import com.nododiiiii.ponderer.ui.catnip.FormEntries;
-import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;
 
@@ -102,18 +100,17 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
         try {
             for (FieldDef def : fieldDefs) {
                 if (def instanceof TextFieldDef textDef) {
-                    entries.add(FormEntries.text(
+                    entries.add(FieldSpecs.text(
+                        FieldBindings.transientString(
+                            () -> currentTextValue(textDef.id),
+                            value -> handleTextChanged(textDef.id, value)),
                         textDef.labelKey,
                         null,
                         textDef.hintKey,
-                        "",
-                        value -> handleTextChanged(textDef.id, value),
+                        -1,
                         entry -> {
                             entry.field().setMaxLength(32500);
                             textInputs.put(textDef.id, entry.field());
-                            suppressFieldResponder = true;
-                            entry.field().setValue(currentTextValue(textDef.id));
-                            suppressFieldResponder = false;
                         },
                         textButtonsFor(textDef)));
                     continue;
@@ -121,7 +118,7 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
 
                 if (def instanceof ChoiceFieldDef choiceDef) {
                     ensureChoiceState(choiceDef);
-                    entries.add(FormEntries.choice(
+                    entries.add(FieldSpecs.choice(
                         choiceDef.labelKey,
                         null,
                         140,
@@ -134,7 +131,7 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
 
                 ToggleFieldDef toggleDef = (ToggleFieldDef) def;
                 toggleStates.putIfAbsent(toggleDef.id, toggleDef.defaultValue);
-                entries.add(FormEntries.toggle(
+                entries.add(FieldSpecs.toggle(
                     toggleDef.labelKey,
                     null,
                     () -> toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue),

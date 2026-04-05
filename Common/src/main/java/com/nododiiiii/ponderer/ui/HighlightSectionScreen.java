@@ -33,24 +33,24 @@ public class HighlightSectionScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             pos1Field,
             "ponderer.ui.highlight_section.pos_from",
             "ponderer.ui.highlight_section.pos_from.tooltip",
             PickState.TargetField.POS1));
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             pos2Field,
             "ponderer.ui.highlight_section.pos_to",
             "ponderer.ui.highlight_section.pos_to.tooltip",
             PickState.TargetField.POS2));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.highlight_section.duration.tooltip",
             "40",
             50,
             "ponderer.ui.ticks"));
-        entries.add(StepEditorEntries.cycleButton(
+        entries.add(FieldSpecs.choice(
             "ponderer.ui.color",
             "ponderer.ui.color.tooltip",
             100,

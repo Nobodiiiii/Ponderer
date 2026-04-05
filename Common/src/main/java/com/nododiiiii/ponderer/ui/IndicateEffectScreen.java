@@ -27,7 +27,7 @@ public class IndicateEffectScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui." + stepType + ".pos",
             "ponderer.ui." + stepType + ".pos.tooltip",

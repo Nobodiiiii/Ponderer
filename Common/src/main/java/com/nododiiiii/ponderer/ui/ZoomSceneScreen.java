@@ -26,20 +26,20 @@ public class ZoomSceneScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             centerField,
             "ponderer.ui.zoom_scene.center",
             "ponderer.ui.zoom_scene.center.tooltip",
             PickState.TargetField.POINT,
             true));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             scaleField,
             "ponderer.ui.zoom_scene.scale",
             "ponderer.ui.zoom_scene.scale.tooltip",
             "1.0",
             60,
             null));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             durationField,
             "ponderer.ui.duration",
             "ponderer.ui.zoom_scene.duration.tooltip",

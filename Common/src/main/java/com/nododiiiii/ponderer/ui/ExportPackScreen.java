@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
-import com.nododiiiii.ponderer.ui.catnip.FormEntries;
 import net.minecraft.client.Minecraft;
 
 import java.util.HashSet;
@@ -29,34 +28,34 @@ public class ExportPackScreen extends AbstractDeclarativeFormScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
-        entries.add(FormEntries.text(
-            "ponderer.ui.export.name",
-            null,
-            "ponderer.ui.export.name",
-            draftName,
-            value -> {
+        entries.add(FieldSpecs.text(
+            FieldBindings.transientString(() -> draftName, value -> {
                 draftName = value;
                 clearStatusMessages();
-            }));
-        entries.add(FormEntries.text(
-            "ponderer.ui.export.version",
+            }),
+            "ponderer.ui.export.name",
             null,
-            "ponderer.ui.export.version",
-            draftVersion,
-            value -> {
+            "ponderer.ui.export.name",
+            -1));
+        entries.add(FieldSpecs.text(
+            FieldBindings.transientString(() -> draftVersion, value -> {
                 draftVersion = value;
                 clearStatusMessages();
-            }));
-        entries.add(FormEntries.text(
+            }),
+            "ponderer.ui.export.version",
+            null,
+            "ponderer.ui.export.version",
+            -1));
+        entries.add(FieldSpecs.text(
+            FieldBindings.transientString(() -> draftAuthor, value -> {
+                draftAuthor = value;
+                clearStatusMessages();
+            }),
             "ponderer.ui.export.author",
             null,
             "ponderer.ui.export.author",
-            draftAuthor,
-            value -> {
-                draftAuthor = value;
-                clearStatusMessages();
-            }));
-        entries.add(FormEntries.fullButton(
+            -1));
+        entries.add(FieldSpecs.fullButton(
             currentSceneSelectionLabel(),
             UIText.of("ponderer.ui.export.all_scenes"),
             this::openSceneSelector));

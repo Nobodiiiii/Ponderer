@@ -6,7 +6,6 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
-import com.nododiiiii.ponderer.ui.catnip.FormEntries;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
@@ -59,56 +58,60 @@ public class SceneDescEditorScreen extends AbstractDeclarativeFormScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
-        entries.add(FormEntries.localizedText(
+        entries.add(FieldSpecs.localizedText(
+            FieldBindings.transientString(
+                () -> localizedValue(workingPonderTitle, ponderTitleLang),
+                value -> {
+                    workingPonderTitle.setForLang(ponderTitleLang, value);
+                    clearStatusMessages();
+                }),
             "ponderer.ui.scene_desc.ponder_title",
             null,
             "ponderer.ui.scene_desc.hint.ponder_title",
-            localizedValue(workingPonderTitle, ponderTitleLang),
+            -1,
             () -> ponderTitleLang,
             this::togglePonderTitleLang,
-            value -> {
-                workingPonderTitle.setForLang(ponderTitleLang, value);
-                clearStatusMessages();
-            },
             entry -> ponderTitleEntry = entry));
 
         if (hasMultiScene && workingSceneTitle != null) {
-            entries.add(FormEntries.localizedText(
+            entries.add(FieldSpecs.localizedText(
+                FieldBindings.transientString(
+                    () -> localizedValue(workingSceneTitle, sceneTitleLang),
+                    value -> {
+                        workingSceneTitle.setForLang(sceneTitleLang, value);
+                        clearStatusMessages();
+                    }),
                 "ponderer.ui.scene_desc.scene_title",
                 null,
                 "ponderer.ui.scene_desc.hint.scene_title",
-                localizedValue(workingSceneTitle, sceneTitleLang),
+                -1,
                 () -> sceneTitleLang,
                 this::toggleSceneTitleLang,
-                value -> {
-                    workingSceneTitle.setForLang(sceneTitleLang, value);
-                    clearStatusMessages();
-                },
                 entry -> sceneTitleEntry = entry));
         } else {
             sceneTitleEntry = null;
         }
 
-        entries.add(FormEntries.text(
+        entries.add(FieldSpecs.text(
+            FieldBindings.transientString(() -> draftPonderId, value -> {
+                draftPonderId = value;
+                clearStatusMessages();
+            }),
             "ponderer.ui.scene_desc.ponder_id",
             "ponderer.ui.scene_desc.id_hint",
             "ponderer.ui.scene_desc.hint.ponder_id",
-            draftPonderId,
-            value -> {
-                draftPonderId = value;
-                clearStatusMessages();
-            }));
+            -1));
 
         if (hasMultiScene) {
-            entries.add(FormEntries.text(
+            entries.add(FieldSpecs.text(
+                FieldBindings.transientString(() -> draftSceneId, value -> {
+                    draftSceneId = value;
+                    clearStatusMessages();
+                }),
                 "ponderer.ui.scene_desc.scene_id",
                 "ponderer.ui.scene_desc.id_hint",
                 "ponderer.ui.scene_desc.hint.scene_id",
-                draftSceneId,
-                value -> {
-                    draftSceneId = value;
-                    clearStatusMessages();
-                }));
+                -1));
         }
     }
 

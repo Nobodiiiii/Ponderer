@@ -1,11 +1,12 @@
 package com.nododiiiii.ponderer.blueprint;
 
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ui.FieldBindings;
+import com.nododiiiii.ponderer.ui.FieldSpecs;
 import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import com.nododiiiii.ponderer.ui.UIText;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
-import com.nododiiiii.ponderer.ui.catnip.FormEntries;
 import net.minecraft.client.Minecraft;
 
 import java.util.List;
@@ -31,16 +32,16 @@ public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
-        entries.add(FormEntries.text(
-            "ponderer.ui.blueprint.prompt.name",
-            null,
-            "ponderer.ui.blueprint.prompt.name",
-            blueprintName,
-            value -> {
+        entries.add(FieldSpecs.text(
+            FieldBindings.transientString(() -> blueprintName, value -> {
                 blueprintName = value;
                 awaitingOverrideConfirm = false;
                 clearStatusMessages();
-            }));
+            }),
+            "ponderer.ui.blueprint.prompt.name",
+            null,
+            "ponderer.ui.blueprint.prompt.name",
+            -1));
     }
 
     @Override

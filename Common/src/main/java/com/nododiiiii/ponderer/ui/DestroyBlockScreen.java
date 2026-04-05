@@ -28,12 +28,12 @@ public class DestroyBlockScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui.destroy_block.pos",
             "ponderer.ui.destroy_block.pos.tooltip",
             PickState.TargetField.POS1));
-        entries.add(StepEditorEntries.toggle(
+        entries.add(FieldSpecs.toggle(
             "ponderer.ui.destroy_block.particles",
             "ponderer.ui.destroy_block.particles.tooltip",
             () -> destroyParticles,

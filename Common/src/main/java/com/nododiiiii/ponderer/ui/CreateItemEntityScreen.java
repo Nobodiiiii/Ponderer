@@ -32,7 +32,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             itemField,
             "ponderer.ui.create_item_entity.item",
             "ponderer.ui.create_item_entity.item.tooltip",
@@ -46,24 +46,24 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
                     nbtField.setValue(stack.getTag().toString());
                 }
             })));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             countField,
             "ponderer.ui.create_item_entity.count",
             "ponderer.ui.create_item_entity.count.tooltip",
             "1",
             50,
             null));
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui.create_item_entity.pos",
             "ponderer.ui.create_item_entity.pos.tooltip",
             PickState.TargetField.POS1,
             true));
-        entries.add(StepEditorEntries.xyz(
+        entries.add(FieldSpecs.xyz(
             motionField,
             "ponderer.ui.create_item_entity.motion",
             "ponderer.ui.create_item_entity.motion.tooltip"));
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             nbtField,
             "ponderer.ui.create_item_entity.nbt",
             "ponderer.ui.create_item_entity.nbt.tooltip",

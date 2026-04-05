@@ -36,27 +36,27 @@ public class PlaySoundScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.text(
+        entries.add(FieldSpecs.text(
             soundField,
             "ponderer.ui.play_sound.sound",
             "ponderer.ui.play_sound.sound.tooltip",
             UIText.of("ponderer.ui.play_sound.sound.hint"),
             140));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             volumeField,
             "ponderer.ui.play_sound.volume",
             "ponderer.ui.play_sound.volume.tooltip",
             "1.0",
             50,
             null));
-        entries.add(StepEditorEntries.number(
+        entries.add(FieldSpecs.number(
             pitchField,
             "ponderer.ui.play_sound.pitch",
             "ponderer.ui.play_sound.pitch.tooltip",
             "1.0",
             50,
             null));
-        entries.add(StepEditorEntries.cycleButton(
+        entries.add(FieldSpecs.choice(
             "ponderer.ui.play_sound.source",
             "ponderer.ui.play_sound.source.tooltip",
             100,

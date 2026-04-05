@@ -10,12 +10,8 @@ Apply these rules to the entire repository unless a deeper `AGENTS.md` overrides
 
 ## Errors And Runtime Regressions
 
-1. When the task involves a crash, exception, launch failure, or behavior regression, read logs first.
-2. Use only this repository's `.minecraft/` directory for runtime evidence.
-3. Prioritize `.minecraft/logs/latest.log`, then the newest file under `.minecraft/crash-reports/` when present.
-4. Do not inspect `%APPDATA%`, launcher-default directories, or any other external `.minecraft` location.
-5. If a required local log or crash report is missing, say exactly which local path is missing instead of guessing.
-6. Separate the first actionable cause from later cascading errors. Cite the exact exception, message, or stack frame that supports the conclusion.
+1. When the task involves a crash, exception, launch failure, or behavior regression, use the global `$minecraft-crash-triage` skill at `C:/Users/Nobodiiiii/.codex/skills/minecraft-crash-triage/SKILL.md`.
+2. Follow that skill's workflow for log lookup, evidence gathering, and missing-file reporting instead of restating the crash-triage procedure here.
 
 ## Verification
 

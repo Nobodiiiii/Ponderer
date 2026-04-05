@@ -31,16 +31,15 @@ public class ClickInterfaceScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(StepEditorEntries.xyzWithHints(
+        entries.add(FieldSpecs.xyz(
             pointField,
             "ponderer.ui.click_interface.point",
             "ponderer.ui.click_interface.point.tooltip",
-            PickState.TargetField.POINT,
-            false,
             UIText.of("ponderer.ui.click_interface.point.hint_x"),
             UIText.of("ponderer.ui.click_interface.point.hint_y"),
-            UIText.of("ponderer.ui.click_interface.point.hint_z")));
-        entries.add(StepEditorEntries.cycleButton(
+            UIText.of("ponderer.ui.click_interface.point.hint_z"),
+            StepXyzButtonSpec.pick(PickState.TargetField.POINT, false)));
+        entries.add(FieldSpecs.choice(
             "ponderer.ui.click_interface.action",
             "ponderer.ui.click_interface.action.tooltip",
             70,
