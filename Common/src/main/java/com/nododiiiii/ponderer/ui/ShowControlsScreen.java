@@ -70,8 +70,8 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
             "ponderer.ui.show_controls.item.tooltip",
             UIText.of("ponderer.ui.show_controls.item.hint"),
             124,
-            StepTextButtonSpec.jei(IdFieldMode.INGREDIENT),
-            StepTextButtonSpec.heldItem(
+            FieldDecorators.jei(IdFieldMode.INGREDIENT),
+            FieldDecorators.heldItem(
             stack -> {
                 String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                 itemField.setValue(itemId);
@@ -87,7 +87,7 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
             "ponderer.ui.show_controls.nbt.tooltip",
             "{}",
             124,
-            StepTextButtonSpec.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt")));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.show_controls.sneaking",
             "ponderer.ui.show_controls.sneaking.tooltip",

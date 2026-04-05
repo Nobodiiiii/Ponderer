@@ -42,12 +42,8 @@ public final class PickState {
     private static boolean active = false;
     private static TargetField targetField;
     private static Map<String, String> formSnapshot = new HashMap<>();
-    private static String stepType;
-    private static int editIndex = -1;
-    private static int insertAfterIndex = -1;
-    private static DslScene scene;
-    private static int sceneIndex;
-    private static SceneEditorScreen parent;
+    @Nullable
+    private static StepEditorContext context;
     /** For non-block fields (entity pos, text point, etc.), add 0.5 to get block center. */
     private static boolean useHalfOffset = false;
 
@@ -84,12 +80,7 @@ public final class PickState {
         PickState.active = true;
         PickState.targetField = target;
         PickState.formSnapshot = new HashMap<>(snapshot);
-        PickState.stepType = stepType;
-        PickState.editIndex = editIndex;
-        PickState.insertAfterIndex = insertAfterIndex;
-        PickState.scene = scene;
-        PickState.sceneIndex = sceneIndex;
-        PickState.parent = parent;
+        PickState.context = new StepEditorContext(stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent);
         PickState.useHalfOffset = halfOffset;
         PickState.pickedPos = null;
     }
@@ -166,50 +157,18 @@ public final class PickState {
         }
 
         // Build the editor screen via StepEditorFactory
-        AbstractStepEditorScreen editor;
-        if (editIndex >= 0) {
-            // Edit mode - need the existing step; use scene-aware step accessor
-            // Use scene-aware step accessor for scene.scenes[].steps format
-            List<DslScene.DslStep> steps = getStepsForScene();
-            DslScene.DslStep existingStep = (steps != null && editIndex < steps.size())
-                    ? steps.get(editIndex) : null;
-            editor = StepEditorFactory.createEditScreen(existingStep, editIndex, scene, sceneIndex, parent);
+        StepEditorContext reopenContext = context;
+        active = false;
+        pickedPos = null;
+        pickedFace = null;
+        pickedUiX = null;
+        pickedUiY = null;
+        context = null;
+        if (reopenContext != null) {
+            reopenContext.reopenEditor(formSnapshot);
         } else {
-            editor = StepEditorFactory.createAddScreen(stepType, scene, sceneIndex, parent);
+            formSnapshot.clear();
         }
-
-        if (editor != null) {
-            editor.setInsertAfterIndex(insertAfterIndex);
-            editor.setPendingPickRestore(formSnapshot);
-            // Reset state BEFORE setScreen to prevent removed() from triggering cancelPick
-            active = false;
-            pickedPos = null;
-            pickedFace = null;
-            pickedUiX = null;
-            pickedUiY = null;
-            Minecraft.getInstance().setScreen(editor);
-        } else {
-            // Reset state
-            active = false;
-            pickedPos = null;
-            pickedFace = null;
-            pickedUiX = null;
-            pickedUiY = null;
-        }
-    }
-
-    /**
-     * Get the step list for the current scene, handling both flat and multi-scene formats.
-     */
-    @Nullable
-    private static List<DslScene.DslStep> getStepsForScene() {
-        if (scene == null) return null;
-        if (scene.scenes != null && !scene.scenes.isEmpty()) {
-            if (sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
-                return scene.scenes.get(sceneIndex).steps;
-            }
-        }
-        return null;
     }
 
     /**
@@ -217,7 +176,7 @@ public final class PickState {
      * Attempts to navigate to the correct scene matching the one being edited.
      */
     public static void openPonderUIForPick() {
-        if (!active || scene == null) return;
+        if (!active || context == null) return;
 
         ResourceLocation itemId = getItemId();
         if (itemId == null) {
@@ -233,8 +192,8 @@ public final class PickState {
         List<PonderScene> ponderScenes = accessor.ponderer$getScenes();
         for (int i = 0; i < ponderScenes.size(); i++) {
             SceneRuntime.SceneMatch match = SceneRuntime.findBySceneId(ponderScenes.get(i).getId());
-            if (match != null && match.sceneIndex() == sceneIndex
-                    && match.scene().id.equals(scene.id)) {
+            if (match != null && match.sceneIndex() == context.sceneIndex()
+                    && match.scene().id.equals(context.scene().id)) {
                 accessor.ponderer$setIndex(i);
                 accessor.ponderer$getLazyIndex().startWithValue(i);
                 ponderScenes.get(i).begin();
@@ -247,8 +206,8 @@ public final class PickState {
 
     @Nullable
     private static ResourceLocation getItemId() {
-        if (scene == null || scene.items == null || scene.items.isEmpty()) return null;
-        return ResourceLocation.tryParse(scene.items.get(0));
+        if (context == null || context.scene().items == null || context.scene().items.isEmpty()) return null;
+        return ResourceLocation.tryParse(context.scene().items.get(0));
     }
 
     // -- Queries --
@@ -278,6 +237,7 @@ public final class PickState {
         pickedFace = null;
         pickedUiX = null;
         pickedUiY = null;
+        context = null;
         formSnapshot.clear();
     }
 

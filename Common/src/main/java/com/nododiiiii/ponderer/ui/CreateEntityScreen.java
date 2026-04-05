@@ -40,8 +40,8 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             "ponderer.ui.create_entity.tooltip",
             UIText.of("ponderer.ui.create_entity.hint"),
             124,
-            StepTextButtonSpec.jei(IdFieldMode.ENTITY),
-            StepTextButtonSpec.nbtPick("nbt")));
+            FieldDecorators.jei(IdFieldMode.ENTITY),
+            FieldDecorators.nbtPick("nbt")));
         entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui.create_entity.pos",
@@ -81,7 +81,7 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             "ponderer.ui.create_entity.nbt.tooltip",
             "{NoAI:1b}",
             124,
-            StepTextButtonSpec.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt")));
     }
 
     @Override

@@ -237,14 +237,11 @@ public final class FieldSpecs {
         return new FieldSpec() {
             @Override
             public void build(AbstractDeclarativeFormScreen screen) {
-                if (!(screen instanceof AbstractStepEditorScreen stepScreen)) {
-                    throw new IllegalStateException("XYZ fields require an AbstractStepEditorScreen");
-                }
                 XyzListEntry entry = new XyzListEntry(labelKey, tooltipKey, xHint, yHint, zHint);
                 attachWidget(handle.xHandle(), (HintableTextFieldWidget) entry.xField());
                 attachWidget(handle.yHandle(), (HintableTextFieldWidget) entry.yField());
                 attachWidget(handle.zHandle(), (HintableTextFieldWidget) entry.zField());
-                applyXyzDecorators(stepScreen, entry, decorators);
+                applyXyzDecorators(screen, entry, decorators);
                 screen.appendBuiltEntry(entry);
             }
 
@@ -262,9 +259,9 @@ public final class FieldSpecs {
 
     public static FieldSpec xyz(StepXyzFieldHandle handle, String labelKey, @Nullable String tooltipKey,
                                 @Nullable PickState.TargetField target, boolean halfOffset) {
-        StepXyzButtonSpec[] decorators = target == null
-            ? new StepXyzButtonSpec[0]
-            : new StepXyzButtonSpec[]{StepXyzButtonSpec.pick(target, halfOffset)};
+        FieldDecorator[] decorators = target == null
+            ? new FieldDecorator[0]
+            : new FieldDecorator[]{FieldDecorators.pointPick(target, halfOffset)};
         return xyz(handle, labelKey, tooltipKey, "X", "Y", "Z", decorators);
     }
 
@@ -380,7 +377,7 @@ public final class FieldSpecs {
         }
     }
 
-    private static void applyXyzDecorators(AbstractStepEditorScreen screen, XyzListEntry entry,
+    private static void applyXyzDecorators(AbstractDeclarativeFormScreen screen, XyzListEntry entry,
                                            FieldDecorator... decorators) {
         for (FieldDecorator decorator : decorators) {
             if (decorator != null) {

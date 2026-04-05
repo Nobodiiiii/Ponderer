@@ -38,8 +38,8 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             "ponderer.ui.create_item_entity.item.tooltip",
             UIText.of("ponderer.ui.create_item_entity.hint"),
             124,
-            StepTextButtonSpec.jei(IdFieldMode.ITEM),
-            StepTextButtonSpec.heldItem(
+            FieldDecorators.jei(IdFieldMode.ITEM),
+            FieldDecorators.heldItem(
             stack -> {
                 itemField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
                 if (stack.getTag() != null && !stack.getTag().isEmpty()) {
@@ -69,7 +69,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             "ponderer.ui.create_item_entity.nbt.tooltip",
             "{PickupDelay:40s}",
             124,
-            StepTextButtonSpec.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt")));
     }
 
     @Override

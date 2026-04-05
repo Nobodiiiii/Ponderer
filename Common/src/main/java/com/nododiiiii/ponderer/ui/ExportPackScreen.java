@@ -1,26 +1,22 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.minecraft.client.Minecraft;
 
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-public class ExportPackScreen extends AbstractDeclarativeFormScreen {
+public class ExportPackScreen extends AbstractStatefulDeclarativeFormScreen {
 
     private String draftName = "";
     private String draftVersion = "1.0.0";
     private String draftAuthor = "";
     private Set<String> selectedSceneIds = new HashSet<>();
-
-    private String baselineName = draftName;
-    private String baselineVersion = draftVersion;
-    private String baselineAuthor = draftAuthor;
-    private Set<String> baselineSceneIds = new HashSet<>();
 
     public ExportPackScreen() {
         super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.function_page.export.title", UILayoutConstants.EDITOR_LIST_W);
@@ -62,29 +58,6 @@ public class ExportPackScreen extends AbstractDeclarativeFormScreen {
     }
 
     @Override
-    protected boolean hasUnsavedChanges() {
-        return getUnsavedChangeCount() > 0;
-    }
-
-    @Override
-    protected int getUnsavedChangeCount() {
-        int dirty = 0;
-        if (!draftName.equals(baselineName)) {
-            dirty++;
-        }
-        if (!draftVersion.equals(baselineVersion)) {
-            dirty++;
-        }
-        if (!draftAuthor.equals(baselineAuthor)) {
-            dirty++;
-        }
-        if (!new TreeSet<>(selectedSceneIds).equals(new TreeSet<>(baselineSceneIds))) {
-            dirty++;
-        }
-        return dirty;
-    }
-
-    @Override
     protected boolean saveEdits() {
         clearStatusMessages();
 
@@ -109,22 +82,45 @@ public class ExportPackScreen extends AbstractDeclarativeFormScreen {
             return false;
         }
 
-        baselineName = draftName;
-        baselineVersion = draftVersion;
-        baselineAuthor = draftAuthor;
-        baselineSceneIds = new HashSet<>(selectedSceneIds);
+        markStateSaved();
         setInfoMessage(UIText.of("ponderer.ui.export.success", name));
         return true;
     }
 
     @Override
-    protected void discardEdits() {
-        clearStatusMessages();
-        draftName = baselineName;
-        draftVersion = baselineVersion;
-        draftAuthor = baselineAuthor;
-        selectedSceneIds = new HashSet<>(baselineSceneIds);
-        rebuildEntries(currentListScroll());
+    protected Map<String, String> snapshotState() {
+        Map<String, String> snapshot = new LinkedHashMap<>();
+        snapshot.put("name", draftName);
+        snapshot.put("version", draftVersion);
+        snapshot.put("author", draftAuthor);
+        TreeSet<String> ordered = new TreeSet<>(selectedSceneIds);
+        snapshot.put("scene_count", String.valueOf(ordered.size()));
+        int index = 0;
+        for (String sceneId : ordered) {
+            snapshot.put("scene_" + index, sceneId);
+            index++;
+        }
+        return snapshot;
+    }
+
+    @Override
+    protected void restoreSnapshot(Map<String, String> snapshot) {
+        draftName = snapshot.getOrDefault("name", "");
+        draftVersion = snapshot.getOrDefault("version", "1.0.0");
+        draftAuthor = snapshot.getOrDefault("author", "");
+
+        selectedSceneIds = new HashSet<>();
+        int count = 0;
+        try {
+            count = Integer.parseInt(snapshot.getOrDefault("scene_count", "0"));
+        } catch (NumberFormatException ignored) {
+        }
+        for (int i = 0; i < count; i++) {
+            String sceneId = snapshot.get("scene_" + i);
+            if (sceneId != null && !sceneId.isBlank()) {
+                selectedSceneIds.add(sceneId);
+            }
+        }
     }
 
     private void openSceneSelector() {

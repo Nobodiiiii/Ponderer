@@ -3,9 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
-import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;
 
@@ -15,11 +13,12 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class CommandParamScreen extends AbstractDeclarativeFormScreen implements JeiTextButtonHost {
+public class CommandParamScreen extends AbstractJeiAwareFormScreen {
+
+    private static final int CHOICE_BUTTON_WIDTH = 100;
 
     public sealed interface FieldDef permits TextFieldDef, ChoiceFieldDef, ToggleFieldDef {
     }
@@ -38,7 +37,6 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
 
     private final List<FieldDef> fieldDefs;
     private final Consumer<Map<String, String>> onExecute;
-    private final String titleKey;
 
     private final Map<String, String> textValues = new LinkedHashMap<>();
     private final Map<String, Integer> choiceSelections = new HashMap<>();
@@ -52,13 +50,10 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
 
     private boolean suppressFieldResponder = false;
     private boolean collectingEntries = false;
-    private boolean initialSnapshotCaptured = false;
-    private final FormState formState = new FormState(this::snapshotState, this::restoreSnapshot);
-    private final JeiFieldController jeiController = new JeiFieldController(JeiCompat::setActiveScreen);
 
     private CommandParamScreen(String titleKey, List<FieldDef> fieldDefs, Consumer<Map<String, String>> onExecute) {
-        super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, UILayoutConstants.EDITOR_LIST_W);
-        this.titleKey = titleKey;
+        super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, UILayoutConstants.EDITOR_LIST_W,
+            JeiCompat::setActiveScreen);
         this.fieldDefs = fieldDefs;
         this.onExecute = onExecute;
     }
@@ -84,15 +79,6 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
     }
 
     @Override
-    protected void init() {
-        super.init();
-        if (!initialSnapshotCaptured) {
-            formState.captureBaseline();
-            initialSnapshotCaptured = true;
-        }
-    }
-
-    @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         textInputs.clear();
         collectingEntries = true;
@@ -112,7 +98,7 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
                             entry.field().setMaxLength(32500);
                             textInputs.put(textDef.id, entry.field());
                         },
-                        textButtonsFor(textDef)));
+                        textDecoratorsFor(textDef)));
                     continue;
                 }
 
@@ -121,7 +107,7 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
                     entries.add(FieldSpecs.choice(
                         choiceDef.labelKey,
                         null,
-                        140,
+                        CHOICE_BUTTON_WIDTH,
                         () -> cycleChoice(choiceDef),
                         () -> UIText.of(choiceDef.optionLabelKeys.get(choiceSelections.getOrDefault(choiceDef.id, 0))),
                         () -> 0xFFFFFF,
@@ -140,16 +126,6 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
         } finally {
             collectingEntries = false;
         }
-    }
-
-    @Override
-    protected boolean hasUnsavedChanges() {
-        return initialSnapshotCaptured && formState.hasUnsavedChanges();
-    }
-
-    @Override
-    protected int getUnsavedChangeCount() {
-        return initialSnapshotCaptured ? formState.dirtyCount() : 0;
     }
 
     @Override
@@ -176,78 +152,58 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
             values.put(toggleDef.id, String.valueOf(toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue)));
         }
 
-        if (jeiController.isActive()) {
-            deactivateJei();
-        }
+        deactivateJei();
         Minecraft.getInstance().setScreen(null);
         onExecute.accept(values);
         return true;
     }
 
     @Override
-    protected void discardEdits() {
-        clearStatusMessages();
-        formState.restoreBaseline();
-        rebuildEntries(currentListScroll());
+    protected void prepareSnapshotForBuild(Map<String, String> snapshot) {
+        restoreSnapshot(snapshot);
     }
 
     @Override
-    public void removed() {
-        super.removed();
-        if (jeiController.isActive()) {
-            deactivateJei();
+    protected boolean rebuildOnJeiStateChange() {
+        return true;
+    }
+
+    @Override
+    protected void restoreSnapshot(Map<String, String> snapshot) {
+        for (FieldDef def : fieldDefs) {
+            if (def instanceof TextFieldDef textDef) {
+                textValues.put(textDef.id, snapshot.getOrDefault(textDef.id, defaultValues.getOrDefault(textDef.id, "")));
+                continue;
+            }
+            if (def instanceof ChoiceFieldDef choiceDef) {
+                String targetValue = snapshot.get(choiceDef.id);
+                int index = targetValue == null ? 0 : choiceDef.values.indexOf(targetValue);
+                choiceSelections.put(choiceDef.id, Math.max(0, index));
+                continue;
+            }
+            ToggleFieldDef toggleDef = (ToggleFieldDef) def;
+            boolean state = Boolean.parseBoolean(snapshot.getOrDefault(toggleDef.id, String.valueOf(toggleDef.defaultValue)));
+            toggleStates.put(toggleDef.id, state);
         }
     }
 
     @Override
-    @Nullable
-    public HintableTextFieldWidget getJeiTargetField() {
-        return jeiController.targetField();
-    }
-
-    @Override
-    public void toggleJeiForField(HintableTextFieldWidget field, IdFieldMode mode) {
-        jeiController.toggle(this, field, mode);
-        rebuildEntries(currentListScroll());
-    }
-
-    @Override
-    public boolean isJeiActiveForField(HintableTextFieldWidget field) {
-        return jeiController.isActiveFor(field);
-    }
-
-    @Override
-    public void deactivateJei() {
-        jeiController.deactivate();
-    }
-
-    @Override
-    public void showJeiIncompatibleWarning(IdFieldMode mode) {
-        setErrorMessage(switch (mode) {
-            case BLOCK -> UIText.of("ponderer.ui.jei.error.not_block");
-            case ENTITY -> UIText.of("ponderer.ui.jei.error.not_spawn_egg");
-            case ITEM, INGREDIENT -> null;
-        });
-    }
-
-    @Override
-    public int getGuiLeft() {
-        return width / 2 - currentListWidthValue() / 2 - 40;
-    }
-
-    @Override
-    public int getGuiTop() {
-        return 35;
-    }
-
-    @Override
-    public int getGuiWidth() {
-        return currentListWidthValue() + 80;
-    }
-
-    @Override
-    public int getGuiHeight() {
-        return height - 60;
+    protected Map<String, String> snapshotState() {
+        Map<String, String> snapshot = new LinkedHashMap<>();
+        for (FieldDef def : fieldDefs) {
+            if (def instanceof TextFieldDef textDef) {
+                snapshot.put(textDef.id, currentTextValue(textDef.id));
+                continue;
+            }
+            if (def instanceof ChoiceFieldDef choiceDef) {
+                ensureChoiceState(choiceDef);
+                snapshot.put(choiceDef.id, choiceDef.values.get(choiceSelections.get(choiceDef.id)));
+                continue;
+            }
+            ToggleFieldDef toggleDef = (ToggleFieldDef) def;
+            snapshot.put(toggleDef.id, String.valueOf(toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue)));
+        }
+        return snapshot;
     }
 
     private void handleTextChanged(String fieldId, String value) {
@@ -344,59 +300,19 @@ public class CommandParamScreen extends AbstractDeclarativeFormScreen implements
         });
     }
 
-    private void restoreSnapshot(Map<String, String> snapshot) {
-        for (FieldDef def : fieldDefs) {
-            if (def instanceof TextFieldDef textDef) {
-                textValues.put(textDef.id, snapshot.getOrDefault(textDef.id, defaultValues.getOrDefault(textDef.id, "")));
-                continue;
-            }
-            if (def instanceof ChoiceFieldDef choiceDef) {
-                String targetValue = snapshot.get(choiceDef.id);
-                int index = targetValue == null ? 0 : choiceDef.values.indexOf(targetValue);
-                choiceSelections.put(choiceDef.id, Math.max(0, index));
-                continue;
-            }
-            ToggleFieldDef toggleDef = (ToggleFieldDef) def;
-            boolean state = Boolean.parseBoolean(snapshot.getOrDefault(toggleDef.id, String.valueOf(toggleDef.defaultValue)));
-            toggleStates.put(toggleDef.id, state);
-        }
-    }
-
-    private Map<String, String> snapshotState() {
-        Map<String, String> snapshot = new LinkedHashMap<>();
-        for (FieldDef def : fieldDefs) {
-            if (def instanceof TextFieldDef textDef) {
-                snapshot.put(textDef.id, currentTextValue(textDef.id));
-                continue;
-            }
-            if (def instanceof ChoiceFieldDef choiceDef) {
-                ensureChoiceState(choiceDef);
-                snapshot.put(choiceDef.id, choiceDef.values.get(choiceSelections.get(choiceDef.id)));
-                continue;
-            }
-            ToggleFieldDef toggleDef = (ToggleFieldDef) def;
-            snapshot.put(toggleDef.id, String.valueOf(toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue)));
-        }
-        return snapshot;
-    }
-
     private String currentTextValue(String fieldId) {
         return textValues.getOrDefault(fieldId, defaultValues.getOrDefault(fieldId, ""));
     }
 
-    private FormTextButtonSpec[] textButtonsFor(TextFieldDef textDef) {
-        List<FormTextButtonSpec> specs = new ArrayList<>();
+    private FieldDecorator[] textDecoratorsFor(TextFieldDef textDef) {
+        List<FieldDecorator> specs = new ArrayList<>();
         if (textDef.jeiMode != null) {
-            specs.add(FormTextButtonSpec.jei(textDef.jeiMode));
+            specs.add(FieldDecorators.jei(textDef.jeiMode));
         }
         if (textDef.sceneSelector) {
-            specs.add(FormTextButtonSpec.action(
-                "S",
-                0x80FFFF,
-                null,
-                () -> openSceneSelector(textDef.id, textDef.sceneMultiSelect)));
+            specs.add(FieldDecorators.sceneSelector(() -> openSceneSelector(textDef.id, textDef.sceneMultiSelect)));
         }
-        return specs.toArray(FormTextButtonSpec[]::new);
+        return specs.toArray(FieldDecorator[]::new);
     }
 
     private void setTextValue(String fieldId, @Nullable String value) {

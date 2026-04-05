@@ -4,7 +4,6 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import net.createmod.ponder.foundation.PonderIndex;
@@ -14,9 +13,9 @@ import net.minecraft.network.chat.Component;
 import javax.annotation.Nullable;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 
-public class SceneDescEditorScreen extends AbstractDeclarativeFormScreen {
+public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen {
 
     private final DslScene scene;
     private final int sceneIndex;
@@ -116,31 +115,6 @@ public class SceneDescEditorScreen extends AbstractDeclarativeFormScreen {
     }
 
     @Override
-    protected boolean hasUnsavedChanges() {
-        return getUnsavedChangeCount() > 0;
-    }
-
-    @Override
-    protected int getUnsavedChangeCount() {
-        int dirtyFields = 0;
-        if (!sameLocalizedText(workingPonderTitle, originalPonderTitle)) {
-            dirtyFields++;
-        }
-        if (!Objects.equals(draftPonderId, originalPonderId)) {
-            dirtyFields++;
-        }
-        if (hasMultiScene) {
-            if (!sameLocalizedText(workingSceneTitle, originalSceneTitle)) {
-                dirtyFields++;
-            }
-            if (!Objects.equals(draftSceneId, originalSceneId)) {
-                dirtyFields++;
-            }
-        }
-        return dirtyFields;
-    }
-
-    @Override
     protected boolean saveEdits() {
         clearStatusMessages();
 
@@ -179,23 +153,35 @@ public class SceneDescEditorScreen extends AbstractDeclarativeFormScreen {
         Minecraft.getInstance().execute(PonderIndex::reload);
 
         syncStateFromScene();
+        markStateSaved();
         rebuildEntries(currentListScroll());
         setInfoMessage(UIText.of("ponderer.ui.scene_desc.saved"));
         return true;
     }
 
     @Override
-    protected void discardEdits() {
-        clearStatusMessages();
-        workingPonderTitle = copyLocalizedText(originalPonderTitle);
-        draftPonderId = originalPonderId;
-
-        if (hasMultiScene) {
-            workingSceneTitle = copyLocalizedText(originalSceneTitle);
-            draftSceneId = originalSceneId;
+    protected Map<String, String> snapshotState() {
+        Map<String, String> snapshot = new LinkedHashMap<>();
+        snapshot.put("ponder_title_plain", String.valueOf(workingPonderTitle.isPlain()));
+        writeLocalizedSnapshot(snapshot, "ponder_title", workingPonderTitle);
+        snapshot.put("ponder_id", draftPonderId);
+        snapshot.put("scene_title_present", String.valueOf(workingSceneTitle != null));
+        if (workingSceneTitle != null) {
+            snapshot.put("scene_title_plain", String.valueOf(workingSceneTitle.isPlain()));
+            writeLocalizedSnapshot(snapshot, "scene_title", workingSceneTitle);
         }
+        snapshot.put("scene_id", draftSceneId);
+        return snapshot;
+    }
 
-        rebuildEntries(currentListScroll());
+    @Override
+    protected void restoreSnapshot(Map<String, String> snapshot) {
+        workingPonderTitle = readLocalizedSnapshot(snapshot, "ponder_title");
+        draftPonderId = snapshot.getOrDefault("ponder_id", "");
+
+        boolean hasSceneTitle = Boolean.parseBoolean(snapshot.getOrDefault("scene_title_present", "false"));
+        workingSceneTitle = hasSceneTitle ? readLocalizedSnapshot(snapshot, "scene_title") : null;
+        draftSceneId = snapshot.getOrDefault("scene_id", "");
     }
 
     private boolean validatePonderId(String newPonderId) {
@@ -300,19 +286,6 @@ public class SceneDescEditorScreen extends AbstractDeclarativeFormScreen {
         return exact != null ? exact : "";
     }
 
-    private static boolean sameLocalizedText(@Nullable LocalizedText left, @Nullable LocalizedText right) {
-        if (left == right) {
-            return true;
-        }
-        if (left == null || right == null) {
-            return false;
-        }
-        if (left.isPlain() != right.isPlain()) {
-            return false;
-        }
-        return left.getAllTranslations().equals(right.getAllTranslations());
-    }
-
     private static String getCurrentLang() {
         try {
             return Minecraft.getInstance().getLanguageManager().getSelected();
@@ -328,5 +301,33 @@ public class SceneDescEditorScreen extends AbstractDeclarativeFormScreen {
         return text.isPlain()
             ? LocalizedText.of(text.resolve())
             : LocalizedText.ofMap(new LinkedHashMap<>(text.getAllTranslations()));
+    }
+
+    private static void writeLocalizedSnapshot(Map<String, String> snapshot, String prefix, LocalizedText text) {
+        snapshot.put(prefix + "_count", String.valueOf(text.getAllTranslations().size()));
+        int index = 0;
+        for (Map.Entry<String, String> entry : text.getAllTranslations().entrySet()) {
+            snapshot.put(prefix + "_lang_" + index, entry.getKey());
+            snapshot.put(prefix + "_value_" + index, entry.getValue());
+            index++;
+        }
+    }
+
+    private static LocalizedText readLocalizedSnapshot(Map<String, String> snapshot, String prefix) {
+        int count = 0;
+        try {
+            count = Integer.parseInt(snapshot.getOrDefault(prefix + "_count", "0"));
+        } catch (NumberFormatException ignored) {
+        }
+
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        for (int i = 0; i < count; i++) {
+            String lang = snapshot.get(prefix + "_lang_" + i);
+            String value = snapshot.get(prefix + "_value_" + i);
+            if (lang != null && value != null) {
+                values.put(lang, value);
+            }
+        }
+        return values.isEmpty() ? LocalizedText.of("") : LocalizedText.ofMap(values);
     }
 }

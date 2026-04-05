@@ -48,8 +48,8 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
                 "ponderer.ui." + stepType + ".id.tooltip",
                 UIText.of("ponderer.ui." + stepType + ".id.hint"),
                 124,
-                StepTextButtonSpec.jei(jeiMode),
-                StepTextButtonSpec.heldItem(
+                FieldDecorators.jei(jeiMode),
+                FieldDecorators.heldItem(
                 stack -> {
                     idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
                     if (stack.getTag() != null && !stack.getTag().isEmpty()) {
@@ -63,7 +63,7 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
                 "ponderer.ui." + stepType + ".id.tooltip",
                 UIText.of("ponderer.ui." + stepType + ".id.hint"),
                 124,
-                StepTextButtonSpec.jei(jeiMode)));
+                FieldDecorators.jei(jeiMode)));
         }
         entries.add(FieldSpecs.xyz(
             posField,
@@ -81,7 +81,7 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
             "ponderer.ui." + stepType + ".nbt.tooltip",
             "{NoGravity:1b}",
             124,
-            StepTextButtonSpec.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt")));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui." + stepType + ".full_scene",
             "ponderer.ui." + stepType + ".full_scene.tooltip",

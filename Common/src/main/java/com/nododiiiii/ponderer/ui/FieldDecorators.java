@@ -38,7 +38,7 @@ public final class FieldDecorators {
                                            IntSupplier colorGetter, @Nullable String tooltipText) {
         return new FieldDecorator() {
             @Override
-            public void applyXyz(AbstractStepEditorScreen screen, XyzListEntry entry) {
+            public void applyXyz(AbstractDeclarativeFormScreen screen, XyzListEntry entry) {
                 entry.addTrailingButton(width, onClick, labelGetter, colorGetter, tooltipText);
             }
         };
@@ -73,10 +73,13 @@ public final class FieldDecorators {
     public static FieldDecorator pointPick(PickState.TargetField target, boolean halfOffset) {
         return new FieldDecorator() {
             @Override
-            public void applyXyz(AbstractStepEditorScreen screen, XyzListEntry entry) {
+            public void applyXyz(AbstractDeclarativeFormScreen screen, XyzListEntry entry) {
+                if (!(screen instanceof PointPickButtonHost host)) {
+                    throw new IllegalStateException("Point pick decorator requires screen to implement PointPickButtonHost");
+                }
                 entry.addTrailingButton(
                     20,
-                    () -> screen.startPointPickFromButton(target, halfOffset),
+                    () -> host.startPointPickFromButton(target, halfOffset),
                     () -> "+",
                     () -> 0x80FFFF,
                     UIText.of("ponderer.ui.pick.tooltip"));
@@ -92,14 +95,15 @@ public final class FieldDecorators {
         return new FieldDecorator() {
             @Override
             public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
-                if (screen instanceof AbstractStepEditorScreen stepScreen) {
-                    entry.addTrailingButton(
-                        FormTextButtonSpec.DEFAULT_WIDTH,
-                        () -> stepScreen.startNbtPickFromButton(nbtSnapshotKey, true),
-                        () -> "+",
-                        () -> 0x66FF66,
-                        UIText.of("ponderer.ui.block_pick.tooltip"));
+                if (!(screen instanceof NbtPickButtonHost host)) {
+                    throw new IllegalStateException("Block pick decorator requires screen to implement NbtPickButtonHost");
                 }
+                entry.addTrailingButton(
+                    FormTextButtonSpec.DEFAULT_WIDTH,
+                    () -> host.startNbtPickFromButton(nbtSnapshotKey, true),
+                    () -> "+",
+                    () -> 0x66FF66,
+                    UIText.of("ponderer.ui.block_pick.tooltip"));
             }
         };
     }
@@ -108,14 +112,15 @@ public final class FieldDecorators {
         return new FieldDecorator() {
             @Override
             public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
-                if (screen instanceof AbstractStepEditorScreen stepScreen) {
-                    entry.addTrailingButton(
-                        FormTextButtonSpec.DEFAULT_WIDTH,
-                        () -> stepScreen.startNbtPickFromButton(nbtSnapshotKey, false),
-                        () -> "+",
-                        () -> 0x66FF66,
-                        UIText.of("ponderer.ui.nbt_pick.tooltip"));
+                if (!(screen instanceof NbtPickButtonHost host)) {
+                    throw new IllegalStateException("NBT pick decorator requires screen to implement NbtPickButtonHost");
                 }
+                entry.addTrailingButton(
+                    FormTextButtonSpec.DEFAULT_WIDTH,
+                    () -> host.startNbtPickFromButton(nbtSnapshotKey, false),
+                    () -> "+",
+                    () -> 0x66FF66,
+                    UIText.of("ponderer.ui.nbt_pick.tooltip"));
             }
         };
     }
@@ -124,14 +129,15 @@ public final class FieldDecorators {
         return new FieldDecorator() {
             @Override
             public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
-                if (screen instanceof AbstractStepEditorScreen stepScreen) {
-                    entry.addTrailingButton(
-                        FormTextButtonSpec.DEFAULT_WIDTH,
-                        () -> stepScreen.useHeldItemFromButton(onItemPicked),
-                        () -> "+",
-                        () -> 0x66FF66,
-                        UIText.of("ponderer.ui.held_item.tooltip"));
+                if (!(screen instanceof HeldItemButtonHost host)) {
+                    throw new IllegalStateException("Held item decorator requires screen to implement HeldItemButtonHost");
                 }
+                entry.addTrailingButton(
+                    FormTextButtonSpec.DEFAULT_WIDTH,
+                    () -> host.useHeldItemFromButton(onItemPicked),
+                    () -> "+",
+                    () -> 0x66FF66,
+                    UIText.of("ponderer.ui.held_item.tooltip"));
             }
         };
     }

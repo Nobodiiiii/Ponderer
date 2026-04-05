@@ -4,11 +4,8 @@ import com.nododiiiii.ponderer.ai.AiSceneGenerator;
 import com.nododiiiii.ponderer.ai.StructureDescriber;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
-import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
 import com.nododiiiii.ponderer.util.SafePaths;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.PointerBuffer;
@@ -24,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements JeiTextButtonHost {
+public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     private static final List<Path> cachedStructurePaths = new ArrayList<>();
     private static final List<StructureDescriber.StructureInfo> cachedStructureInfos = new ArrayList<>();
@@ -39,22 +36,15 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
     private static boolean cachedStatusIsError = false;
     private static boolean cachedGenerating = false;
 
-    private boolean initialSnapshotCaptured = false;
-    private final FormState formState = new FormState(this::snapshotState, this::restoreSnapshot);
-    private final JeiFieldController jeiController = new JeiFieldController(JeiCompat::setActiveScreen);
-
     public AiGenerateScreen() {
-        super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.ai_generate.title", UILayoutConstants.EDITOR_LIST_W);
+        super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.ai_generate.title",
+            UILayoutConstants.EDITOR_LIST_W, JeiCompat::setActiveScreen);
     }
 
     @Override
     protected void init() {
         super.init();
         applyCachedStatus();
-        if (!initialSnapshotCaptured) {
-            formState.captureBaseline();
-            initialSnapshotCaptured = true;
-        }
     }
 
     @Override
@@ -88,7 +78,7 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
             "ponderer.ui.ai_generate.carrier.hint",
             -1,
             entry -> entry.field().setMaxLength(128),
-            FormTextButtonSpec.jei(IdFieldMode.ITEM)));
+            FieldDecorators.jei(IdFieldMode.ITEM)));
 
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> cachedPrompt, value -> cachedPrompt = value),
@@ -111,7 +101,7 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
                 "ponderer.ui.ai_generate.url.hint",
                 -1,
                 entry -> entry.field().setMaxLength(512),
-                FormTextButtonSpec.action("-", 0xFF6666, null, () -> removeUrl(index))));
+                FieldDecorators.textAction("-", 0xFF6666, null, () -> removeUrl(index))));
         }
         entries.add(FieldSpecs.fullButton(
             UIText.of("ponderer.ui.ai_generate.add_url"),
@@ -131,87 +121,39 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
     }
 
     @Override
-    protected boolean hasUnsavedChanges() {
-        return initialSnapshotCaptured && formState.hasUnsavedChanges();
-    }
-
-    @Override
-    protected int getUnsavedChangeCount() {
-        return initialSnapshotCaptured ? formState.dirtyCount() : 0;
-    }
-
-    @Override
     protected boolean saveEdits() {
         return doGenerate();
     }
 
     @Override
-    protected void discardEdits() {
-        formState.restoreBaseline();
+    protected void prepareSnapshotForBuild(Map<String, String> snapshot) {
+        restoreSnapshot(snapshot);
+    }
+
+    @Override
+    protected void afterSnapshotRestored(Map<String, String> snapshot) {
         applyCachedStatus();
-        rebuildEntries(currentListScroll());
     }
 
     @Override
-    @Nullable
-    public HintableTextFieldWidget getJeiTargetField() {
-        return jeiController.targetField();
+    protected boolean rebuildOnJeiStateChange() {
+        return true;
     }
 
     @Override
-    public void toggleJeiForField(HintableTextFieldWidget field, IdFieldMode mode) {
-        jeiController.toggle(this, field, mode);
-        rebuildEntries(currentListScroll());
-    }
-
-    @Override
-    public boolean isJeiActiveForField(HintableTextFieldWidget field) {
-        return jeiController.isActiveFor(field);
-    }
-
-    @Override
-    public void deactivateJei() {
-        jeiController.deactivate();
-        if (list != null) {
-            rebuildEntries(currentListScroll());
+    protected Map<String, String> snapshotState() {
+        Map<String, String> snapshot = new LinkedHashMap<>();
+        snapshot.put("structure_index", String.valueOf(cachedStructureIndex));
+        snapshot.put("structure_count", String.valueOf(cachedStructurePaths.size()));
+        for (int i = 0; i < cachedStructurePaths.size(); i++) {
+            snapshot.put("structure_" + i, cachedStructurePaths.get(i).toString());
         }
-    }
-
-    @Override
-    public void showJeiIncompatibleWarning(IdFieldMode mode) {
-        setErrorMessage(switch (mode) {
-            case BLOCK -> UIText.of("ponderer.ui.jei.error.not_block");
-            case ENTITY -> UIText.of("ponderer.ui.jei.error.not_spawn_egg");
-            case ITEM, INGREDIENT -> null;
-        });
-    }
-
-    @Override
-    public int getGuiLeft() {
-        return width / 2 - currentListWidthValue() / 2 - 40;
-    }
-
-    @Override
-    public int getGuiTop() {
-        return 35;
-    }
-
-    @Override
-    public int getGuiWidth() {
-        return currentListWidthValue() + 80;
-    }
-
-    @Override
-    public int getGuiHeight() {
-        return height - 60;
-    }
-
-    @Override
-    public void removed() {
-        super.removed();
-        if (jeiController.isActive()) {
-            deactivateJei();
-        }
+        snapshot.put("carrier", cachedCarrier);
+        snapshot.put("prompt", cachedPrompt);
+        snapshot.put("build_tutorial", String.valueOf(cachedBuildTutorial));
+        snapshot.put("include_images", String.valueOf(cachedIncludeImages));
+        referenceUrlManager.snapshot(snapshot);
+        return snapshot;
     }
 
     private void addStructure() {
@@ -424,22 +366,8 @@ public class AiGenerateScreen extends AbstractDeclarativeFormScreen implements J
         cachedStatusIsError = status != null && isError;
     }
 
-    private Map<String, String> snapshotState() {
-        Map<String, String> snapshot = new LinkedHashMap<>();
-        snapshot.put("structure_index", String.valueOf(cachedStructureIndex));
-        snapshot.put("structure_count", String.valueOf(cachedStructurePaths.size()));
-        for (int i = 0; i < cachedStructurePaths.size(); i++) {
-            snapshot.put("structure_" + i, cachedStructurePaths.get(i).toString());
-        }
-        snapshot.put("carrier", cachedCarrier);
-        snapshot.put("prompt", cachedPrompt);
-        snapshot.put("build_tutorial", String.valueOf(cachedBuildTutorial));
-        snapshot.put("include_images", String.valueOf(cachedIncludeImages));
-        referenceUrlManager.snapshot(snapshot);
-        return snapshot;
-    }
-
-    private void restoreSnapshot(Map<String, String> snapshot) {
+    @Override
+    protected void restoreSnapshot(Map<String, String> snapshot) {
         cachedStructurePaths.clear();
         cachedStructureInfos.clear();
 

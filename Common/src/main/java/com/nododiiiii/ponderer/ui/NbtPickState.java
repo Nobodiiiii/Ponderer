@@ -41,17 +41,26 @@ public final class NbtPickState {
     private static String targetKey;
     private static boolean captureBlockId = false;
     private static Map<String, String> formSnapshot = new HashMap<>();
-    private static String stepType;
-    private static int editIndex = -1;
-    private static int insertAfterIndex = -1;
-    private static DslScene scene;
-    private static int sceneIndex;
-    private static SceneEditorScreen parent;
+    @Nullable
+    private static SnapshotReturnContext context;
     @Nullable
     private static BlockPos pendingServerBlockPos;
     private static boolean awaitingServerBlockEntityNbt = false;
 
     private NbtPickState() {}
+
+    public static void startPick(Map<String, String> snapshot,
+                                 String targetKey,
+                                 boolean captureBlockId,
+                                 SnapshotReturnContext context) {
+        NbtPickState.active = true;
+        NbtPickState.awaitingServerBlockEntityNbt = false;
+        NbtPickState.pendingServerBlockPos = null;
+        NbtPickState.targetKey = targetKey;
+        NbtPickState.captureBlockId = captureBlockId;
+        NbtPickState.formSnapshot = new HashMap<>(snapshot);
+        NbtPickState.context = context;
+    }
 
     public static void startPick(Map<String, String> snapshot,
                                  String targetKey,
@@ -79,12 +88,7 @@ public final class NbtPickState {
         NbtPickState.targetKey = targetKey;
         NbtPickState.captureBlockId = captureBlockId;
         NbtPickState.formSnapshot = new HashMap<>(snapshot);
-        NbtPickState.stepType = stepType;
-        NbtPickState.editIndex = editIndex;
-        NbtPickState.insertAfterIndex = insertAfterIndex;
-        NbtPickState.scene = scene;
-        NbtPickState.sceneIndex = sceneIndex;
-        NbtPickState.parent = parent;
+        NbtPickState.context = new StepEditorContext(stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent);
     }
 
     public static boolean isActive() {
@@ -141,6 +145,7 @@ public final class NbtPickState {
         active = false;
         awaitingServerBlockEntityNbt = false;
         pendingServerBlockPos = null;
+        context = null;
         formSnapshot.clear();
     }
 
@@ -257,38 +262,17 @@ public final class NbtPickState {
     }
 
     private static void reopenEditor() {
-        AbstractStepEditorScreen editor;
-        if (editIndex >= 0) {
-            List<DslScene.DslStep> steps = getStepsForScene();
-            DslScene.DslStep existingStep = (steps != null && editIndex < steps.size())
-                    ? steps.get(editIndex) : null;
-            editor = StepEditorFactory.createEditScreen(existingStep, editIndex, scene, sceneIndex, parent);
-        } else {
-            editor = StepEditorFactory.createAddScreen(stepType, scene, sceneIndex, parent);
-        }
-
+        SnapshotReturnContext reopenContext = context;
         active = false;
         awaitingServerBlockEntityNbt = false;
         pendingServerBlockPos = null;
+        context = null;
 
-        if (editor != null) {
-            editor.setInsertAfterIndex(insertAfterIndex);
-            editor.setPendingPickRestore(formSnapshot);
-            Minecraft.getInstance().setScreen(editor);
+        if (reopenContext != null) {
+            reopenContext.reopenEditor(formSnapshot);
         } else {
             formSnapshot.clear();
         }
-    }
-
-    @Nullable
-    private static List<DslScene.DslStep> getStepsForScene() {
-        if (scene == null) return null;
-        if (scene.scenes != null && !scene.scenes.isEmpty()) {
-            if (sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
-                return scene.scenes.get(sceneIndex).steps;
-            }
-        }
-        return null;
     }
 
     private record CaptureResult(CompoundTag nbt, String name, @Nullable Map<String, String> blockProperties,

@@ -16,7 +16,7 @@ public interface FieldDecorator {
         applyText(screen, entry);
     }
 
-    default void applyXyz(AbstractStepEditorScreen screen, XyzListEntry entry) {
+    default void applyXyz(AbstractDeclarativeFormScreen screen, XyzListEntry entry) {
     }
 
     @Nullable

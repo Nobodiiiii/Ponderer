@@ -24,12 +24,8 @@ public final class InterfaceSlotEditState {
     private static boolean active = false;
     private static Map<String, String> formSnapshot = new LinkedHashMap<>();
     private static LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> slotBindings = new LinkedHashMap<>();
-    private static String stepType;
-    private static int editIndex = -1;
-    private static int insertAfterIndex = -1;
-    private static DslScene scene;
-    private static int sceneIndex;
-    private static SceneEditorScreen parent;
+    @Nullable
+    private static StepEditorContext context;
     @Nullable
     private static UiAnchorViewport.Rect jeiViewport;
 
@@ -47,17 +43,12 @@ public final class InterfaceSlotEditState {
         InterfaceSlotEditState.active = true;
         InterfaceSlotEditState.formSnapshot = new LinkedHashMap<>(snapshot);
         InterfaceSlotEditState.slotBindings = copyBindings(initialBindings);
-        InterfaceSlotEditState.stepType = stepType;
-        InterfaceSlotEditState.editIndex = editIndex;
-        InterfaceSlotEditState.insertAfterIndex = insertAfterIndex;
-        InterfaceSlotEditState.scene = scene;
-        InterfaceSlotEditState.sceneIndex = sceneIndex;
-        InterfaceSlotEditState.parent = parent;
+        InterfaceSlotEditState.context = new StepEditorContext(stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent);
         InterfaceSlotEditState.jeiViewport = null;
     }
 
     public static void openPonderUIForEdit() {
-        if (!active || scene == null) {
+        if (!active || context == null) {
             return;
         }
 
@@ -72,7 +63,7 @@ public final class InterfaceSlotEditState {
         List<PonderScene> ponderScenes = accessor.ponderer$getScenes();
         for (int i = 0; i < ponderScenes.size(); i++) {
             SceneRuntime.SceneMatch match = SceneRuntime.findBySceneId(ponderScenes.get(i).getId());
-            if (match != null && match.sceneIndex() == sceneIndex && match.scene().id.equals(scene.id)) {
+            if (match != null && match.sceneIndex() == context.sceneIndex() && match.scene().id.equals(context.scene().id)) {
                 accessor.ponderer$setIndex(i);
                 accessor.ponderer$getLazyIndex().startWithValue(i);
                 ponderScenes.get(i).begin();
@@ -146,23 +137,12 @@ public final class InterfaceSlotEditState {
         }
 
         writeBindingsToSnapshot(formSnapshot, slotBindings);
-        int reopenInsertAfterIndex = insertAfterIndex;
-
-        AbstractStepEditorScreen editor;
-        if (editIndex >= 0) {
-            List<DslScene.DslStep> steps = getStepsForScene();
-            DslScene.DslStep existingStep = (steps != null && editIndex < steps.size()) ? steps.get(editIndex) : null;
-            editor = StepEditorFactory.createEditScreen(existingStep, editIndex, scene, sceneIndex, parent);
-        } else {
-            editor = StepEditorFactory.createAddScreen(stepType, scene, sceneIndex, parent);
-        }
+        StepEditorContext reopenContext = context;
 
         cleanupState();
 
-        if (editor != null) {
-            editor.setInsertAfterIndex(reopenInsertAfterIndex);
-            editor.setPendingPickRestore(formSnapshot);
-            Minecraft.getInstance().setScreen(editor);
+        if (reopenContext != null) {
+            reopenContext.reopenEditor(formSnapshot);
         } else {
             formSnapshot.clear();
         }
@@ -245,30 +225,14 @@ public final class InterfaceSlotEditState {
         active = false;
         slotBindings.clear();
         jeiViewport = null;
-        stepType = null;
-        editIndex = -1;
-        insertAfterIndex = -1;
-        scene = null;
-        sceneIndex = -1;
-        parent = null;
+        context = null;
         JeiOverlayController.popEnabled();
     }
 
     @Nullable
     private static ResourceLocation getItemId() {
-        if (scene == null || scene.items == null || scene.items.isEmpty()) return null;
-        return ResourceLocation.tryParse(scene.items.get(0));
-    }
-
-    @Nullable
-    private static List<DslScene.DslStep> getStepsForScene() {
-        if (scene == null || scene.scenes == null || scene.scenes.isEmpty()) {
-            return null;
-        }
-        if (sceneIndex < 0 || sceneIndex >= scene.scenes.size()) {
-            return null;
-        }
-        return scene.scenes.get(sceneIndex).steps;
+        if (context == null || context.scene().items == null || context.scene().items.isEmpty()) return null;
+        return ResourceLocation.tryParse(context.scene().items.get(0));
     }
 
     private static LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> copyBindings(

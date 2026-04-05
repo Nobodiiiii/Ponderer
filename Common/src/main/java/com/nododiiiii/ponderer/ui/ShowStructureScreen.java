@@ -50,7 +50,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
             "ponderer.ui.show_structure.structure.tooltip",
             UIText.of("ponderer.ui.show_structure.structure.hint"),
             105,
-            StepTextButtonSpec.action(
+            FieldDecorators.textAction(
                 20,
                 this::openFilePicker,
                 () -> "S",

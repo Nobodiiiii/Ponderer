@@ -46,8 +46,8 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 "ponderer.ui." + stepType + ".id.tooltip",
                 UIText.of("ponderer.ui." + stepType + ".id.hint"),
                 124,
-                StepTextButtonSpec.jei(jeiMode),
-                StepTextButtonSpec.heldItem(
+                FieldDecorators.jei(jeiMode),
+                FieldDecorators.heldItem(
                     stack -> idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString()))));
         } else {
             entries.add(FieldSpecs.text(
@@ -56,7 +56,7 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 "ponderer.ui." + stepType + ".id.tooltip",
                 UIText.of("ponderer.ui." + stepType + ".id.hint"),
                 124,
-                StepTextButtonSpec.jei(jeiMode)));
+                FieldDecorators.jei(jeiMode)));
         }
         entries.add(FieldSpecs.xyz(
             posField,

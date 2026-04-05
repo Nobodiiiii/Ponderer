@@ -5,6 +5,8 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
+import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -21,7 +23,7 @@ import java.util.Map;
  * Editor screen for trigger settings: trigger mode, 3 parallel hint styles
  * (auto/title/subtitle each with independent frequency), and mode-specific fields.
  */
-public class TriggerEditorScreen extends AbstractStepEditorScreen {
+public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
     private static final String[] TRIGGER_MODES = {"none", "structure", "coordinate"};
     private static final String[] FREQ_VALUES = {null, "always", "first_time", "until_read"};
@@ -53,7 +55,8 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
         FieldBindings.integer("subtitleFreq", () -> subtitleFreqIndex, value -> subtitleFreqIndex = value);
 
     public TriggerEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
-        super(Component.translatable("ponderer.ui.trigger_editor"), scene, sceneIndex, parent);
+        super(scene, sceneIndex, parent, "ponderer.ui.scope.editor", "ponderer.ui.step_editor",
+            UILayoutConstants.EDITOR_LIST_W, JeiCompat::setActiveScreen);
 
         if ("structure".equals(scene.triggerMode)) {
             triggerModeIndex = 1;
@@ -111,8 +114,10 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
         return "always";
     }
 
-    public void setPendingFormRestore(Map<String, String> snapshot) {
-        setPendingPickRestore(snapshot);
+    @Override
+    public TriggerEditorScreen setPendingFormRestore(@Nullable Map<String, String> snapshot) {
+        super.setPendingFormRestore(snapshot);
+        return this;
     }
 
     @Override
@@ -131,23 +136,19 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected boolean showsKeyFrame() {
-        return false;
-    }
-
-    @Override
     protected String getHeaderTitle() {
         return UIText.of("ponderer.ui.trigger_editor");
     }
 
     @Override
-    protected void init() {
-        super.init();
-        confirmButton.withCallback(this::doConfirm);
+    protected void configureActionButtons() {
+        if (confirmButton != null) {
+            confirmButton.withCallback(this::doConfirm);
+        }
     }
 
     @Override
-    protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
+    protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         if (pendingStructureSelection != null) {
             structureField.setValue(pendingStructureSelection);
             pendingStructureSelection = null;
@@ -288,20 +289,8 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     }
 
     private void startCoordinatePick() {
-        Map<String, String> snapshot = snapshotForm();
-        CoordPickState.startPick(snapshot, scene, sceneIndex, parent);
+        CoordPickState.startPick(snapshotForm(), new TriggerEditorContext(scene, sceneIndex, parent));
         Minecraft.getInstance().setScreen(null);
-    }
-
-    @Override
-    protected String getStepType() {
-        return "trigger_editor";
-    }
-
-    @Nullable
-    @Override
-    protected DslScene.DslStep buildStep() {
-        return null;
     }
 
     @Override
@@ -323,6 +312,11 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     @Override
     protected boolean saveEdits() {
         return doSave();
+    }
+
+    @Override
+    protected SnapshotReturnContext createReturnContext() {
+        return new TriggerEditorContext(scene, sceneIndex, parent);
     }
 
     private void doConfirm() {
