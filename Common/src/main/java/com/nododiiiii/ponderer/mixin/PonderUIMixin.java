@@ -1,6 +1,8 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
+import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
@@ -178,7 +180,91 @@ public abstract class PonderUIMixin extends Screen {
         return SceneRuntime.findBySceneId(active.getId(), occurrence);
     }
 
+    @Unique
+    private static boolean ponderer$shouldRenderFabricShowInterfaceNotice(PonderUI ui) {
+        if (!"fabric".equals(PondererServices.PLATFORM.getPlatformName())) {
+            return false;
+        }
+        if (PondererServices.PLATFORM.supportsEmbeddedInterfacePreview()) {
+            return false;
+        }
+        return ponderer$isShowInterfaceScene(ponderer$resolveDynamicScene(ui));
+    }
+
+    @Unique
+    private static boolean ponderer$isShowInterfaceScene(SceneRuntime.SceneMatch match) {
+        if (match == null) {
+            return false;
+        }
+
+        DslScene scene = match.scene();
+        int sceneIndex = match.sceneIndex();
+        if (scene == null || scene.scenes == null || sceneIndex < 0 || sceneIndex >= scene.scenes.size()) {
+            return false;
+        }
+
+        DslScene.SceneSegment segment = scene.scenes.get(sceneIndex);
+        if (segment == null || segment.steps == null) {
+            return false;
+        }
+
+        for (DslScene.DslStep step : segment.steps) {
+            if (step == null || step.type == null || step.type.isBlank()) {
+                continue;
+            }
+            return "show_interface".equalsIgnoreCase(step.type);
+        }
+        return false;
+    }
+
     // ---- Pick mode integration ----
+
+    @Inject(method = "renderWidgets", at = @At("TAIL"), remap = false)
+    private void ponderer$renderFabricShowInterfaceNotice(GuiGraphics graphics, int mouseX, int mouseY,
+            float partialTicks, CallbackInfo ci) {
+        PonderUI self = (PonderUI) (Object) this;
+        if (!ponderer$shouldRenderFabricShowInterfaceNotice(self)) {
+            return;
+        }
+
+        UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(Minecraft.getInstance());
+        if (!viewport.isValid()) {
+            return;
+        }
+
+        String notice = UIText.of("ponderer.ui.show_interface.fabric_preview_unavailable");
+        var font = Minecraft.getInstance().font;
+        int textWidth = font.width(notice);
+        float maxWidth = (float) Math.max(1.0, viewport.width() - 12.0);
+        float scale = textWidth > maxWidth ? Math.max(0.65f, maxWidth / textWidth) : 1.0f;
+
+        int centerX = (int) Math.round(viewport.left() + viewport.width() * 0.5);
+        int centerY = (int) Math.round(viewport.top() + viewport.height() * 0.5);
+        int boxHalfWidth = (int) Math.ceil(textWidth * scale * 0.5f) + 8;
+        int boxHalfHeight = (int) Math.ceil(font.lineHeight * scale * 0.5f) + 6;
+
+        graphics.flush();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.EMBEDDED_GUI_BACKGROUND_LAYER);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableDepthTest();
+
+        graphics.fill(centerX - boxHalfWidth - 1, centerY - boxHalfHeight - 1,
+            centerX + boxHalfWidth + 1, centerY + boxHalfHeight + 1, 0xC0_6A5320);
+        graphics.fill(centerX - boxHalfWidth, centerY - boxHalfHeight,
+            centerX + boxHalfWidth, centerY + boxHalfHeight, 0xE0_120E08);
+
+        graphics.pose().pushPose();
+        graphics.pose().translate(centerX, centerY - font.lineHeight * scale * 0.5f, 1);
+        graphics.pose().scale(scale, scale, 1.0f);
+        graphics.drawString(font, notice, Math.round(-textWidth * 0.5f), 0, 0xF8E5B0, false);
+        graphics.pose().popPose();
+
+        RenderSystem.enableDepthTest();
+        graphics.pose().popPose();
+        graphics.flush();
+    }
 
     /**
      * At the START of tick: reset identifyMode to false so the scene ticks

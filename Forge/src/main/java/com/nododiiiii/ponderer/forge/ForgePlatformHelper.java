@@ -71,4 +71,9 @@ public class ForgePlatformHelper implements PlatformHelper {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
             () -> () -> com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler.closeEmbeddedMirrorFromPonder(reason));
     }
+
+    @Override
+    public boolean supportsEmbeddedInterfacePreview() {
+        return true;
+    }
 }

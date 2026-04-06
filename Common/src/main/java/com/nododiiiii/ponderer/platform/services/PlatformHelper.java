@@ -51,4 +51,11 @@ public interface PlatformHelper {
      */
     default void closeInterfaceStep(String reason) {
     }
+
+    /**
+     * Whether this platform can render the live mirrored GUI preview inside PonderUI.
+     */
+    default boolean supportsEmbeddedInterfacePreview() {
+        return false;
+    }
 }

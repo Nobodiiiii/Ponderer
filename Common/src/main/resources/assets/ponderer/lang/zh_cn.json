@@ -318,6 +318,7 @@
   "ponderer.ui.show_interface.enable_nbt": "启用NBT",
   "ponderer.ui.show_interface.enable_nbt.tooltip": "禁用后不再复现已保存的方块实体 NBT",
   "ponderer.ui.show_interface.error.no_context": "请先通过 [B] 选择一个方块以保存界面上下文",
+  "ponderer.ui.show_interface.fabric_preview_unavailable": "Fabric 版暂未适配“显示界面”步骤预览",
   "ponderer.ui.change_interface_slot": "更改槽位",
   "ponderer.ui.change_interface_slot.slots": "槽位信息",
   "ponderer.ui.change_interface_slot.slots.tooltip": "返回到镜像界面并临时打开 JEI，可将 JEI 中的物品、流体或气体等拖入目标槽位",

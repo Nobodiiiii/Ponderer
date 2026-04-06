@@ -158,8 +158,9 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
 
     @Override
     public final void startPointPickFromButton(PickState.TargetField target, boolean halfOffset) {
+        PickState.TargetField effectiveTarget = resolvePointPickTarget(target);
         PickState.startPick(
-            target,
+            effectiveTarget,
             snapshotForm(),
             getStepType(),
             editIndex,
@@ -167,8 +168,37 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
             scene,
             sceneIndex,
             parent,
-            halfOffset);
+            effectiveTarget == PickState.TargetField.UI_POINT ? false : halfOffset);
         PickState.openPonderUIForPick();
+    }
+
+    private PickState.TargetField resolvePointPickTarget(PickState.TargetField target) {
+        if (target != PickState.TargetField.POINT || !isInterfaceStartScene()) {
+            return target;
+        }
+        return PickState.TargetField.UI_POINT;
+    }
+
+    private boolean isInterfaceStartScene() {
+        if (scene.scenes == null || scene.scenes.isEmpty()) {
+            return false;
+        }
+        if (sceneIndex < 0 || sceneIndex >= scene.scenes.size()) {
+            return false;
+        }
+
+        List<DslScene.DslStep> steps = scene.scenes.get(sceneIndex).steps;
+        if (steps == null) {
+            return false;
+        }
+
+        for (DslScene.DslStep step : steps) {
+            if (step == null || step.type == null || step.type.isBlank()) {
+                continue;
+            }
+            return "show_interface".equalsIgnoreCase(step.type);
+        }
+        return false;
     }
 
     private boolean saveAndClose() {

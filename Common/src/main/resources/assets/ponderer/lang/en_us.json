@@ -318,6 +318,7 @@
   "ponderer.ui.show_interface.enable_nbt": "Enable NBT",
   "ponderer.ui.show_interface.enable_nbt.tooltip": "When disabled, the mirrored interface ignores saved block entity NBT",
   "ponderer.ui.show_interface.error.no_context": "Please pick a block first to capture interface context",
+  "ponderer.ui.show_interface.fabric_preview_unavailable": "Fabric has no GUI preview for this step yet",
   "ponderer.ui.change_interface_slot": "Change Slot",
   "ponderer.ui.change_interface_slot.slots": "Slot Data",
   "ponderer.ui.change_interface_slot.slots.tooltip": "Return to the mirrored interface, temporarily open JEI, and drag ingredients into target slots",
