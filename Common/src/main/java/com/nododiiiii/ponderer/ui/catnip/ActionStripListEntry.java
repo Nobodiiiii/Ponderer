@@ -109,6 +109,7 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
         widget.setWidth(width);
         widget.setHeight(height);
         widget.active = button.activeGetter().getAsBoolean();
+        widget.updateGradientFromState();
         widget.render(graphics, mouseX, mouseY, partialTicks);
 
         var font = Minecraft.getInstance().font;

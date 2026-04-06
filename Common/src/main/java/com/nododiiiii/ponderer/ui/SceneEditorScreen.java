@@ -6,15 +6,14 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.ui.catnip.SceneStepListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import net.createmod.catnip.gui.ScreenOpener;
-import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import org.lwjgl.glfw.GLFW;
 
@@ -33,10 +32,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         .create();
     private static final int SIDEBAR_BUTTON_SIZE = 20;
     private static final int SIDEBAR_BUTTON_GAP = 10;
-    private static final int HEADER_LIST_ENTRY_COUNT = 2;
-    private static final int HEADER_STEP_GAP = 8;
-    private static final int LIST_HEADER_HEIGHT = 3;
-    private static final int LIST_VERTICAL_PADDING = 8;
+    private static final int STEP_ACTION_ICON_SIZE = 12;
 
     @Nullable
     private static DslScene.DslStep clipboard = null;
@@ -50,11 +46,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private BoxWidget undoButton;
     @Nullable
     private BoxWidget redoButton;
-    @Nullable
-    private net.createmod.catnip.config.ui.ConfigScreenList headerList;
 
     public SceneEditorScreen(DslScene scene, int sceneIndex) {
-        super(null, "ponderer.ui.scope.editor", "ponderer.ui.scene_editor", UILayoutConstants.EDITOR_LIST_W);
+        super(null, "ponderer.ui.scope.editor", "ponderer.ui.scene_editor", 400);
         this.scene = scene;
         this.sceneIndex = sceneIndex;
     }
@@ -62,11 +56,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     @Override
     protected void init() {
         super.init();
-        initHeaderList();
         configureActionButtons();
         initHistoryButtons();
-        rebuildHeaderEntries();
-        relayoutEditorLists();
         if (list != null) {
             list.setScrollAmount(pendingListScroll);
         }
@@ -79,34 +70,21 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     @Override
-    @Nullable
-    public GuiEventListener getFocused() {
-        if (net.createmod.catnip.config.ui.ConfigScreenList.currentText != null) {
-            return net.createmod.catnip.config.ui.ConfigScreenList.currentText;
-        }
-        return super.getFocused();
-    }
-
-    private void initHeaderList() {
-        int headerHeight = headerListHeight();
-        headerList = new net.createmod.catnip.config.ui.ConfigScreenList(
-            minecraft,
-            currentListWidthValue(),
-            headerHeight,
-            contentAreaTop(),
-            contentAreaTop() + headerHeight,
-            getEntryHeight());
-        headerList.setLeftPos(width / 2 - headerList.getWidth() / 2);
-        addRenderableWidget(headerList);
-    }
-
-    private void collectHeaderEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries) {
+    protected void collectHeaderEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries) {
         entries.add(new WorkspaceHeaderListEntry(
             this::screenTitleText,
             this::screenSubtitleText,
             List.of(
-                WorkspaceHeaderListEntry.button("<", () -> switchScene(sceneIndex - 1), null, () -> getSceneCount() > 1),
-                WorkspaceHeaderListEntry.button(">", () -> switchScene(sceneIndex + 1), null, () -> getSceneCount() > 1))));
+                WorkspaceHeaderListEntry.iconButton(
+                    PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_LEFT),
+                    () -> switchScene(sceneIndex - 1),
+                    null,
+                    () -> getSceneCount() > 1),
+                WorkspaceHeaderListEntry.iconButton(
+                    PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_RIGHT),
+                    () -> switchScene(sceneIndex + 1),
+                    null,
+                    () -> getSceneCount() > 1))));
 
         entries.add(new ActionStripListEntry(List.of(
             ActionStripListEntry.button(
@@ -149,19 +127,17 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                 () -> (stepIndex + 1) + ". " + formatStep(steps.get(stepIndex)),
                 () -> openEditorForStep(stepIndex),
                 List.of(
-                    SceneStepListEntry.button(
-                        "^",
+                    SceneStepListEntry.iconButton(
+                        PonderIconStencils.rotated(PonderGuiTextures.ICON_CONFIG_PREV, 90, STEP_ACTION_ICON_SIZE),
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.move_up"))),
                         () -> moveStepUp(stepIndex),
                         null,
-                        () -> 0xFFFFFF,
                         () -> !isActionDisabled(0, stepIndex)),
-                    SceneStepListEntry.button(
-                        "v",
+                    SceneStepListEntry.iconButton(
+                        PonderIconStencils.rotated(PonderGuiTextures.ICON_CONFIG_NEXT, 90, STEP_ACTION_ICON_SIZE),
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.move_down"))),
                         () -> moveStepDown(stepIndex),
                         null,
-                        () -> 0xFFFFFF,
                         () -> !isActionDisabled(1, stepIndex)),
                     SceneStepListEntry.button(
                         "+",
@@ -184,12 +160,11 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                         null,
                         () -> 0xFFFFD080,
                         () -> clipboard != null),
-                    SceneStepListEntry.button(
-                        "x",
+                    SceneStepListEntry.dangerIconButton(
+                        PonderIconStencils.centered(PonderGuiTextures.ICON_DISABLE, STEP_ACTION_ICON_SIZE),
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.delete"))),
                         () -> removeStepAndSave(stepIndex),
                         null,
-                        () -> 0xFFFF5555,
                         () -> !isActionDisabled(5, stepIndex)))));
         }
     }
@@ -286,8 +261,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         BoxWidget button = new BoxWidget(x, y, SIDEBAR_BUTTON_SIZE, SIDEBAR_BUTTON_SIZE)
             .withPadding(2, 2)
             .withCallback(callback);
-        DelegatedStencilElement icon = reverse ? mirroredReplayIcon() : PonderGuiTextures.ICON_PONDER_REPLAY.asStencil();
-        button.showingElement(icon.withElementRenderer(BoxWidget.gradientFactory.apply(button)));
+        PonderIconStencils.attach(button,
+            reverse ? PonderIconStencils.mirrored(PonderGuiTextures.ICON_PONDER_REPLAY)
+                : PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_REPLAY));
         button.getToolTip().add(net.minecraft.network.chat.Component.literal(tooltip));
         addRenderableWidget(button);
         return button;
@@ -314,18 +290,6 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         return y + SIDEBAR_BUTTON_SIZE + SIDEBAR_BUTTON_GAP;
     }
 
-    private static DelegatedStencilElement mirroredReplayIcon() {
-        return new DelegatedStencilElement()
-            .withStencilRenderer((graphics, width, height, alpha) -> {
-                graphics.pose().pushPose();
-                graphics.pose().translate(width, 0, 0);
-                graphics.pose().scale(-1, 1, 1);
-                PonderGuiTextures.ICON_PONDER_REPLAY.render(graphics, 0, 0);
-                graphics.pose().popPose();
-            })
-            .withBounds(16, 16);
-    }
-
     private void refreshHistoryButtonState() {
         if (undoButton != null) {
             undoButton.active = undoManager.canUndo();
@@ -343,48 +307,11 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         double scroll = currentListScroll();
         pendingListScroll = scroll;
         rebuildEntries(scroll);
-        rebuildHeaderEntries();
-        relayoutEditorLists();
     }
 
     private void rebuildEntriesAtTop() {
         pendingListScroll = 0;
         rebuildEntries(0.0);
-        rebuildHeaderEntries();
-        relayoutEditorLists();
-    }
-
-    private void rebuildHeaderEntries() {
-        if (headerList == null) {
-            return;
-        }
-        headerList.children().clear();
-        collectHeaderEntries(headerList.children());
-        headerList.setScrollAmount(0);
-    }
-
-    private void relayoutEditorLists() {
-        int listWidth = currentListWidthValue();
-        int left = width / 2 - listWidth / 2;
-        int headerHeight = headerListHeight();
-        int contentTop = contentAreaTop();
-        int contentBottom = contentTop + contentAreaHeight();
-        int stepTop = Math.min(contentBottom, contentTop + headerHeight + HEADER_STEP_GAP);
-        int stepHeight = Math.max(0, contentBottom - stepTop);
-
-        if (headerList != null) {
-            headerList.updateSize(listWidth, headerHeight, contentTop, contentTop + headerHeight);
-            headerList.setLeftPos(left);
-        }
-
-        if (list != null) {
-            list.updateSize(listWidth, stepHeight, stepTop, stepTop + stepHeight);
-            list.setLeftPos(left);
-        }
-    }
-
-    private int headerListHeight() {
-        return HEADER_LIST_ENTRY_COUNT * getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
     }
 
     private int getSceneCount() {

@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -17,13 +18,13 @@ import java.util.function.Supplier;
 public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
     private static final int OUTER_GAP = 8;
-    private static final int BUTTON_GAP = 6;
+    private static final int BUTTON_GAP = 8;
     private static final int BUTTON_WIDTH = 18;
     private static final int BUTTON_HEIGHT = 16;
 
     public record ActionButton(
         BoxWidget widget,
-        Supplier<String> labelGetter,
+        @Nullable Supplier<String> labelGetter,
         @Nullable Supplier<List<Component>> tooltipGetter,
         @Nullable Runnable secondaryClick,
         IntSupplier colorGetter,
@@ -75,6 +76,39 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
             tooltipGetter,
             secondaryClick,
             colorGetter,
+            activeGetter);
+    }
+
+    public static ActionButton iconButton(DelegatedStencilElement icon,
+                                          @Nullable Supplier<List<Component>> tooltipGetter,
+                                          Runnable primaryClick,
+                                          @Nullable Runnable secondaryClick,
+                                          BooleanSupplier activeGetter) {
+        BoxWidget widget = new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(primaryClick);
+        PonderIconStencils.attach(widget, icon);
+        return createIconButton(widget, tooltipGetter, secondaryClick, activeGetter);
+    }
+
+    public static ActionButton dangerIconButton(DelegatedStencilElement icon,
+                                                @Nullable Supplier<List<Component>> tooltipGetter,
+                                                Runnable primaryClick,
+                                                @Nullable Runnable secondaryClick,
+                                                BooleanSupplier activeGetter) {
+        BoxWidget widget = new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(primaryClick);
+        PonderIconStencils.attachFail(widget, icon);
+        return createIconButton(widget, tooltipGetter, secondaryClick, activeGetter);
+    }
+
+    private static ActionButton createIconButton(BoxWidget widget,
+                                                 @Nullable Supplier<List<Component>> tooltipGetter,
+                                                 @Nullable Runnable secondaryClick,
+                                                 BooleanSupplier activeGetter) {
+        return new ActionButton(
+            widget,
+            null,
+            tooltipGetter,
+            secondaryClick,
+            () -> 0xFFFFFF,
             activeGetter);
     }
 
@@ -191,7 +225,12 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
         widget.setWidth(BUTTON_WIDTH);
         widget.setHeight(BUTTON_HEIGHT);
         widget.active = button.activeGetter().getAsBoolean();
+        widget.updateGradientFromState();
         widget.render(graphics, mouseX, mouseY, partialTicks);
+
+        if (button.labelGetter() == null) {
+            return;
+        }
 
         var font = Minecraft.getInstance().font;
         int color = widget.active ? button.colorGetter().getAsInt() : 0x777777;

@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.createmod.catnip.gui.widget.BoxWidget;
+import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -33,6 +34,7 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
         this.keyField.setHint("facing");
         this.valueField.setHint("north");
         this.removeButton = new BoxWidget(0, 0, 20, 16).withCallback(onRemove);
+        PonderIconStencils.attachFail(removeButton, PonderIconStencils.centered(PonderGuiTextures.ICON_DISABLE));
         listeners.add(keyField);
         listeners.add(valueField);
         listeners.add(removeButton);
@@ -110,9 +112,5 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
         removeButton.setWidth(buttonWidth);
         removeButton.setHeight(buttonHeight);
         removeButton.render(graphics, mouseX, mouseY, partialTicks);
-        graphics.drawCenteredString(Minecraft.getInstance().font, "x",
-            removeButton.getX() + removeButton.getWidth() / 2,
-            removeButton.getY() + (removeButton.getHeight() - 8) / 2,
-            0xFF5555);
     }
 }

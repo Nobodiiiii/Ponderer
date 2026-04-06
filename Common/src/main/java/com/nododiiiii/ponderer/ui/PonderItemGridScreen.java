@@ -3,17 +3,17 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
+import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.data.Couple;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
-import net.createmod.catnip.gui.element.TextStencilElement;
 import net.createmod.catnip.gui.widget.AbstractSimiWidget;
-import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.ChatFormatting;
@@ -53,8 +53,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         LIST, SINGLE_SELECT, MULTI_SELECT
     }
 
-    private static final int INFO_ENTRY_H = 40;
-    private static final int CONTROL_ENTRY_H = 32;
     private static final int CELL_SIZE = 20;
     private static final int GRID_PAD_X = 12;
     private static final int GRID_PAD_Y = 8;
@@ -92,12 +90,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
     @Nullable
     private GridContentPanel gridPanel;
-    @Nullable
-    private TextButton selectAllButton;
-    @Nullable
-    private TextButton deselectAllButton;
-    @Nullable
-    private TextButton groupToggleButton;
 
     /** When non-null, PonderUI close will return to this screen (via mixin). */
     @Nullable
@@ -158,12 +150,11 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
         gridPanel = new GridContentPanel(
             panelLeft(),
-            contentAreaTop(),
+            bodyContentTop(),
             currentListWidthValue(),
-            contentAreaHeight());
+            bodyContentHeight());
         addRenderableWidget(gridPanel);
 
-        initControlButtons();
         configureActionButtons();
 
         if (search != null) {
@@ -192,6 +183,35 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
     @Override
     protected void collectEntries(List<ConfigScreenList.Entry> entries) {
+    }
+
+    @Override
+    protected void collectHeaderEntries(List<ConfigScreenList.Entry> entries) {
+        entries.add(new WorkspaceHeaderListEntry(
+            this::screenTitleText,
+            this::screenSubtitleText,
+            List.of()));
+
+        List<ActionStripListEntry.ButtonModel> buttons = new ArrayList<>();
+        buttons.add(ActionStripListEntry.button(
+            this::groupModeLabel,
+            null,
+            this::toggleGroupMode,
+            () -> 0xFFFFFF,
+            () -> true));
+
+        if (mode == Mode.MULTI_SELECT) {
+            buttons.add(ActionStripListEntry.button(
+                UIText.of("ponderer.ui.item_grid.select_all"),
+                null,
+                this::handleSelectAll));
+            buttons.add(ActionStripListEntry.button(
+                UIText.of("ponderer.ui.item_grid.deselect_all"),
+                null,
+                this::handleDeselectAll));
+        }
+
+        entries.add(new ActionStripListEntry(buttons));
     }
 
     @Override
@@ -359,7 +379,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             relayoutGridPanel();
             gridPanel.setScroll(0);
         }
-        layoutControlButtons();
     }
 
     private void handleSelectAll() {
@@ -372,13 +391,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
     private void handleDeselectAll() {
         selectedSceneKeys.clear();
-    }
-
-    private void initControlButtons() {
-        groupToggleButton = createTextButton(this::toggleGroupMode);
-        selectAllButton = createTextButton(this::handleSelectAll);
-        deselectAllButton = createTextButton(this::handleDeselectAll);
-        layoutControlButtons();
     }
 
     private void configureActionButtons() {
@@ -409,61 +421,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         }
     }
 
-    private TextButton createTextButton(Runnable callback) {
-        BoxWidget box = new BoxWidget(0, 0, 20, 16).withCallback(callback);
-        TextStencilElement text = new TextStencilElement(Minecraft.getInstance().font, Component.empty())
-            .centered(true, true);
-        text.withElementRenderer(BoxWidget.gradientFactory.apply(box));
-        box.showingElement(text);
-        addRenderableWidget(box);
-        return new TextButton(box, text);
-    }
-
-    private void layoutControlButtons() {
-        if (groupToggleButton == null || gridPanel == null) {
-            return;
-        }
-
-        int contentX = gridPanel.entryContentLeft();
-        int contentRight = gridPanel.entryContentRight();
-        int buttonH = 8;
-
-        String groupLabel = groupMode == GroupMode.BY_PACK
-            ? UIText.of("ponderer.ui.item_grid.group_by_pack")
-            : UIText.of("ponderer.ui.item_grid.group_by_item");
-        String selectAllLabel = UIText.of("ponderer.ui.item_grid.select_all");
-        String deselectAllLabel = UIText.of("ponderer.ui.item_grid.deselect_all");
-        int buttonW = Math.max(12, Math.max(
-            Math.max(font.width(groupLabel), font.width(selectAllLabel)),
-            font.width(deselectAllLabel)) + 2);
-
-        int infoRowY = gridPanel.infoRowY();
-        boolean infoVisible = gridPanel.isRowVisible(infoRowY, INFO_ENTRY_H);
-        layoutButton(groupToggleButton, groupLabel,
-            contentRight - buttonW, infoRowY + 8, buttonW, buttonH, infoVisible);
-
-        int rowY = gridPanel.controlsRowY();
-        boolean multiVisible = mode == Mode.MULTI_SELECT && gridPanel.isRowVisible(rowY, gridPanel.controlsRowHeight());
-        if (selectAllButton != null) {
-            layoutButton(selectAllButton, selectAllLabel,
-                contentX, rowY + 9, buttonW, buttonH, multiVisible);
-        }
-        if (deselectAllButton != null) {
-            layoutButton(deselectAllButton, deselectAllLabel,
-                contentX + buttonW + 10, rowY + 9, buttonW, buttonH, multiVisible);
-        }
-    }
-
-    private static void layoutButton(TextButton textButton, String label, int x, int y, int w, int h, boolean visible) {
-        textButton.box.setX(x);
-        textButton.box.setY(y);
-        textButton.box.setWidth(w);
-        textButton.box.setHeight(h);
-        textButton.box.visible = visible;
-        textButton.box.active = visible;
-        textButton.text.withText(Component.literal(label));
-    }
-
     private int panelLeft() {
         return width / 2 - currentListWidthValue() / 2;
     }
@@ -473,11 +430,10 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             return;
         }
 
-        int panelHeight = Math.min(contentAreaHeight(), gridPanel.contentHeight());
-        gridPanel.setY(centeredContentTop(panelHeight));
+        int panelHeight = bodyContentHeight();
+        gridPanel.setY(bodyContentTop());
         gridPanel.setHeight(panelHeight);
         gridPanel.clampScroll();
-        layoutControlButtons();
     }
 
     private boolean confirmSelection() {
@@ -800,7 +756,16 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         return UIText.of(titleKey);
     }
 
-    private record TextButton(BoxWidget box, TextStencilElement text) {
+    private String screenSubtitleText() {
+        return mode == Mode.MULTI_SELECT
+            ? UIText.of("ponderer.ui.item_grid.selected_count", selectedSceneKeys.size(), totalSceneCount)
+            : UIText.of("ponderer.ui.item_grid.total_scenes", totalItemCount, totalSceneCount);
+    }
+
+    private String groupModeLabel() {
+        return groupMode == GroupMode.BY_PACK
+            ? UIText.of("ponderer.ui.item_grid.group_by_pack")
+            : UIText.of("ponderer.ui.item_grid.group_by_item");
     }
 
     private record HitResult(ItemEntry entry) {
@@ -822,23 +787,17 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             lastMouseY = mouseY;
 
             clampScroll();
-            renderPanelFrame(graphics);
+            renderConfigScreenListFrame(graphics);
 
             graphics.enableScissor(getX(), getY(), getX() + getWidth(), getY() + getHeight());
             try {
-                int drawY = infoRowY();
-                renderInfoEntry(graphics, drawY);
-                drawY += INFO_ENTRY_H;
-                renderControlsEntry(graphics, drawY);
-                drawY += controlsRowHeight();
-                renderGridEntry(graphics, drawY, mouseX, mouseY);
+                renderGridEntry(graphics, gridRowY(), mouseX, mouseY);
             } finally {
                 graphics.disableScissor();
             }
 
             renderScrollbar(graphics, mouseX, mouseY);
             renderTooltip(graphics, mouseX, mouseY);
-            layoutControlButtons();
         }
 
         @Override
@@ -907,28 +866,12 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             setScroll(scrollY);
         }
 
-        private int infoRowY() {
+        private int gridRowY() {
             return getY() - Mth.floor(scrollY);
         }
 
-        private int controlsRowY() {
-            return infoRowY() + INFO_ENTRY_H;
-        }
-
-        private int controlsRowHeight() {
-            return mode == Mode.MULTI_SELECT ? CONTROL_ENTRY_H : 0;
-        }
-
-        private int gridRowY() {
-            return controlsRowY() + controlsRowHeight();
-        }
-
-        private boolean isRowVisible(int rowY, int rowHeight) {
-            return rowY + rowHeight > getY() && rowY < getY() + getHeight();
-        }
-
         private int contentHeight() {
-            return INFO_ENTRY_H + controlsRowHeight() + gridEntryHeight();
+            return gridEntryHeight();
         }
 
         private int gridEntryHeight() {
@@ -944,20 +887,8 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             return Math.max(88, height);
         }
 
-        private int entryLeft() {
-            return getX() + 4;
-        }
-
-        private int entryWidth() {
-            return getWidth() - 8;
-        }
-
         private int entryContentLeft() {
             return getX() + 12;
-        }
-
-        private int entryContentRight() {
-            return getX() + getWidth() - 12;
         }
 
         private int scrollbarX() {
@@ -1041,44 +972,23 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             return gridLeft() + gridInnerWidth();
         }
 
-        private void renderPanelFrame(GuiGraphics graphics) {
+        private void renderConfigScreenListFrame(GuiGraphics graphics) {
             Color c = new Color(0x60_000000);
-            UIRenderHelper.angledGradient(graphics, 90, getX() + getWidth() / 2, getY(), getWidth(), 5, c, Color.TRANSPARENT_BLACK);
-            UIRenderHelper.angledGradient(graphics, -90, getX() + getWidth() / 2, getY() + getHeight(), getWidth(), 5, c, Color.TRANSPARENT_BLACK);
-            UIRenderHelper.angledGradient(graphics, 0, getX(), getY() + getHeight() / 2, getHeight(), 5, c, Color.TRANSPARENT_BLACK);
-            UIRenderHelper.angledGradient(graphics, 180, getX() + getWidth(), getY() + getHeight() / 2, getHeight(), 5, c, Color.TRANSPARENT_BLACK);
-        }
-
-        private void renderEntryShell(GuiGraphics graphics, int y, int height, boolean accent) {
-            int entryX = entryLeft();
-            int entryW = entryWidth();
-            graphics.fill(entryX, y + 4, entryX + entryW, y + height - 4,
-                accent ? 0x0C_F3D46B : 0x08_FFFFFF);
-        }
-
-        private void renderInfoEntry(GuiGraphics graphics, int y) {
-            if (!isRowVisible(y, INFO_ENTRY_H)) {
-                return;
-            }
-            renderEntryShell(graphics, y, INFO_ENTRY_H, true);
-
-            String subtitle = mode == Mode.MULTI_SELECT
-                ? UIText.of("ponderer.ui.item_grid.selected_count", selectedSceneKeys.size(), totalSceneCount)
-                : UIText.of("ponderer.ui.item_grid.total_scenes", totalItemCount, totalSceneCount);
-
-            graphics.drawString(font, screenTitleText(), entryContentLeft(), y + 8,
-                UIRenderHelper.COLOR_TEXT_STRONG_ACCENT.getFirst().getRGB());
-            graphics.drawString(font, subtitle, entryContentLeft(), y + 22,
-                UIRenderHelper.COLOR_TEXT.getSecond().getRGB());
+            UIRenderHelper.angledGradient(graphics, 90, getX() + getWidth() / 2, getY(), getWidth(), 5, c,
+                Color.TRANSPARENT_BLACK);
+            UIRenderHelper.angledGradient(graphics, -90, getX() + getWidth() / 2, getY() + getHeight(), getWidth(), 5,
+                c, Color.TRANSPARENT_BLACK);
+            UIRenderHelper.angledGradient(graphics, 0, getX(), getY() + getHeight() / 2, getHeight(), 5, c,
+                Color.TRANSPARENT_BLACK);
+            UIRenderHelper.angledGradient(graphics, 180, getX() + getWidth(), getY() + getHeight() / 2, getHeight(),
+                5, c, Color.TRANSPARENT_BLACK);
         }
 
         private void renderGridEntry(GuiGraphics graphics, int y, int mouseX, int mouseY) {
             int height = gridEntryHeight();
-            renderEntryShell(graphics, y, height, false);
-            graphics.fill(gridLeft() - 2, y + 4, gridRightLimit() + 2, y + height - 4, 0x08_000000);
 
             if (visibleSections.isEmpty()) {
-                if (isRowVisible(y, height)) {
+                if (y + height > getY() && y < getY() + getHeight()) {
                     graphics.drawCenteredString(font, Component.translatable("ponderer.ui.item_grid.empty"),
                         getX() + getWidth() / 2, y + height / 2 - 4,
                         UIRenderHelper.COLOR_TEXT_DARKER.getFirst().getRGB());
@@ -1114,14 +1024,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 }
                 contentY += rowsFor(section.entries.size(), columns) * CELL_SIZE;
             }
-        }
-
-        private void renderControlsEntry(GuiGraphics graphics, int y) {
-            int rowHeight = controlsRowHeight();
-            if (rowHeight == 0 || !isRowVisible(y, rowHeight)) {
-                return;
-            }
-            renderEntryShell(graphics, y, rowHeight, false);
         }
 
         private void renderItemCell(GuiGraphics graphics, int x, int y, ItemEntry entry, boolean hovered) {

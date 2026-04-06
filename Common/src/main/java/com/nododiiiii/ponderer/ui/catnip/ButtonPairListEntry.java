@@ -107,6 +107,7 @@ public class ButtonPairListEntry extends ConfigScreenList.LabeledEntry implement
         widget.setWidth(width);
         widget.setHeight(height);
         widget.active = model.activeGetter().getAsBoolean();
+        widget.updateGradientFromState();
         widget.render(graphics, mouseX, mouseY, partialTicks);
 
         int color = widget.active ? model.colorGetter().getAsInt() : 0x777777;

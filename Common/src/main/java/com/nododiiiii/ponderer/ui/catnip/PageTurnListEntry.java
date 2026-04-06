@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui.catnip;
 import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.widget.BoxWidget;
+import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -42,6 +43,8 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         this.nextActiveGetter = nextActiveGetter;
         this.prevButton = new BoxWidget(0, 0, BUTTON_WIDTH, 18).withCallback(onPrev);
         this.nextButton = new BoxWidget(0, 0, BUTTON_WIDTH, 18).withCallback(onNext);
+        PonderIconStencils.attach(prevButton, PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_LEFT));
+        PonderIconStencils.attach(nextButton, PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_RIGHT));
         listeners.add(prevButton);
         listeners.add(nextButton);
         refreshTooltip(prevButton, prevTooltipGetter);
@@ -89,6 +92,7 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         prevButton.setWidth(BUTTON_WIDTH);
         prevButton.setHeight(buttonHeight);
         prevButton.active = prevActiveGetter.getAsBoolean();
+        prevButton.updateGradientFromState();
         prevButton.render(graphics, mouseX, mouseY, partialTicks);
 
         nextButton.setX(x + width - OUTER_GAP - BUTTON_WIDTH);
@@ -96,6 +100,7 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         nextButton.setWidth(BUTTON_WIDTH);
         nextButton.setHeight(buttonHeight);
         nextButton.active = nextActiveGetter.getAsBoolean();
+        nextButton.updateGradientFromState();
         nextButton.render(graphics, mouseX, mouseY, partialTicks);
 
         var font = Minecraft.getInstance().font;
@@ -105,14 +110,6 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         int centerY = buttonY + (buttonHeight - 8) / 2;
         int textColor = annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFFFFF;
 
-        graphics.drawCenteredString(font, "<",
-            prevButton.getX() + prevButton.getWidth() / 2,
-            centerY,
-            prevButton.active ? 0xFFFFFF : 0x777777);
-        graphics.drawCenteredString(font, ">",
-            nextButton.getX() + nextButton.getWidth() / 2,
-            centerY,
-            nextButton.active ? 0xFFFFFF : 0x777777);
         graphics.drawCenteredString(font,
             font.plainSubstrByWidth(centerTextGetter.get(), Math.max(20, centerRight - centerLeft)),
             centerX,

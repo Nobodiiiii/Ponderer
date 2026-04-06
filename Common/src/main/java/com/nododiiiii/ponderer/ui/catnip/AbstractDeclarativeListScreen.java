@@ -36,8 +36,11 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     protected ConfigTextField search;
     @Nullable
     protected ConfigScreenList list;
+    @Nullable
+    protected ConfigScreenList headerList;
 
     private final int preferredListWidth;
+    private final List<ConfigScreenList.Entry> headerEntries = new java.util.ArrayList<>();
     private String searchQuery = "";
     private int listWidth;
 
@@ -53,6 +56,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     @Override
     protected void init() {
         super.init();
+        headerList = null;
 
         listWidth = Math.min(width - 80, preferredListWidth);
 
@@ -176,6 +180,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             return;
         }
 
+        rebuildHeaderEntries();
         list.children().clear();
         collectEntries(list.children());
         relayoutListViewport();
@@ -226,8 +231,34 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         return contentAreaTop() + Math.max(0, (contentAreaHeight() - contentHeight) / 2);
     }
 
+    protected final int bodyContentTop() {
+        if (!hasHeaderEntries()) {
+            return contentAreaTop();
+        }
+        return Math.min(contentAreaTop() + contentAreaHeight(), contentAreaTop() + currentHeaderHeight() + headerListGap());
+    }
+
+    protected final int bodyContentHeight() {
+        return Math.max(0, contentAreaTop() + contentAreaHeight() - bodyContentTop());
+    }
+
+    protected final int centeredBodyContentTop(int contentHeight) {
+        return bodyContentTop() + Math.max(0, (bodyContentHeight() - contentHeight) / 2);
+    }
+
     protected int fixedVisibleRowCount() {
         return -1;
+    }
+
+    protected void collectHeaderEntries(List<ConfigScreenList.Entry> entries) {
+    }
+
+    protected int headerListGap() {
+        return 8;
+    }
+
+    protected boolean fillRemainingBodyWhenHeaderPresent() {
+        return true;
     }
 
     protected abstract void collectEntries(List<ConfigScreenList.Entry> entries);
@@ -285,26 +316,85 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             return;
         }
 
-        int viewportHeight = desiredListViewportHeight();
+        int left = width / 2 - listWidth / 2;
+        if (hasHeaderEntries()) {
+            int headerHeight = currentHeaderHeight();
+            int headerTop = contentAreaTop();
+            if (headerList != null) {
+                headerList.updateSize(listWidth, headerHeight, headerTop, headerTop + headerHeight);
+                headerList.setLeftPos(left);
+            }
+
+            int bodyTop = bodyContentTop();
+            int availableBodyHeight = bodyContentHeight();
+            int bodyHeight = fillRemainingBodyWhenHeaderPresent()
+                ? availableBodyHeight
+                : desiredListViewportHeight(availableBodyHeight);
+            list.updateSize(listWidth, bodyHeight, bodyTop, bodyTop + bodyHeight);
+            list.setLeftPos(left);
+            return;
+        }
+
+        int viewportHeight = desiredListViewportHeight(contentAreaHeight());
         int top = centeredContentTop(viewportHeight);
         list.updateSize(listWidth, viewportHeight, top, top + viewportHeight);
-        list.setLeftPos(width / 2 - listWidth / 2);
+        list.setLeftPos(left);
     }
 
-    private int desiredListViewportHeight() {
+    private void rebuildHeaderEntries() {
+        headerEntries.clear();
+        collectHeaderEntries(headerEntries);
+
+        if (headerEntries.isEmpty()) {
+            if (headerList != null) {
+                removeWidget(headerList);
+                headerList = null;
+            }
+            return;
+        }
+
+        if (headerList == null) {
+            headerList = new ConfigScreenList(
+                minecraft,
+                listWidth,
+                currentHeaderHeight(),
+                contentAreaTop(),
+                contentAreaTop() + currentHeaderHeight(),
+                getEntryHeight());
+            headerList.setLeftPos(width / 2 - headerList.getWidth() / 2);
+            addRenderableWidget(headerList);
+        }
+
+        headerList.children().clear();
+        headerList.children().addAll(headerEntries);
+        headerList.setScrollAmount(0);
+    }
+
+    private int desiredListViewportHeight(int availableHeight) {
         if (list == null) {
-            return contentAreaHeight();
+            return availableHeight;
         }
 
         int fixedRows = fixedVisibleRowCount();
         if (fixedRows > 0) {
-            return Math.min(contentAreaHeight(),
+            return Math.min(availableHeight,
                 fixedRows * getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING);
         }
 
         int contentHeight = list.children().size() * getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
         int minimumHeight = getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
-        return Math.min(contentAreaHeight(), Math.max(minimumHeight, contentHeight));
+        return Math.min(availableHeight, Math.max(minimumHeight, contentHeight));
+    }
+
+    private boolean hasHeaderEntries() {
+        return !headerEntries.isEmpty();
+    }
+
+    private int currentHeaderHeight() {
+        if (!hasHeaderEntries()) {
+            return 0;
+        }
+        return headerEntries.size() * getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
     }
 
     private void updateButtonState(@Nullable BoxWidget button, boolean active) {

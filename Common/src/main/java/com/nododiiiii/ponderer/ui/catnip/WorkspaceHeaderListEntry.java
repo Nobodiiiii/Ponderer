@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.theme.Color;
@@ -24,7 +25,7 @@ public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements 
 
     public record HeaderButton(
         BoxWidget widget,
-        Supplier<String> labelGetter,
+        @Nullable Supplier<String> labelGetter,
         @Nullable Supplier<List<Component>> tooltipGetter,
         BooleanSupplier activeGetter
     ) {
@@ -52,6 +53,15 @@ public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements 
             () -> label,
             tooltip == null ? null : () -> List.of(Component.literal(tooltip)),
             activeGetter);
+    }
+
+    public static HeaderButton iconButton(DelegatedStencilElement icon,
+                                          Runnable action,
+                                          @Nullable Supplier<List<Component>> tooltipGetter,
+                                          BooleanSupplier activeGetter) {
+        BoxWidget widget = new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(action);
+        PonderIconStencils.attach(widget, icon);
+        return new HeaderButton(widget, null, tooltipGetter, activeGetter);
     }
 
     @Override
@@ -105,7 +115,12 @@ public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements 
         widget.setWidth(BUTTON_WIDTH);
         widget.setHeight(BUTTON_HEIGHT);
         widget.active = button.activeGetter().getAsBoolean();
+        widget.updateGradientFromState();
         widget.render(graphics, mouseX, mouseY, partialTicks);
+
+        if (button.labelGetter() == null) {
+            return;
+        }
 
         int color = widget.active ? 0xFFFFFF : 0x777777;
         graphics.drawCenteredString(Minecraft.getInstance().font, button.labelGetter().get(),
