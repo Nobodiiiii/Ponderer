@@ -397,7 +397,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         return headerEntries.size() * getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
     }
 
-    private void updateButtonState(@Nullable BoxWidget button, boolean active) {
+    protected final void updateButtonState(@Nullable BoxWidget button, boolean active) {
         if (button != null && button.active != active) {
             button.active = active;
             button.animateGradientFromState();

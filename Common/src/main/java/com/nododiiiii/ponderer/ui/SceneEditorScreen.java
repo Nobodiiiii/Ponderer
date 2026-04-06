@@ -12,9 +12,12 @@ import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.widget.BoxWidget;
+import net.createmod.catnip.lang.FontHelper;
+import net.createmod.catnip.lang.FontHelper.Palette;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
@@ -247,8 +250,20 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private void initHistoryButtons() {
         int actionX = actionButtonX();
-        undoButton = createHistoryButton(actionX, 0, this::performUndo, true, "Undo");
-        redoButton = createHistoryButton(actionX, 0, this::performRedo, false, "Redo");
+        undoButton = createHistoryButton(
+            actionX,
+            0,
+            this::performUndo,
+            PonderIconStencils.mirrored(PonderGuiTextures.ICON_CONFIG_RESET),
+            "ponderer.ui.scene_editor.undo",
+            "ponderer.ui.scene_editor.undo.tooltip");
+        redoButton = createHistoryButton(
+            actionX,
+            0,
+            this::performRedo,
+            PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_RESET),
+            "ponderer.ui.scene_editor.redo",
+            "ponderer.ui.scene_editor.redo.tooltip");
         relayoutSidebarButtons();
         refreshHistoryButtonState();
     }
@@ -257,16 +272,26 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         return width / 2 + currentListWidthValue() / 2 + 10;
     }
 
-    private BoxWidget createHistoryButton(int x, int y, Runnable callback, boolean reverse, String tooltip) {
+    private BoxWidget createHistoryButton(int x, int y, Runnable callback,
+                                          net.createmod.catnip.gui.element.DelegatedStencilElement icon,
+                                          String tooltipTitleKey, String tooltipBodyKey) {
         BoxWidget button = new BoxWidget(x, y, SIDEBAR_BUTTON_SIZE, SIDEBAR_BUTTON_SIZE)
             .withPadding(2, 2)
             .withCallback(callback);
-        PonderIconStencils.attach(button,
-            reverse ? PonderIconStencils.mirrored(PonderGuiTextures.ICON_PONDER_REPLAY)
-                : PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_REPLAY));
-        button.getToolTip().add(net.minecraft.network.chat.Component.literal(tooltip));
+        PonderIconStencils.attach(button, icon);
+        configureSidebarTooltip(
+            button,
+            Component.translatable(tooltipTitleKey),
+            Component.translatable(tooltipBodyKey));
+        button.updateGradientFromState();
         addRenderableWidget(button);
         return button;
+    }
+
+    private void configureSidebarTooltip(BoxWidget button, Component title, Component detail) {
+        button.getToolTip().clear();
+        button.getToolTip().add(title);
+        button.getToolTip().addAll(FontHelper.cutTextComponent(detail, Palette.ALL_GRAY));
     }
 
     private void relayoutSidebarButtons() {
@@ -291,12 +316,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void refreshHistoryButtonState() {
-        if (undoButton != null) {
-            undoButton.active = undoManager.canUndo();
-        }
-        if (redoButton != null) {
-            redoButton.active = undoManager.canRedo();
-        }
+        updateButtonState(undoButton, undoManager.canUndo());
+        updateButtonState(redoButton, undoManager.canRedo());
     }
 
     private void rememberScrollPosition() {
