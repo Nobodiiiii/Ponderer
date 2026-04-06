@@ -132,6 +132,15 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
     }
 
     private void openEditorForType(String type) {
+        if ("show_interface".equalsIgnoreCase(type)) {
+            ShowInterfaceExperimentalNoticeScreen.openIfNeeded(this, () -> openEditorDirectly(type));
+            return;
+        }
+
+        openEditorDirectly(type);
+    }
+
+    private void openEditorDirectly(String type) {
         AbstractStepEditorScreen editor = StepEditorFactory.createAddScreen(type, scene, sceneIndex, parent);
         if (editor != null) {
             editor.setReturnScreen(this);

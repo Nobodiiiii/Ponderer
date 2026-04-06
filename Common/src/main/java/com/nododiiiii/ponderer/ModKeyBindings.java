@@ -45,8 +45,8 @@ public final class ModKeyBindings {
 
     public static final List<ManagedBinding> MANAGED_BINDINGS = List.of(
         managed("key.ponderer.open_function_page", OPEN_FUNCTION_PAGE, GLFW.GLFW_KEY_V),
-        managed("key.ponderer.trigger_ponder", TRIGGER_PONDER, GLFW.GLFW_KEY_C),
-        managed("ponderer.ui.keybindings.upstream_ponder", upstreamPonderMapping(), GLFW.GLFW_KEY_W)
+        managed("ponderer.ui.keybindings.upstream_ponder", upstreamPonderMapping(), GLFW.GLFW_KEY_W),
+        managed("key.ponderer.trigger_ponder", TRIGGER_PONDER, GLFW.GLFW_KEY_C)
     );
 
     private ModKeyBindings() {}

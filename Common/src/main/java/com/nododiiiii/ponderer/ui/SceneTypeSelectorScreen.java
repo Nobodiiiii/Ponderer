@@ -26,7 +26,7 @@ public class SceneTypeSelectorScreen extends AbstractReadonlyDeclarativeListScre
         entries.add(new FullButtonListEntry(
             UIText.of("ponderer.ui.step.type.show_interface"),
             null,
-            () -> parent.insertSplitStep("show_interface")));
+            () -> ShowInterfaceExperimentalNoticeScreen.openIfNeeded(this, () -> parent.insertSplitStep("show_interface"))));
     }
 
     @Override
