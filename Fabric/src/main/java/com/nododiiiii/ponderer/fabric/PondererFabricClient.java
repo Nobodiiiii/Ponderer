@@ -54,8 +54,9 @@ public class PondererFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         BlueprintHandler.INSTANCE = blueprintHandler;
         // Key bindings
-        KeyBindingHelper.registerKeyBinding(ModKeyBindings.OPEN_FUNCTION_PAGE);
-        KeyBindingHelper.registerKeyBinding(ModKeyBindings.TRIGGER_PONDER);
+        for (var keyMapping : ModKeyBindings.all()) {
+            KeyBindingHelper.registerKeyBinding(keyMapping);
+        }
 
         // Ponder init
         SceneStore.extractDefaultsIfNeeded();
@@ -121,11 +122,10 @@ public class PondererFabricClient implements ClientModInitializer {
             // Trigger key: process after TriggerManager.tick() so activeScene is fresh.
             if (client.player != null && client.screen == null) {
                 boolean triggerByBinding = ModKeyBindings.TRIGGER_PONDER.isDown();
-                boolean triggerByRawC = GLFW.glfwGetKey(client.getWindow().getWindow(), GLFW.GLFW_KEY_C) == GLFW.GLFW_PRESS;
-                boolean triggerPressed = triggerByBinding || triggerByRawC;
+                boolean triggerPressed = triggerByBinding;
 
                 if (triggerPressed && !triggerKeyWasDown) {
-                    boolean opened = TriggerManager.onTriggerKeyPressed();
+                    TriggerManager.onTriggerKeyPressed();
                 }
                 triggerKeyWasDown = triggerPressed;
             } else {

@@ -52,19 +52,11 @@ public abstract class PonderUIMixin extends Screen {
     @Inject(method = "init", at = @At("TAIL"))
     private void ponderer$addEditButton(CallbackInfo ci) {
         PonderUI self = (PonderUI) (Object) this;
-        PonderScene active = self.getActiveScene();
-
-        // Only show edit button for ponderer dynamic scenes
-        if (!"ponderer".equals(active.getNamespace())) {
-            return;
-        }
-
-        // Check if this scene has a matching DslScene
-        int occurrence = ponderer$computeOccurrenceIndex(self, active);
-        var match = SceneRuntime.findBySceneId(active.getId(), occurrence);
+        var match = ponderer$resolveDynamicScene(self);
         if (match == null) {
             return;
         }
+        SceneEditorScreen.handlePonderUiFocusChanged(match.scene());
 
         if (!canEdit(Minecraft.getInstance().player)) {
             return;
@@ -77,10 +69,9 @@ public abstract class PonderUIMixin extends Screen {
                 .enableFade(0, 5);
         editButton.withCallback(() -> {
             PonderUI current = (PonderUI) (Object) this;
-            PonderScene currentScene = current.getActiveScene();
-            int occ = ponderer$computeOccurrenceIndex(current, currentScene);
-            var result = SceneRuntime.findBySceneId(currentScene.getId(), occ);
+            var result = ponderer$resolveDynamicScene(current);
             if (result != null) {
+                SceneEditorScreen.markUiToEditorTransition(result.scene());
                 Minecraft.getInstance().setScreen(new SceneEditorScreen(result.scene(), result.sceneIndex()));
             }
         });
@@ -114,6 +105,23 @@ public abstract class PonderUIMixin extends Screen {
         }
         PonderUI self = (PonderUI) (Object) this;
         ponderer$resetCustomView(self.getActiveScene());
+        var match = ponderer$resolveDynamicScene(self);
+        if (match != null) {
+            SceneEditorScreen.handlePonderUiFocusChanged(match.scene());
+        } else {
+            SceneEditorScreen.handlePonderUiFocusChanged(null);
+        }
+    }
+
+    @Inject(method = "removed", at = @At("TAIL"), remap = false)
+    private void ponderer$clearSceneEditorUndoOnTrueExit(CallbackInfo ci) {
+        PonderUI self = (PonderUI) (Object) this;
+        var match = ponderer$resolveDynamicScene(self);
+        if (match != null) {
+            SceneEditorScreen.handlePonderUiRemoved(match.scene());
+        } else {
+            SceneEditorScreen.handlePonderUiRemoved(null);
+        }
     }
 
     private static void ponderer$resetCustomView(PonderScene scene) {
@@ -158,6 +166,16 @@ public abstract class PonderUIMixin extends Screen {
             if (s.getId().equals(targetId)) occurrence++;
         }
         return 0;
+    }
+
+    @Unique
+    private static SceneRuntime.SceneMatch ponderer$resolveDynamicScene(PonderUI ui) {
+        PonderScene active = ui.getActiveScene();
+        if (!"ponderer".equals(active.getNamespace())) {
+            return null;
+        }
+        int occurrence = ponderer$computeOccurrenceIndex(ui, active);
+        return SceneRuntime.findBySceneId(active.getId(), occurrence);
     }
 
     // ---- Pick mode integration ----

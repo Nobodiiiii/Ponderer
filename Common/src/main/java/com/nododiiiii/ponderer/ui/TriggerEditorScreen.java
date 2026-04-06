@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
@@ -339,18 +340,17 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         if (!newItemId.equals(oldItemId) && !pendingItemDuplicateConfirm) {
             for (DslScene s : SceneRuntime.getScenes()) {
                 if (s != scene && s.items != null && s.items.contains(newItemId)) {
-                    Minecraft.getInstance().setScreen(new net.minecraft.client.gui.screens.ConfirmScreen(
-                        confirmed -> {
+                    new ConfirmationScreen()
+                        .centered()
+                        .withText(Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"))
+                        .addText(Component.translatable("ponderer.ui.scene_desc.error.item_exists", newItemId))
+                        .withAction(confirmed -> {
                             if (confirmed) {
                                 pendingItemDuplicateConfirm = true;
-                                Minecraft.getInstance().setScreen(this);
                                 doConfirm();
-                            } else {
-                                Minecraft.getInstance().setScreen(this);
                             }
-                        },
-                        Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"),
-                        Component.translatable("ponderer.ui.scene_desc.error.item_exists", newItemId)));
+                        })
+                        .open(this);
                     return false;
                 }
             }

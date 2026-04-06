@@ -9,7 +9,6 @@ import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.controls.KeyBindsScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
@@ -108,10 +107,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 () -> Minecraft.getInstance().setScreen(buildBlueprintItemPage()),
                 "ponderer.ui.function_page.blueprint_item.tooltip"),
             new ButtonDef("ponderer.ui.function_page.keybindings",
-                () -> {
-                    Minecraft mc = Minecraft.getInstance();
-                    mc.setScreen(new KeyBindsScreen(null, mc.options));
-                },
+                () -> Minecraft.getInstance().setScreen(new PondererKeyBindingsScreen(this)),
                 "ponderer.ui.function_page.keybindings.tooltip"),
             new ButtonDef("ponderer.ui.function_page.ai_config",
                 () -> Minecraft.getInstance().setScreen(new AiConfigScreen(this)),

@@ -80,8 +80,9 @@ public class PondererForgeClient {
     }
 
     private static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
-        event.register(ModKeyBindings.OPEN_FUNCTION_PAGE);
-        event.register(ModKeyBindings.TRIGGER_PONDER);
+        for (var keyMapping : ModKeyBindings.all()) {
+            event.register(keyMapping);
+        }
     }
 
     private static void onRegisterClientCommands(RegisterClientCommandsEvent event) {

@@ -10,6 +10,7 @@ import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.ui.catnip.SceneStepListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
+import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.lang.FontHelper;
@@ -22,9 +23,11 @@ import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -36,13 +39,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private static final int SIDEBAR_BUTTON_SIZE = 20;
     private static final int SIDEBAR_BUTTON_GAP = 10;
     private static final int STEP_ACTION_ICON_SIZE = 12;
+    private static final HistorySession HISTORY_SESSION = new HistorySession();
 
     @Nullable
     private static DslScene.DslStep clipboard = null;
 
     private final DslScene scene;
     private int sceneIndex;
-    private final UndoManager undoManager = new UndoManager();
     private double pendingListScroll = 0;
 
     @Nullable
@@ -316,8 +319,65 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void refreshHistoryButtonState() {
-        updateButtonState(undoButton, undoManager.canUndo());
-        updateButtonState(redoButton, undoManager.canRedo());
+        UndoManager history = undoManager();
+        updateButtonState(undoButton, history.canUndo());
+        updateButtonState(redoButton, history.canRedo());
+    }
+
+    public static void markUiToEditorTransition(DslScene scene) {
+        if (scene == null) {
+            return;
+        }
+        HISTORY_SESSION.markUiToEditorTransition(historySessionKey(scene));
+    }
+
+    public static void handlePonderUiRemoved(@Nullable DslScene scene) {
+        if (scene == null) {
+            HISTORY_SESSION.clear();
+            return;
+        }
+        HISTORY_SESSION.handlePonderUiRemoved(historySessionKey(scene));
+    }
+
+    public static void handlePonderUiFocusChanged(@Nullable DslScene scene) {
+        if (scene == null) {
+            HISTORY_SESSION.clear();
+            return;
+        }
+        HISTORY_SESSION.clearIfLeavingPonder(historySessionKey(scene));
+    }
+
+    private UndoManager undoManager() {
+        return HISTORY_SESSION.historyFor(historySessionKey(), currentSceneHistoryKey());
+    }
+
+    private void clearCurrentPonderHistory() {
+        HISTORY_SESSION.clearPonder(historySessionKey());
+    }
+
+    private String historySessionKey() {
+        return historySessionKey(scene);
+    }
+
+    private static String historySessionKey(DslScene scene) {
+        String key = scene.sceneKey();
+        if (key == null) {
+            key = "<unknown>";
+        }
+        if (scene.nbtFilter != null && !scene.nbtFilter.isBlank()) {
+            return key + "|nbt:" + scene.nbtFilter;
+        }
+        return key;
+    }
+
+    private String currentSceneHistoryKey() {
+        if (scene.scenes != null && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
+            DslScene.SceneSegment segment = scene.scenes.get(sceneIndex);
+            if (segment != null && segment.id != null && !segment.id.isBlank()) {
+                return "segment:" + segment.id;
+            }
+        }
+        return "index:" + sceneIndex;
     }
 
     private void rememberScrollPosition() {
@@ -355,7 +415,6 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         }
         sceneIndex = newIndex;
         pendingListScroll = 0;
-        undoManager.clear();
         clearStatusMessages();
         rebuildEntriesAtTop();
     }
@@ -441,7 +500,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void performUndo() {
-        List<DslScene.DslStep> restored = undoManager.undo(getSteps());
+        List<DslScene.DslStep> restored = undoManager().undo(getSteps());
         if (restored == null) {
             return;
         }
@@ -451,7 +510,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void performRedo() {
-        List<DslScene.DslStep> restored = undoManager.redo(getSteps());
+        List<DslScene.DslStep> restored = undoManager().redo(getSteps());
         if (restored == null) {
             return;
         }
@@ -615,7 +674,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     public void insertStepAndSave(int afterIndex, DslScene.DslStep newStep) {
-        undoManager.saveState(getSteps());
+        undoManager().saveState(getSteps());
         List<DslScene.DslStep> steps = getMutableSteps();
         int insertedIndex;
         if (afterIndex >= 0 && afterIndex < steps.size()) {
@@ -634,7 +693,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     public void replaceStepAndSave(int index, DslScene.DslStep newStep) {
         List<DslScene.DslStep> steps = getMutableSteps();
         if (index >= 0 && index < steps.size()) {
-            undoManager.saveState(getSteps());
+            undoManager().saveState(getSteps());
             DslScene.DslStep oldStep = steps.get(index);
             steps.set(index, newStep);
             if (didShowInterfaceContextChange(oldStep, newStep)) {
@@ -677,7 +736,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     public void removeStepAndSave(int index) {
         List<DslScene.DslStep> steps = getMutableSteps();
         if (index >= 0 && index < steps.size()) {
-            undoManager.saveState(getSteps());
+            undoManager().saveState(getSteps());
             steps.remove(index);
             saveToFile();
             rebuildEntriesPreservingScroll();
@@ -687,7 +746,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private void moveStepUp(int index) {
         List<DslScene.DslStep> steps = getMutableSteps();
         if (index > 0 && index < steps.size()) {
-            undoManager.saveState(getSteps());
+            undoManager().saveState(getSteps());
             DslScene.DslStep temp = steps.get(index);
             steps.set(index, steps.get(index - 1));
             steps.set(index - 1, temp);
@@ -699,7 +758,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private void moveStepDown(int index) {
         List<DslScene.DslStep> steps = getMutableSteps();
         if (index >= 0 && index < steps.size() - 1) {
-            undoManager.saveState(getSteps());
+            undoManager().saveState(getSteps());
             DslScene.DslStep temp = steps.get(index);
             steps.set(index, steps.get(index + 1));
             steps.set(index + 1, temp);
@@ -721,7 +780,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             normalizedType = "show_structure";
         }
 
-        undoManager.saveState(getSteps());
+        undoManager().saveState(getSteps());
         int newSceneIndex = -1;
 
         if (scene.scenes != null && !scene.scenes.isEmpty()
@@ -758,7 +817,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         if (newSceneIndex >= 0) {
             sceneIndex = newSceneIndex;
             pendingListScroll = 0;
-            undoManager.clear();
+            clearCurrentPonderHistory();
             ScreenOpener.open(new SceneDescEditorScreen(scene, sceneIndex, this));
             return;
         }
@@ -794,33 +853,36 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void confirmDeleteScene() {
-        Minecraft mc = Minecraft.getInstance();
         int sceneCount = getSceneCount();
 
         if (sceneCount > 1 && scene.scenes != null && !scene.scenes.isEmpty()) {
-            mc.setScreen(new net.minecraft.client.gui.screens.ConfirmScreen(
-                confirmed -> {
+            new ConfirmationScreen()
+                .centered()
+                .withText(net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.delete_scene_title"))
+                .addText(net.minecraft.network.chat.Component.translatable(
+                    "ponderer.ui.scene_editor.delete_scene_msg",
+                    currentSceneName()))
+                .withAction(confirmed -> {
                     if (confirmed) {
                         deleteCurrentScene();
-                    } else {
-                        mc.setScreen(this);
                     }
-                },
-                net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.delete_scene_title"),
-                net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.delete_scene_msg", currentSceneName())));
+                })
+                .open(this);
             return;
         }
 
-        mc.setScreen(new net.minecraft.client.gui.screens.ConfirmScreen(
-            confirmed -> {
+        new ConfirmationScreen()
+            .centered()
+            .withText(net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.delete_ponder_title"))
+            .addText(net.minecraft.network.chat.Component.translatable(
+                "ponderer.ui.scene_editor.delete_ponder_msg",
+                scene.id))
+            .withAction(confirmed -> {
                 if (confirmed) {
                     deletePonderAndExit();
-                } else {
-                    mc.setScreen(this);
                 }
-            },
-            net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.delete_ponder_title"),
-            net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.delete_ponder_msg", scene.id)));
+            })
+            .open(this);
     }
 
     private void deleteCurrentScene() {
@@ -833,7 +895,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             if (sceneIndex >= scene.scenes.size()) {
                 sceneIndex = scene.scenes.size() - 1;
             }
-            undoManager.clear();
+            clearCurrentPonderHistory();
             pendingListScroll = 0;
             saveToFile();
             Minecraft.getInstance().setScreen(this);
@@ -841,6 +903,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void deletePonderAndExit() {
+        clearCurrentPonderHistory();
         boolean deleted = com.nododiiiii.ponderer.ponder.SceneStore.deleteSceneLocal(scene.id);
         Minecraft mc = Minecraft.getInstance();
         mc.setScreen(null);
@@ -942,6 +1005,62 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                 accessor.ponderer$getLazyIndex().startWithValue(i);
                 break;
             }
+        }
+    }
+
+    private static final class HistorySession {
+        @Nullable
+        private String activePonderKey;
+        private final Map<String, UndoManager> sceneHistories = new HashMap<>();
+        private boolean preserveOnNextPonderUiRemoval;
+
+        private UndoManager historyFor(String ponderKey, String sceneKey) {
+            switchToPonder(ponderKey);
+            return sceneHistories.computeIfAbsent(sceneKey, ignored -> new UndoManager());
+        }
+
+        private void markUiToEditorTransition(String ponderKey) {
+            switchToPonder(ponderKey);
+            preserveOnNextPonderUiRemoval = true;
+        }
+
+        private void handlePonderUiRemoved(String ponderKey) {
+            if (!Objects.equals(activePonderKey, ponderKey)) {
+                return;
+            }
+            if (preserveOnNextPonderUiRemoval) {
+                preserveOnNextPonderUiRemoval = false;
+                return;
+            }
+            clear();
+        }
+
+        private void clearIfLeavingPonder(String ponderKey) {
+            if (activePonderKey != null && !Objects.equals(activePonderKey, ponderKey)) {
+                clear();
+            }
+        }
+
+        private void clearPonder(String ponderKey) {
+            if (Objects.equals(activePonderKey, ponderKey)) {
+                sceneHistories.clear();
+                preserveOnNextPonderUiRemoval = false;
+            }
+        }
+
+        private void switchToPonder(String ponderKey) {
+            if (Objects.equals(activePonderKey, ponderKey)) {
+                return;
+            }
+            activePonderKey = ponderKey;
+            sceneHistories.clear();
+            preserveOnNextPonderUiRemoval = false;
+        }
+
+        private void clear() {
+            activePonderKey = null;
+            sceneHistories.clear();
+            preserveOnNextPonderUiRemoval = false;
         }
     }
 }

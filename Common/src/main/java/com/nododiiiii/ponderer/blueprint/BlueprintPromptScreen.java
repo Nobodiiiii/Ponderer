@@ -55,6 +55,11 @@ public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
     }
 
     @Override
+    protected boolean isDiscardButtonActive() {
+        return true;
+    }
+
+    @Override
     protected boolean saveEdits() {
         String name = blueprintName.trim();
         if (!awaitingOverrideConfirm && SceneStore.isBuiltinStructureName(name)) {
