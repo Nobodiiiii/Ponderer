@@ -372,6 +372,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 }
 
                 StepContext context = new StepContext();
+                if (firstStepIsShowInterface(sc)) {
+                    builder.removeShadow();
+                }
 
                 if (!firstStepIsShowStructure(sc)) {
                     applyShowStructure(builder, new DslScene.DslStep(), context);
@@ -1804,6 +1807,19 @@ public class DynamicPonderPlugin implements PonderPlugin {
             // Return whether the first meaningful step is a valid scene-start step
             return "show_structure".equalsIgnoreCase(step.type)
                     || "show_interface".equalsIgnoreCase(step.type);
+        }
+        return false;
+    }
+
+    private boolean firstStepIsShowInterface(DslScene.SceneSegment sc) {
+        if (sc.steps == null) {
+            return false;
+        }
+        for (DslScene.DslStep step : sc.steps) {
+            if (step == null || step.type == null) {
+                continue;
+            }
+            return "show_interface".equalsIgnoreCase(step.type);
         }
         return false;
     }
