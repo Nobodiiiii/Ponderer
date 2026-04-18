@@ -3,10 +3,12 @@ package com.nododiiiii.ponderer.mixin;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.PackStateStore;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
+import com.nododiiiii.ponderer.ui.ReadonlyPackImportPromptScreen;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import com.nododiiiii.ponderer.ui.SceneEditorScreen;
@@ -73,6 +75,12 @@ public abstract class PonderUIMixin extends Screen {
             PonderUI current = (PonderUI) (Object) this;
             var result = ponderer$resolveDynamicScene(current);
             if (result != null) {
+                String packId = result.scene().pack;
+                PackStateStore.load();
+                if (packId != null && !packId.isBlank() && !PackStateStore.isImported(packId)) {
+                    new ReadonlyPackImportPromptScreen(current, packId, result.scene().sceneKey(), result.sceneIndex()).open();
+                    return;
+                }
                 SceneEditorScreen.markUiToEditorTransition(result.scene());
                 Minecraft.getInstance().setScreen(new SceneEditorScreen(result.scene(), result.sceneIndex()));
             }
