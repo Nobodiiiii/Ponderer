@@ -149,8 +149,14 @@ public final class PondererClientCommands {
     }
 
     public static int reloadLocal() {
+        SceneStore.AutoLoadResult autoLoadResult = SceneStore.autoLoadPonderPacks();
         int count = SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
+        for (SceneStore.PackUpdateInfo info : autoLoadResult.updatedPacks) {
+            notifyClient(Component.literal("[Ponderer] ")
+                .append(Component.translatable("ponderer.pack.update.readonly_newer_source",
+                    info.packName, info.newVersion, info.oldVersion)));
+        }
         notifyClient(Component.translatable("ponderer.cmd.reload.done", count));
         return count;
     }
@@ -598,46 +604,27 @@ public final class PondererClientCommands {
         var player = Minecraft.getInstance().player;
         if (player == null) return 0;
 
-        PonderPackRegistry.PackEntry entry = PonderPackRegistry.getPack(packName);
-        if (entry == null) {
+        PackStateStore.load();
+        boolean hasLocalCopy = PackStateStore.isImported(packName)
+            || (SceneStore.getPackSceneDir(packName) != null && java.nio.file.Files.exists(SceneStore.getPackSceneDir(packName)))
+            || (SceneStore.getPackStructureDir(packName) != null && java.nio.file.Files.exists(SceneStore.getPackStructureDir(packName)));
+        if (!hasLocalCopy && !PackStateStore.hasImportedState(packName)) {
             player.displayClientMessage(Component.translatable("ponderer.pack.unregister.not_found", packName), false);
             return 0;
         }
 
-        // Delete the zip file from resourcepacks/
-        if (entry.sourceFile != null && !entry.sourceFile.isEmpty()) {
-            Path zipPath = SafePaths.resolveFileName(
-                    PondererServices.PLATFORM.getGameDir().resolve("resourcepacks"),
-                    entry.sourceFile);
-            try {
-                if (zipPath != null) {
-                    java.nio.file.Files.deleteIfExists(zipPath);
-                }
-            } catch (Exception e) {
-                // Non-fatal: log but continue with registry removal
-            }
+        Path packSceneDir = SceneStore.getPackSceneDir(packName);
+        Path packStructureDir = SceneStore.getPackStructureDir(packName);
+        if (packSceneDir != null) {
+            deleteDirectoryRecursive(packSceneDir);
+        }
+        if (packStructureDir != null) {
+            deleteDirectoryRecursive(packStructureDir);
         }
 
-        // Delete extracted script and structure files (pack subdirectories)
-        String name = entry.name;
-        if (name == null && entry.packPrefix != null && entry.packPrefix.startsWith("[") && entry.packPrefix.endsWith("]")) {
-            name = entry.packPrefix.substring(1, entry.packPrefix.length() - 1);
-        }
-        if (name != null && !name.isEmpty()) {
-            Path packSceneDir = SceneStore.getPackSceneDir(name);
-            Path packStructureDir = SceneStore.getPackStructureDir(name);
-            if (packSceneDir != null) {
-                deleteDirectoryRecursive(packSceneDir);
-            }
-            if (packStructureDir != null) {
-                deleteDirectoryRecursive(packStructureDir);
-            }
-        }
+        PackStateStore.removeImportedPack(packName);
 
-        // Remove from registry
-        PonderPackRegistry.removePack(packName);
-
-        // Reload
+        SceneStore.autoLoadPonderPacks();
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
 

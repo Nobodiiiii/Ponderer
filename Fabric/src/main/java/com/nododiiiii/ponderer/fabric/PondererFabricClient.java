@@ -181,25 +181,11 @@ public class PondererFabricClient implements ClientModInitializer {
             if (player == null) return;
 
             for (SceneStore.PackUpdateInfo info : updates) {
-                String versionChange = info.oldVersion != null
-                        ? "v" + info.oldVersion + " \u2192 v" + info.newVersion
-                        : "v" + info.newVersion;
                 MutableComponent msg = Component.literal("[Ponderer] ")
                         .withStyle(Style.EMPTY.withColor(0xFFA500))
-                        .append(Component.literal(info.packName).withStyle(Style.EMPTY.withColor(0xFFFFFF)))
-                        .append(Component.literal(": ").withStyle(Style.EMPTY.withColor(0xAAAAAA)));
-                if (info.oldVersion != null) {
-                    msg.append(Component.translatable("ponderer.pack.update.version", versionChange)
-                            .withStyle(Style.EMPTY.withColor(0x55FF55)));
-                } else {
-                    msg.append(Component.translatable("ponderer.pack.update.loaded", info.newVersion)
-                            .withStyle(Style.EMPTY.withColor(0x55FF55)));
-                }
-                if (info.conflictCount > 0) {
-                    msg.append(Component.literal(" ")
-                            .append(Component.translatable("ponderer.pack.update.conflicts", info.conflictCount)
-                                    .withStyle(Style.EMPTY.withColor(0xFFAA00))));
-                }
+                        .append(Component.translatable("ponderer.pack.update.readonly_newer_source",
+                                info.packName, info.newVersion, info.oldVersion)
+                                .withStyle(Style.EMPTY.withColor(0x55FF55)));
                 player.displayClientMessage(msg, false);
             }
 
