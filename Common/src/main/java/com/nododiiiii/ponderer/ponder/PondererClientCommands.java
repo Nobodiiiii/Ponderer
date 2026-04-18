@@ -606,20 +606,15 @@ public final class PondererClientCommands {
 
         PackStateStore.load();
         boolean hasLocalCopy = PackStateStore.isImported(packName)
-            || (SceneStore.getPackSceneDir(packName) != null && java.nio.file.Files.exists(SceneStore.getPackSceneDir(packName)))
-            || (SceneStore.getPackStructureDir(packName) != null && java.nio.file.Files.exists(SceneStore.getPackStructureDir(packName)));
+            || (SceneStore.getPackDir(packName) != null && java.nio.file.Files.exists(SceneStore.getPackDir(packName)));
         if (!hasLocalCopy && !PackStateStore.hasImportedState(packName)) {
             player.displayClientMessage(Component.translatable("ponderer.pack.unregister.not_found", packName), false);
             return 0;
         }
 
-        Path packSceneDir = SceneStore.getPackSceneDir(packName);
-        Path packStructureDir = SceneStore.getPackStructureDir(packName);
-        if (packSceneDir != null) {
-            deleteDirectoryRecursive(packSceneDir);
-        }
-        if (packStructureDir != null) {
-            deleteDirectoryRecursive(packStructureDir);
+        Path packDir = SceneStore.getPackDir(packName);
+        if (packDir != null) {
+            deleteDirectoryRecursive(packDir);
         }
 
         PackStateStore.removeImportedPack(packName);

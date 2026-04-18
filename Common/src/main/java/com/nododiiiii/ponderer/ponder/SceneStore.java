@@ -241,42 +241,92 @@ public final class SceneStore {
         return PondererServices.PLATFORM.getConfigDir().resolve(BASE_DIR).resolve(".cache").resolve("readonly");
     }
 
-    private static Path getReadonlyCacheSceneRoot() {
-        return getReadonlyCacheRoot().resolve(SCRIPT_DIR).resolve(PACKS_SUBDIR);
+    public static Path getPacksRoot() {
+        return PondererServices.PLATFORM.getConfigDir().resolve(BASE_DIR).resolve(PACKS_SUBDIR);
     }
 
-    private static Path getReadonlyCacheStructureRoot() {
-        return getReadonlyCacheRoot().resolve(STRUCTURE_DIR).resolve(PACKS_SUBDIR);
+    private static Path getReadonlyCachePacksRoot() {
+        return getReadonlyCacheRoot().resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getLegacyPackSceneRoot() {
+        return getSceneDir().resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getLegacyPackStructureRoot() {
+        return getStructureDir().resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getServerPacksRoot(MinecraftServer server) {
+        return server.getWorldPath(LevelResource.ROOT).resolve(BASE_DIR).resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getLegacyServerPackSceneRoot(MinecraftServer server) {
+        return getServerSceneDir(server).resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getLegacyServerPackStructureRoot(MinecraftServer server) {
+        return getServerStructureDir(server).resolve(PACKS_SUBDIR);
+    }
+
+    @javax.annotation.Nullable
+    private static Path resolvePackTypeDir(@javax.annotation.Nullable Path packDir, String typeDir) {
+        return packDir == null ? null : SafePaths.resolveFileName(packDir, typeDir);
+    }
+
+    @javax.annotation.Nullable
+    public static Path getReadonlyCachePackDir(String packName) {
+        return SafePaths.resolveFileName(getReadonlyCachePacksRoot(), packName);
     }
 
     @javax.annotation.Nullable
     public static Path getReadonlyCachePackSceneDir(String packName) {
-        return SafePaths.resolveFileName(getReadonlyCacheSceneRoot(), packName);
+        return resolvePackTypeDir(getReadonlyCachePackDir(packName), SCRIPT_DIR);
     }
 
     @javax.annotation.Nullable
     public static Path getReadonlyCachePackStructureDir(String packName) {
-        return SafePaths.resolveFileName(getReadonlyCacheStructureRoot(), packName);
+        return resolvePackTypeDir(getReadonlyCachePackDir(packName), STRUCTURE_DIR);
+    }
+
+    @javax.annotation.Nullable
+    public static Path getPackDir(String packName) {
+        return SafePaths.resolveFileName(getPacksRoot(), packName);
     }
 
     @javax.annotation.Nullable
     public static Path getPackSceneDir(String packName) {
-        return SafePaths.resolveFileName(getSceneDir().resolve(PACKS_SUBDIR), packName);
+        return resolvePackTypeDir(getPackDir(packName), SCRIPT_DIR);
     }
 
     @javax.annotation.Nullable
     public static Path getPackStructureDir(String packName) {
-        return SafePaths.resolveFileName(getStructureDir().resolve(PACKS_SUBDIR), packName);
+        return resolvePackTypeDir(getPackDir(packName), STRUCTURE_DIR);
+    }
+
+    @javax.annotation.Nullable
+    private static Path getLegacyPackSceneDir(String packName) {
+        return SafePaths.resolveFileName(getLegacyPackSceneRoot(), packName);
+    }
+
+    @javax.annotation.Nullable
+    private static Path getLegacyPackStructureDir(String packName) {
+        return SafePaths.resolveFileName(getLegacyPackStructureRoot(), packName);
+    }
+
+    @javax.annotation.Nullable
+    private static Path getServerPackDir(MinecraftServer server, String packName) {
+        return SafePaths.resolveFileName(getServerPacksRoot(server), packName);
     }
 
     @javax.annotation.Nullable
     public static Path getServerPackSceneDir(MinecraftServer server, String packName) {
-        return SafePaths.resolveFileName(getServerSceneDir(server).resolve(PACKS_SUBDIR), packName);
+        return resolvePackTypeDir(getServerPackDir(server, packName), SCRIPT_DIR);
     }
 
     @javax.annotation.Nullable
     public static Path getServerPackStructureDir(MinecraftServer server, String packName) {
-        return SafePaths.resolveFileName(getServerStructureDir(server).resolve(PACKS_SUBDIR), packName);
+        return resolvePackTypeDir(getServerPackDir(server, packName), STRUCTURE_DIR);
     }
 
     @javax.annotation.Nullable
@@ -308,10 +358,19 @@ public final class SceneStore {
         Path flatPath = SafePaths.resolveRelativePath(getStructureDir(), path + ".nbt");
         if (flatPath != null && Files.exists(flatPath)) return flatPath;
         // 3. Search local imported pack subdirectories
-        Path importedPath = findStructureInPackRoots(getStructureDir().resolve(PACKS_SUBDIR), path);
+        Path importedPath = findStructureInPackRoots(getPacksRoot(), path);
         if (importedPath != null) return importedPath;
         // 4. Search readonly cached source packs
-        return findStructureInPackRoots(getReadonlyCacheStructureRoot(), path);
+        return findStructureInPackRoots(getReadonlyCachePacksRoot(), path);
+    }
+
+    private static Path getPackContentSearchRoot(Path packDir, String typeDir) {
+        if (packDir == null) {
+            return null;
+        }
+
+        Path typedRoot = packDir.resolve(typeDir);
+        return Files.isDirectory(typedRoot) ? typedRoot : packDir;
     }
 
     @javax.annotation.Nullable
@@ -322,14 +381,19 @@ public final class SceneStore {
 
         try (Stream<Path> packDirs = Files.list(packsDir)) {
             for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
-                try (Stream<Path> files = Files.walk(packDir)) {
+                Path searchRoot = getPackContentSearchRoot(packDir, STRUCTURE_DIR);
+                if (searchRoot == null || !Files.exists(searchRoot)) {
+                    continue;
+                }
+
+                try (Stream<Path> files = Files.walk(searchRoot)) {
                     for (Path file : files.filter(Files::isRegularFile).toList()) {
                         String fname = file.getFileName().toString();
                         if (!fname.endsWith(".nbt")) {
                             continue;
                         }
 
-                        Path relative = packDir.relativize(file);
+                        Path relative = searchRoot.relativize(file);
                         if (relative.getNameCount() == 0) {
                             continue;
                         }
@@ -400,6 +464,7 @@ public final class SceneStore {
     @javax.annotation.Nullable
     public static Path resolveServerScenePath(MinecraftServer server, ResourceLocation id, @javax.annotation.Nullable String pack) {
         if (pack != null && !pack.isBlank()) {
+            ensureServerPackLayoutMigrated(server);
             Path packDir = getServerPackSceneDir(server, pack);
             return packDir == null ? null : resolvePackScopedPath(packDir, pack, id.getNamespace() + "/" + id.getPath() + ".json");
         }
@@ -410,6 +475,7 @@ public final class SceneStore {
     public static Path resolveServerStructurePath(MinecraftServer server, ResourceLocation id,
             @javax.annotation.Nullable String pack) {
         if (pack != null && !pack.isBlank()) {
+            ensureServerPackLayoutMigrated(server);
             Path packDir = getServerPackStructureDir(server, pack);
             return packDir == null ? null : resolvePackScopedPath(packDir, pack, id.getNamespace() + "/" + id.getPath() + ".nbt");
         }
@@ -490,49 +556,108 @@ public final class SceneStore {
     }
 
     public static List<SyncFileRef> collectServerScriptRefs(MinecraftServer server) {
-        Path root = getServerSceneDir(server);
-        if (!Files.exists(root)) {
+        ensureServerPackLayoutMigrated(server);
+
+        Path flatRoot = getServerSceneDir(server);
+        Path packsRoot = getServerPacksRoot(server);
+        if (!Files.exists(flatRoot) && !Files.exists(packsRoot)) {
             return List.of();
         }
+
         List<SyncFileRef> entries = new ArrayList<>();
+        collectServerSceneRefsFromRoot(flatRoot, null, entries);
+
+        if (!Files.exists(packsRoot)) {
+            return entries;
+        }
+
+        try (Stream<Path> packDirs = Files.list(packsRoot)) {
+            for (Path packDir : packDirs.filter(Files::isDirectory).sorted().toList()) {
+                String packId = packDir.getFileName() != null ? packDir.getFileName().toString() : null;
+                if (packId == null || packId.isBlank()) {
+                    continue;
+                }
+                collectServerSceneRefsFromRoot(packDir.resolve(SCRIPT_DIR), packId, entries);
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to collect packed server scripts", e);
+        }
+        return entries;
+    }
+
+    private static void collectServerSceneRefsFromRoot(Path root, @javax.annotation.Nullable String explicitPack, List<SyncFileRef> entries) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+
         try (var paths = Files.walk(root)) {
             for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                    .filter(path -> !path.startsWith(root.resolve(PACKS_SUBDIR)))
                     .sorted(Comparator.comparing(Path::toString))
                     .toList()) {
-                SyncFileRef ref = toServerSceneRef(root, path);
+                SyncFileRef ref = toServerSceneRef(root, path, explicitPack);
                 if (ref != null) {
                     entries.add(ref);
                 }
             }
         } catch (Exception e) {
-            LOGGER.warn("Failed to collect server scripts", e);
+            LOGGER.warn("Failed to collect server scripts from {}", root, e);
         }
-        return entries;
     }
 
     public static List<SyncFileRef> collectServerStructureRefs(MinecraftServer server) {
-        Path root = getServerStructureDir(server);
-        if (!Files.exists(root)) {
+        ensureServerPackLayoutMigrated(server);
+
+        Path flatRoot = getServerStructureDir(server);
+        Path packsRoot = getServerPacksRoot(server);
+        if (!Files.exists(flatRoot) && !Files.exists(packsRoot)) {
             return List.of();
         }
+
         List<SyncFileRef> entries = new ArrayList<>();
+        collectServerStructureRefsFromRoot(flatRoot, null, entries);
+
+        if (!Files.exists(packsRoot)) {
+            return entries;
+        }
+
+        try (Stream<Path> packDirs = Files.list(packsRoot)) {
+            for (Path packDir : packDirs.filter(Files::isDirectory).sorted().toList()) {
+                String packId = packDir.getFileName() != null ? packDir.getFileName().toString() : null;
+                if (packId == null || packId.isBlank()) {
+                    continue;
+                }
+                collectServerStructureRefsFromRoot(packDir.resolve(STRUCTURE_DIR), packId, entries);
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to collect packed server structures", e);
+        }
+        return entries;
+    }
+
+    private static void collectServerStructureRefsFromRoot(Path root, @javax.annotation.Nullable String explicitPack,
+            List<SyncFileRef> entries) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+
         try (var paths = Files.walk(root)) {
             for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".nbt"))
+                    .filter(path -> !path.startsWith(root.resolve(PACKS_SUBDIR)))
                     .sorted(Comparator.comparing(Path::toString))
                     .toList()) {
-                SyncFileRef ref = toServerStructureRef(root, path, ".nbt");
+                SyncFileRef ref = toServerStructureRef(root, path, ".nbt", explicitPack);
                 if (ref != null) {
                     entries.add(ref);
                 }
             }
         } catch (Exception e) {
-            LOGGER.warn("Failed to collect server structures", e);
+            LOGGER.warn("Failed to collect server structures from {}", root, e);
         }
-        return entries;
     }
 
     @javax.annotation.Nullable
-    private static SyncFileRef toServerSceneRef(Path root, Path file) {
+    private static SyncFileRef toServerSceneRef(Path root, Path file, @javax.annotation.Nullable String explicitPack) {
         try {
             String json = Files.readString(file, StandardCharsets.UTF_8);
             DslScene scene = GSON.fromJson(json, DslScene.class);
@@ -540,7 +665,7 @@ public final class SceneStore {
                 LOGGER.warn("Skipping invalid server scene file (missing id): {}", file);
                 return null;
             }
-            String inferredPack = inferPackName(root, file);
+            String inferredPack = explicitPack != null && !explicitPack.isBlank() ? explicitPack : inferPackName(root, file);
             String pack = scene.pack != null && !scene.pack.isBlank() ? scene.pack : inferredPack;
             return new SyncFileRef(scene.id, pack, file);
         } catch (Exception e) {
@@ -550,17 +675,20 @@ public final class SceneStore {
     }
 
     @javax.annotation.Nullable
-    static SyncFileRef toServerStructureRef(Path root, Path file, String ext) {
+    static SyncFileRef toServerStructureRef(Path root, Path file, String ext, @javax.annotation.Nullable String explicitPack) {
         Path rel = root.relativize(file);
         if (rel.getNameCount() < 1) {
             return null;
         }
 
-        String pack = null;
+        String pack = explicitPack;
         Path idPath = rel;
-        if (PACKS_SUBDIR.equals(rel.getName(0).toString()) && rel.getNameCount() >= 3) {
+        if ((pack == null || pack.isBlank()) && PACKS_SUBDIR.equals(rel.getName(0).toString()) && rel.getNameCount() >= 3) {
             pack = rel.getName(1).toString();
             idPath = rel.subpath(2, rel.getNameCount());
+        }
+
+        if (pack != null && !pack.isBlank()) {
             String first = idPath.getName(0).toString();
             String prefix = "[" + pack + "] ";
             if (first.startsWith(prefix)) {
@@ -775,11 +903,15 @@ public final class SceneStore {
      */
     @javax.annotation.Nullable
     private static Path findExistingFileInPacks(String sceneId) {
-        Path packsDir = getSceneDir().resolve(PACKS_SUBDIR);
+        Path packsDir = getPacksRoot();
         if (!Files.exists(packsDir)) return null;
         try (Stream<Path> packDirs = Files.list(packsDir)) {
             for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
-                Path found = findExistingFile(packDir, sceneId);
+                Path searchRoot = getPackContentSearchRoot(packDir, SCRIPT_DIR);
+                if (searchRoot == null || !Files.exists(searchRoot)) {
+                    continue;
+                }
+                Path found = findExistingFile(searchRoot, sceneId);
                 if (found != null) return found;
             }
         } catch (IOException ignored) {}
@@ -839,6 +971,129 @@ public final class SceneStore {
         } catch (IOException e) {
             LOGGER.error("Failed to delete scene file: {}", existing, e);
             return false;
+        }
+    }
+
+    private static void ensureLocalPackLayoutMigrated() {
+        migrateLegacyPackTypeRoot(getLegacyPackSceneRoot(), getPacksRoot(), SCRIPT_DIR, "local script");
+        migrateLegacyPackTypeRoot(getLegacyPackStructureRoot(), getPacksRoot(), STRUCTURE_DIR, "local structure");
+    }
+
+    private static void ensureServerPackLayoutMigrated(MinecraftServer server) {
+        migrateLegacyPackTypeRoot(getLegacyServerPackSceneRoot(server), getServerPacksRoot(server), SCRIPT_DIR, "server script");
+        migrateLegacyPackTypeRoot(getLegacyServerPackStructureRoot(server), getServerPacksRoot(server), STRUCTURE_DIR, "server structure");
+    }
+
+    private static void migrateLegacyPackTypeRoot(Path legacyRoot, Path packsRoot, String typeDir, String label) {
+        if (legacyRoot == null || !Files.exists(legacyRoot)) {
+            return;
+        }
+
+        try (Stream<Path> packDirs = Files.list(legacyRoot)) {
+            for (Path legacyPackDir : packDirs.filter(Files::isDirectory).toList()) {
+                String packId = legacyPackDir.getFileName() != null ? legacyPackDir.getFileName().toString() : null;
+                if (packId == null || packId.isBlank()) {
+                    continue;
+                }
+
+                Path packDir = SafePaths.resolveFileName(packsRoot, packId);
+                Path targetDir = resolvePackTypeDir(packDir, typeDir);
+                if (packDir == null || targetDir == null) {
+                    LOGGER.warn("Rejected unsafe legacy {} pack path for {}", label, legacyPackDir);
+                    continue;
+                }
+
+                migrateLegacyPackDirectory(legacyPackDir, targetDir, label);
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Failed to inspect legacy {} pack root {}", label, legacyRoot, e);
+        }
+
+        deleteEmptyDirectories(legacyRoot);
+    }
+
+    private static void migrateLegacyPackDirectory(Path legacyDir, Path targetDir, String label) {
+        try {
+            Path targetParent = targetDir.getParent();
+            if (targetParent == null) {
+                LOGGER.warn("Missing parent for migrated {} pack directory {}", label, targetDir);
+                return;
+            }
+
+            Files.createDirectories(targetParent);
+            if (!Files.exists(targetDir)) {
+                Files.move(legacyDir, targetDir);
+                LOGGER.info("Migrated legacy {} pack directory: {} -> {}", label, legacyDir, targetDir);
+                return;
+            }
+
+            try (Stream<Path> paths = Files.walk(legacyDir)) {
+                for (Path path : paths.sorted(Comparator.comparingInt(Path::getNameCount)).toList()) {
+                    Path relative = legacyDir.relativize(path);
+                    if (relative.getNameCount() == 0) {
+                        continue;
+                    }
+
+                    Path targetPath = SafePaths.resolveRelativePath(targetDir, relative.toString().replace("\\", "/"));
+                    if (targetPath == null) {
+                        LOGGER.warn("Rejected unsafe migrated {} relative path {} in {}", label, relative, legacyDir);
+                        continue;
+                    }
+
+                    if (Files.isDirectory(path)) {
+                        Files.createDirectories(targetPath);
+                        continue;
+                    }
+
+                    Files.createDirectories(targetPath.getParent());
+                    if (!Files.exists(targetPath)) {
+                        Files.move(path, targetPath);
+                        continue;
+                    }
+
+                    if (filesHaveSameContent(path, targetPath)) {
+                        Files.deleteIfExists(path);
+                        continue;
+                    }
+
+                    LOGGER.warn("Keeping conflicting legacy {} file {} because target already exists at {}", label, path, targetPath);
+                }
+            }
+
+            deleteEmptyDirectories(legacyDir);
+            LOGGER.info("Merged legacy {} pack directory into {}", label, targetDir);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to migrate legacy {} pack directory {}", label, legacyDir, e);
+        }
+    }
+
+    private static boolean filesHaveSameContent(Path left, Path right) {
+        try {
+            return Files.size(left) == Files.size(right) && Files.mismatch(left, right) == -1;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static void deleteEmptyDirectories(Path root) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.walk(root)) {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                if (!Files.isDirectory(path)) {
+                    continue;
+                }
+
+                try (Stream<Path> children = Files.list(path)) {
+                    if (children.findAny().isEmpty()) {
+                        Files.deleteIfExists(path);
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
         }
     }
 
@@ -945,6 +1200,8 @@ public final class SceneStore {
     }
 
     public static int reloadFromDisk() {
+        ensureLocalPackLayoutMigrated();
+
         Path dir = getSceneDir();
         List<DslScene> loaded = new ArrayList<>();
 
@@ -966,11 +1223,11 @@ public final class SceneStore {
             LOGGER.error("Failed to list scene directory: {}", dir, e);
         }
 
-        // 2. Load imported local packs (_packs/{PackName}/)
-        loadPackScenesFromRoot(dir.resolve(PACKS_SUBDIR), loaded);
+        // 2. Load imported local packs (_packs/{PackName}/scripts)
+        loadPackScenesFromRoot(getPacksRoot(), loaded);
 
         // 3. Load readonly cached source packs after imported locals.
-        loadPackScenesFromRoot(getReadonlyCacheSceneRoot(), loaded);
+        loadPackScenesFromRoot(getReadonlyCachePacksRoot(), loaded);
 
         SceneRuntime.setScenes(loaded);
         LOGGER.info("Loaded {} ponderer scene(s) from {}", loaded.size(), dir);
@@ -984,7 +1241,12 @@ public final class SceneStore {
 
         try (Stream<Path> packDirs = Files.list(packsDir)) {
             for (Path packDir : packDirs.filter(Files::isDirectory).sorted().toList()) {
-                try (Stream<Path> paths = Files.walk(packDir)) {
+                Path searchRoot = getPackContentSearchRoot(packDir, SCRIPT_DIR);
+                if (searchRoot == null || !Files.exists(searchRoot)) {
+                    continue;
+                }
+
+                try (Stream<Path> paths = Files.walk(searchRoot)) {
                     paths.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
                         .sorted(Comparator.comparing(Path::toString))
                         .forEach(path -> loadSceneFile(path, loaded));
@@ -1438,15 +1700,34 @@ public final class SceneStore {
      */
     private static List<Path> collectAllScriptFiles() {
         List<Path> result = new ArrayList<>();
-        Path scriptsDir = getSceneDir();
-        if (!Files.exists(scriptsDir)) return result;
+        collectFilesWithExtension(getSceneDir(), ".json", result);
 
-        try (Stream<Path> paths = Files.walk(scriptsDir)) {
-            paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
-                .forEach(result::add);
+        Path packsDir = getPacksRoot();
+        if (!Files.exists(packsDir)) {
+            return result;
+        }
+
+        try (Stream<Path> packDirs = Files.list(packsDir)) {
+            for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
+                collectFilesWithExtension(getPackContentSearchRoot(packDir, SCRIPT_DIR), ".json", result);
+            }
         } catch (IOException ignored) {}
 
         return result;
+    }
+
+    private static void collectFilesWithExtension(@javax.annotation.Nullable Path root, String extension, List<Path> result) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.walk(root)) {
+            paths.filter(Files::isRegularFile)
+                .filter(path -> !path.startsWith(root.resolve(PACKS_SUBDIR)))
+                .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(extension))
+                .forEach(result::add);
+        } catch (IOException ignored) {
+        }
     }
 
     /**
@@ -1510,14 +1791,18 @@ public final class SceneStore {
      */
     private static int writeStructuresToZip(ZipOutputStream zos, Set<String> structureRefs) throws IOException {
         int count = 0;
-        Path structuresDir = getStructureDir();
-        if (!Files.exists(structuresDir)) return 0;
-
         List<Path> allStructureFiles = new ArrayList<>();
-        try (Stream<Path> paths = Files.walk(structuresDir)) {
-            paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".nbt"))
-                .forEach(allStructureFiles::add);
-        } catch (IOException ignored) {}
+        collectFilesWithExtension(getStructureDir(), ".nbt", allStructureFiles);
+
+        Path packsDir = getPacksRoot();
+        if (Files.exists(packsDir)) {
+            try (Stream<Path> packDirs = Files.list(packsDir)) {
+                for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
+                    collectFilesWithExtension(getPackContentSearchRoot(packDir, STRUCTURE_DIR), ".nbt", allStructureFiles);
+                }
+            } catch (IOException ignored) {
+            }
+        }
 
         Set<String> writtenEntries = new HashSet<>();
         for (Path p : allStructureFiles) {
@@ -1585,6 +1870,7 @@ public final class SceneStore {
             return failure;
         }
 
+        ensureLocalPackLayoutMigrated();
         PackStateStore.load();
         PonderPackInfo info = PonderPackInfo.fromZip(zipPath);
         if (info == null) {
@@ -2162,14 +2448,14 @@ public final class SceneStore {
      * Check if at least one extracted script file from a pack still exists on disk.
      */
     private static boolean packScriptFilesExist(String packName) {
-        // Check _packs/{packName}/ subdirectory
         Path packDir = getPackSceneDir(packName);
         if (packDir == null) {
             return false;
         }
         if (Files.exists(packDir)) {
-            try (Stream<Path> paths = Files.list(packDir)) {
-                if (paths.anyMatch(p -> p.getFileName().toString().endsWith(".json"))) {
+            try (Stream<Path> paths = Files.walk(packDir)) {
+                if (paths.anyMatch(path -> Files.isRegularFile(path)
+                        && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))) {
                     return true;
                 }
             } catch (IOException ignored) {}
@@ -2212,6 +2498,7 @@ public final class SceneStore {
      * @return AutoLoadResult with orphaned pack names and updated pack info
      */
     public static AutoLoadResult autoLoadPonderPacks() {
+        ensureLocalPackLayoutMigrated();
         PackStateStore.load();
         clearReadonlyCache();
         List<PackUpdateInfo> updates = new ArrayList<>();

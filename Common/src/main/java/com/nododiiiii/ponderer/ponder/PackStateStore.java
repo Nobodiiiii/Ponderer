@@ -129,6 +129,15 @@ public final class PackStateStore {
 
     public static boolean hasLocalSceneCopy(String packId) {
         Path packDir = SceneStore.getPackSceneDir(packId);
+        if (containsJsonFiles(packDir)) {
+            return true;
+        }
+
+        Path legacyPackDir = SceneStore.getSceneDir().resolve("_packs").resolve(packId);
+        return containsJsonFiles(legacyPackDir);
+    }
+
+    private static boolean containsJsonFiles(@Nullable Path packDir) {
         if (packDir == null || !Files.exists(packDir)) {
             return false;
         }
@@ -325,6 +334,7 @@ public final class PackStateStore {
 
     private static TreeSet<String> listLocalImportedPackIds() {
         TreeSet<String> packIds = new TreeSet<>();
+        collectPackIds(SceneStore.getPacksRoot(), packIds);
         collectPackIds(SceneStore.getSceneDir().resolve("_packs"), packIds);
         collectPackIds(SceneStore.getStructureDir().resolve("_packs"), packIds);
         return packIds;
