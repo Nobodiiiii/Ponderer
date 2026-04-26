@@ -1237,7 +1237,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         protected void discardEdits() {
             selectedItems.clear();
             selectedItems.addAll(baselineSelectedItems);
-            rebuildEntries(currentListScroll());
+            rebuildListPreservingScroll();
         }
 
         @Override
@@ -1279,7 +1279,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             } else {
                 selectedItems.add(sceneKey);
             }
-            rebuildEntries(currentListScroll());
+            rebuildListPreservingScroll();
         }
     }
 }

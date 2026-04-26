@@ -93,7 +93,7 @@ public abstract class AbstractJeiAwareFormScreen extends AbstractStatefulDeclara
 
     protected void onJeiStateChanged() {
         if (rebuildOnJeiStateChange()) {
-            rebuildEntries(currentListScroll());
+            rebuildListPreservingScroll();
         }
     }
 }

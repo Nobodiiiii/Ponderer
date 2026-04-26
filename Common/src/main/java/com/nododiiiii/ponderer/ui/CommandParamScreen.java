@@ -250,7 +250,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
                 toggleStates.put(dependency.getKey(), false);
             }
         }
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void handleToggle(String id) {
@@ -277,7 +277,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         }
 
         clearStatusMessages();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void openSceneSelector(String targetFieldId, boolean multiSelect) {
@@ -311,7 +311,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         int next = (choiceSelections.get(choiceDef.id) + 1) % choiceDef.values.size();
         choiceSelections.put(choiceDef.id, next);
         clearStatusMessages();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void ensureChoiceState(ChoiceFieldDef choiceDef) {

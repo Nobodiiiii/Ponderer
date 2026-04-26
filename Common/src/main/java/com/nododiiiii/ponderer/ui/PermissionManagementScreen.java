@@ -91,7 +91,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
             setInfoMessage(UIText.of("ponderer.ui.function_page.permissions.loaded", entries.size()));
         }
 
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     @Override
@@ -214,7 +214,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         setInfoMessage(UIText.of("ponderer.ui.function_page.permissions.loading"));
         PondererServices.NETWORK.sendToServer(new PermissionListRequestPayload());
         if (list != null) {
-            rebuildEntries(currentListScroll());
+            rebuildListPreservingScroll();
         }
     }
 
@@ -237,7 +237,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         waitingForServer = true;
         setInfoMessage(UIText.of("ponderer.ui.function_page.permissions.saving"));
         PondererServices.NETWORK.sendToServer(new PermissionUpdateRequestPayload("set", subject, role.id()));
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void stageRoleEdit(PermissionListResponsePayload.Entry entry, UploadPermissions.Role role) {
@@ -252,7 +252,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
             pendingRoleEdits.put(key, role);
         }
         clearStatusMessages();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void stageRemoval(PermissionListResponsePayload.Entry entry) {
@@ -263,7 +263,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         pendingRoleEdits.remove(key);
         pendingRemovals.put(key, entry.subject());
         clearStatusMessages();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void sendEntryRoleEdit(PermissionListResponsePayload.Entry entry) {
@@ -293,7 +293,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         if (!collapsedRoleSections.remove(role)) {
             collapsedRoleSections.add(role);
         }
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void cycleSelectedRole() {
@@ -309,7 +309,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         if (player != null) {
             handleSubjectChanged(player.getGameProfile().getName());
             clearStatusMessages();
-            rebuildEntries(currentListScroll());
+            rebuildListPreservingScroll();
         }
     }
 
@@ -398,7 +398,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
 
     @Override
     protected void afterSnapshotRestored(Map<String, String> snapshot) {
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     @Override
@@ -440,7 +440,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
                     "set", source.subject(), entry.getValue().id()));
             }
         }
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
         return true;
     }
 

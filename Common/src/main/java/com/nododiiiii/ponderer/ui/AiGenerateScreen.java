@@ -240,7 +240,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         if (cachedStructureIndex >= cachedStructurePaths.size()) {
             cachedStructureIndex = Math.max(0, cachedStructurePaths.size() - 1);
         }
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void prevStructure() {
@@ -248,7 +248,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             return;
         }
         cachedStructureIndex = (cachedStructureIndex - 1 + cachedStructurePaths.size()) % cachedStructurePaths.size();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void nextStructure() {
@@ -256,27 +256,27 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             return;
         }
         cachedStructureIndex = (cachedStructureIndex + 1) % cachedStructurePaths.size();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void addUrl() {
         referenceUrlManager.addManualUrl("");
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void removeUrl(int index) {
         referenceUrlManager.removeUrl(index);
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void toggleBuildTutorial() {
         cachedBuildTutorial = !cachedBuildTutorial;
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     private void toggleIncludeImages() {
         cachedIncludeImages = !cachedIncludeImages;
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     public void updateAutoUrl(@Nullable String url, String itemId) {
@@ -285,7 +285,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             referenceUrlManager.addUrl(url, itemId, true);
         }
         if (Minecraft.getInstance().screen == this) {
-            rebuildEntries(currentListScroll());
+            rebuildListPreservingScroll();
         }
     }
 
@@ -360,7 +360,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         Minecraft.getInstance().execute(() -> {
             if (Minecraft.getInstance().screen == this) {
                 applyCachedStatus();
-                rebuildEntries(currentListScroll());
+                rebuildListPreservingScroll();
             }
         });
     }

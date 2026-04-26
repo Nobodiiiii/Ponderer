@@ -84,7 +84,7 @@ public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
         awaitingOverrideConfirm = false;
         blueprintName = baselineName;
         clearStatusMessages();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     @Override

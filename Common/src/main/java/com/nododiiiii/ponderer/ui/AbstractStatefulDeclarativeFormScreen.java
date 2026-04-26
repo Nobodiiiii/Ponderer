@@ -140,7 +140,7 @@ public abstract class AbstractStatefulDeclarativeFormScreen extends AbstractDecl
 
     private void restoreStateWithRebuild(Map<String, String> snapshot) {
         prepareSnapshotForBuild(snapshot);
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
         restoreSnapshot(snapshot);
         afterSnapshotRestored(snapshot);
     }

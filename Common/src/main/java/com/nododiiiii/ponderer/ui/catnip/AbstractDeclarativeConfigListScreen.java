@@ -57,14 +57,14 @@ public abstract class AbstractDeclarativeConfigListScreen extends AbstractDeclar
             }
         });
         ConfigHelper.changes.clear();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
         return true;
     }
 
     @Override
     protected void discardEdits() {
         ConfigHelper.changes.clear();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
     }
 
     protected final void addStringConfigEntry(String labelKey,

@@ -51,7 +51,6 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     @Nullable
     private final PonderScreenNavigation.ReturnState ponderReturnState;
     private int sceneIndex;
-    private double pendingListScroll = 0;
 
     @Nullable
     private BoxWidget undoButton;
@@ -79,9 +78,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         super.init();
         configureActionButtons();
         initHistoryButtons();
-        if (list != null) {
-            list.setScrollAmount(pendingListScroll);
-        }
+        restoreRememberedListScroll();
     }
 
     @Override
@@ -403,21 +400,6 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         return "index:" + sceneIndex;
     }
 
-    private void rememberScrollPosition() {
-        pendingListScroll = currentListScroll();
-    }
-
-    private void rebuildEntriesPreservingScroll() {
-        double scroll = currentListScroll();
-        pendingListScroll = scroll;
-        rebuildEntries(scroll);
-    }
-
-    private void rebuildEntriesAtTop() {
-        pendingListScroll = 0;
-        rebuildEntries(0.0);
-    }
-
     private int getSceneCount() {
         if (scene.scenes != null && !scene.scenes.isEmpty()) {
             return scene.scenes.size();
@@ -437,18 +419,17 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             newIndex = 0;
         }
         sceneIndex = newIndex;
-        pendingListScroll = 0;
         clearStatusMessages();
-        rebuildEntriesAtTop();
+        rebuildListAtTop();
     }
 
     private void openSceneDescription() {
-        rememberScrollPosition();
+        rememberCurrentListScroll();
         ScreenOpener.open(new SceneDescEditorScreen(scene, sceneIndex, this));
     }
 
     private void openTriggerEditor() {
-        rememberScrollPosition();
+        rememberCurrentListScroll();
         ScreenOpener.open(new TriggerEditorScreen(scene, sceneIndex, this));
     }
 
@@ -457,7 +438,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         if (index < 0 || index >= steps.size()) {
             return;
         }
-        rememberScrollPosition();
+        rememberCurrentListScroll();
         AbstractStepEditorScreen editor = StepEditorFactory.createEditScreen(steps.get(index), index, scene, sceneIndex, this);
         if (editor != null) {
             ScreenOpener.open(editor);
@@ -505,12 +486,12 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         List<DslScene.DslStep> steps = getSteps();
         if (index >= 0 && index < steps.size()) {
             clipboard = deepCopy(steps.get(index));
-            rebuildEntriesPreservingScroll();
+            rebuildListPreservingScroll();
         }
     }
 
     private void openInsertAfter(int afterIndex) {
-        rememberScrollPosition();
+        rememberCurrentListScroll();
         ScreenOpener.open(new StepTypeSelectorScreen(scene, sceneIndex, this, 0, afterIndex));
     }
 
@@ -519,7 +500,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             return;
         }
         insertStepAndSave(afterIndex, deepCopy(clipboard));
-        rebuildEntriesPreservingScroll();
+        rebuildListPreservingScroll();
     }
 
     private void performUndo() {
@@ -529,7 +510,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         }
         setMutableSteps(restored);
         saveToFile();
-        rebuildEntriesPreservingScroll();
+        rebuildListPreservingScroll();
     }
 
     private void performRedo() {
@@ -539,7 +520,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         }
         setMutableSteps(restored);
         saveToFile();
-        rebuildEntriesPreservingScroll();
+        rebuildListPreservingScroll();
     }
 
     private void setMutableSteps(List<DslScene.DslStep> newSteps) {
@@ -762,7 +743,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             undoManager().saveState(getSteps());
             steps.remove(index);
             saveToFile();
-            rebuildEntriesPreservingScroll();
+            rebuildListPreservingScroll();
         }
     }
 
@@ -774,7 +755,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             steps.set(index, steps.get(index - 1));
             steps.set(index - 1, temp);
             saveToFile();
-            rebuildEntriesPreservingScroll();
+            rebuildListPreservingScroll();
         }
     }
 
@@ -786,12 +767,12 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             steps.set(index, steps.get(index + 1));
             steps.set(index + 1, temp);
             saveToFile();
-            rebuildEntriesPreservingScroll();
+            rebuildListPreservingScroll();
         }
     }
 
     private void openSplitTypeSelector() {
-        rememberScrollPosition();
+        rememberCurrentListScroll();
         ScreenOpener.open(new SceneTypeSelectorScreen(this));
     }
 
@@ -839,13 +820,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
         if (newSceneIndex >= 0) {
             sceneIndex = newSceneIndex;
-            pendingListScroll = 0;
+            rememberListScroll(0);
             clearCurrentPonderHistory();
             ScreenOpener.open(new SceneDescEditorScreen(scene, sceneIndex, this));
             return;
         }
 
-        rebuildEntriesAtTop();
+        rebuildListAtTop();
     }
 
     private static String generateUniqueSegmentId(DslScene scene) {
@@ -919,7 +900,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                 sceneIndex = scene.scenes.size() - 1;
             }
             clearCurrentPonderHistory();
-            pendingListScroll = 0;
+            rememberListScroll(0);
             saveToFile();
             Minecraft.getInstance().setScreen(this);
         }

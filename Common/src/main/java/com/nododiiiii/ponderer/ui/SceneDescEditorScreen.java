@@ -164,7 +164,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
 
         syncStateFromScene();
         markStateSaved();
-        rebuildEntries(currentListScroll());
+        rebuildListPreservingScroll();
         setInfoMessage(UIText.of("ponderer.ui.scene_desc.saved"));
         return true;
     }

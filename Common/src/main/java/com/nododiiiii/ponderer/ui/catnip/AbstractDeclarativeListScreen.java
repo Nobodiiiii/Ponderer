@@ -41,6 +41,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     private final int preferredListWidth;
     private final List<ConfigScreenList.Entry> headerEntries = new java.util.ArrayList<>();
+    private final ListScrollPreserver scrollPreserver = new ListScrollPreserver();
     private String searchQuery = "";
     private int listWidth;
 
@@ -126,11 +127,10 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     @Override
     public void resize(Minecraft client, int width, int height) {
-        double scroll = currentListScroll();
+        double scroll = scrollPreserver.capture(list);
         init(client, width, height);
-        if (list != null) {
-            list.setScrollAmount(scroll);
-        }
+        scrollPreserver.remember(scroll);
+        scrollPreserver.restoreRemembered(list);
         if (search != null && !searchQuery.isEmpty()) {
             search.setValue(searchQuery);
             updateFilter(searchQuery);
@@ -192,13 +192,36 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         }
 
         updateFilter(searchQuery);
-        if (preservedScroll != null && searchQuery.isEmpty()) {
-            list.setScrollAmount(preservedScroll);
-        }
+        ListScrollPreserver.restoreAfterSearch(list, preservedScroll, searchQuery);
     }
 
     protected final double currentListScroll() {
-        return list != null ? list.getScrollAmount() : 0;
+        return ListScrollPreserver.current(list);
+    }
+
+    protected final void rememberCurrentListScroll() {
+        scrollPreserver.capture(list);
+    }
+
+    protected final void rememberListScroll(double scroll) {
+        scrollPreserver.remember(scroll);
+    }
+
+    protected final void restoreRememberedListScroll() {
+        scrollPreserver.restoreRemembered(list);
+    }
+
+    protected final void rebuildListPreservingScroll() {
+        rebuildEntries(scrollPreserver.capture(list));
+    }
+
+    protected final void rebuildListWithRememberedScroll() {
+        rebuildEntries(scrollPreserver.remembered());
+    }
+
+    protected final void rebuildListAtTop() {
+        scrollPreserver.remember(0);
+        rebuildEntries(0.0);
     }
 
     protected final PlainTextListEntry textEntry(String labelKey, @Nullable String tooltipKey, @Nullable String hintKey,
