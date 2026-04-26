@@ -5,24 +5,22 @@ import com.nododiiiii.ponderer.network.PermissionListResponsePayload;
 import com.nododiiiii.ponderer.network.PermissionUpdateRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
-import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
-import com.nododiiiii.ponderer.ui.catnip.ButtonPairListEntry;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
 import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
-import com.nododiiiii.ponderer.ui.catnip.SearchableListEntry;
-import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
-import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
-public class PermissionManagementScreen extends AbstractReadonlyDeclarativeListScreen {
+public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormScreen {
 
     private static final int SCREEN_WIDTH = 380;
 
@@ -42,9 +40,16 @@ public class PermissionManagementScreen extends AbstractReadonlyDeclarativeListS
     @Override
     protected void init() {
         super.init();
+        hideActionButton(saveChanges);
+        hideActionButton(discardChanges);
         if (!requestSent) {
             requestRefresh();
         }
+    }
+
+    @Override
+    protected boolean shouldAutoCaptureBaselineOnInit() {
+        return false;
     }
 
     public void receiveSnapshot(PermissionListResponsePayload payload) {
@@ -52,6 +57,7 @@ public class PermissionManagementScreen extends AbstractReadonlyDeclarativeListS
         entries.addAll(payload.entries());
         entries.sort(Comparator
             .comparingInt((PermissionListResponsePayload.Entry entry) -> -roleLevel(entry.role()))
+            .thenComparing(entry -> !entry.locked())
             .thenComparing(entry -> entry.subject().toLowerCase(Locale.ROOT)));
         viewerRole = payload.viewerRole() == null ? "" : payload.viewerRole();
         serverOperator = payload.serverOperator();
@@ -75,58 +81,68 @@ public class PermissionManagementScreen extends AbstractReadonlyDeclarativeListS
     }
 
     @Override
-    protected int getEntryHeight() {
-        return UILayoutConstants.LIST_ENTRY_H;
-    }
+    protected void collectFormEntries(List<DeclarativeFormEntry> formEntries) {
+        formEntries.add(screen -> {
+            PlainTextListEntry subjectEntry = screen.createTextEntry(
+                "ponderer.ui.function_page.permissions.player",
+                "ponderer.ui.function_page.permissions.player.tooltip",
+                "ponderer.ui.function_page.permissions.player.hint",
+                pendingSubject,
+                value -> pendingSubject = value,
+                FormTextButtonSpec.action(
+                    34,
+                    this::fillSelf,
+                    () -> UIText.of("ponderer.ui.function_page.permissions.use_self.short"),
+                    () -> 0x80FFFF,
+                    UIText.of("ponderer.ui.function_page.permissions.use_self.tooltip")));
+            subjectEntry.field().setMaxLength(64);
+        });
 
-    @Override
-    protected void collectHeaderEntries(List<ConfigScreenList.Entry> headerEntries) {
-        PlainTextListEntry subjectEntry = new PlainTextListEntry(
-            "ponderer.ui.function_page.permissions.player",
-            "ponderer.ui.function_page.permissions.player.tooltip",
-            "ponderer.ui.function_page.permissions.player.hint",
-            pendingSubject,
-            value -> pendingSubject = value);
-        subjectEntry.field().setMaxLength(64);
-        headerEntries.add(subjectEntry);
-
-        headerEntries.add(new ButtonPairListEntry(
-            UIText.of(roleLabelKey(selectedRole)),
-            UIText.of("ponderer.ui.function_page.permissions.role.tooltip"),
+        formEntries.add(screen -> screen.createChoiceEntry(
+            "ponderer.ui.function_page.permissions.role",
+            "ponderer.ui.function_page.permissions.role.tooltip",
+            110,
             this::cycleSelectedRole,
-            UIText.of("ponderer.ui.function_page.permissions.set"),
-            UIText.of("ponderer.ui.function_page.permissions.set.tooltip"),
-            () -> sendSet(pendingSubject, selectedRole)));
+            () -> UIText.of(roleLabelKey(selectedRole)),
+            () -> roleColor(selectedRole),
+            (String) null,
+            1.0f));
 
-        headerEntries.add(new ButtonPairListEntry(
-            UIText.of("ponderer.ui.function_page.permissions.use_self"),
-            UIText.of("ponderer.ui.function_page.permissions.use_self.tooltip"),
-            this::fillSelf,
-            UIText.of("ponderer.ui.function_page.permissions.refresh"),
-            UIText.of("ponderer.ui.function_page.permissions.refresh.tooltip"),
-            this::requestRefresh));
-    }
+        formEntries.add(screen -> screen.createFullButtonEntry(
+            () -> UIText.of("ponderer.ui.function_page.permissions.set"),
+            () -> UIText.of("ponderer.ui.function_page.permissions.set.tooltip"),
+            () -> sendSet(pendingSubject, selectedRole),
+            () -> canEditPendingSubject() ? 0xFFFFFF : 0x777777,
+            this::canEditPendingSubject));
 
-    @Override
-    protected void collectEntries(List<ConfigScreenList.Entry> rows) {
-        rows.add(new PermissionSummaryEntry(entries, viewerRole, serverOperator, canManage));
+        formEntries.add(screen -> screen.createFullButtonEntry(
+            () -> UIText.of("ponderer.ui.function_page.permissions.refresh"),
+            () -> UIText.of("ponderer.ui.function_page.permissions.refresh.tooltip"),
+            this::requestRefresh,
+            () -> 0xFFFFFF,
+            () -> true));
+
+        formEntries.add(screen -> screen.createSectionHeaderEntry(this::summaryText));
+        formEntries.add(screen -> screen.createSectionHeaderEntry(this::viewerText));
 
         if (waitingForServer && entries.isEmpty()) {
-            rows.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.function_page.permissions.loading")));
+            formEntries.add(screen -> screen.createSectionHeaderEntry(
+                UIText.of("ponderer.ui.function_page.permissions.loading")));
             return;
         }
 
         if (entries.isEmpty()) {
-            rows.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.function_page.permissions.empty")));
+            formEntries.add(screen -> screen.createSectionHeaderEntry(
+                UIText.of("ponderer.ui.function_page.permissions.empty")));
             return;
         }
 
-        addRoleSection(rows, UploadPermissions.Role.ADMIN);
-        addRoleSection(rows, UploadPermissions.Role.UPLOAD);
-        addRoleSection(rows, UploadPermissions.Role.PULL);
+        addRoleSection(formEntries, UploadPermissions.Role.ADMIN);
+        addRoleSection(formEntries, UploadPermissions.Role.UPLOAD);
+        addRoleSection(formEntries, UploadPermissions.Role.PULL);
     }
 
-    private void addRoleSection(List<ConfigScreenList.Entry> rows, UploadPermissions.Role role) {
+    private void addRoleSection(List<DeclarativeFormEntry> formEntries, UploadPermissions.Role role) {
         List<PermissionListResponsePayload.Entry> matching = entries.stream()
             .filter(entry -> role.id().equals(entry.role()))
             .toList();
@@ -134,13 +150,42 @@ public class PermissionManagementScreen extends AbstractReadonlyDeclarativeListS
             return;
         }
 
-        rows.add(new SectionHeaderListEntry(UIText.of(roleSectionKey(role), matching.size())));
+        formEntries.add(screen -> screen.createSectionHeaderEntry(UIText.of(roleSectionKey(role), matching.size())));
         for (PermissionListResponsePayload.Entry entry : matching) {
-            rows.add(new PermissionRowEntry(
-                entry,
-                canManage,
-                () -> sendSet(entry.subject(), nextRole(roleFromId(entry.role()))),
-                () -> sendRemove(entry.subject())));
+            formEntries.add(screen -> {
+                UploadPermissions.Role entryRole = roleFromId(entry.role());
+                PlainTextListEntry row = screen.createTextEntry(
+                    roleLabelKey(entryRole),
+                    entry.locked()
+                        ? "ponderer.ui.function_page.permissions.operator_locked.tooltip"
+                        : "ponderer.ui.function_page.permissions.row.role.tooltip",
+                    null,
+                    entry.subject(),
+                    ignored -> {
+                    });
+                row.field().setEditable(false);
+                if (entry.locked()) {
+                    row.setTrailingText(() -> UIText.of("ponderer.ui.function_page.permissions.source.operator"));
+                    return;
+                }
+                if (!canManage) {
+                    return;
+                }
+
+                UploadPermissions.Role nextRole = nextRole(entryRole);
+                row.addTrailingButton(
+                    58,
+                    () -> sendSet(entry.subject(), nextRole),
+                    () -> UIText.of(roleLabelKey(nextRole)),
+                    () -> roleColor(nextRole),
+                    UIText.of("ponderer.ui.function_page.permissions.row.role.tooltip"));
+                row.addTrailingButton(
+                    38,
+                    () -> sendRemove(entry.subject()),
+                    () -> UIText.of("ponderer.ui.function_page.permissions.remove"),
+                    () -> 0xFF9090,
+                    UIText.of("ponderer.ui.function_page.permissions.row.remove.tooltip"));
+            });
         }
     }
 
@@ -163,6 +208,10 @@ public class PermissionManagementScreen extends AbstractReadonlyDeclarativeListS
         }
         if (!canManage) {
             setErrorMessage(UIText.of("ponderer.ui.function_page.permissions.denied", subject));
+            return;
+        }
+        if (isLockedSubject(subject)) {
+            setErrorMessage(UIText.of("ponderer.ui.function_page.permissions.operator_locked", subject));
             return;
         }
 
@@ -199,6 +248,91 @@ public class PermissionManagementScreen extends AbstractReadonlyDeclarativeListS
         }
     }
 
+    private String summaryText() {
+        return UIText.of("ponderer.ui.function_page.permissions.summary",
+            entries.size(),
+            countRole(UploadPermissions.Role.ADMIN),
+            countRole(UploadPermissions.Role.UPLOAD),
+            countRole(UploadPermissions.Role.PULL));
+    }
+
+    private String viewerText() {
+        return UIText.of(
+            canManage
+                ? "ponderer.ui.function_page.permissions.viewer.manage"
+                : "ponderer.ui.function_page.permissions.viewer.readonly",
+            viewerRoleLabel());
+    }
+
+    private boolean canEditPendingSubject() {
+        String subject = pendingSubject == null ? "" : pendingSubject.trim();
+        return canManage && !subject.isEmpty() && !isLockedSubject(subject);
+    }
+
+    private boolean isLockedSubject(String subject) {
+        if (subject == null || subject.isBlank()) {
+            return false;
+        }
+        String key = subject.trim().toLowerCase(Locale.ROOT);
+        for (PermissionListResponsePayload.Entry entry : entries) {
+            if (entry.locked() && entry.subject().toLowerCase(Locale.ROOT).equals(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int countRole(UploadPermissions.Role role) {
+        int count = 0;
+        for (PermissionListResponsePayload.Entry entry : entries) {
+            if (role.id().equals(entry.role())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private String viewerRoleLabel() {
+        if (serverOperator) {
+            return UIText.of("ponderer.ui.function_page.permissions.role.operator");
+        }
+        UploadPermissions.Role role = UploadPermissions.Role.fromId(viewerRole);
+        if (role == null) {
+            return UIText.of("ponderer.ui.function_page.permissions.role.none");
+        }
+        return UIText.of(roleLabelKey(role));
+    }
+
+    @Override
+    protected Map<String, String> snapshotState() {
+        Map<String, String> snapshot = new LinkedHashMap<>();
+        snapshot.put("subject", pendingSubject);
+        snapshot.put("role", selectedRole.id());
+        return snapshot;
+    }
+
+    @Override
+    protected void restoreSnapshot(Map<String, String> snapshot) {
+        pendingSubject = snapshot.getOrDefault("subject", pendingSubject);
+        UploadPermissions.Role role = UploadPermissions.Role.fromId(snapshot.get("role"));
+        if (role != null) {
+            selectedRole = role;
+        }
+    }
+
+    @Override
+    protected boolean saveEdits() {
+        return false;
+    }
+
+    private static void hideActionButton(@Nullable BoxWidget button) {
+        if (button == null) {
+            return;
+        }
+        button.visible = false;
+        button.active = false;
+    }
+
     private static UploadPermissions.Role nextRole(UploadPermissions.Role role) {
         return switch (role) {
             case PULL -> UploadPermissions.Role.UPLOAD;
@@ -213,7 +347,11 @@ public class PermissionManagementScreen extends AbstractReadonlyDeclarativeListS
     }
 
     private static int roleLevel(String roleId) {
-        return roleFromId(roleId).ordinal();
+        return switch (roleFromId(roleId)) {
+            case ADMIN -> 3;
+            case UPLOAD -> 2;
+            case PULL -> 1;
+        };
     }
 
     private static String roleLabelKey(UploadPermissions.Role role) {
@@ -238,177 +376,5 @@ public class PermissionManagementScreen extends AbstractReadonlyDeclarativeListS
             case UPLOAD -> 0x90E890;
             case PULL -> 0x88C8FF;
         };
-    }
-
-    private static final class PermissionSummaryEntry extends ConfigScreenList.LabeledEntry
-        implements SearchableListEntry {
-
-        private final List<PermissionListResponsePayload.Entry> entries;
-        private final String viewerRole;
-        private final boolean serverOperator;
-        private final boolean canManage;
-
-        private PermissionSummaryEntry(List<PermissionListResponsePayload.Entry> entries, String viewerRole,
-                                       boolean serverOperator, boolean canManage) {
-            super("");
-            this.entries = entries;
-            this.viewerRole = viewerRole == null ? "" : viewerRole;
-            this.serverOperator = serverOperator;
-            this.canManage = canManage;
-        }
-
-        @Override
-        public boolean matchesQuery(String query) {
-            return buildSearchText().contains(query);
-        }
-
-        @Override
-        public void highlightEntry() {
-            annotations.put("highlight", ":)");
-        }
-
-        @Override
-        public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
-                           int mouseX, int mouseY, boolean hovered, float partialTicks) {
-            var font = Minecraft.getInstance().font;
-            String summary = UIText.of("ponderer.ui.function_page.permissions.summary",
-                entries.size(),
-                countRole(UploadPermissions.Role.ADMIN),
-                countRole(UploadPermissions.Role.UPLOAD),
-                countRole(UploadPermissions.Role.PULL));
-            String status = UIText.of(
-                canManage
-                    ? "ponderer.ui.function_page.permissions.viewer.manage"
-                    : "ponderer.ui.function_page.permissions.viewer.readonly",
-                viewerRoleLabel());
-
-            graphics.drawString(font, font.plainSubstrByWidth(summary, width - 8), x + 4, y + 8, 0xE0E0E0);
-            graphics.drawString(font, font.plainSubstrByWidth(status, width - 8), x + 4, y + 22, 0xA0A0A0);
-        }
-
-        private int countRole(UploadPermissions.Role role) {
-            int count = 0;
-            for (PermissionListResponsePayload.Entry entry : entries) {
-                if (role.id().equals(entry.role())) {
-                    count++;
-                }
-            }
-            return count;
-        }
-
-        private String viewerRoleLabel() {
-            if (serverOperator) {
-                return UIText.of("ponderer.ui.function_page.permissions.role.operator");
-            }
-            UploadPermissions.Role role = UploadPermissions.Role.fromId(viewerRole);
-            if (role == null) {
-                return UIText.of("ponderer.ui.function_page.permissions.role.none");
-            }
-            return UIText.of(roleLabelKey(role));
-        }
-
-        private String buildSearchText() {
-            return (UIText.of("ponderer.ui.function_page.permissions.summary", entries.size(), 0, 0, 0)
-                + " "
-                + viewerRoleLabel()).toLowerCase(Locale.ROOT);
-        }
-    }
-
-    private static final class PermissionRowEntry extends ConfigScreenList.LabeledEntry
-        implements SearchableListEntry {
-
-        private static final int ROLE_BUTTON_WIDTH = 70;
-        private static final int REMOVE_BUTTON_WIDTH = 44;
-        private static final int BUTTON_GAP = 6;
-
-        private final PermissionListResponsePayload.Entry entry;
-        private final boolean canManage;
-        private final Runnable onCycleRole;
-        private final Runnable onRemove;
-        private final BoxWidget roleButton;
-        private final BoxWidget removeButton;
-
-        private PermissionRowEntry(PermissionListResponsePayload.Entry entry, boolean canManage,
-                                   Runnable onCycleRole, Runnable onRemove) {
-            super("");
-            this.entry = entry;
-            this.canManage = canManage;
-            this.onCycleRole = onCycleRole;
-            this.onRemove = onRemove;
-            this.roleButton = new BoxWidget(0, 0, ROLE_BUTTON_WIDTH, 16).withCallback(onCycleRole);
-            this.removeButton = new BoxWidget(0, 0, REMOVE_BUTTON_WIDTH, 16).withCallback(onRemove);
-            listeners.add(roleButton);
-            listeners.add(removeButton);
-            refreshTooltips();
-        }
-
-        @Override
-        public boolean matchesQuery(String query) {
-            return (entry.subject() + " " + UIText.of(roleLabelKey(role()))).toLowerCase(Locale.ROOT)
-                .contains(query);
-        }
-
-        @Override
-        public void highlightEntry() {
-            annotations.put("highlight", ":)");
-        }
-
-        @Override
-        public void tick() {
-            super.tick();
-            roleButton.active = canManage;
-            removeButton.active = canManage;
-            roleButton.tick();
-            removeButton.tick();
-        }
-
-        @Override
-        public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
-                           int mouseX, int mouseY, boolean hovered, float partialTicks) {
-            var font = Minecraft.getInstance().font;
-            UploadPermissions.Role role = role();
-            int buttonY = y + Math.max(8, (height - 16) / 2);
-            int removeX = x + width - REMOVE_BUTTON_WIDTH - 4;
-            int roleX = removeX - BUTTON_GAP - ROLE_BUTTON_WIDTH;
-            int subjectWidth = Math.max(40, roleX - x - 10);
-
-            graphics.drawString(font, font.plainSubstrByWidth(entry.subject(), subjectWidth), x + 4, y + 15,
-                annotations.containsKey("highlight") ? 0xFFF3D46B : 0xE0E0E0);
-
-            renderButton(graphics, roleButton, roleX, buttonY, ROLE_BUTTON_WIDTH, UIText.of(roleLabelKey(role)),
-                roleColor(role), mouseX, mouseY, partialTicks);
-            renderButton(graphics, removeButton, removeX, buttonY, REMOVE_BUTTON_WIDTH,
-                UIText.of("ponderer.ui.function_page.permissions.remove"), 0xFF9090,
-                mouseX, mouseY, partialTicks);
-        }
-
-        private UploadPermissions.Role role() {
-            return roleFromId(entry.role());
-        }
-
-        private void renderButton(GuiGraphics graphics, BoxWidget button, int x, int y, int width, String label,
-                                  int color, int mouseX, int mouseY, float partialTicks) {
-            refreshTooltips();
-            button.setX(x);
-            button.setY(y);
-            button.setWidth(width);
-            button.setHeight(16);
-            button.active = canManage;
-            button.updateGradientFromState();
-            button.render(graphics, mouseX, mouseY, partialTicks);
-            graphics.drawCenteredString(Minecraft.getInstance().font, label,
-                button.getX() + button.getWidth() / 2,
-                button.getY() + 4,
-                button.active ? color : 0x777777);
-        }
-
-        private void refreshTooltips() {
-            roleButton.getToolTip().clear();
-            roleButton.getToolTip().add(net.minecraft.network.chat.Component.literal(
-                UIText.of("ponderer.ui.function_page.permissions.row.role.tooltip")));
-            removeButton.getToolTip().clear();
-            removeButton.getToolTip().add(net.minecraft.network.chat.Component.literal(
-                UIText.of("ponderer.ui.function_page.permissions.row.remove.tooltip")));
-        }
     }
 }

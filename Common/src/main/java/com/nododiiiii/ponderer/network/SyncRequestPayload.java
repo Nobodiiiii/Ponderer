@@ -17,6 +17,7 @@ public record SyncRequestPayload() {
         if (player == null) {
             return;
         }
+        UploadPermissions.ensurePullAccess(player);
         if (!UploadPermissions.canPull(player)) {
             player.sendSystemMessage(Component.translatable("ponderer.cmd.pull.no_permission"));
             return;

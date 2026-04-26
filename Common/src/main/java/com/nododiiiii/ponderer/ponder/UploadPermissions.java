@@ -61,7 +61,7 @@ public final class UploadPermissions {
         }
     }
 
-    public record Entry(String subject, Role role) {
+    public record Entry(String subject, Role role, boolean operatorManaged) {
     }
 
     public record Snapshot(List<Entry> entries, Role viewerRole, boolean serverOperator, boolean canManage) {
@@ -101,6 +101,29 @@ public final class UploadPermissions {
         return new Snapshot(entries, effectiveRole(player), player.hasPermissions(2), canManage(player));
     }
 
+    public static void ensurePullAccess(ServerPlayer player) {
+        if (player.hasPermissions(2)) {
+            loadEntries(player.server);
+            return;
+        }
+
+        try {
+            Map<String, Entry> entries = loadEntryMap(player.server);
+            if (bestRoleFor(player, entries) != null) {
+                return;
+            }
+
+            String subject = sanitizeSubject(player.getGameProfile().getName());
+            if (subject == null) {
+                subject = player.getUUID().toString().toLowerCase(Locale.ROOT);
+            }
+            entries.put(subjectKey(subject), new Entry(subject, Role.PULL, false));
+            saveEntries(player.server, entries.values());
+        } catch (Exception e) {
+            LOGGER.warn("Failed to add default pull permission for {}", player.getGameProfile().getName(), e);
+        }
+    }
+
     public static UpdateResult upsert(ServerPlayer actor, String rawSubject, Role role) {
         if (!canManage(actor)) {
             return new UpdateResult(false, false, "ponderer.ui.function_page.permissions.denied", rawSubject);
@@ -115,6 +138,11 @@ public final class UploadPermissions {
             Map<String, Entry> entries = loadEntryMap(actor.server);
             String key = subjectKey(subject);
             Entry previous = entries.get(key);
+            if (isOperatorSubject(actor.server, subject)
+                || previous != null && previous.operatorManaged()) {
+                return new UpdateResult(false, false, "ponderer.ui.function_page.permissions.operator_locked",
+                    subject);
+            }
             if (previous != null && previous.role() == role && previous.subject().equals(subject)) {
                 return new UpdateResult(true, false, "ponderer.ui.function_page.permissions.unchanged", subject);
             }
@@ -127,7 +155,7 @@ public final class UploadPermissions {
                 return new UpdateResult(false, false, "ponderer.ui.function_page.permissions.last_admin", subject);
             }
 
-            entries.put(key, new Entry(subject, role));
+            entries.put(key, new Entry(subject, role, false));
             saveEntries(actor.server, entries.values());
             return new UpdateResult(true, true,
                 "ponderer.ui.function_page.permissions.updated." + role.id(), subject);
@@ -153,6 +181,10 @@ public final class UploadPermissions {
             Entry previous = entries.get(key);
             if (previous == null) {
                 return new UpdateResult(true, false, "ponderer.ui.function_page.permissions.not_found", subject);
+            }
+            if (isOperatorSubject(actor.server, subject) || previous.operatorManaged()) {
+                return new UpdateResult(false, false, "ponderer.ui.function_page.permissions.operator_locked",
+                    previous.subject());
             }
 
             if (previous.role() == Role.ADMIN && !actor.hasPermissions(2) && explicitAdminCount(entries) <= 1) {
@@ -201,6 +233,7 @@ public final class UploadPermissions {
         Path permissionsPath = permissionPath(server);
         if (Files.exists(permissionsPath)) {
             readPermissionFile(permissionsPath, entries);
+            syncServerOperators(server, entries);
             return entries;
         }
 
@@ -208,6 +241,7 @@ public final class UploadPermissions {
         if (Files.exists(legacyPath)) {
             readLegacyUploadAllowlist(legacyPath, entries);
         }
+        syncServerOperators(server, entries);
         return entries;
     }
 
@@ -229,7 +263,7 @@ public final class UploadPermissions {
             for (String line : Files.readAllLines(path)) {
                 String subject = sanitizeSubject(stripComment(line));
                 if (subject != null) {
-                    mergeEntry(entries, new Entry(subject, Role.UPLOAD));
+                    mergeEntry(entries, new Entry(subject, Role.UPLOAD, false));
                 }
             }
         } catch (Exception e) {
@@ -251,7 +285,10 @@ public final class UploadPermissions {
             subjectPart = stripped.substring(colonIndex + 1);
         } else {
             String[] parts = stripped.split("\\s+", 2);
-            if (parts.length == 2 && Role.fromId(parts[0]) != null) {
+            if (parts.length == 2 && "op".equalsIgnoreCase(parts[0])) {
+                rolePart = "op";
+                subjectPart = parts[1];
+            } else if (parts.length == 2 && Role.fromId(parts[0]) != null) {
                 rolePart = parts[0];
                 subjectPart = parts[1];
             } else {
@@ -260,18 +297,21 @@ public final class UploadPermissions {
             }
         }
 
-        Role role = Role.fromId(rolePart);
+        boolean operatorManaged = "op".equalsIgnoreCase(rolePart);
+        Role role = operatorManaged ? Role.ADMIN : Role.fromId(rolePart);
         String subject = sanitizeSubject(subjectPart);
         if (role == null || subject == null) {
             return null;
         }
-        return new Entry(subject, role);
+        return new Entry(subject, role, operatorManaged);
     }
 
     private static void mergeEntry(Map<String, Entry> entries, Entry entry) {
         String key = subjectKey(entry.subject());
         Entry previous = entries.get(key);
-        if (previous == null || entry.role().level > previous.role().level) {
+        if (previous == null
+            || entry.operatorManaged() && !previous.operatorManaged()
+            || entry.role().level > previous.role().level) {
             entries.put(key, entry);
         }
     }
@@ -284,8 +324,10 @@ public final class UploadPermissions {
         lines.add("# Ponderer server permission allowlist");
         lines.add("# Format: role playerNameOrUuid");
         lines.add("# Roles: admin = manage/upload/pull, upload = upload/pull, pull = pull only");
+        lines.add("# OP-derived admins are stored as: op playerName");
         for (Entry entry : sortedEntries(entries)) {
-            lines.add(entry.role().id() + " " + entry.subject());
+            String roleId = entry.operatorManaged() ? "op" : entry.role().id();
+            lines.add(roleId + " " + entry.subject());
         }
         Files.write(path, lines);
     }
@@ -299,6 +341,7 @@ public final class UploadPermissions {
         }
         sorted.sort(Comparator
             .comparingInt((Entry entry) -> -entry.role().level)
+            .thenComparing(entry -> !entry.operatorManaged())
             .thenComparing(entry -> entry.subject().toLowerCase(Locale.ROOT)));
         return List.copyOf(sorted);
     }
@@ -323,6 +366,64 @@ public final class UploadPermissions {
         return server.getWorldPath(LevelResource.ROOT)
             .resolve("ponderer")
             .resolve(LEGACY_UPLOAD_ALLOWLIST_FILE);
+    }
+
+    private static void syncServerOperators(MinecraftServer server, Map<String, Entry> entries) {
+        List<String> operatorSubjects = operatorSubjects(server);
+        boolean changed = false;
+
+        for (Entry entry : new ArrayList<>(entries.values())) {
+            if (entry.operatorManaged() && !containsSubject(operatorSubjects, entry.subject())) {
+                entries.put(subjectKey(entry.subject()), new Entry(entry.subject(), Role.UPLOAD, false));
+                changed = true;
+            }
+        }
+
+        for (String operatorSubject : operatorSubjects) {
+            Entry previous = entries.get(subjectKey(operatorSubject));
+            if (previous == null
+                || !previous.operatorManaged()
+                || previous.role() != Role.ADMIN
+                || !previous.subject().equals(operatorSubject)) {
+                entries.put(subjectKey(operatorSubject), new Entry(operatorSubject, Role.ADMIN, true));
+                changed = true;
+            }
+        }
+
+        if (!changed) {
+            return;
+        }
+
+        try {
+            saveEntries(server, entries.values());
+        } catch (Exception e) {
+            LOGGER.warn("Failed to synchronize Ponderer operator permissions", e);
+        }
+    }
+
+    private static List<String> operatorSubjects(MinecraftServer server) {
+        List<String> subjects = new ArrayList<>();
+        for (String name : server.getPlayerList().getOpNames()) {
+            String subject = sanitizeSubject(name);
+            if (subject != null) {
+                subjects.add(subject);
+            }
+        }
+        return subjects;
+    }
+
+    private static boolean isOperatorSubject(MinecraftServer server, String subject) {
+        return containsSubject(operatorSubjects(server), subject);
+    }
+
+    private static boolean containsSubject(List<String> subjects, String subject) {
+        String key = subjectKey(subject);
+        for (String candidate : subjects) {
+            if (subjectKey(candidate).equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String stripComment(String line) {

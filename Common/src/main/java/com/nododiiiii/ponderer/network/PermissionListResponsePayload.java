@@ -16,7 +16,7 @@ public record PermissionListResponsePayload(List<Entry> entries, String viewerRo
                                             boolean canManage, String messageKey, String messageSubject,
                                             boolean error) {
 
-    public record Entry(String subject, String role) {
+    public record Entry(String subject, String role, boolean locked) {
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -24,6 +24,7 @@ public record PermissionListResponsePayload(List<Entry> entries, String viewerRo
         for (Entry entry : entries()) {
             buf.writeUtf(entry.subject());
             buf.writeUtf(entry.role());
+            buf.writeBoolean(entry.locked());
         }
         buf.writeUtf(viewerRole() == null ? "" : viewerRole());
         buf.writeBoolean(serverOperator());
@@ -37,7 +38,7 @@ public record PermissionListResponsePayload(List<Entry> entries, String viewerRo
         int size = buf.readVarInt();
         List<Entry> entries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new Entry(buf.readUtf(), buf.readUtf()));
+            entries.add(new Entry(buf.readUtf(), buf.readUtf(), buf.readBoolean()));
         }
         return new PermissionListResponsePayload(
             List.copyOf(entries),
@@ -53,7 +54,7 @@ public record PermissionListResponsePayload(List<Entry> entries, String viewerRo
         UploadPermissions.Snapshot snapshot = UploadPermissions.snapshotFor(player);
         List<Entry> entries = new ArrayList<>();
         for (UploadPermissions.Entry entry : snapshot.entries()) {
-            entries.add(new Entry(entry.subject(), entry.role().id()));
+            entries.add(new Entry(entry.subject(), entry.role().id(), entry.operatorManaged()));
         }
         UploadPermissions.Role viewerRole = snapshot.viewerRole();
         PondererServices.NETWORK.sendToPlayer(player, new PermissionListResponsePayload(
