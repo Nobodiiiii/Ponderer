@@ -5,12 +5,16 @@ import com.nododiiiii.ponderer.network.PermissionListResponsePayload;
 import com.nododiiiii.ponderer.network.PermissionUpdateRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
+import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
+import com.nododiiiii.ponderer.ui.catnip.LabeledActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
 import net.createmod.catnip.gui.widget.BoxWidget;
+import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -22,7 +26,7 @@ import java.util.Map;
 
 public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormScreen {
 
-    private static final int SCREEN_WIDTH = 380;
+    private static final int SCREEN_WIDTH = UILayoutConstants.EDITOR_LIST_W;
 
     private final List<PermissionListResponsePayload.Entry> entries = new ArrayList<>();
     private String pendingSubject = "";
@@ -63,6 +67,10 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         serverOperator = payload.serverOperator();
         canManage = payload.canManage();
         waitingForServer = false;
+        PermissionListResponsePayload.Entry currentEntry = findEntry(pendingSubject);
+        if (currentEntry != null) {
+            selectedRole = roleFromId(currentEntry.role());
+        }
 
         if (payload.messageKey() != null && !payload.messageKey().isBlank()) {
             String message = payload.messageSubject() == null || payload.messageSubject().isBlank()
@@ -88,7 +96,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
                 "ponderer.ui.function_page.permissions.player.tooltip",
                 "ponderer.ui.function_page.permissions.player.hint",
                 pendingSubject,
-                value -> pendingSubject = value,
+                this::handleSubjectChanged,
                 FormTextButtonSpec.action(
                     34,
                     this::fillSelf,
@@ -98,31 +106,27 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
             subjectEntry.field().setMaxLength(64);
         });
 
-        formEntries.add(screen -> screen.createChoiceEntry(
+        formEntries.add(screen -> screen.appendBuiltEntry(new LabeledActionStripListEntry(
             "ponderer.ui.function_page.permissions.role",
             "ponderer.ui.function_page.permissions.role.tooltip",
-            110,
-            this::cycleSelectedRole,
-            () -> UIText.of(roleLabelKey(selectedRole)),
-            () -> roleColor(selectedRole),
-            (String) null,
-            1.0f));
+            List.of(
+                ActionStripListEntry.button(
+                    () -> UIText.of(roleLabelKey(selectedRole)),
+                    tooltip("ponderer.ui.function_page.permissions.role.tooltip"),
+                    this::cycleSelectedRole,
+                    () -> roleColor(selectedRole),
+                    this::canCyclePendingRole),
+                ActionStripListEntry.iconButton(
+                    PonderGuiTextures.ICON_CONFIG_SAVE,
+                    () -> sendSet(pendingSubject, selectedRole),
+                    tooltip("ponderer.ui.function_page.permissions.set.tooltip"),
+                    this::canEditPendingSubject),
+                ActionStripListEntry.iconButton(
+                    PonderGuiTextures.ICON_CONFIG_RESET,
+                    this::requestRefresh,
+                    tooltip("ponderer.ui.function_page.permissions.refresh.tooltip"),
+                    () -> true)))));
 
-        formEntries.add(screen -> screen.createFullButtonEntry(
-            () -> UIText.of("ponderer.ui.function_page.permissions.set"),
-            () -> UIText.of("ponderer.ui.function_page.permissions.set.tooltip"),
-            () -> sendSet(pendingSubject, selectedRole),
-            () -> canEditPendingSubject() ? 0xFFFFFF : 0x777777,
-            this::canEditPendingSubject));
-
-        formEntries.add(screen -> screen.createFullButtonEntry(
-            () -> UIText.of("ponderer.ui.function_page.permissions.refresh"),
-            () -> UIText.of("ponderer.ui.function_page.permissions.refresh.tooltip"),
-            this::requestRefresh,
-            () -> 0xFFFFFF,
-            () -> true));
-
-        formEntries.add(screen -> screen.createSectionHeaderEntry(this::summaryText));
         formEntries.add(screen -> screen.createSectionHeaderEntry(this::viewerText));
 
         if (waitingForServer && entries.isEmpty()) {
@@ -234,26 +238,28 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
     }
 
     private void cycleSelectedRole() {
+        if (!canCyclePendingRole()) {
+            return;
+        }
         selectedRole = nextRole(selectedRole);
         clearStatusMessages();
-        rebuildEntries(currentListScroll());
     }
 
     private void fillSelf() {
         var player = Minecraft.getInstance().player;
         if (player != null) {
-            pendingSubject = player.getGameProfile().getName();
+            handleSubjectChanged(player.getGameProfile().getName());
             clearStatusMessages();
             rebuildEntries(currentListScroll());
         }
     }
 
-    private String summaryText() {
-        return UIText.of("ponderer.ui.function_page.permissions.summary",
-            entries.size(),
-            countRole(UploadPermissions.Role.ADMIN),
-            countRole(UploadPermissions.Role.UPLOAD),
-            countRole(UploadPermissions.Role.PULL));
+    private void handleSubjectChanged(String value) {
+        pendingSubject = value == null ? "" : value;
+        PermissionListResponsePayload.Entry entry = findEntry(pendingSubject);
+        if (entry != null) {
+            selectedRole = roleFromId(entry.role());
+        }
     }
 
     private String viewerText() {
@@ -264,32 +270,32 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
             viewerRoleLabel());
     }
 
+    private boolean canCyclePendingRole() {
+        return canManage && !isLockedSubject(pendingSubject);
+    }
+
     private boolean canEditPendingSubject() {
         String subject = pendingSubject == null ? "" : pendingSubject.trim();
         return canManage && !subject.isEmpty() && !isLockedSubject(subject);
     }
 
-    private boolean isLockedSubject(String subject) {
+    @Nullable
+    private PermissionListResponsePayload.Entry findEntry(String subject) {
         if (subject == null || subject.isBlank()) {
-            return false;
+            return null;
         }
         String key = subject.trim().toLowerCase(Locale.ROOT);
         for (PermissionListResponsePayload.Entry entry : entries) {
-            if (entry.locked() && entry.subject().toLowerCase(Locale.ROOT).equals(key)) {
-                return true;
+            if (entry.subject().toLowerCase(Locale.ROOT).equals(key)) {
+                return entry;
             }
         }
-        return false;
+        return null;
     }
 
-    private int countRole(UploadPermissions.Role role) {
-        int count = 0;
-        for (PermissionListResponsePayload.Entry entry : entries) {
-            if (role.id().equals(entry.role())) {
-                count++;
-            }
-        }
-        return count;
+    private boolean isLockedSubject(String subject) {
+        PermissionListResponsePayload.Entry entry = findEntry(subject);
+        return entry != null && entry.locked();
     }
 
     private String viewerRoleLabel() {
@@ -331,6 +337,10 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         }
         button.visible = false;
         button.active = false;
+    }
+
+    private static java.util.function.Supplier<List<Component>> tooltip(String key) {
+        return () -> List.of(Component.literal(UIText.of(key)));
     }
 
     private static UploadPermissions.Role nextRole(UploadPermissions.Role role) {

@@ -747,7 +747,7 @@
   "ponderer.ui.function_page.permissions.player": "Player",
   "ponderer.ui.function_page.permissions.player.tooltip": "Player name or UUID saved to the server Ponderer allowlist",
   "ponderer.ui.function_page.permissions.player.hint": "Player name or UUID",
-  "ponderer.ui.function_page.permissions.role": "Permission Tier",
+  "ponderer.ui.function_page.permissions.role": "Permission",
   "ponderer.ui.function_page.permissions.role.tooltip": "Cycle the permission tier to grant",
   "ponderer.ui.function_page.permissions.role.admin": "Admin",
   "ponderer.ui.function_page.permissions.role.upload": "Upload",

@@ -1,11 +1,15 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
 
+import java.io.BufferedReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -369,7 +373,7 @@ public final class UploadPermissions {
     }
 
     private static void syncServerOperators(MinecraftServer server, Map<String, Entry> entries) {
-        List<String> operatorSubjects = operatorSubjects(server);
+        List<String> operatorSubjects = operatorDisplaySubjects(server);
         boolean changed = false;
 
         for (Entry entry : new ArrayList<>(entries.values())) {
@@ -401,19 +405,70 @@ public final class UploadPermissions {
         }
     }
 
-    private static List<String> operatorSubjects(MinecraftServer server) {
+    private static List<String> operatorDisplaySubjects(MinecraftServer server) {
         List<String> subjects = new ArrayList<>();
         for (String name : server.getPlayerList().getOpNames()) {
-            String subject = sanitizeSubject(name);
-            if (subject != null) {
-                subjects.add(subject);
+            addSubject(subjects, name);
+        }
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.hasPermissions(2)) {
+                addSubject(subjects, player.getGameProfile().getName());
             }
         }
         return subjects;
     }
 
     private static boolean isOperatorSubject(MinecraftServer server, String subject) {
-        return containsSubject(operatorSubjects(server), subject);
+        return containsSubject(operatorAliases(server), subject);
+    }
+
+    private static List<String> operatorAliases(MinecraftServer server) {
+        List<String> aliases = new ArrayList<>();
+        for (String subject : operatorDisplaySubjects(server)) {
+            addSubject(aliases, subject);
+        }
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.hasPermissions(2)) {
+                addSubject(aliases, player.getStringUUID());
+            }
+        }
+        addOperatorFileAliases(server, aliases);
+        return aliases;
+    }
+
+    private static void addOperatorFileAliases(MinecraftServer server, List<String> aliases) {
+        Path path = server.getPlayerList().getOps().getFile().toPath();
+        if (!Files.exists(path)) {
+            return;
+        }
+
+        try (BufferedReader reader = Files.newBufferedReader(path)) {
+            JsonElement root = JsonParser.parseReader(reader);
+            if (root == null || !root.isJsonArray()) {
+                return;
+            }
+            for (JsonElement element : root.getAsJsonArray()) {
+                if (!element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject object = element.getAsJsonObject();
+                if (object.has("name")) {
+                    addSubject(aliases, object.get("name").getAsString());
+                }
+                if (object.has("uuid")) {
+                    addSubject(aliases, object.get("uuid").getAsString());
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to read server operator aliases", e);
+        }
+    }
+
+    private static void addSubject(List<String> subjects, String rawSubject) {
+        String subject = sanitizeSubject(rawSubject);
+        if (subject != null && !containsSubject(subjects, subject)) {
+            subjects.add(subject);
+        }
     }
 
     private static boolean containsSubject(List<String> subjects, String subject) {

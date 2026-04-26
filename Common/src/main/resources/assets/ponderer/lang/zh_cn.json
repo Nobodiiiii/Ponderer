@@ -728,7 +728,7 @@
   "ponderer.ui.function_page.permissions.player": "玩家",
   "ponderer.ui.function_page.permissions.player.tooltip": "填写玩家名或 UUID，保存到服务器 Ponderer 白名单",
   "ponderer.ui.function_page.permissions.player.hint": "玩家名或 UUID",
-  "ponderer.ui.function_page.permissions.role": "权限等级",
+  "ponderer.ui.function_page.permissions.role": "权限",
   "ponderer.ui.function_page.permissions.role.tooltip": "切换要授予的新权限等级",
   "ponderer.ui.function_page.permissions.role.admin": "管理员",
   "ponderer.ui.function_page.permissions.role.upload": "上传权限",
