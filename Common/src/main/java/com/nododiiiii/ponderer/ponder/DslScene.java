@@ -19,10 +19,11 @@ public class DslScene {
     public List<String> structures = List.of();
     public List<String> tags = List.of();
     /**
-     * Whether normal users can edit this scene. Defaults to true for legacy
-     * scenes; developer mode can override a disabled value.
+     * Whether normal users can edit this scene. Null means the client config's
+     * default editable value should be used.
      */
-    public Boolean editable = Boolean.TRUE;
+    @Nullable
+    public Boolean editable;
     public List<SceneSegment> scenes = List.of();
     /**
      * Optional SNBT filter string. When set, scenes for this DslScene
@@ -141,6 +142,10 @@ public class DslScene {
 
     public boolean isEditable() {
         return !Boolean.FALSE.equals(editable);
+    }
+
+    public boolean isEditable(boolean defaultEditable) {
+        return editable == null ? defaultEditable : editable;
     }
 
     public static class SceneSegment {

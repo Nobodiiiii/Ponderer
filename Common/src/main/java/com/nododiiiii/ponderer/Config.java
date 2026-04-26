@@ -17,6 +17,10 @@ public class Config {
                  "This is intended for pack authors and advanced maintenance.")
         .define("developerMode", false);
 
+    public static final ForgeConfigSpec.BooleanValue DEFAULT_EDITABLE = BUILDER
+        .comment("Default editable value for newly created scenes and scenes without an explicit editable flag.")
+        .define("defaultEditable", true);
+
     // -- AI Scene Generation --
 
     public static final ForgeConfigSpec.ConfigValue<String> AI_PROVIDER = BUILDER

@@ -6,6 +6,7 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.resources.ResourceLocation;
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.Ponderer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -1282,7 +1283,7 @@ public final class SceneStore {
      */
     public static void sanitizeScene(DslScene scene) {
         if (scene.editable == null) {
-            scene.editable = Boolean.TRUE;
+            scene.editable = Config.DEFAULT_EDITABLE.get();
         }
         if (scene.scenes != null) {
             for (DslScene.SceneSegment seg : scene.scenes) {

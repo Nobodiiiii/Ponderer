@@ -61,7 +61,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     public static boolean canModifyScene(DslScene scene) {
-        return scene != null && (scene.isEditable() || Config.DEVELOPER_MODE.get());
+        return scene != null && (scene.isEditable(Config.DEFAULT_EDITABLE.get()) || Config.DEVELOPER_MODE.get());
     }
 
     @Override

@@ -23,6 +23,9 @@ public class PondererConfigScreen extends AbstractDeclarativeConfigListScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(ConfigEntries.booleanEntry("ponderer.ui.mod_config.default_editable",
+            "ponderer.ui.mod_config.default_editable.tooltip",
+            Config.DEFAULT_EDITABLE));
         entries.add(ConfigEntries.booleanEntry("ponderer.ui.mod_config.developer_mode",
             "ponderer.ui.mod_config.developer_mode.tooltip",
             Config.DEVELOPER_MODE));

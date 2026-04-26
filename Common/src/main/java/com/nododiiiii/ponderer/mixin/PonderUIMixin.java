@@ -19,6 +19,7 @@ import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import org.joml.Matrix4f;
+import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -65,9 +66,6 @@ public abstract class PonderUIMixin extends Screen {
         if (!canEdit(Minecraft.getInstance().player)) {
             return;
         }
-        if (!SceneEditorScreen.canModifyScene(match.scene())) {
-            return;
-        }
 
         int bY = this.height - 20 - 31;
 
@@ -78,6 +76,10 @@ public abstract class PonderUIMixin extends Screen {
             PonderUI current = (PonderUI) (Object) this;
             var result = ponderer$resolveDynamicScene(current);
             if (result != null) {
+                if (!SceneEditorScreen.canModifyScene(result.scene())) {
+                    ponderer$showReadonlyScenePrompt(current);
+                    return;
+                }
                 String packId = result.scene().pack;
                 PackStateStore.load();
                 if (packId != null && !packId.isBlank() && !PackStateStore.isImported(packId)) {
@@ -91,6 +93,17 @@ public abstract class PonderUIMixin extends Screen {
 
         ponderer$editButton = editButton;
         addRenderableWidget(editButton);
+    }
+
+    @Unique
+    private static void ponderer$showReadonlyScenePrompt(Screen source) {
+        new ConfirmationScreen()
+            .centered()
+            .withText(net.minecraft.network.chat.Component.translatable("ponderer.ui.readonly_scene.title"))
+            .addText(net.minecraft.network.chat.Component.translatable("ponderer.ui.readonly_scene.message"))
+            .withAction(ignored -> {
+            })
+            .open(source);
     }
 
     @Inject(method = "renderWindow", at = @At("TAIL"), remap = false)

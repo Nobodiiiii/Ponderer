@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
@@ -248,7 +249,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         workingPonderTitle = copyLocalizedText(scene.title);
         originalPonderId = scene.id != null ? scene.id : "";
         draftPonderId = originalPonderId;
-        workingEditable = scene.isEditable();
+        workingEditable = scene.isEditable(Config.DEFAULT_EDITABLE.get());
 
         if (hasMultiScene && scene.scenes != null && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
             DslScene.SceneSegment currentScene = scene.scenes.get(sceneIndex);
@@ -267,6 +268,12 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     private void toggleEditable() {
         if (!workingEditable) {
             workingEditable = true;
+            clearStatusMessages();
+            return;
+        }
+
+        if (Config.DEVELOPER_MODE.get()) {
+            workingEditable = false;
             clearStatusMessages();
             return;
         }
