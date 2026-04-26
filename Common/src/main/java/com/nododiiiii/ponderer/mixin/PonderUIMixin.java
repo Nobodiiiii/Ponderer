@@ -8,6 +8,8 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
+import com.nododiiiii.ponderer.ui.PondererConfigScreen;
+import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.ReadonlyPackImportPromptScreen;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
@@ -19,7 +21,6 @@ import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import org.joml.Matrix4f;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -30,6 +31,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -97,13 +99,19 @@ public abstract class PonderUIMixin extends Screen {
 
     @Unique
     private static void ponderer$showReadonlyScenePrompt(Screen source) {
-        new ConfirmationScreen()
-            .centered()
-            .withText(net.minecraft.network.chat.Component.translatable("ponderer.ui.readonly_scene.title"))
-            .addText(net.minecraft.network.chat.Component.translatable("ponderer.ui.readonly_scene.message"))
-            .withAction(ignored -> {
-            })
-            .open(source);
+        new PondererDialogScreen(
+            source,
+            List.of(Component.translatable("ponderer.ui.readonly_scene.title")),
+            List.of(Component.translatable("ponderer.ui.readonly_scene.message")),
+            List.of(
+                PondererDialogScreen.button(
+                    Component.translatable("ponderer.ui.readonly_scene.open_config"),
+                    dialog -> {
+                        dialog.closeToSource();
+                        Minecraft.getInstance().setScreen(new PondererConfigScreen(source));
+                    }),
+                PondererDialogScreen.closeButton(Component.translatable("ponderer.ui.cancel"))))
+            .open();
     }
 
     @Inject(method = "renderWindow", at = @At("TAIL"), remap = false)

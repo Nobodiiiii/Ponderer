@@ -929,6 +929,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private void reopenPonderUi(boolean reloadFromDisk) {
         Minecraft mc = Minecraft.getInstance();
+        net.createmod.catnip.gui.ScreenOpener.clearStack();
+        PonderItemGridScreen.returnScreen = null;
         mc.setScreen(null);
 
         net.minecraft.resources.ResourceLocation itemId = null;

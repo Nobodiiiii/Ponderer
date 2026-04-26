@@ -809,6 +809,7 @@
   "ponderer.ui.mod_config.developer_mode.tooltip": "Allows editing ponders with Editable turned off.",
   "ponderer.ui.readonly_scene.title": "Readonly Ponder",
   "ponderer.ui.readonly_scene.message": "The author marked this ponder as readonly. If you know what you are doing, enable developer mode in mod config to edit it.",
+  "ponderer.ui.readonly_scene.open_config": "Open Mod Config",
   "ponderer.ui.ai_config.title": "AI Configuration",
   "ponderer.ui.ai_config.provider": "Provider",
   "ponderer.ui.ai_config.provider.hint": "default(openai) / claude(anthropic)",
