@@ -22,10 +22,7 @@ public final class ShowInterfaceExperimentalNoticeScreen {
         new PondererDialogScreen(
             source,
             List.of(Component.translatable("ponderer.ui.show_interface.experimental_notice.title")),
-            List.of(
-                Component.translatable("ponderer.ui.show_interface.experimental_notice.line1"),
-                Component.translatable("ponderer.ui.show_interface.experimental_notice.line2"),
-                Component.translatable("ponderer.ui.show_interface.experimental_notice.line3")),
+            List.of(Component.translatable("ponderer.ui.show_interface.experimental_notice.message")),
             List.of(
                 PondererDialogScreen.button(Component.translatable("ponderer.ui.confirm"), dialog -> {
                     dialog.closeToSource();

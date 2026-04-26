@@ -8,6 +8,7 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
+import com.nododiiiii.ponderer.ui.PonderScreenNavigation;
 import com.nododiiiii.ponderer.ui.PondererConfigScreen;
 import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.ReadonlyPackImportPromptScreen;
@@ -89,6 +90,7 @@ public abstract class PonderUIMixin extends Screen {
                     return;
                 }
                 SceneEditorScreen.markUiToEditorTransition(result.scene());
+                PonderScreenNavigation.suppressNextPonderReturn();
                 Minecraft.getInstance().setScreen(new SceneEditorScreen(result.scene(), result.sceneIndex()));
             }
         });
@@ -107,8 +109,10 @@ public abstract class PonderUIMixin extends Screen {
                 PondererDialogScreen.button(
                     Component.translatable("ponderer.ui.readonly_scene.open_config"),
                     dialog -> {
+                        PonderScreenNavigation.ReturnState returnState = PonderScreenNavigation.captureReturnState();
                         dialog.closeToSource();
-                        Minecraft.getInstance().setScreen(new PondererConfigScreen(source));
+                        PonderScreenNavigation.suppressNextPonderReturn();
+                        Minecraft.getInstance().setScreen(new PondererConfigScreen(source, returnState));
                     }),
                 PondererDialogScreen.closeButton(Component.translatable("ponderer.ui.cancel"))))
             .open();
@@ -579,6 +583,9 @@ public abstract class PonderUIMixin extends Screen {
         }
         if (InterfaceSlotEditState.isActive()) {
             InterfaceSlotEditState.reset();
+        }
+        if (PonderScreenNavigation.consumeSuppressNextPonderReturn()) {
+            return;
         }
         // Return to PonderItemGridScreen if it was set as the return target
         if (com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen != null) {

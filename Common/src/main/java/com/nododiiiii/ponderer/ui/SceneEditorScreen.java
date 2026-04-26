@@ -44,8 +44,12 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     @Nullable
     private static DslScene.DslStep clipboard = null;
+    @Nullable
+    private static PonderScreenNavigation.ReturnState pendingPonderReturnState = null;
 
     private final DslScene scene;
+    @Nullable
+    private final PonderScreenNavigation.ReturnState ponderReturnState;
     private int sceneIndex;
     private double pendingListScroll = 0;
 
@@ -55,9 +59,15 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private BoxWidget redoButton;
 
     public SceneEditorScreen(DslScene scene, int sceneIndex) {
+        this(scene, sceneIndex, consumePendingPonderReturnState());
+    }
+
+    private SceneEditorScreen(DslScene scene, int sceneIndex,
+                              @Nullable PonderScreenNavigation.ReturnState ponderReturnState) {
         super(null, "ponderer.ui.scope.editor", "ponderer.ui.scene_editor", 400);
         this.scene = scene;
         this.sceneIndex = sceneIndex;
+        this.ponderReturnState = ponderReturnState;
     }
 
     public static boolean canModifyScene(DslScene scene) {
@@ -334,6 +344,14 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             return;
         }
         HISTORY_SESSION.markUiToEditorTransition(historySessionKey(scene));
+        pendingPonderReturnState = PonderScreenNavigation.captureReturnState();
+    }
+
+    @Nullable
+    private static PonderScreenNavigation.ReturnState consumePendingPonderReturnState() {
+        PonderScreenNavigation.ReturnState state = pendingPonderReturnState;
+        pendingPonderReturnState = null;
+        return state;
     }
 
     public static void handlePonderUiRemoved(@Nullable DslScene scene) {
@@ -929,8 +947,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private void reopenPonderUi(boolean reloadFromDisk) {
         Minecraft mc = Minecraft.getInstance();
-        net.createmod.catnip.gui.ScreenOpener.clearStack();
-        PonderItemGridScreen.returnScreen = null;
+        PonderScreenNavigation.restoreReturnState(ponderReturnState);
         mc.setScreen(null);
 
         net.minecraft.resources.ResourceLocation itemId = null;

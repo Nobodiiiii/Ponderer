@@ -83,6 +83,7 @@
   "ponderer.ui.step_selector": "添加步骤",
   "ponderer.ui.step_selector.title": "选择步骤类型",
   "ponderer.ui.show_interface.experimental_notice.title": "实验性功能提醒",
+  "ponderer.ui.show_interface.experimental_notice.message": "“显示界面”功能仍处于测试阶段，可能存在 Bug、稳定性不足或适配欠佳等问题。若你遇到这些情况，欢迎通过任意平台向我反馈。是否继续？",
   "ponderer.ui.show_interface.experimental_notice.line1": "“显示界面”功能仍处于测试阶段，可能存在 Bug、",
   "ponderer.ui.show_interface.experimental_notice.line2": "稳定性不足或适配欠佳等问题。",
   "ponderer.ui.show_interface.experimental_notice.line3": "若你遇到这些情况，欢迎通过任意平台向我反馈。是否继续？",
