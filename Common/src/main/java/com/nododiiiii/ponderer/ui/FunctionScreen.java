@@ -109,6 +109,9 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
             new ButtonDef("ponderer.ui.function_page.keybindings",
                 () -> Minecraft.getInstance().setScreen(new PondererKeyBindingsScreen(this)),
                 "ponderer.ui.function_page.keybindings.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.mod_config",
+                () -> Minecraft.getInstance().setScreen(new PondererConfigScreen(this)),
+                "ponderer.ui.function_page.mod_config.tooltip"),
             new ButtonDef("ponderer.ui.function_page.ai_config",
                 () -> Minecraft.getInstance().setScreen(new AiConfigScreen(this)),
                 "ponderer.ui.function_page.ai_config.tooltip")

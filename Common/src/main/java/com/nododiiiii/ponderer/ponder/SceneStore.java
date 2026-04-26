@@ -1281,6 +1281,9 @@ public final class SceneStore {
      * This prevents crashes when operations like hide_section come first.
      */
     public static void sanitizeScene(DslScene scene) {
+        if (scene.editable == null) {
+            scene.editable = Boolean.TRUE;
+        }
         if (scene.scenes != null) {
             for (DslScene.SceneSegment seg : scene.scenes) {
                 ensureFirstStepIsShowStructure(seg);

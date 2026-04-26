@@ -65,6 +65,9 @@ public abstract class PonderUIMixin extends Screen {
         if (!canEdit(Minecraft.getInstance().player)) {
             return;
         }
+        if (!SceneEditorScreen.canModifyScene(match.scene())) {
+            return;
+        }
 
         int bY = this.height - 20 - 31;
 

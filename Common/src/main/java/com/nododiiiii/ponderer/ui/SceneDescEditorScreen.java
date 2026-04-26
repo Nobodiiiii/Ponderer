@@ -6,6 +6,7 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
+import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -35,6 +36,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     private String draftPonderId;
     private String originalSceneId;
     private String draftSceneId;
+    private boolean workingEditable;
 
     @Nullable
     private LocalizedTextListEntry ponderTitleEntry;
@@ -112,6 +114,12 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
                 "ponderer.ui.scene_desc.hint.scene_id",
                 -1));
         }
+
+        entries.add(FieldSpecs.toggle(
+            "ponderer.ui.scene_desc.editable",
+            "ponderer.ui.scene_desc.editable.tooltip",
+            () -> workingEditable,
+            this::toggleEditable));
     }
 
     @Override
@@ -130,6 +138,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         }
 
         candidate.title = copyLocalizedText(workingPonderTitle);
+        candidate.editable = workingEditable;
         if (!newPonderId.isEmpty()) {
             candidate.id = newPonderId;
         }
@@ -171,6 +180,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
             writeLocalizedSnapshot(snapshot, "scene_title", workingSceneTitle);
         }
         snapshot.put("scene_id", draftSceneId);
+        snapshot.put("editable", String.valueOf(workingEditable));
         return snapshot;
     }
 
@@ -182,6 +192,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         boolean hasSceneTitle = Boolean.parseBoolean(snapshot.getOrDefault("scene_title_present", "false"));
         workingSceneTitle = hasSceneTitle ? readLocalizedSnapshot(snapshot, "scene_title") : null;
         draftSceneId = snapshot.getOrDefault("scene_id", "");
+        workingEditable = Boolean.parseBoolean(snapshot.getOrDefault("editable", "true"));
     }
 
     private boolean validatePonderId(String newPonderId) {
@@ -229,6 +240,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
             scene.scenes.get(sceneIndex).title = candidate.scenes.get(sceneIndex).title;
             scene.scenes.get(sceneIndex).id = candidate.scenes.get(sceneIndex).id;
         }
+        scene.editable = candidate.editable;
     }
 
     private void syncStateFromScene() {
@@ -236,6 +248,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         workingPonderTitle = copyLocalizedText(scene.title);
         originalPonderId = scene.id != null ? scene.id : "";
         draftPonderId = originalPonderId;
+        workingEditable = scene.isEditable();
 
         if (hasMultiScene && scene.scenes != null && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
             DslScene.SceneSegment currentScene = scene.scenes.get(sceneIndex);
@@ -249,6 +262,26 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
             originalSceneId = "";
             draftSceneId = "";
         }
+    }
+
+    private void toggleEditable() {
+        if (!workingEditable) {
+            workingEditable = true;
+            clearStatusMessages();
+            return;
+        }
+
+        new ConfirmationScreen()
+            .centered()
+            .withText(Component.translatable("ponderer.ui.scene_desc.editable.confirm_title"))
+            .addText(Component.translatable("ponderer.ui.scene_desc.editable.confirm"))
+            .withAction(confirmed -> {
+                if (confirmed) {
+                    workingEditable = false;
+                    clearStatusMessages();
+                }
+            })
+            .open(this);
     }
 
     private void togglePonderTitleLang() {

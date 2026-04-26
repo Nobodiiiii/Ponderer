@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
@@ -57,6 +58,10 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         super(null, "ponderer.ui.scope.editor", "ponderer.ui.scene_editor", 400);
         this.scene = scene;
         this.sceneIndex = sceneIndex;
+    }
+
+    public static boolean canModifyScene(DslScene scene) {
+        return scene != null && (scene.isEditable() || Config.DEVELOPER_MODE.get());
     }
 
     @Override

@@ -12,6 +12,11 @@ public class Config {
                  "the built-in Blueprint item will not appear in the creative tab.")
         .define("blueprintCarrierItem", "minecraft:paper");
 
+    public static final ForgeConfigSpec.BooleanValue DEVELOPER_MODE = BUILDER
+        .comment("Allow editing scenes that have their 'editable' flag disabled.",
+                 "This is intended for pack authors and advanced maintenance.")
+        .define("developerMode", false);
+
     // -- AI Scene Generation --
 
     public static final ForgeConfigSpec.ConfigValue<String> AI_PROVIDER = BUILDER
