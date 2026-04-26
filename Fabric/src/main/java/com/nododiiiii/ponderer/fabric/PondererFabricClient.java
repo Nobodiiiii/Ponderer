@@ -81,11 +81,11 @@ public class PondererFabricClient implements ClientModInitializer {
         });
 
         // Creative tab
-        if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
-            ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> {
+        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> {
+            if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
                 entries.accept(new ItemStack(ModItems.BLUEPRINT.get()));
-            });
-        }
+            }
+        });
 
         // Client tick: key bindings + blueprint handler + player join notifications + JEI interception
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

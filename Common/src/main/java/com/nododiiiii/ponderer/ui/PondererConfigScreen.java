@@ -28,7 +28,7 @@ public class PondererConfigScreen extends AbstractDeclarativeConfigListScreen {
             "ponderer.ui.scope.client",
             "ponderer.ui.mod_config.title",
             ModConfig.Type.CLIENT,
-            Config.SPEC);
+            Config.CLIENT_SPEC);
         this.ponderReturnState = ponderReturnState;
     }
 

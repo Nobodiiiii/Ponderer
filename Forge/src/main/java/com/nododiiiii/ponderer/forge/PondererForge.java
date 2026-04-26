@@ -41,7 +41,8 @@ public class PondererForge {
         PondererServices.REGISTRATION.init();
 
         // Config
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
         modEventBus.addListener(this::onCommonSetup);
         modEventBus.addListener(this::onBuildCreativeTab);

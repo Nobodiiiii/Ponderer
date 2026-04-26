@@ -22,7 +22,7 @@ public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
             "ponderer.ui.scope.client",
             "ponderer.ui.ai_config.title",
             ModConfig.Type.CLIENT,
-            Config.SPEC);
+            Config.CLIENT_SPEC);
     }
 
     @Override

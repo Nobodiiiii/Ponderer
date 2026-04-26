@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.compat.resourcify.ResourcifyCompat;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
@@ -104,7 +103,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 () -> Minecraft.getInstance().setScreen(buildPermissionsPage()),
                 "ponderer.ui.function_page.permissions.tooltip"),
             new ButtonDef("ponderer.ui.function_page.blueprint_item",
-                () -> Minecraft.getInstance().setScreen(buildBlueprintItemPage()),
+                () -> Minecraft.getInstance().setScreen(new BlueprintItemConfigScreen(this)),
                 "ponderer.ui.function_page.blueprint_item.tooltip"),
             new ButtonDef("ponderer.ui.function_page.keybindings",
                 () -> Minecraft.getInstance().setScreen(new PondererKeyBindingsScreen(this)),
@@ -432,28 +431,4 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
         }
     }
 
-    private static CommandParamScreen buildBlueprintItemPage() {
-        String currentValue = Config.BLUEPRINT_CARRIER_ITEM.get();
-        boolean isBuiltin = "ponderer:blueprint".equals(currentValue);
-
-        CommandParamScreen screen = CommandParamScreen.builder("ponderer.ui.function_page.blueprint_item.title")
-            .itemField("carrier_item", "ponderer.ui.function_page.blueprint_item.carrier",
-                "ponderer.ui.function_page.blueprint_item.carrier.hint", true)
-            .toggleField("use_builtin", "ponderer.ui.function_page.blueprint_item.use_builtin", isBuiltin)
-            .onExecute(values -> {
-                String itemId = values.get("carrier_item");
-                Config.BLUEPRINT_CARRIER_ITEM.set(itemId);
-                var player = Minecraft.getInstance().player;
-                if (player != null) {
-                    player.displayClientMessage(
-                        Component.translatable("ponderer.ui.function_page.blueprint_item.set", itemId), false);
-                }
-            })
-            .build();
-
-        screen.setDefaultValue("carrier_item", currentValue);
-        screen.addFieldDisablesToggle("carrier_item", "use_builtin");
-        screen.addToggleAutoFill("use_builtin", "carrier_item", () -> "ponderer:blueprint");
-        return screen;
-    }
 }

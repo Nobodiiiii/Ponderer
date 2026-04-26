@@ -6,7 +6,6 @@ import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
-import com.nododiiiii.ponderer.registry.ModItems;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import net.createmod.catnip.math.Pointing;
@@ -42,6 +41,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.Block;
@@ -87,7 +87,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void registerBlueprintGuideScene(PonderSceneRegistrationHelper<ResourceLocation> helper) {
-        ResourceLocation carrier = BuiltInRegistries.ITEM.getKey(BlueprintFeature.resolveCarrierItem());
+        Item carrierItem = BlueprintFeature.resolveCarrierItem();
+        if (carrierItem == Items.AIR) {
+            return;
+        }
+        ResourceLocation carrier = BuiltInRegistries.ITEM.getKey(carrierItem);
         if (carrier == null) {
             return;
         }

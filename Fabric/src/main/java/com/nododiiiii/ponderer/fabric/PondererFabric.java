@@ -25,7 +25,8 @@ public class PondererFabric implements ModInitializer {
         ModItems.init();
 
         // Register config via ForgeConfigAPIPort
-        ForgeConfigRegistry.INSTANCE.register(Ponderer.MODID, ModConfig.Type.CLIENT, Config.SPEC);
+        ForgeConfigRegistry.INSTANCE.register(Ponderer.MODID, ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
+        ForgeConfigRegistry.INSTANCE.register(Ponderer.MODID, ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
         // Register network
         PondererServices.NETWORK.registerPackets();
