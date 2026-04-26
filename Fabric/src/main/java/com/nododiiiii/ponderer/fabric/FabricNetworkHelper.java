@@ -21,10 +21,13 @@ public class FabricNetworkHelper implements NetworkHelper {
     private static final ResourceLocation SYNC_REQUEST = new ResourceLocation(Ponderer.MODID, "sync_request");
     private static final ResourceLocation DOWNLOAD_STRUCTURE = new ResourceLocation(Ponderer.MODID, "download_structure");
     private static final ResourceLocation CAPTURE_BLOCK_ENTITY_NBT_REQUEST = new ResourceLocation(Ponderer.MODID, "capture_block_entity_nbt_request");
+    private static final ResourceLocation PERMISSION_LIST_REQUEST = new ResourceLocation(Ponderer.MODID, "permission_list_request");
+    private static final ResourceLocation PERMISSION_UPDATE = new ResourceLocation(Ponderer.MODID, "permission_update");
     private static final ResourceLocation SYNC_RESPONSE = new ResourceLocation(Ponderer.MODID, "sync_response");
     private static final ResourceLocation DOWNLOAD_STRUCTURE_RESULT = new ResourceLocation(Ponderer.MODID, "download_result");
     private static final ResourceLocation UPLOAD_RESPONSE = new ResourceLocation(Ponderer.MODID, "upload_response");
     private static final ResourceLocation CAPTURE_BLOCK_ENTITY_NBT_RESPONSE = new ResourceLocation(Ponderer.MODID, "capture_block_entity_nbt_response");
+    private static final ResourceLocation PERMISSION_LIST_RESPONSE = new ResourceLocation(Ponderer.MODID, "permission_list_response");
 
     @Override
     public void registerPackets() {
@@ -35,7 +38,8 @@ public class FabricNetworkHelper implements NetworkHelper {
         });
 
         ServerPlayNetworking.registerGlobalReceiver(SYNC_REQUEST, (server, player, handler, buf, responseSender) -> {
-            server.execute(() -> SyncResponsePayload.sendBatched(player));
+            SyncRequestPayload msg = SyncRequestPayload.decode(buf);
+            server.execute(() -> SyncRequestPayload.handle(msg, player));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(DOWNLOAD_STRUCTURE, (server, player, handler, buf, responseSender) -> {
@@ -46,6 +50,16 @@ public class FabricNetworkHelper implements NetworkHelper {
         ServerPlayNetworking.registerGlobalReceiver(CAPTURE_BLOCK_ENTITY_NBT_REQUEST, (server, player, handler, buf, responseSender) -> {
             CaptureBlockEntityNbtRequestPayload msg = CaptureBlockEntityNbtRequestPayload.decode(buf);
             server.execute(() -> CaptureBlockEntityNbtRequestPayload.handle(msg, player));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PERMISSION_LIST_REQUEST, (server, player, handler, buf, responseSender) -> {
+            PermissionListRequestPayload msg = PermissionListRequestPayload.decode(buf);
+            server.execute(() -> PermissionListRequestPayload.handle(msg, player));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PERMISSION_UPDATE, (server, player, handler, buf, responseSender) -> {
+            PermissionUpdateRequestPayload msg = PermissionUpdateRequestPayload.decode(buf);
+            server.execute(() -> PermissionUpdateRequestPayload.handle(msg, player));
         });
 
         // Clientbound handlers
@@ -74,6 +88,11 @@ public class FabricNetworkHelper implements NetworkHelper {
         ClientPlayNetworking.registerGlobalReceiver(CAPTURE_BLOCK_ENTITY_NBT_RESPONSE, (client, handler, buf, responseSender) -> {
             CaptureBlockEntityNbtResponsePayload msg = CaptureBlockEntityNbtResponsePayload.decode(buf);
             client.execute(() -> CaptureBlockEntityNbtResponsePayload.handle(msg));
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(PERMISSION_LIST_RESPONSE, (client, handler, buf, responseSender) -> {
+            PermissionListResponsePayload msg = PermissionListResponsePayload.decode(buf);
+            client.execute(() -> PermissionListResponsePayload.handle(msg));
         });
     }
 
@@ -104,10 +123,13 @@ public class FabricNetworkHelper implements NetworkHelper {
         if (packet instanceof SyncRequestPayload) return SYNC_REQUEST;
         if (packet instanceof DownloadStructurePayload) return DOWNLOAD_STRUCTURE;
         if (packet instanceof CaptureBlockEntityNbtRequestPayload) return CAPTURE_BLOCK_ENTITY_NBT_REQUEST;
+        if (packet instanceof PermissionListRequestPayload) return PERMISSION_LIST_REQUEST;
+        if (packet instanceof PermissionUpdateRequestPayload) return PERMISSION_UPDATE;
         if (packet instanceof SyncResponsePayload) return SYNC_RESPONSE;
         if (packet instanceof DownloadStructureResultPayload) return DOWNLOAD_STRUCTURE_RESULT;
         if (packet instanceof UploadResponsePayload) return UPLOAD_RESPONSE;
         if (packet instanceof CaptureBlockEntityNbtResponsePayload) return CAPTURE_BLOCK_ENTITY_NBT_RESPONSE;
+        if (packet instanceof PermissionListResponsePayload) return PERMISSION_LIST_RESPONSE;
         throw new IllegalArgumentException("Unknown packet type: " + packet.getClass().getName());
     }
 
@@ -117,10 +139,13 @@ public class FabricNetworkHelper implements NetworkHelper {
         else if (packet instanceof SyncRequestPayload p) p.encode(buf);
         else if (packet instanceof DownloadStructurePayload p) p.encode(buf);
         else if (packet instanceof CaptureBlockEntityNbtRequestPayload p) p.encode(buf);
+        else if (packet instanceof PermissionListRequestPayload p) p.encode(buf);
+        else if (packet instanceof PermissionUpdateRequestPayload p) p.encode(buf);
         else if (packet instanceof SyncResponsePayload p) p.encode(buf);
         else if (packet instanceof DownloadStructureResultPayload p) p.encode(buf);
         else if (packet instanceof UploadResponsePayload p) p.encode(buf);
         else if (packet instanceof CaptureBlockEntityNbtResponsePayload p) p.encode(buf);
+        else if (packet instanceof PermissionListResponsePayload p) p.encode(buf);
         else throw new IllegalArgumentException("Unknown packet type: " + packet.getClass().getName());
     }
 }

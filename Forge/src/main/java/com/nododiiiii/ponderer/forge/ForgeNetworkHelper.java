@@ -42,12 +42,11 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .add();
 
         CHANNEL.messageBuilder(SyncRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder((msg, buf) -> {})
-                .decoder(buf -> new SyncRequestPayload())
+                .encoder(SyncRequestPayload::encode)
+                .decoder(SyncRequestPayload::decode)
                 .consumerMainThread((msg, ctx) -> {
                     ServerPlayer player = ctx.get().getSender();
-                    if (player == null) return;
-                    SyncResponsePayload.sendBatched(player);
+                    SyncRequestPayload.handle(msg, player);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();
@@ -68,6 +67,26 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .consumerMainThread((msg, ctx) -> {
                     ServerPlayer player = ctx.get().getSender();
                     CaptureBlockEntityNbtRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(PermissionListRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(PermissionListRequestPayload::encode)
+                .decoder(PermissionListRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    PermissionListRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(PermissionUpdateRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(PermissionUpdateRequestPayload::encode)
+                .decoder(PermissionUpdateRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    PermissionUpdateRequestPayload.handle(msg, player);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();
@@ -105,6 +124,15 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .decoder(CaptureBlockEntityNbtResponsePayload::decode)
                 .consumerMainThread((msg, ctx) -> {
                     CaptureBlockEntityNbtResponsePayload.handle(msg);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(PermissionListResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(PermissionListResponsePayload::encode)
+                .decoder(PermissionListResponsePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    PermissionListResponsePayload.handle(msg);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();

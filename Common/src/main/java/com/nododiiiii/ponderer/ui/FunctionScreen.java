@@ -11,14 +11,9 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.storage.LevelResource;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -100,7 +95,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
 
         sections.add(new Section("ponderer.ui.function_page.settings", List.of(
             new ButtonDef("ponderer.ui.function_page.permissions",
-                () -> Minecraft.getInstance().setScreen(buildPermissionsPage()),
+                () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
                 "ponderer.ui.function_page.permissions.tooltip"),
             new ButtonDef("ponderer.ui.function_page.blueprint_item",
                 () -> Minecraft.getInstance().setScreen(new BlueprintItemConfigScreen(this)),
@@ -346,89 +341,6 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 }
             })
             .build();
-    }
-
-    private static CommandParamScreen buildPermissionsPage() {
-        return CommandParamScreen.builder("ponderer.ui.function_page.permissions.title")
-            .choiceField("action", "ponderer.ui.function_page.permissions.action",
-                List.of("ponderer.ui.function_page.permissions.add",
-                    "ponderer.ui.function_page.permissions.remove"),
-                List.of("add", "remove"))
-            .textField("player", "ponderer.ui.function_page.permissions.player",
-                "ponderer.ui.function_page.permissions.player.hint", true)
-            .onExecute(values -> {
-                String action = values.get("action");
-                String playerName = values.get("player").trim();
-                var server = Minecraft.getInstance().getSingleplayerServer();
-                if (server == null) {
-                    var player = Minecraft.getInstance().player;
-                    if (player != null) {
-                        player.displayClientMessage(
-                            Component.translatable("ponderer.ui.function_page.permissions.server_only"), false);
-                    }
-                    return;
-                }
-                Path allowlistPath = server.getWorldPath(LevelResource.ROOT)
-                    .resolve("ponderer")
-                    .resolve("upload_allowlist.txt");
-                manageAllowlist(allowlistPath, action, playerName);
-            })
-            .build();
-    }
-
-    private static void manageAllowlist(Path path, String action, String playerName) {
-        try {
-            Files.createDirectories(path.getParent());
-
-            List<String> lines;
-            if (Files.exists(path)) {
-                lines = new ArrayList<>(Files.readAllLines(path));
-            } else {
-                lines = new ArrayList<>();
-                lines.add("# Ponderer upload allowlist");
-                lines.add("# Add player names or UUIDs, one per line");
-            }
-
-            String entry = playerName.toLowerCase();
-            var player = Minecraft.getInstance().player;
-
-            if ("add".equals(action)) {
-                boolean exists = lines.stream().anyMatch(l -> l.trim().toLowerCase().equals(entry));
-                if (!exists) {
-                    lines.add(playerName);
-                    Files.write(path, lines);
-                    if (player != null) {
-                        player.displayClientMessage(
-                            Component.translatable("ponderer.ui.function_page.permissions.added", playerName), false);
-                    }
-                } else if (player != null) {
-                    player.displayClientMessage(
-                        Component.translatable("ponderer.ui.function_page.permissions.exists", playerName), false);
-                }
-                return;
-            }
-
-            boolean removed = lines.removeIf(l -> {
-                String trimmed = l.trim();
-                return !trimmed.startsWith("#") && trimmed.toLowerCase().equals(entry);
-            });
-            if (removed) {
-                Files.write(path, lines);
-                if (player != null) {
-                    player.displayClientMessage(
-                        Component.translatable("ponderer.ui.function_page.permissions.removed", playerName), false);
-                }
-            } else if (player != null) {
-                player.displayClientMessage(
-                    Component.translatable("ponderer.ui.function_page.permissions.not_found", playerName), false);
-            }
-        } catch (IOException e) {
-            var player = Minecraft.getInstance().player;
-            if (player != null) {
-                player.displayClientMessage(
-                    Component.translatable("ponderer.ui.function_page.permissions.error"), false);
-            }
-        }
     }
 
 }
