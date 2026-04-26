@@ -14,8 +14,8 @@ import java.util.function.Supplier;
 
 public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int BUTTON_WIDTH = 18;
-    private static final int BUTTON_HEIGHT = 10;
+    private static final int BUTTON_WIDTH = 12;
+    private static final int BUTTON_HEIGHT = 8;
     private static final int OUTER_GAP = 4;
 
     private final Supplier<String> titleGetter;

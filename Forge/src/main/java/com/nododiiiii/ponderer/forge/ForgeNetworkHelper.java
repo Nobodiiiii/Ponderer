@@ -15,7 +15,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public class ForgeNetworkHelper implements NetworkHelper {
 
-    private static final String VERSION = "1";
+    private static final String VERSION = "2";
     private static SimpleChannel CHANNEL;
     private static int id = 0;
 
@@ -91,6 +91,26 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 })
                 .add();
 
+        CHANNEL.messageBuilder(BlueprintConfigRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(BlueprintConfigRequestPayload::encode)
+                .decoder(BlueprintConfigRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    BlueprintConfigRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(BlueprintConfigUpdatePayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(BlueprintConfigUpdatePayload::encode)
+                .decoder(BlueprintConfigUpdatePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    BlueprintConfigUpdatePayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
         // Server -> Client
         CHANNEL.messageBuilder(SyncResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SyncResponsePayload::encode)
@@ -133,6 +153,15 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .decoder(PermissionListResponsePayload::decode)
                 .consumerMainThread((msg, ctx) -> {
                     PermissionListResponsePayload.handle(msg);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(BlueprintConfigResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(BlueprintConfigResponsePayload::encode)
+                .decoder(BlueprintConfigResponsePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    BlueprintConfigResponsePayload.handle(msg);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();

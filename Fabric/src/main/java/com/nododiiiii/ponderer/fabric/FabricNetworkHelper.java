@@ -23,11 +23,14 @@ public class FabricNetworkHelper implements NetworkHelper {
     private static final ResourceLocation CAPTURE_BLOCK_ENTITY_NBT_REQUEST = new ResourceLocation(Ponderer.MODID, "capture_block_entity_nbt_request");
     private static final ResourceLocation PERMISSION_LIST_REQUEST = new ResourceLocation(Ponderer.MODID, "permission_list_request");
     private static final ResourceLocation PERMISSION_UPDATE = new ResourceLocation(Ponderer.MODID, "permission_update");
+    private static final ResourceLocation BLUEPRINT_CONFIG_REQUEST = new ResourceLocation(Ponderer.MODID, "blueprint_config_request");
+    private static final ResourceLocation BLUEPRINT_CONFIG_UPDATE = new ResourceLocation(Ponderer.MODID, "blueprint_config_update");
     private static final ResourceLocation SYNC_RESPONSE = new ResourceLocation(Ponderer.MODID, "sync_response");
     private static final ResourceLocation DOWNLOAD_STRUCTURE_RESULT = new ResourceLocation(Ponderer.MODID, "download_result");
     private static final ResourceLocation UPLOAD_RESPONSE = new ResourceLocation(Ponderer.MODID, "upload_response");
     private static final ResourceLocation CAPTURE_BLOCK_ENTITY_NBT_RESPONSE = new ResourceLocation(Ponderer.MODID, "capture_block_entity_nbt_response");
     private static final ResourceLocation PERMISSION_LIST_RESPONSE = new ResourceLocation(Ponderer.MODID, "permission_list_response");
+    private static final ResourceLocation BLUEPRINT_CONFIG_RESPONSE = new ResourceLocation(Ponderer.MODID, "blueprint_config_response");
 
     @Override
     public void registerPackets() {
@@ -62,6 +65,16 @@ public class FabricNetworkHelper implements NetworkHelper {
             server.execute(() -> PermissionUpdateRequestPayload.handle(msg, player));
         });
 
+        ServerPlayNetworking.registerGlobalReceiver(BLUEPRINT_CONFIG_REQUEST, (server, player, handler, buf, responseSender) -> {
+            BlueprintConfigRequestPayload msg = BlueprintConfigRequestPayload.decode(buf);
+            server.execute(() -> BlueprintConfigRequestPayload.handle(msg, player));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(BLUEPRINT_CONFIG_UPDATE, (server, player, handler, buf, responseSender) -> {
+            BlueprintConfigUpdatePayload msg = BlueprintConfigUpdatePayload.decode(buf);
+            server.execute(() -> BlueprintConfigUpdatePayload.handle(msg, player));
+        });
+
         // Clientbound handlers
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
             registerClientboundHandlers();
@@ -94,6 +107,11 @@ public class FabricNetworkHelper implements NetworkHelper {
             PermissionListResponsePayload msg = PermissionListResponsePayload.decode(buf);
             client.execute(() -> PermissionListResponsePayload.handle(msg));
         });
+
+        ClientPlayNetworking.registerGlobalReceiver(BLUEPRINT_CONFIG_RESPONSE, (client, handler, buf, responseSender) -> {
+            BlueprintConfigResponsePayload msg = BlueprintConfigResponsePayload.decode(buf);
+            client.execute(() -> BlueprintConfigResponsePayload.handle(msg));
+        });
     }
 
     @Override
@@ -125,11 +143,14 @@ public class FabricNetworkHelper implements NetworkHelper {
         if (packet instanceof CaptureBlockEntityNbtRequestPayload) return CAPTURE_BLOCK_ENTITY_NBT_REQUEST;
         if (packet instanceof PermissionListRequestPayload) return PERMISSION_LIST_REQUEST;
         if (packet instanceof PermissionUpdateRequestPayload) return PERMISSION_UPDATE;
+        if (packet instanceof BlueprintConfigRequestPayload) return BLUEPRINT_CONFIG_REQUEST;
+        if (packet instanceof BlueprintConfigUpdatePayload) return BLUEPRINT_CONFIG_UPDATE;
         if (packet instanceof SyncResponsePayload) return SYNC_RESPONSE;
         if (packet instanceof DownloadStructureResultPayload) return DOWNLOAD_STRUCTURE_RESULT;
         if (packet instanceof UploadResponsePayload) return UPLOAD_RESPONSE;
         if (packet instanceof CaptureBlockEntityNbtResponsePayload) return CAPTURE_BLOCK_ENTITY_NBT_RESPONSE;
         if (packet instanceof PermissionListResponsePayload) return PERMISSION_LIST_RESPONSE;
+        if (packet instanceof BlueprintConfigResponsePayload) return BLUEPRINT_CONFIG_RESPONSE;
         throw new IllegalArgumentException("Unknown packet type: " + packet.getClass().getName());
     }
 
@@ -141,11 +162,14 @@ public class FabricNetworkHelper implements NetworkHelper {
         else if (packet instanceof CaptureBlockEntityNbtRequestPayload p) p.encode(buf);
         else if (packet instanceof PermissionListRequestPayload p) p.encode(buf);
         else if (packet instanceof PermissionUpdateRequestPayload p) p.encode(buf);
+        else if (packet instanceof BlueprintConfigRequestPayload p) p.encode(buf);
+        else if (packet instanceof BlueprintConfigUpdatePayload p) p.encode(buf);
         else if (packet instanceof SyncResponsePayload p) p.encode(buf);
         else if (packet instanceof DownloadStructureResultPayload p) p.encode(buf);
         else if (packet instanceof UploadResponsePayload p) p.encode(buf);
         else if (packet instanceof CaptureBlockEntityNbtResponsePayload p) p.encode(buf);
         else if (packet instanceof PermissionListResponsePayload p) p.encode(buf);
+        else if (packet instanceof BlueprintConfigResponsePayload p) p.encode(buf);
         else throw new IllegalArgumentException("Unknown packet type: " + packet.getClass().getName());
     }
 }

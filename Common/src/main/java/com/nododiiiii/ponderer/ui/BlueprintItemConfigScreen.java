@@ -1,14 +1,16 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.Config;
-import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.network.BlueprintConfigRequestPayload;
+import com.nododiiiii.ponderer.network.BlueprintConfigResponsePayload;
+import com.nododiiiii.ponderer.network.BlueprintConfigUpdatePayload;
+import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
-import net.createmod.catnip.net.ServerboundConfigPacket;
-import net.createmod.catnip.platform.CatnipServices;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 
+import javax.annotation.Nullable;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,11 @@ public class BlueprintItemConfigScreen extends AbstractJeiAwareFormScreen {
     private static final String CARRIER_ITEM_KEY = "carrier_item";
 
     private boolean enableBuiltinItem;
+    private boolean serverEnableBuiltinItem;
+    private boolean serverStateRequested;
+    private boolean serverStateLoaded;
+    private boolean waitingForServerUpdate;
+    private boolean viewerCanManage;
     private String carrierItem;
 
     public BlueprintItemConfigScreen(Screen parent) {
@@ -28,17 +35,23 @@ public class BlueprintItemConfigScreen extends AbstractJeiAwareFormScreen {
             UILayoutConstants.EDITOR_LIST_W,
             JeiCompat::setActiveScreen);
         this.enableBuiltinItem = readEnableBuiltinItem();
+        this.serverEnableBuiltinItem = this.enableBuiltinItem;
         this.carrierItem = readCarrierItem();
+    }
+
+    @Override
+    protected void init() {
+        super.init();
+        requestServerStateIfNeeded();
     }
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         entries.add(FieldSpecs.toggle(
-            FieldBindings.transientBool(
-                () -> enableBuiltinItem,
-                value -> enableBuiltinItem = value),
             "ponderer.ui.function_page.blueprint_item.use_builtin",
-            "ponderer.ui.function_page.blueprint_item.use_builtin.tooltip"));
+            "ponderer.ui.function_page.blueprint_item.use_builtin.tooltip",
+            () -> enableBuiltinItem,
+            this::toggleEnableBuiltinItem));
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(
                 () -> carrierItem,
@@ -67,17 +80,61 @@ public class BlueprintItemConfigScreen extends AbstractJeiAwareFormScreen {
 
         deactivateJei();
 
-        Config.ENABLE_BLUEPRINT_ITEM.set(enableBuiltinItem);
-        CatnipServices.NETWORK.sendToServer(new ServerboundConfigPacket<>(
-            Ponderer.MODID,
-            String.join(".", Config.ENABLE_BLUEPRINT_ITEM.getPath()),
-            enableBuiltinItem));
-
         Config.BLUEPRINT_CARRIER_ITEM.set(normalizedCarrier);
         carrierItem = normalizedCarrier;
+        updateBaseline(null, normalizedCarrier);
 
-        markStateSaved();
+        if (isEnableBuiltinDirty()) {
+            if (!serverStateLoaded) {
+                requestServerStateIfNeeded();
+                setErrorMessage(UIText.of("ponderer.ui.function_page.blueprint_item.wait_server"));
+                return false;
+            }
+            if (!viewerCanManage) {
+                enableBuiltinItem = serverEnableBuiltinItem;
+                setErrorMessage(UIText.of("ponderer.ui.function_page.blueprint_item.admin_required"));
+                rebuildListPreservingScroll();
+                return false;
+            }
+
+            waitingForServerUpdate = true;
+            setInfoMessage(UIText.of("ponderer.ui.function_page.blueprint_item.saving"));
+            PondererServices.NETWORK.sendToServer(new BlueprintConfigUpdatePayload(enableBuiltinItem));
+            rebuildListPreservingScroll();
+            return false;
+        }
+
+        setInfoMessage(UIText.of("ponderer.ui.function_page.blueprint_item.set", normalizedCarrier));
         return true;
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
+        return !waitingForServerUpdate && hasUnsavedChanges();
+    }
+
+    public void receiveServerState(BlueprintConfigResponsePayload payload) {
+        waitingForServerUpdate = false;
+        boolean firstLoad = !serverStateLoaded;
+        serverStateLoaded = true;
+        viewerCanManage = payload.canManage();
+        serverEnableBuiltinItem = payload.enableBuiltinItem();
+        enableBuiltinItem = payload.enableBuiltinItem();
+        writeLocalEnableBuiltinItem(payload.enableBuiltinItem());
+        updateBaseline(payload.enableBuiltinItem(), null);
+
+        String messageKey = payload.messageKey();
+        if (messageKey != null && !messageKey.isBlank()) {
+            if (payload.error()) {
+                setErrorMessage(UIText.of(messageKey));
+            } else {
+                setInfoMessage(UIText.of(messageKey));
+            }
+        } else if (firstLoad) {
+            setInfoMessage(UIText.of("ponderer.ui.function_page.blueprint_item.loaded"));
+        }
+
+        rebuildListPreservingScroll();
     }
 
     @Override
@@ -92,6 +149,65 @@ public class BlueprintItemConfigScreen extends AbstractJeiAwareFormScreen {
     protected void restoreSnapshot(Map<String, String> snapshot) {
         enableBuiltinItem = Boolean.parseBoolean(snapshot.getOrDefault(ENABLE_BUILTIN_KEY, String.valueOf(readEnableBuiltinItem())));
         carrierItem = snapshot.getOrDefault(CARRIER_ITEM_KEY, readCarrierItem());
+    }
+
+    private void toggleEnableBuiltinItem() {
+        if (waitingForServerUpdate) {
+            setInfoMessage(UIText.of("ponderer.ui.function_page.blueprint_item.saving"));
+            return;
+        }
+        if (!serverStateLoaded) {
+            requestServerStateIfNeeded();
+            setErrorMessage(UIText.of("ponderer.ui.function_page.blueprint_item.wait_server"));
+            return;
+        }
+        if (!viewerCanManage) {
+            enableBuiltinItem = serverEnableBuiltinItem;
+            setErrorMessage(UIText.of("ponderer.ui.function_page.blueprint_item.admin_required"));
+            rebuildListPreservingScroll();
+            return;
+        }
+
+        enableBuiltinItem = !enableBuiltinItem;
+        clearStatusMessages();
+    }
+
+    private void requestServerStateIfNeeded() {
+        if (serverStateRequested || serverStateLoaded) {
+            return;
+        }
+        serverStateRequested = true;
+        setInfoMessage(UIText.of("ponderer.ui.function_page.blueprint_item.loading"));
+        PondererServices.NETWORK.sendToServer(new BlueprintConfigRequestPayload());
+    }
+
+    private boolean isEnableBuiltinDirty() {
+        String baselineValue = isBaselineCaptured() ? baselineStateSnapshot().get(ENABLE_BUILTIN_KEY) : null;
+        boolean baseline = baselineValue == null ? serverEnableBuiltinItem : Boolean.parseBoolean(baselineValue);
+        return enableBuiltinItem != baseline;
+    }
+
+    private void updateBaseline(@Nullable Boolean enableBuiltin, @Nullable String carrier) {
+        Map<String, String> baseline = new LinkedHashMap<>();
+        if (isBaselineCaptured()) {
+            baseline.putAll(baselineStateSnapshot());
+        } else {
+            baseline.putAll(snapshotState());
+        }
+        if (enableBuiltin != null) {
+            baseline.put(ENABLE_BUILTIN_KEY, String.valueOf(enableBuiltin));
+        }
+        if (carrier != null) {
+            baseline.put(CARRIER_ITEM_KEY, carrier);
+        }
+        restoreBaselineState(baseline);
+    }
+
+    private static void writeLocalEnableBuiltinItem(boolean value) {
+        try {
+            Config.ENABLE_BLUEPRINT_ITEM.set(value);
+        } catch (Exception ignored) {
+        }
     }
 
     private static boolean readEnableBuiltinItem() {
