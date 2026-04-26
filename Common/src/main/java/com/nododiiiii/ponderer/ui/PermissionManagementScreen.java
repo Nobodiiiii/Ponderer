@@ -9,8 +9,8 @@ import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
 import com.nododiiiii.ponderer.ui.catnip.LabeledActionStripListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PlayerPermissionListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
-import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -29,6 +29,8 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
     private static final int SCREEN_WIDTH = UILayoutConstants.EDITOR_LIST_W;
 
     private final List<PermissionListResponsePayload.Entry> entries = new ArrayList<>();
+    private final Map<String, UploadPermissions.Role> pendingRoleEdits = new LinkedHashMap<>();
+    private final Map<String, String> pendingRemovals = new LinkedHashMap<>();
     private String pendingSubject = "";
     private UploadPermissions.Role selectedRole = UploadPermissions.Role.UPLOAD;
     private String viewerRole = "";
@@ -44,8 +46,6 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
     @Override
     protected void init() {
         super.init();
-        hideActionButton(saveChanges);
-        hideActionButton(discardChanges);
         if (!requestSent) {
             requestRefresh();
         }
@@ -69,8 +69,10 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         waitingForServer = false;
         PermissionListResponsePayload.Entry currentEntry = findEntry(pendingSubject);
         if (currentEntry != null) {
-            selectedRole = roleFromId(currentEntry.role());
+            selectedRole = displayRole(currentEntry);
         }
+        reconcilePendingChanges();
+        restoreBaselineState(new LinkedHashMap<>());
 
         if (payload.messageKey() != null && !payload.messageKey().isBlank()) {
             String message = payload.messageSubject() == null || payload.messageSubject().isBlank()
@@ -148,7 +150,8 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
 
     private void addRoleSection(List<DeclarativeFormEntry> formEntries, UploadPermissions.Role role) {
         List<PermissionListResponsePayload.Entry> matching = entries.stream()
-            .filter(entry -> role.id().equals(entry.role()))
+            .filter(entry -> !isPendingRemoval(entry.subject()))
+            .filter(entry -> role.id().equals(roleFromId(entry.role()).id()))
             .toList();
         if (matching.isEmpty()) {
             return;
@@ -156,41 +159,40 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
 
         formEntries.add(screen -> screen.createSectionHeaderEntry(UIText.of(roleSectionKey(role), matching.size())));
         for (PermissionListResponsePayload.Entry entry : matching) {
-            formEntries.add(screen -> {
-                UploadPermissions.Role entryRole = roleFromId(entry.role());
-                PlainTextListEntry row = screen.createTextEntry(
-                    roleLabelKey(entryRole),
-                    entry.locked()
-                        ? "ponderer.ui.function_page.permissions.operator_locked.tooltip"
-                        : "ponderer.ui.function_page.permissions.row.role.tooltip",
-                    null,
-                    entry.subject(),
-                    ignored -> {
-                    });
-                row.field().setEditable(false);
-                if (entry.locked()) {
-                    row.setTrailingText(() -> UIText.of("ponderer.ui.function_page.permissions.source.operator"));
-                    return;
-                }
-                if (!canManage) {
-                    return;
-                }
-
-                UploadPermissions.Role nextRole = nextRole(entryRole);
-                row.addTrailingButton(
-                    58,
-                    () -> sendSet(entry.subject(), nextRole),
-                    () -> UIText.of(roleLabelKey(nextRole)),
-                    () -> roleColor(nextRole),
-                    UIText.of("ponderer.ui.function_page.permissions.row.role.tooltip"));
-                row.addTrailingButton(
-                    38,
-                    () -> sendRemove(entry.subject()),
-                    () -> UIText.of("ponderer.ui.function_page.permissions.remove"),
-                    () -> 0xFF9090,
-                    UIText.of("ponderer.ui.function_page.permissions.row.remove.tooltip"));
-            });
+            formEntries.add(screen -> screen.appendBuiltEntry(createRoleEntry(entry)));
         }
+    }
+
+    private PlayerPermissionListEntry createRoleEntry(PermissionListResponsePayload.Entry entry) {
+        UploadPermissions.Role entryRole = displayRole(entry);
+        UploadPermissions.Role nextRole = nextRole(entryRole);
+        boolean editable = canManage && !entry.locked();
+        boolean dirty = isEntryRoleDirty(entry);
+        String roleTooltipKey = entry.locked()
+            ? "ponderer.ui.function_page.permissions.operator_locked.tooltip"
+            : "ponderer.ui.function_page.permissions.row.role.tooltip";
+        return new PlayerPermissionListEntry(
+            entry.subject(),
+            UIText.of(roleTooltipKey),
+            List.of(
+                ActionStripListEntry.button(
+                    () -> entry.locked()
+                        ? UIText.of("ponderer.ui.function_page.permissions.role.operator")
+                        : UIText.of(roleLabelKey(entryRole)),
+                    tooltip(roleTooltipKey),
+                    () -> stageRoleEdit(entry, nextRole),
+                    () -> roleColor(entryRole),
+                    () -> editable),
+                ActionStripListEntry.iconButton(
+                    PonderGuiTextures.ICON_CONFIG_SAVE,
+                    () -> sendEntryRoleEdit(entry),
+                    tooltip("ponderer.ui.function_page.permissions.set.tooltip"),
+                    () -> editable && dirty),
+                ActionStripListEntry.failIconButton(
+                    PonderGuiTextures.ICON_DISABLE,
+                    () -> stageRemoval(entry),
+                    tooltip("ponderer.ui.function_page.permissions.row.remove.tooltip"),
+                    () -> editable)));
     }
 
     private void requestRefresh() {
@@ -225,16 +227,49 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         rebuildEntries(currentListScroll());
     }
 
-    private void sendRemove(String subject) {
-        if (!canManage) {
-            setErrorMessage(UIText.of("ponderer.ui.function_page.permissions.denied", subject));
+    private void stageRoleEdit(PermissionListResponsePayload.Entry entry, UploadPermissions.Role role) {
+        if (!canEditEntry(entry)) {
             return;
         }
-
-        waitingForServer = true;
-        setInfoMessage(UIText.of("ponderer.ui.function_page.permissions.saving"));
-        PondererServices.NETWORK.sendToServer(new PermissionUpdateRequestPayload("remove", subject, ""));
+        String key = subjectKey(entry.subject());
+        pendingRemovals.remove(key);
+        if (role == roleFromId(entry.role())) {
+            pendingRoleEdits.remove(key);
+        } else {
+            pendingRoleEdits.put(key, role);
+        }
+        clearStatusMessages();
         rebuildEntries(currentListScroll());
+    }
+
+    private void stageRemoval(PermissionListResponsePayload.Entry entry) {
+        if (!canEditEntry(entry)) {
+            return;
+        }
+        String key = subjectKey(entry.subject());
+        pendingRoleEdits.remove(key);
+        pendingRemovals.put(key, entry.subject());
+        clearStatusMessages();
+        rebuildEntries(currentListScroll());
+    }
+
+    private void sendEntryRoleEdit(PermissionListResponsePayload.Entry entry) {
+        if (!canEditEntry(entry) || !isEntryRoleDirty(entry)) {
+            return;
+        }
+        sendSet(entry.subject(), displayRole(entry));
+    }
+
+    private boolean canEditEntry(PermissionListResponsePayload.Entry entry) {
+        if (!canManage) {
+            setErrorMessage(UIText.of("ponderer.ui.function_page.permissions.denied", entry.subject()));
+            return false;
+        }
+        if (entry.locked() || isLockedSubject(entry.subject())) {
+            setErrorMessage(UIText.of("ponderer.ui.function_page.permissions.operator_locked", entry.subject()));
+            return false;
+        }
+        return true;
     }
 
     private void cycleSelectedRole() {
@@ -258,7 +293,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
         pendingSubject = value == null ? "" : value;
         PermissionListResponsePayload.Entry entry = findEntry(pendingSubject);
         if (entry != null) {
-            selectedRole = roleFromId(entry.role());
+            selectedRole = displayRole(entry);
         }
     }
 
@@ -312,31 +347,77 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
     @Override
     protected Map<String, String> snapshotState() {
         Map<String, String> snapshot = new LinkedHashMap<>();
-        snapshot.put("subject", pendingSubject);
-        snapshot.put("role", selectedRole.id());
+        for (Map.Entry<String, UploadPermissions.Role> entry : pendingRoleEdits.entrySet()) {
+            snapshot.put("role:" + entry.getKey(), entry.getValue().id());
+        }
+        for (Map.Entry<String, String> entry : pendingRemovals.entrySet()) {
+            snapshot.put("remove:" + entry.getKey(), entry.getValue());
+        }
         return snapshot;
     }
 
     @Override
     protected void restoreSnapshot(Map<String, String> snapshot) {
-        pendingSubject = snapshot.getOrDefault("subject", pendingSubject);
-        UploadPermissions.Role role = UploadPermissions.Role.fromId(snapshot.get("role"));
-        if (role != null) {
-            selectedRole = role;
+        pendingRoleEdits.clear();
+        pendingRemovals.clear();
+        for (Map.Entry<String, String> entry : snapshot.entrySet()) {
+            if (entry.getKey().startsWith("role:")) {
+                UploadPermissions.Role role = UploadPermissions.Role.fromId(entry.getValue());
+                if (role != null) {
+                    pendingRoleEdits.put(entry.getKey().substring("role:".length()), role);
+                }
+            } else if (entry.getKey().startsWith("remove:")) {
+                pendingRemovals.put(entry.getKey().substring("remove:".length()), entry.getValue());
+            }
         }
     }
 
     @Override
-    protected boolean saveEdits() {
-        return false;
+    protected void afterSnapshotRestored(Map<String, String> snapshot) {
+        rebuildEntries(currentListScroll());
     }
 
-    private static void hideActionButton(@Nullable BoxWidget button) {
-        if (button == null) {
-            return;
+    @Override
+    protected boolean saveEdits() {
+        if (!hasPendingListChanges()) {
+            return true;
         }
-        button.visible = false;
-        button.active = false;
+        if (!canManage) {
+            setErrorMessage(UIText.of("ponderer.ui.function_page.permissions.denied", pendingSubject));
+            return false;
+        }
+
+        for (String subject : pendingRemovals.values()) {
+            if (isLockedSubject(subject)) {
+                setErrorMessage(UIText.of("ponderer.ui.function_page.permissions.operator_locked", subject));
+                return false;
+            }
+        }
+        for (String key : pendingRoleEdits.keySet()) {
+            PermissionListResponsePayload.Entry entry = findEntryByKey(key);
+            if (entry == null) {
+                continue;
+            }
+            if (entry.locked()) {
+                setErrorMessage(UIText.of("ponderer.ui.function_page.permissions.operator_locked", entry.subject()));
+                return false;
+            }
+        }
+
+        waitingForServer = true;
+        setInfoMessage(UIText.of("ponderer.ui.function_page.permissions.saving"));
+        for (String subject : pendingRemovals.values()) {
+            PondererServices.NETWORK.sendToServer(new PermissionUpdateRequestPayload("remove", subject, ""));
+        }
+        for (Map.Entry<String, UploadPermissions.Role> entry : pendingRoleEdits.entrySet()) {
+            PermissionListResponsePayload.Entry source = findEntryByKey(entry.getKey());
+            if (source != null) {
+                PondererServices.NETWORK.sendToServer(new PermissionUpdateRequestPayload(
+                    "set", source.subject(), entry.getValue().id()));
+            }
+        }
+        rebuildEntries(currentListScroll());
+        return true;
     }
 
     private static java.util.function.Supplier<List<Component>> tooltip(String key) {
@@ -386,5 +467,43 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
             case UPLOAD -> 0x90E890;
             case PULL -> 0x88C8FF;
         };
+    }
+
+    private UploadPermissions.Role displayRole(PermissionListResponsePayload.Entry entry) {
+        return pendingRoleEdits.getOrDefault(subjectKey(entry.subject()), roleFromId(entry.role()));
+    }
+
+    private boolean isEntryRoleDirty(PermissionListResponsePayload.Entry entry) {
+        return pendingRoleEdits.containsKey(subjectKey(entry.subject()));
+    }
+
+    private boolean isPendingRemoval(String subject) {
+        return pendingRemovals.containsKey(subjectKey(subject));
+    }
+
+    private boolean hasPendingListChanges() {
+        return !pendingRoleEdits.isEmpty() || !pendingRemovals.isEmpty();
+    }
+
+    private void reconcilePendingChanges() {
+        pendingRoleEdits.entrySet().removeIf(entry -> {
+            PermissionListResponsePayload.Entry current = findEntryByKey(entry.getKey());
+            return current == null || roleFromId(current.role()) == entry.getValue();
+        });
+        pendingRemovals.entrySet().removeIf(entry -> findEntryByKey(entry.getKey()) == null);
+    }
+
+    @Nullable
+    private PermissionListResponsePayload.Entry findEntryByKey(String key) {
+        for (PermissionListResponsePayload.Entry entry : entries) {
+            if (subjectKey(entry.subject()).equals(key)) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    private static String subjectKey(String subject) {
+        return subject == null ? "" : subject.trim().toLowerCase(Locale.ROOT);
     }
 }

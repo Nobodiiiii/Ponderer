@@ -73,6 +73,16 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
         return new ButtonModel(widget, null, tooltipGetter, () -> 0xFFFFFF, activeGetter, ICON_BUTTON_SIZE);
     }
 
+    public static ButtonModel failIconButton(PonderGuiTextures texture,
+                                             Runnable action,
+                                             @Nullable Supplier<List<Component>> tooltipGetter,
+                                             BooleanSupplier activeGetter) {
+        BoxWidget widget = new BoxWidget(0, 0, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE).withPadding(2, 2).withCallback(action);
+        DelegatedStencilElement icon = PonderIconStencils.centered(texture);
+        PonderIconStencils.attachFail(widget, icon);
+        return new ButtonModel(widget, null, tooltipGetter, () -> 0xFFFFFF, activeGetter, ICON_BUTTON_SIZE);
+    }
+
     @Override
     public boolean matchesQuery(String query) {
         return false;

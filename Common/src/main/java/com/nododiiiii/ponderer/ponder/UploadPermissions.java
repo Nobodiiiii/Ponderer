@@ -25,7 +25,7 @@ public final class UploadPermissions {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final String PERMISSIONS_FILE = "permissions.txt";
     private static final String LEGACY_UPLOAD_ALLOWLIST_FILE = "upload_allowlist.txt";
-    private static final Pattern USERNAME_PATTERN = Pattern.compile("[A-Za-z0-9_]{1,16}");
+    private static final Pattern USERNAME_PATTERN = Pattern.compile("[A-Za-z0-9_]{1,64}");
 
     private UploadPermissions() {
     }

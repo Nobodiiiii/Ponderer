@@ -192,6 +192,9 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         }
 
         updateFilter(searchQuery);
+        if (preservedScroll != null && searchQuery.isEmpty()) {
+            list.setScrollAmount(preservedScroll);
+        }
     }
 
     protected final double currentListScroll() {
