@@ -1,5 +1,112 @@
 # Changelog
 
+## 1.8.2
+
+### 新增功能 / New Features
+
+- **开发者模式与可编辑场景**：新增默认可编辑与开发者模式配置；场景可显式标记 `editable`，只读场景在尝试编辑时会提示并可直达模组配置。
+  Added `default editable` and `developer mode` config options. Scenes can now declare `editable`, and readonly scenes show a guided prompt that links directly to mod config before editing.
+
+- **权限管理界面**：新增服务端权限管理页面，支持按管理员 / 上传 / 拉取三类权限查看和调整白名单，并处理 OP 权限同步与只读视图。
+  Added a server-side permission management screen for admin/upload/pull roles, with operator synchronization and readonly viewer states.
+
+- **服务端蓝图物品配置**：新增蓝图物品配置页面，支持同步内置蓝图物品开关与载体物品设置。
+  Added a blueprint item config screen with synchronized server-side builtin blueprint toggles and carrier item settings.
+
+### 改进 / Improvements
+
+- **通用对话框与导航重构**：引入统一的对话框、返回状态与折叠分组列表组件，改进功能页面与权限页面的交互体验。
+  Introduced reusable dialog, navigation-state, and collapsible list components to improve Function Page and permission workflows.
+
+---
+
+## 1.8.1
+
+### 改进 / Improvements
+
+- **只读资源包导入提示**：编辑来自资源包的场景时，新增只读提示与一键导入为本地可编辑副本的流程，导入导出体验更清晰。
+  Added a readonly import prompt when editing resource-pack scenes, allowing one-click import to local editable copies with a clearer import/export flow.
+
+---
+
+## 1.8.0
+
+### 新增功能 / New Features
+
+- **界面型思索片段**：新增 `show_interface`、`change_interface_slot`、`click_interface` 步骤，可在思索中镜像 GUI、修改槽位并模拟点击。
+  Added `show_interface`, `change_interface_slot`, and `click_interface` steps for mirrored GUIs, slot changes, and simulated clicks inside Ponder scenes.
+
+- **片段类型选择**：新建片段时可直接选择结构片段或界面片段，界面型思索工作流更完整。
+  Added scene-segment type selection so new segments can start as either structure scenes or interface scenes.
+
+### 改进 / Improvements
+
+- **编辑器与预览重构**：重写大量 UI 基础设施，支持搜索、独立功能页面、按键设置，以及 Forge 侧的内嵌界面预览与 JEI 叠层处理。
+  Reworked major UI foundations with search, a dedicated function page, keybinding settings, and Forge-side embedded interface preview with JEI overlay handling.
+
+---
+
+## 1.7.1
+
+### 改进 / Improvements
+
+- **区段与方块入场动画**：`show_section_and_merge` 与 `set_block` 支持分层 / 分方向入场动画，并可配置时长、间隔与智能显示。
+  Added layered/directional entrance animations to `show_section_and_merge` and `set_block`, with configurable duration, interval, and smart visibility handling.
+
+- **1.7.1 系列补充优化**：修复区域选点与蓝图选区问题，改进单端安装兼容性，并为 `show_structure` 新增旋转偏移。
+  Follow-up 1.7.1 improvements fixed area picking and blueprint selection, improved single-sided install compatibility, and added rotation offset support to `show_structure`.
+
+---
+
+## 1.7.0
+
+### 新增功能 / New Features
+
+- **世界触发思索**：新增触发管理器与触发方式编辑器，支持按结构或坐标范围在世界中触发思索，并提供自动触发、大字提示、小字提示等模式。
+  Added world-space ponder triggers with a dedicated trigger manager/editor, supporting structure-based or coordinate-based activation plus auto/title/subtitle hint modes.
+
+- **触发选点与结构选择工具**：新增触发区域选点流程、结构列表界面与专用快捷键，完善“随地大小寻思”的工作流。
+  Added coordinate picking, a structure list UI, and dedicated keybindings to support the new in-world trigger workflow.
+
+---
+
+## 1.6.5
+
+### 新增功能 / New Features
+
+- **高亮区域步骤**：新增 `highlight_section` 步骤，用于强调指定方块或区域。
+  Added a `highlight_section` step for emphasizing specific blocks or regions.
+
+### 改进 / Improvements
+
+- **优化新建步骤界面**：改进步骤类型选择与新建流程，提升编辑效率。
+  Improved the add-step selector and creation flow for faster editing.
+
+---
+
+## 1.6.4
+
+### 新增功能 / New Features
+
+- **调整视角步骤**：新增 `zoom_scene` 步骤，支持平滑移动视角中心并调整缩放倍率。
+  Added a `zoom_scene` step for smoothly moving the camera center and adjusting zoom level.
+
+### 改进 / Improvements
+
+- **区段操作增强**：改进区段移动 / 旋转相关步骤，并扩展 `show_structure` 的显示参数。
+  Enhanced section move/rotate workflows and expanded `show_structure` display controls.
+
+---
+
+## 1.6.3
+
+### 改进 / Improvements
+
+- **NBT 选取与编辑增强**：补齐更完整的 NBT 选取流程，改进方块与实体 NBT 编辑步骤，并新增实体 NBT 修改界面。
+  Expanded the NBT picking workflow, improved block/entity NBT editing steps, and added a dedicated entity NBT modification screen.
+
+---
+
 ## 1.6.0
 
 ### 新增 / Added
@@ -9,6 +116,15 @@
 
 - **平台服务抽象（SPI）**：新增 `PlatformHelper`、`NetworkHelper`、`RegistrationHelper`，通过 `ServiceLoader` 按平台加载实现。
   Added SPI-based platform services (`PlatformHelper`, `NetworkHelper`, `RegistrationHelper`) loaded through `ServiceLoader`.
+
+---
+
+## 1.5.1
+
+### 改进 / Improvements
+
+- **资源包导入导出优化**：进一步完善资源包场景的导入导出、运行时注册与物品列表展示，提升资源包工作流可用性。
+  Further improved resource-pack scene import/export, runtime registration, and item-list presentation for a smoother pack workflow.
 
 ---
 
