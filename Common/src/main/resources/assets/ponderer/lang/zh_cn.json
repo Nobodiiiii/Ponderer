@@ -738,6 +738,8 @@
   "ponderer.ui.function_page.permissions.section.admin": "管理员 (%s)",
   "ponderer.ui.function_page.permissions.section.upload": "上传权限 (%s)",
   "ponderer.ui.function_page.permissions.section.pull": "拉取权限 (%s)",
+  "ponderer.ui.function_page.permissions.section.expand": "展开",
+  "ponderer.ui.function_page.permissions.section.collapse": "收起",
   "ponderer.ui.function_page.permissions.set": "授予/更新",
   "ponderer.ui.function_page.permissions.set.tooltip": "由管理员将该玩家写入服务端白名单",
   "ponderer.ui.function_page.permissions.use_self": "填入自己",

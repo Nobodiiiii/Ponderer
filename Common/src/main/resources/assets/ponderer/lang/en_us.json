@@ -757,6 +757,8 @@
   "ponderer.ui.function_page.permissions.section.admin": "Admins (%s)",
   "ponderer.ui.function_page.permissions.section.upload": "Upload Access (%s)",
   "ponderer.ui.function_page.permissions.section.pull": "Pull Access (%s)",
+  "ponderer.ui.function_page.permissions.section.expand": "Expand",
+  "ponderer.ui.function_page.permissions.section.collapse": "Collapse",
   "ponderer.ui.function_page.permissions.set": "Grant/Update",
   "ponderer.ui.function_page.permissions.set.tooltip": "Admins can write this player to the server allowlist",
   "ponderer.ui.function_page.permissions.use_self": "Use Self",

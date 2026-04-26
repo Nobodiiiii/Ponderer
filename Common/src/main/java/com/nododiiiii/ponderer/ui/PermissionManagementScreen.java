@@ -6,6 +6,7 @@ import com.nododiiiii.ponderer.network.PermissionUpdateRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
+import com.nododiiiii.ponderer.ui.catnip.CollapsibleSectionHeaderListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
 import com.nododiiiii.ponderer.ui.catnip.LabeledActionStripListEntry;
@@ -19,10 +20,12 @@ import net.minecraft.network.chat.Component;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormScreen {
 
@@ -31,6 +34,7 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
     private final List<PermissionListResponsePayload.Entry> entries = new ArrayList<>();
     private final Map<String, UploadPermissions.Role> pendingRoleEdits = new LinkedHashMap<>();
     private final Map<String, String> pendingRemovals = new LinkedHashMap<>();
+    private final Set<UploadPermissions.Role> collapsedRoleSections = EnumSet.noneOf(UploadPermissions.Role.class);
     private String pendingSubject = "";
     private UploadPermissions.Role selectedRole = UploadPermissions.Role.UPLOAD;
     private String viewerRole = "";
@@ -157,7 +161,16 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
             return;
         }
 
-        formEntries.add(screen -> screen.createSectionHeaderEntry(UIText.of(roleSectionKey(role), matching.size())));
+        formEntries.add(screen -> screen.appendBuiltEntry(new CollapsibleSectionHeaderListEntry(
+            () -> UIText.of(roleSectionKey(role), matching.size()),
+            () -> isRoleSectionCollapsed(role),
+            () -> toggleRoleSection(role),
+            () -> UIText.of("ponderer.ui.function_page.permissions.section.expand"),
+            () -> UIText.of("ponderer.ui.function_page.permissions.section.collapse"))));
+        if (isRoleSectionCollapsed(role)) {
+            return;
+        }
+
         for (PermissionListResponsePayload.Entry entry : matching) {
             formEntries.add(screen -> screen.appendBuiltEntry(createRoleEntry(entry)));
         }
@@ -270,6 +283,17 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
             return false;
         }
         return true;
+    }
+
+    private boolean isRoleSectionCollapsed(UploadPermissions.Role role) {
+        return collapsedRoleSections.contains(role);
+    }
+
+    private void toggleRoleSection(UploadPermissions.Role role) {
+        if (!collapsedRoleSections.remove(role)) {
+            collapsedRoleSections.add(role);
+        }
+        rebuildEntries(currentListScroll());
     }
 
     private void cycleSelectedRole() {
