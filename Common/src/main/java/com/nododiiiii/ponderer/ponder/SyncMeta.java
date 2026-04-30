@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.Reader;
 import java.io.Writer;
@@ -67,6 +68,13 @@ public final class SyncMeta {
         Map<String, String> meta = load();
         meta.put(key, sha256(content));
         save(meta);
+    }
+
+    public static String metaKey(String category, String id, @Nullable String pack) {
+        if (pack == null || pack.isBlank()) {
+            return category + "/" + id;
+        }
+        return category + "/[" + pack + "] " + id;
     }
 
     /**

@@ -32,7 +32,7 @@ public class SceneTransformOffsetMixinFabric {
     }
 
     @Inject(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;)Lcom/mojang/blaze3d/vertex/PoseStack;", at = @At("TAIL"), require = 0, remap = false)
-    private void ponderer$applyViewOffset(PoseStack ms, CallbackInfoReturnable<PoseStack> cir) {
+    private void ponderer$applyViewOffsetOneArg(PoseStack ms, CallbackInfoReturnable<PoseStack> cir) {
         if (ponderer$handledTwoArgApply) {
             return;
         }
@@ -41,7 +41,7 @@ public class SceneTransformOffsetMixinFabric {
     }
 
     @Inject(method = "apply(Lnet/minecraft/class_4587;F)Lnet/minecraft/class_4587;", at = @At("TAIL"), require = 0, remap = false)
-    private void ponderer$applyViewOffsetIntermediary(PoseStack ms, float pt, CallbackInfoReturnable<PoseStack> cir) {
+    private void ponderer$applyViewOffsetTwoArg(PoseStack ms, float pt, CallbackInfoReturnable<PoseStack> cir) {
         ponderer$handledTwoArgApply = true;
         ponderer$applyScaleOverride(pt);
         ponderer$applyViewOffsetCommon(ms, pt);

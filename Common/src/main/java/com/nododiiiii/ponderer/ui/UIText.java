@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.minecraft.client.resources.language.I18n;
 
 import javax.annotation.Nullable;
@@ -33,6 +34,17 @@ public final class UIText {
         String translated = I18n.get(key, args);
         if (!key.equals(translated)) return translated;
         return fallbackTranslate(key, args);
+    }
+
+    public static String saveError(SceneStore.LocalSaveResult result) {
+        if (result == null) {
+            return of("ponderer.ui.save_error.io", "I/O error");
+        }
+        String key = result.uiMessageKey();
+        if (key == null || key.isBlank()) {
+            return of("ponderer.ui.save_error.io", result.englishMessage());
+        }
+        return of(key, result.uiMessageArgs());
     }
 
     private static String fallbackTranslate(String key, @Nullable Object[] args) {

@@ -44,7 +44,7 @@ public final class SceneRuntime {
     }
 
     /**
-    * Clear the ponder ID → scene key mapping. Called before scene registration.
+     * Clear the ponder ID → scene key mapping. Called before scene registration.
      */
     public static void clearPonderIdMapping() {
         ponderIdToSceneKeys.clear();

@@ -42,7 +42,7 @@ public class StructureDescriber {
     public static StructureInfo describe(InputStream inputStream) throws IOException {
         CompoundTag nbt = NbtIo.read(
             new DataInputStream(new BufferedInputStream(new GZIPInputStream(inputStream))),
-            NbtAccounter.create(0x20000000L)
+            new NbtAccounter(0x20000000L, 512)
         );
         return describeFromNbt(nbt);
     }

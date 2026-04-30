@@ -10,7 +10,7 @@ import java.util.ServiceLoader;
 
 /**
  * Central service locator using Java SPI (ServiceLoader).
- * Each platform (NeoForge/Fabric) provides implementations via META-INF/services.
+ * Each platform (Forge/Fabric) provides implementations via META-INF/services.
  */
 public final class PondererServices {
     private static final Logger LOGGER = LoggerFactory.getLogger("Ponderer");

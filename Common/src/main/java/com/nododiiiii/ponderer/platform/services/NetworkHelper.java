@@ -5,7 +5,6 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Platform abstraction for networking (packet send/receive).
- * NeoForge: PayloadRegistrar. Fabric: Fabric Networking API.
  */
 public interface NetworkHelper {
 

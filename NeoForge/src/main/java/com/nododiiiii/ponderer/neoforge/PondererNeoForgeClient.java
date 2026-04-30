@@ -9,6 +9,7 @@ import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
@@ -42,6 +43,7 @@ import java.util.List;
 public class PondererNeoForgeClient {
 
     private static final BlueprintHandler blueprintHandler = new BlueprintHandler();
+    private static boolean triggerKeyWasDown = false;
 
     static void init(IEventBus modEventBus) {
         BlueprintHandler.INSTANCE = blueprintHandler;
@@ -55,6 +57,7 @@ public class PondererNeoForgeClient {
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseInput);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGH, PondererNeoForgeClient::onScreenMouseClick);
+        StickSnapshotFeature.onClientInit();
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
@@ -77,8 +80,9 @@ public class PondererNeoForgeClient {
     }
 
     private static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
-        event.register(ModKeyBindings.OPEN_FUNCTION_PAGE);
-        event.register(ModKeyBindings.TRIGGER_PONDER);
+        for (var keyMapping : ModKeyBindings.all()) {
+            event.register(keyMapping);
+        }
     }
 
     private static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
@@ -93,8 +97,13 @@ public class PondererNeoForgeClient {
             mc.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
         }
         if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
-            ScreenOpener.transitionTo(new FunctionScreen());
+            ScreenOpener.open(new FunctionScreen());
         }
+        boolean triggerPressed = ModKeyBindings.TRIGGER_PONDER.isDown();
+        if (triggerPressed && !triggerKeyWasDown) {
+            TriggerManager.onTriggerKeyPressed();
+        }
+        triggerKeyWasDown = triggerPressed;
     }
 
     // --- Blueprint events ---

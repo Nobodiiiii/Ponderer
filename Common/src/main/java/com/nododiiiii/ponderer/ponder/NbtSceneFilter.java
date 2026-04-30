@@ -1,8 +1,13 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
 import com.mojang.logging.LogUtils;
 import net.createmod.ponder.foundation.PonderScene;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -151,8 +156,7 @@ public final class NbtSceneFilter {
         if (filter == null || filter.isEmpty()) return true;
 
         try {
-            // Special-case written books: matching by title is more stable across versions
-            // than full payload comparison and allows "same title => shared scenes".
+            // Special-case written books: matching by title is more stable than full payload matching.
             if (stack.is(Items.WRITTEN_BOOK)) {
                 String requiredTitle = extractWrittenBookTitle(filter);
                 if (requiredTitle != null && !requiredTitle.isBlank()) {
@@ -163,12 +167,10 @@ public final class NbtSceneFilter {
 
             CompoundTag customTag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
 
-            // 1) Direct match for "raw NBT" filters (legacy/new lightweight filters)
             if (!customTag.isEmpty() && isSubset(filter, customTag)) {
                 return true;
             }
 
-            // 2) Legacy full-stack format from Forge era: {id, Count, tag:{...}}
             if (filter.contains("tag", Tag.TAG_COMPOUND)) {
                 CompoundTag legacyTag = filter.getCompound("tag");
                 if (!legacyTag.isEmpty() && isSubset(legacyTag, customTag)) {
@@ -176,30 +178,29 @@ public final class NbtSceneFilter {
                 }
             }
 
-            // 3) Full stack serialization match (1.21 components format)
-            var level = Minecraft.getInstance().level;
-            if (level != null) {
-                Tag savedTag = stack.saveOptional(level.registryAccess());
-                if (savedTag instanceof CompoundTag ct) {
-                    if (isSubsetIgnoringCount(filter, ct)) {
-                        return true;
-                    }
-
-                    if (filter.contains("components", Tag.TAG_COMPOUND)
-                        && ct.contains("components", Tag.TAG_COMPOUND)
-                        && isSubset(filter.getCompound("components"), ct.getCompound("components"))) {
-                        return true;
-                    }
-
-                    if (filter.contains("tag", Tag.TAG_COMPOUND)
-                        && ct.contains("tag", Tag.TAG_COMPOUND)
-                        && isSubset(filter.getCompound("tag"), ct.getCompound("tag"))) {
-                        return true;
-                    }
-                }
+            RegistryAccess registryAccess = getRegistryAccess();
+            if (registryAccess == null) {
+                return false;
             }
 
-            return false;
+            Tag savedTag = stack.saveOptional(registryAccess);
+            if (!(savedTag instanceof CompoundTag stackTag)) {
+                return false;
+            }
+
+            if (isSubsetIgnoringCount(filter, stackTag)) {
+                return true;
+            }
+
+            if (filter.contains("components", Tag.TAG_COMPOUND)
+                    && stackTag.contains("components", Tag.TAG_COMPOUND)
+                    && isSubset(filter.getCompound("components"), stackTag.getCompound("components"))) {
+                return true;
+            }
+
+            return filter.contains("tag", Tag.TAG_COMPOUND)
+                    && stackTag.contains("tag", Tag.TAG_COMPOUND)
+                    && isSubset(filter.getCompound("tag"), stackTag.getCompound("tag"));
         } catch (Exception e) {
             LOGGER.debug("NBT match check failed", e);
             return false;
@@ -221,21 +222,19 @@ public final class NbtSceneFilter {
             return fromCustom;
         }
 
-        var level = Minecraft.getInstance().level;
-        if (level == null) {
+        RegistryAccess registryAccess = getRegistryAccess();
+        if (registryAccess == null) {
             return null;
         }
-
-        Tag savedTag = stack.saveOptional(level.registryAccess());
+        Tag savedTag = stack.saveOptional(registryAccess);
         if (!(savedTag instanceof CompoundTag ct)) {
             return null;
         }
-
         return extractWrittenBookTitle(ct);
     }
 
     @Nullable
-    private static String extractWrittenBookTitle(CompoundTag tag) {
+    private static String extractWrittenBookTitle(@Nullable CompoundTag tag) {
         if (tag == null || tag.isEmpty()) {
             return null;
         }
@@ -250,6 +249,7 @@ public final class NbtSceneFilter {
             if (nested != null && !nested.isBlank()) return nested;
         }
 
+        // 兼容 1.21+ 组件化写法: components.minecraft:written_book_content.title
         if (tag.contains("components", Tag.TAG_COMPOUND)) {
             CompoundTag components = tag.getCompound("components");
             if (components.contains("minecraft:written_book_content", Tag.TAG_COMPOUND)) {
@@ -270,18 +270,85 @@ public final class NbtSceneFilter {
 
         if (titleTag instanceof CompoundTag compound) {
             if (compound.contains("raw", Tag.TAG_STRING)) {
-                return compound.getString("raw");
+                return normalizeTitleString(compound.getString("raw"));
             }
             if (compound.contains("text", Tag.TAG_STRING)) {
-                return compound.getString("text");
+                return normalizeTitleString(compound.getString("text"));
             }
             if (compound.contains("translate", Tag.TAG_STRING)) {
-                return compound.getString("translate");
+                return normalizeTitleString(compound.getString("translate"));
             }
-            return compound.toString();
+            return normalizeTitleString(compound.toString());
         }
 
-        return titleTag.getAsString();
+        return normalizeTitleString(titleTag.getAsString());
+    }
+
+    private static String normalizeTitleString(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        if (s.isEmpty()) return s;
+
+        // 兼容 title 为 JSON 文本（如 {"text":"xxx"}）的情况。
+        if (s.startsWith("{") || s.startsWith("[")) {
+            try {
+                JsonElement el = JsonParser.parseString(s);
+                String fromJson = extractTextFromJsonComponent(el);
+                if (fromJson != null && !fromJson.isBlank()) {
+                    return fromJson;
+                }
+            } catch (JsonSyntaxException ignored) {
+            }
+        }
+
+        return s;
+    }
+
+    @Nullable
+    private static String extractTextFromJsonComponent(@Nullable JsonElement element) {
+        if (element == null || element.isJsonNull()) return null;
+
+        if (element.isJsonPrimitive()) {
+            try {
+                return element.getAsString();
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+
+        if (element.isJsonObject()) {
+            JsonObject obj = element.getAsJsonObject();
+            if (obj.has("text") && obj.get("text").isJsonPrimitive()) {
+                return obj.get("text").getAsString();
+            }
+            if (obj.has("raw") && obj.get("raw").isJsonPrimitive()) {
+                return obj.get("raw").getAsString();
+            }
+            if (obj.has("translate") && obj.get("translate").isJsonPrimitive()) {
+                return obj.get("translate").getAsString();
+            }
+            if (obj.has("extra") && obj.get("extra").isJsonArray()) {
+                StringBuilder sb = new StringBuilder();
+                for (JsonElement child : obj.getAsJsonArray("extra")) {
+                    String part = extractTextFromJsonComponent(child);
+                    if (part != null) sb.append(part);
+                }
+                String joined = sb.toString();
+                return joined.isBlank() ? null : joined;
+            }
+        }
+
+        if (element.isJsonArray()) {
+            StringBuilder sb = new StringBuilder();
+            for (JsonElement child : element.getAsJsonArray()) {
+                String part = extractTextFromJsonComponent(child);
+                if (part != null) sb.append(part);
+            }
+            String joined = sb.toString();
+            return joined.isBlank() ? null : joined;
+        }
+
+        return null;
     }
 
     /**
@@ -303,22 +370,19 @@ public final class NbtSceneFilter {
         return true;
     }
 
-    /**
-     * Like {@link #isSubset(CompoundTag, CompoundTag)} but ignores the legacy Count field
-     * so stack-size differences don't break scene matching.
-     */
     private static boolean isSubsetIgnoringCount(CompoundTag subset, CompoundTag superset) {
         for (String key : subset.getAllKeys()) {
-            if ("Count".equals(key)) continue;
-
+            if ("Count".equals(key) || "count".equals(key)) {
+                continue;
+            }
             Tag subVal = subset.get(key);
             Tag superVal = superset.get(key);
             if (superVal == null) return false;
 
             if (subVal instanceof CompoundTag subCompound && superVal instanceof CompoundTag superCompound) {
                 if (!isSubsetIgnoringCount(subCompound, superCompound)) return false;
-            } else {
-                if (!subVal.equals(superVal)) return false;
+            } else if (!subVal.equals(superVal)) {
+                return false;
             }
         }
         return true;
@@ -338,4 +402,10 @@ public final class NbtSceneFilter {
         }
     }
 
+    @Nullable
+    private static RegistryAccess getRegistryAccess() {
+        var mc = Minecraft.getInstance();
+        if (mc.level != null) return mc.level.registryAccess();
+        return null;
+    }
 }

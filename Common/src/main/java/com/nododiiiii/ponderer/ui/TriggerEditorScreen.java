@@ -1,23 +1,24 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
+import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.ponder.foundation.PonderIndex;
-import net.createmod.ponder.foundation.ui.PonderButton;
 import net.minecraft.client.Minecraft;
+import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,55 +26,54 @@ import java.util.Map;
  * Editor screen for trigger settings: trigger mode, 3 parallel hint styles
  * (auto/title/subtitle each with independent frequency), and mode-specific fields.
  */
-public class TriggerEditorScreen extends AbstractStepEditorScreen {
+public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
     private static final String[] TRIGGER_MODES = {"none", "structure", "coordinate"};
-    /** Frequency options: 0=off, 1=always, 2=first_time, 3=until_read */
     private static final String[] FREQ_VALUES = {null, "always", "first_time", "until_read"};
     private static final String[] FREQ_KEYS = {"off", "always", "first_time", "until_read"};
 
-    private int triggerModeIndex = 0;
+    private final StepTextFieldHandle itemField = new StepTextFieldHandle("itemId");
+    private final StepTextFieldHandle itemNbtField = new StepTextFieldHandle("itemNbt");
+    private final StepTextFieldHandle titleTextField = new StepTextFieldHandle("titleText");
+    private final StepTextFieldHandle subtitleTextField = new StepTextFieldHandle("subtitleText");
+    private final StepTextFieldHandle structureField = new StepTextFieldHandle("structure");
+    private final StepXyzFieldHandle coord1Field = new StepXyzFieldHandle("coord1_x", "coord1_y", "coord1_z");
+    private final StepXyzFieldHandle coord2Field = new StepXyzFieldHandle("coord2_x", "coord2_y", "coord2_z");
 
-    // Per-hint-style frequency index (0=off, 1=always, 2=first_time, 3=until_read)
+    private int triggerModeIndex = 0;
     private int autoFreqIndex = 0;
     private int titleFreqIndex = 0;
     private int subtitleFreqIndex = 0;
-
-    // Custom hint text fields (for title/subtitle)
-    private HintableTextFieldWidget titleTextField;
-    private HintableTextFieldWidget subtitleTextField;
-
-    // Carrier item + NBT (always visible at the top)
-    private FieldWithJeiAndHeldItem itemRow;
-    private HintableTextFieldWidget itemNbtField;
     private boolean pendingItemDuplicateConfirm = false;
+    @Nullable
+    private String pendingStructureSelection = null;
 
-    // Structure trigger
-    private HintableTextFieldWidget structureField;
-    private PonderButton structureBrowseBtn;
-    @Nullable private String pendingStructureSelection = null;
-
-    // Coordinate trigger
-    private XyzFieldGroup coord1Group;
-    private XyzFieldGroup coord2Group;
-    private PonderButton pickBtn1;
+    private final FieldBinding<Integer> triggerModeBinding =
+        FieldBindings.integer("triggerMode", () -> triggerModeIndex, value -> triggerModeIndex = value);
+    private final FieldBinding<Integer> autoFreqBinding =
+        FieldBindings.integer("autoFreq", () -> autoFreqIndex, value -> autoFreqIndex = value);
+    private final FieldBinding<Integer> titleFreqBinding =
+        FieldBindings.integer("titleFreq", () -> titleFreqIndex, value -> titleFreqIndex = value);
+    private final FieldBinding<Integer> subtitleFreqBinding =
+        FieldBindings.integer("subtitleFreq", () -> subtitleFreqIndex, value -> subtitleFreqIndex = value);
 
     public TriggerEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
-        super(Component.translatable("ponderer.ui.trigger_editor"), scene, sceneIndex, parent);
+        super(scene, sceneIndex, parent, "ponderer.ui.scope.editor", "ponderer.ui.step_editor",
+            UILayoutConstants.EDITOR_LIST_W, JeiCompat::setActiveScreen);
 
-        if ("structure".equals(scene.triggerMode)) triggerModeIndex = 1;
-        else if ("coordinate".equals(scene.triggerMode)) triggerModeIndex = 2;
-        else triggerModeIndex = 0;
+        if ("structure".equals(scene.triggerMode)) {
+            triggerModeIndex = 1;
+        } else if ("coordinate".equals(scene.triggerMode)) {
+            triggerModeIndex = 2;
+        }
 
-        // Load per-style frequencies from new fields
         autoFreqIndex = freqToIndex(scene.hintAuto);
         titleFreqIndex = freqToIndex(scene.hintTitle);
         subtitleFreqIndex = freqToIndex(scene.hintSubtitle);
 
-        // Legacy migration: if new fields are all off but old hintStyle field exists
         if (autoFreqIndex == 0 && titleFreqIndex == 0 && subtitleFreqIndex == 0
-                && scene.hintAuto == null && scene.hintTitle == null && scene.hintSubtitle == null
-                && scene.hintStyle != null) {
+            && scene.hintAuto == null && scene.hintTitle == null && scene.hintSubtitle == null
+            && scene.hintStyle != null) {
             String legacyFreq = resolveLegacyFrequency(scene);
             if ("auto".equals(scene.hintStyle)) {
                 autoFreqIndex = freqToIndex(legacyFreq);
@@ -83,13 +83,31 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
                 subtitleFreqIndex = freqToIndex(legacyFreq);
             }
         }
+
+        String currentItem = scene.items != null && !scene.items.isEmpty() ? scene.items.get(0) : "";
+        itemField.setValue(currentItem);
+        itemNbtField.setValue(scene.nbtFilter != null ? scene.nbtFilter : "");
+        titleTextField.setValue(scene.hintTitleText != null ? scene.hintTitleText : "");
+        subtitleTextField.setValue(scene.hintSubtitleText != null ? scene.hintSubtitleText : "");
+        structureField.setValue(scene.triggerStructure != null ? scene.triggerStructure : "");
+
+        if (scene.triggerCoord1 != null && scene.triggerCoord1.size() >= 3) {
+            coord1Field.setValue(scene.triggerCoord1.get(0), scene.triggerCoord1.get(1), scene.triggerCoord1.get(2));
+        } else {
+            coord1Field.setValue(0, 0, 0);
+        }
+        if (scene.triggerCoord2 != null && scene.triggerCoord2.size() >= 3) {
+            coord2Field.setValue(scene.triggerCoord2.get(0), scene.triggerCoord2.get(1), scene.triggerCoord2.get(2));
+        } else {
+            coord2Field.setValue(0, 0, 0);
+        }
     }
 
     private static int freqToIndex(@Nullable String freq) {
         if ("always".equals(freq)) return 1;
         if ("first_time".equals(freq)) return 2;
         if ("until_read".equals(freq)) return 3;
-        return 0; // off
+        return 0;
     }
 
     private static String resolveLegacyFrequency(DslScene scene) {
@@ -99,26 +117,26 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
         return "always";
     }
 
-    public void setPendingFormRestore(Map<String, String> snapshot) {
-        // Pre-apply triggerModeIndex and frequency indices from snapshot BEFORE init/buildForm,
-        // so that buildForm() creates the correct form layout (e.g. "coordinate" mode fields).
-        if (snapshot.containsKey("triggerMode")) {
-            try { triggerModeIndex = Integer.parseInt(snapshot.get("triggerMode")); } catch (NumberFormatException ignored) {}
-        }
-        if (snapshot.containsKey("autoFreq")) {
-            try { autoFreqIndex = Integer.parseInt(snapshot.get("autoFreq")); } catch (NumberFormatException ignored) {}
-        }
-        if (snapshot.containsKey("titleFreq")) {
-            try { titleFreqIndex = Integer.parseInt(snapshot.get("titleFreq")); } catch (NumberFormatException ignored) {}
-        }
-        if (snapshot.containsKey("subtitleFreq")) {
-            try { subtitleFreqIndex = Integer.parseInt(snapshot.get("subtitleFreq")); } catch (NumberFormatException ignored) {}
-        }
-        setPendingPickRestore(snapshot);
+    @Override
+    public TriggerEditorScreen setPendingFormRestore(@Nullable Map<String, String> snapshot) {
+        super.setPendingFormRestore(snapshot);
+        return this;
     }
 
     @Override
-    protected boolean showsKeyFrame() { return false; }
+    protected void configureFormState(List<SnapshotParticipant> participants) {
+        participants.add(triggerModeBinding);
+        participants.add(autoFreqBinding);
+        participants.add(titleFreqBinding);
+        participants.add(subtitleFreqBinding);
+        participants.add(itemField);
+        participants.add(itemNbtField);
+        participants.add(titleTextField);
+        participants.add(subtitleTextField);
+        participants.add(structureField);
+        participants.add(coord1Field);
+        participants.add(coord2Field);
+    }
 
     @Override
     protected String getHeaderTitle() {
@@ -126,383 +144,297 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
     }
 
     @Override
-    protected int getFormRowCount() {
-        int rows = 3; // item ID + item NBT + trigger mode
-        if (triggerModeIndex == 0) return rows;
-        rows += 3; // auto + title + subtitle
-        if (titleFreqIndex != 0) rows++; // title custom text
-        if (subtitleFreqIndex != 0) rows++; // subtitle custom text
-        String mode = TRIGGER_MODES[triggerModeIndex];
-        if ("structure".equals(mode)) rows += 1; // structure
-        else if ("coordinate".equals(mode)) rows += 2; // coord1 + coord2
-        return rows;
+    protected void configureActionButtons() {
+        if (confirmButton != null) {
+            confirmButton.withCallback(this::doConfirm);
+        }
     }
 
     @Override
-    protected void init() {
-        super.init();
-        confirmButton.withCallback(this::doConfirm);
-    }
+    protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        if (pendingStructureSelection != null) {
+            structureField.setValue(pendingStructureSelection);
+            pendingStructureSelection = null;
+        }
 
-    @Override
-    protected void buildForm() {
-        // Clear mode-specific field references (they get recreated if needed)
-        structureField = null;
-        structureBrowseBtn = null;
-        coord1Group = null;
-        coord2Group = null;
-        pickBtn1 = null;
-        titleTextField = null;
-        subtitleTextField = null;
-        itemRow = null;
-        itemNbtField = null;
+        entries.add(FieldSpecs.text(
+            itemField,
+            "ponderer.ui.scene_desc.item_id",
+            null,
+            UIText.of("ponderer.ui.scene_desc.hint.item_id"),
+            124,
+            FieldDecorators.jei(IdFieldMode.ITEM),
+            FieldDecorators.heldItem(this::applyHeldItem)));
+        entries.add(FieldSpecs.text(
+            itemNbtField,
+            "ponderer.ui.scene_desc.item_nbt",
+            null,
+            UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
+            124,
+            FieldDecorators.nbtPick("itemNbt")));
+        entries.add(FieldSpecs.cycle(
+            triggerModeBinding,
+            "ponderer.ui.trigger_editor.trigger_mode",
+            "ponderer.ui.trigger_editor.trigger_mode.tooltip",
+            100,
+            TRIGGER_MODES.length,
+            this::rebuildFormPreservingState,
+            () -> UIText.of("ponderer.ui.trigger_editor.trigger_mode." + TRIGGER_MODES[triggerModeIndex]),
+            () -> 0xFFFFFF));
 
-        beginForm();
+        if (triggerModeIndex == 0) {
+            return;
+        }
 
-        // ---- Carrier item ID + NBT (always shown) ----
-        itemRow = addFormTextFieldWithJeiAndHeldItem(
-                "ponderer.ui.scene_desc.item_id", null,
-                UIText.of("ponderer.ui.scene_desc.hint.item_id"),
-                IdFieldMode.ITEM,
-                stack -> {
-                    String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-                    itemRow.field().setValue(itemId);
-                    var custom = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
-                    if (itemNbtField != null && !custom.isEmpty()) {
-                        itemNbtField.setValue(custom.toString());
-                    } else if (itemNbtField != null) {
-                        itemNbtField.setValue("");
-                    }
-                });
-        String currentItem = (scene.items != null && !scene.items.isEmpty()) ? scene.items.get(0) : "";
-        itemRow.field().setValue(currentItem);
+        entries.add(FieldSpecs.cycle(
+            autoFreqBinding,
+            "ponderer.ui.trigger_editor.hint_style.auto",
+            "ponderer.ui.trigger_editor.hint_style.auto.tooltip",
+            100,
+            FREQ_VALUES.length,
+            () -> {
+            },
+            () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[autoFreqIndex]),
+            () -> autoFreqIndex != 0 ? 0xFF5555 : 0xFFFFFF));
 
-        itemNbtField = addFormNbtField(
-                "ponderer.ui.scene_desc.item_nbt", null,
-                UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
-                124, "nbt");
-        itemNbtField.setValue(scene.nbtFilter != null ? scene.nbtFilter : "");
-
-        // ---- Trigger mode cycle button ----
-        addFormCycleButton(
-                "ponderer.ui.trigger_editor.trigger_mode",
-                "ponderer.ui.trigger_editor.trigger_mode.tooltip",
-                100,
-                () -> {
-                    Map<String, String> snap = snapshotForm();
-                    triggerModeIndex = (triggerModeIndex + 1) % TRIGGER_MODES.length;
-                    setPendingPickRestore(snap);
-                    init(Minecraft.getInstance(), this.width, this.height);
-                },
-                () -> UIText.of("ponderer.ui.trigger_editor.trigger_mode." + TRIGGER_MODES[triggerModeIndex]));
-
-        // If "none" mode, no more rows
-        if (triggerModeIndex == 0) return;
-
-        // ---- 3 parallel hint style rows, each with its own frequency cycle ----
-        // Auto trigger: red text when enabled
-        addFormCycleButton(
-                "ponderer.ui.trigger_editor.hint_style.auto",
-                "ponderer.ui.trigger_editor.hint_style.auto.tooltip",
-                100,
-                () -> {
-                    autoFreqIndex = (autoFreqIndex + 1) % FREQ_VALUES.length;
-                    // Rebuild to show/hide warning
-                    Map<String, String> snap = snapshotForm();
-                    setPendingPickRestore(snap);
-                    init(Minecraft.getInstance(), this.width, this.height);
-                },
-                () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[autoFreqIndex]),
-                () -> autoFreqIndex != 0 ? 0xFF5555 : 0xFFFFFF);
-
-        // Title hint
-        addFormCycleButton(
-                "ponderer.ui.trigger_editor.hint_style.title",
-                "ponderer.ui.trigger_editor.hint_style.title.tooltip",
-                100,
-                () -> {
-                    titleFreqIndex = (titleFreqIndex + 1) % FREQ_VALUES.length;
-                    Map<String, String> snap = snapshotForm();
-                    setPendingPickRestore(snap);
-                    init(Minecraft.getInstance(), this.width, this.height);
-                },
-                () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[titleFreqIndex]));
-
-        // Title custom text (only when enabled)
+        entries.add(FieldSpecs.cycle(
+            titleFreqBinding,
+            "ponderer.ui.trigger_editor.hint_style.title",
+            "ponderer.ui.trigger_editor.hint_style.title.tooltip",
+            100,
+            FREQ_VALUES.length,
+            this::rebuildFormPreservingState,
+            () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[titleFreqIndex]),
+            () -> 0xFFFFFF));
         if (titleFreqIndex != 0) {
-            titleTextField = addFormTextField(
-                    "ponderer.ui.trigger_editor.hint_text",
-                    "ponderer.ui.trigger_editor.hint_text.tooltip",
-                    UIText.of("ponderer.ui.trigger_editor.hint_text.placeholder"), 120);
-            titleTextField.setValue(scene.hintTitleText != null ? scene.hintTitleText : "");
+            entries.add(FieldSpecs.text(
+                titleTextField,
+                "ponderer.ui.trigger_editor.hint_text",
+                "ponderer.ui.trigger_editor.hint_text.tooltip",
+                UIText.of("ponderer.ui.trigger_editor.hint_text.placeholder"),
+                120));
         }
 
-        // Subtitle hint
-        addFormCycleButton(
-                "ponderer.ui.trigger_editor.hint_style.subtitle",
-                "ponderer.ui.trigger_editor.hint_style.subtitle.tooltip",
-                100,
-                () -> {
-                    subtitleFreqIndex = (subtitleFreqIndex + 1) % FREQ_VALUES.length;
-                    Map<String, String> snap = snapshotForm();
-                    setPendingPickRestore(snap);
-                    init(Minecraft.getInstance(), this.width, this.height);
-                },
-                () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[subtitleFreqIndex]));
-
-        // Subtitle custom text (only when enabled)
+        entries.add(FieldSpecs.cycle(
+            subtitleFreqBinding,
+            "ponderer.ui.trigger_editor.hint_style.subtitle",
+            "ponderer.ui.trigger_editor.hint_style.subtitle.tooltip",
+            100,
+            FREQ_VALUES.length,
+            this::rebuildFormPreservingState,
+            () -> UIText.of("ponderer.ui.trigger_editor.hint_freq." + FREQ_KEYS[subtitleFreqIndex]),
+            () -> 0xFFFFFF));
         if (subtitleFreqIndex != 0) {
-            subtitleTextField = addFormTextField(
-                    "ponderer.ui.trigger_editor.hint_text",
-                    "ponderer.ui.trigger_editor.hint_text.tooltip",
-                    UIText.of("ponderer.ui.trigger_editor.hint_text.placeholder"), 120);
-            subtitleTextField.setValue(scene.hintSubtitleText != null ? scene.hintSubtitleText : "");
+            entries.add(FieldSpecs.text(
+                subtitleTextField,
+                "ponderer.ui.trigger_editor.hint_text",
+                "ponderer.ui.trigger_editor.hint_text.tooltip",
+                UIText.of("ponderer.ui.trigger_editor.hint_text.placeholder"),
+                120));
         }
 
-        // ---- Mode-specific fields ----
         String mode = TRIGGER_MODES[triggerModeIndex];
         if ("structure".equals(mode)) {
-            // Structure field + browse button
-            addFormLabel("ponderer.ui.trigger_editor.trigger_structure", null);
-            structureField = createTextField(fieldX(), formY(), 124, 18,
-                    UIText.of("ponderer.ui.trigger_editor.hint.trigger_structure"));
-            String structVal = pendingStructureSelection != null ? pendingStructureSelection
-                    : (scene.triggerStructure != null ? scene.triggerStructure : "");
-            structureField.setValue(structVal);
-            pendingStructureSelection = null;
-
-            // Browse button: text "L", positioned right of the field
-            structureBrowseBtn = new PonderButton(fieldX() + 124 + 5, formY() + 3, 14, 12);
-            structureBrowseBtn.withCallback(() -> {
-                Minecraft.getInstance().setScreen(new StructureListScreen(this, selected -> {
-                    pendingStructureSelection = selected;
-                }));
-            });
-            addRenderableWidget(structureBrowseBtn);
-            nextFormRow();
+            entries.add(FieldSpecs.text(
+                structureField,
+                "ponderer.ui.trigger_editor.trigger_structure",
+                null,
+                UIText.of("ponderer.ui.trigger_editor.hint.trigger_structure"),
+                124,
+                FieldDecorators.textAction(
+                    20,
+                    this::openStructureList,
+                    () -> "L",
+                    () -> 0xFFFFFF,
+                    UIText.of("ponderer.ui.scene_desc.structure_list_title"))));
         } else if ("coordinate".equals(mode)) {
-            coord1Group = addFormXyzRow("ponderer.ui.trigger_editor.trigger_coord1", null);
-            if (scene.triggerCoord1 != null && scene.triggerCoord1.size() >= 3) {
-                coord1Group.x().setValue(String.valueOf(scene.triggerCoord1.get(0)));
-                coord1Group.y().setValue(String.valueOf(scene.triggerCoord1.get(1)));
-                coord1Group.z().setValue(String.valueOf(scene.triggerCoord1.get(2)));
-            } else {
-                coord1Group.x().setValue("0");
-                coord1Group.y().setValue("0");
-                coord1Group.z().setValue("0");
-            }
-            // Single pick button on coord1 row: picks both points sequentially
-            pickBtn1 = new PonderButton(fieldX() + 3 * (38 + 5), formY() - ROW_HEIGHT + 3, 14, 12);
-            pickBtn1.withCallback(() -> {
-                Map<String, String> snap = snapshotForm();
-                CoordPickState.startPick(snap, scene, sceneIndex, parent);
-                Minecraft.getInstance().setScreen(null);
-            });
-            addRenderableWidget(pickBtn1);
-
-            coord2Group = addFormXyzRow("ponderer.ui.trigger_editor.trigger_coord2", null);
-            if (scene.triggerCoord2 != null && scene.triggerCoord2.size() >= 3) {
-                coord2Group.x().setValue(String.valueOf(scene.triggerCoord2.get(0)));
-                coord2Group.y().setValue(String.valueOf(scene.triggerCoord2.get(1)));
-                coord2Group.z().setValue(String.valueOf(scene.triggerCoord2.get(2)));
-            } else {
-                coord2Group.x().setValue("0");
-                coord2Group.y().setValue("0");
-                coord2Group.z().setValue("0");
-            }
+            entries.add(FieldSpecs.xyz(
+                coord1Field,
+                "ponderer.ui.trigger_editor.trigger_coord1",
+                null,
+                "X",
+                "Y",
+                "Z",
+                FieldDecorators.xyzAction(
+                    20,
+                    this::startCoordinatePick,
+                    () -> "+",
+                    () -> 0x80FFFF,
+                    UIText.of("ponderer.ui.pick.tooltip"))));
+            entries.add(FieldSpecs.xyz(
+                coord2Field,
+                "ponderer.ui.trigger_editor.trigger_coord2",
+                null,
+                "X",
+                "Y",
+                "Z",
+                FieldDecorators.xyzAction(
+                    20,
+                    this::startCoordinatePick,
+                    () -> "+",
+                    () -> 0x80FFFF,
+                    UIText.of("ponderer.ui.pick.tooltip"))));
         }
+    }
 
+    private void applyHeldItem(ItemStack stack) {
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        itemField.setValue(itemId);
+        CompoundTag tag = PondererClientCommands.extractStackNbtFilter(stack);
+        if (tag != null && !tag.isEmpty()) {
+            itemNbtField.setValue(tag.toString());
+        } else {
+            itemNbtField.setValue("");
+        }
+    }
+
+    private void openStructureList() {
+        Minecraft.getInstance().setScreen(new StructureListScreen(this, selected -> pendingStructureSelection = selected));
+    }
+
+    private void startCoordinatePick() {
+        CoordPickState.startPick(snapshotForm(), new TriggerEditorContext(scene, sceneIndex, parent));
+        Minecraft.getInstance().setScreen(null);
     }
 
     @Override
-    protected String getStepType() {
-        return "trigger_editor";
-    }
-
-    @Nullable
-    @Override
-    protected DslScene.DslStep buildStep() {
-        return null;
-    }
-
-    @Override
-    protected void restoreFromSnapshot(Map<String, String> snapshot) {
-        if (snapshot.containsKey("triggerMode")) {
-            try { triggerModeIndex = Integer.parseInt(snapshot.get("triggerMode")); } catch (NumberFormatException ignored) {}
-        }
-        if (snapshot.containsKey("autoFreq")) {
-            try { autoFreqIndex = Integer.parseInt(snapshot.get("autoFreq")); } catch (NumberFormatException ignored) {}
-        }
-        if (snapshot.containsKey("titleFreq")) {
-            try { titleFreqIndex = Integer.parseInt(snapshot.get("titleFreq")); } catch (NumberFormatException ignored) {}
-        }
-        if (snapshot.containsKey("subtitleFreq")) {
-            try { subtitleFreqIndex = Integer.parseInt(snapshot.get("subtitleFreq")); } catch (NumberFormatException ignored) {}
-        }
-        if (snapshot.containsKey("itemId") && itemRow != null)
-            itemRow.field().setValue(snapshot.get("itemId"));
-        if (snapshot.containsKey("itemNbt") && itemNbtField != null)
-            itemNbtField.setValue(snapshot.get("itemNbt"));
-        if (titleTextField != null && snapshot.containsKey("titleText"))
-            titleTextField.setValue(snapshot.get("titleText"));
-        if (subtitleTextField != null && snapshot.containsKey("subtitleText"))
-            subtitleTextField.setValue(snapshot.get("subtitleText"));
-        if (structureField != null && snapshot.containsKey("structure"))
-            structureField.setValue(snapshot.get("structure"));
-
-        if (coord1Group != null) {
-            if (snapshot.containsKey("coord1_x")) coord1Group.x().setValue(snapshot.get("coord1_x"));
-            if (snapshot.containsKey("coord1_y")) coord1Group.y().setValue(snapshot.get("coord1_y"));
-            if (snapshot.containsKey("coord1_z")) coord1Group.z().setValue(snapshot.get("coord1_z"));
-        }
-        if (coord2Group != null) {
-            if (snapshot.containsKey("coord2_x")) coord2Group.x().setValue(snapshot.get("coord2_x"));
-            if (snapshot.containsKey("coord2_y")) coord2Group.y().setValue(snapshot.get("coord2_y"));
-            if (snapshot.containsKey("coord2_z")) coord2Group.z().setValue(snapshot.get("coord2_z"));
-        }
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
+        restoreNbtPickNotice(snapshot);
     }
 
     @Override
     protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.renderFormForeground(graphics, mouseX, mouseY, partialTicks);
-        var font = Minecraft.getInstance().font;
-        if (structureBrowseBtn != null && structureBrowseBtn.visible) {
-            graphics.drawCenteredString(font, "L",
-                    structureBrowseBtn.getX() + 7, structureBrowseBtn.getY() + 2, 0xFFFFFF);
-        }
-        // Reuse the existing pick button rendering style ("+")
-        if (pickBtn1 != null && pickBtn1.visible) {
-            renderPickButtonLabel(graphics, pickBtn1);
-        }
-        // Red warning above confirm/cancel when auto-trigger is enabled
         if (triggerModeIndex != 0 && autoFreqIndex != 0) {
             String warning = UIText.of("ponderer.ui.trigger_editor.auto_warning");
-            int warnY = confirmButton.getY() - 12;
-            graphics.drawCenteredString(font, warning, guiLeft + WINDOW_W / 2, warnY, 0xFF5555);
+            int warnY = height - 58;
+            graphics.drawCenteredString(Minecraft.getInstance().font, warning,
+                width / 2, warnY, 0xFF5555);
         }
     }
 
     @Override
-    protected Map<String, String> snapshotForm() {
-        Map<String, String> m = new HashMap<>();
-        m.put("triggerMode", String.valueOf(triggerModeIndex));
-        m.put("autoFreq", String.valueOf(autoFreqIndex));
-        m.put("titleFreq", String.valueOf(titleFreqIndex));
-        m.put("subtitleFreq", String.valueOf(subtitleFreqIndex));
-        if (itemRow != null) m.put("itemId", itemRow.field().getValue());
-        if (itemNbtField != null) m.put("itemNbt", itemNbtField.getValue());
+    protected boolean saveEdits() {
+        return doSave();
+    }
 
-        if (titleTextField != null) m.put("titleText", titleTextField.getValue());
-        if (subtitleTextField != null) m.put("subtitleText", subtitleTextField.getValue());
-
-        if (structureField != null) m.put("structure", structureField.getValue());
-
-        if (coord1Group != null) {
-            m.put("coord1_x", coord1Group.x().getValue());
-            m.put("coord1_y", coord1Group.y().getValue());
-            m.put("coord1_z", coord1Group.z().getValue());
-        }
-        if (coord2Group != null) {
-            m.put("coord2_x", coord2Group.x().getValue());
-            m.put("coord2_y", coord2Group.y().getValue());
-            m.put("coord2_z", coord2Group.z().getValue());
-        }
-        return m;
+    @Override
+    protected SnapshotReturnContext createReturnContext() {
+        return new TriggerEditorContext(scene, sceneIndex, parent);
     }
 
     private void doConfirm() {
-        if (!doSave()) return;
+        if (!doSave()) {
+            return;
+        }
         returnToParent();
     }
 
-    /** Validate and save form data. Returns false if validation failed. */
     private boolean doSave() {
-        errorMessage = null;
+        clearStatusMessages();
 
-        String newItemId = itemRow != null ? itemRow.field().getValue().trim() : "";
+        String newItemId = itemField.getValue().trim();
         if (newItemId.isEmpty()) {
-            errorMessage = UIText.of("ponderer.ui.scene_desc.empty_item");
+            setErrorMessage(UIText.of("ponderer.ui.scene_desc.empty_item"));
             return false;
         }
 
-        String oldItemId = (scene.items != null && !scene.items.isEmpty()) ? scene.items.get(0) : "";
+        String oldItemId = scene.items != null && !scene.items.isEmpty() ? scene.items.get(0) : "";
         if (!newItemId.equals(oldItemId) && !pendingItemDuplicateConfirm) {
             for (DslScene s : SceneRuntime.getScenes()) {
                 if (s != scene && s.items != null && s.items.contains(newItemId)) {
-                    Minecraft.getInstance().setScreen(new net.minecraft.client.gui.screens.ConfirmScreen(
-                            confirmed -> {
-                                if (confirmed) {
-                                    pendingItemDuplicateConfirm = true;
-                                    Minecraft.getInstance().setScreen(this);
-                                    doConfirm();
-                                } else {
-                                    Minecraft.getInstance().setScreen(this);
-                                }
-                            },
-                            Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"),
-                            Component.translatable("ponderer.ui.scene_desc.error.item_exists", newItemId)));
+                    new ConfirmationScreen()
+                        .centered()
+                        .withText(Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"))
+                        .addText(Component.translatable("ponderer.ui.scene_desc.error.item_exists", newItemId))
+                        .withAction(confirmed -> {
+                            if (confirmed) {
+                                pendingItemDuplicateConfirm = true;
+                                doConfirm();
+                            }
+                        })
+                        .open(this);
                     return false;
                 }
             }
         }
         pendingItemDuplicateConfirm = false;
 
-        scene.items = List.of(newItemId);
-        String nbt = itemNbtField != null ? itemNbtField.getValue().trim() : "";
-        scene.nbtFilter = nbt.isEmpty() ? null : nbt;
+        DslScene candidate = SceneStore.copyScene(scene);
+        if (candidate == null) {
+            setErrorMessage(UIText.of("ponderer.ui.save_error.io", "Unable to prepare scene copy"));
+            return false;
+        }
+
+        candidate.items = List.of(newItemId);
+        String nbt = itemNbtField.getValue().trim();
+        candidate.nbtFilter = nbt.isEmpty() ? null : nbt;
 
         String triggerMode = TRIGGER_MODES[triggerModeIndex];
-
-        // Validate structure
-        if ("structure".equals(triggerMode) && structureField != null) {
+        if ("structure".equals(triggerMode)) {
             String structId = structureField.getValue().trim();
             if (!structId.isEmpty() && !isValidStructureId(structId)) {
-                errorMessage = UIText.of("ponderer.ui.trigger_editor.error.invalid_structure");
+                setErrorMessage(UIText.of("ponderer.ui.trigger_editor.error.invalid_structure"));
                 return false;
             }
         }
 
-        // Save trigger settings
-        scene.triggerMode = "none".equals(triggerMode) ? null : triggerMode;
+        candidate.triggerMode = "none".equals(triggerMode) ? null : triggerMode;
+        candidate.hintAuto = FREQ_VALUES[autoFreqIndex];
+        candidate.hintTitle = FREQ_VALUES[titleFreqIndex];
+        candidate.hintSubtitle = FREQ_VALUES[subtitleFreqIndex];
+        candidate.hintTitleText = titleFreqIndex != 0 ? emptyToNull(titleTextField.getValue()) : null;
+        candidate.hintSubtitleText = subtitleFreqIndex != 0 ? emptyToNull(subtitleTextField.getValue()) : null;
 
-        // Save per-style frequencies
-        scene.hintAuto = FREQ_VALUES[autoFreqIndex];
-        scene.hintTitle = FREQ_VALUES[titleFreqIndex];
-        scene.hintSubtitle = FREQ_VALUES[subtitleFreqIndex];
-
-        // Save custom hint text
-        scene.hintTitleText = titleTextField != null ? emptyToNull(titleTextField.getValue()) : null;
-        scene.hintSubtitleText = subtitleTextField != null ? emptyToNull(subtitleTextField.getValue()) : null;
-
-        // Clear legacy fields
-        scene.hintStyle = null;
-        scene.hintFrequency = null;
-        scene.onlyFirstTime = null;
+        candidate.hintStyle = null;
+        candidate.hintFrequency = null;
+        candidate.onlyFirstTime = null;
 
         if ("structure".equals(triggerMode)) {
-            scene.triggerStructure = structureField != null ? structureField.getValue().trim() : null;
-            scene.triggerStructureRange = null;
-            scene.triggerCoord1 = null;
-            scene.triggerCoord2 = null;
+            candidate.triggerStructure = emptyToNull(structureField.getValue());
+            candidate.triggerStructureRange = null;
+            candidate.triggerCoord1 = null;
+            candidate.triggerCoord2 = null;
         } else if ("coordinate".equals(triggerMode)) {
-            scene.triggerCoord1 = List.of(
-                    parseIntOr(coord1Group != null ? coord1Group.x() : null, 0),
-                    parseIntOr(coord1Group != null ? coord1Group.y() : null, 0),
-                    parseIntOr(coord1Group != null ? coord1Group.z() : null, 0));
-            scene.triggerCoord2 = List.of(
-                    parseIntOr(coord2Group != null ? coord2Group.x() : null, 0),
-                    parseIntOr(coord2Group != null ? coord2Group.y() : null, 0),
-                    parseIntOr(coord2Group != null ? coord2Group.z() : null, 0));
-            scene.triggerStructure = null;
-            scene.triggerStructureRange = null;
+            candidate.triggerCoord1 = List.of(
+                parseIntOr(coord1Field.x(), 0),
+                parseIntOr(coord1Field.y(), 0),
+                parseIntOr(coord1Field.z(), 0));
+            candidate.triggerCoord2 = List.of(
+                parseIntOr(coord2Field.x(), 0),
+                parseIntOr(coord2Field.y(), 0),
+                parseIntOr(coord2Field.z(), 0));
+            candidate.triggerStructure = null;
+            candidate.triggerStructureRange = null;
         } else {
-            scene.triggerStructure = null;
-            scene.triggerStructureRange = null;
-            scene.triggerCoord1 = null;
-            scene.triggerCoord2 = null;
+            candidate.triggerStructure = null;
+            candidate.triggerStructureRange = null;
+            candidate.triggerCoord1 = null;
+            candidate.triggerCoord2 = null;
         }
 
-        SceneStore.saveSceneToLocal(scene);
+        SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(candidate);
+        if (!saveResult.isSuccess()) {
+            setErrorMessage(UIText.saveError(saveResult));
+            return false;
+        }
+
+        scene.items = candidate.items;
+        scene.nbtFilter = candidate.nbtFilter;
+        scene.triggerMode = candidate.triggerMode;
+        scene.hintAuto = candidate.hintAuto;
+        scene.hintTitle = candidate.hintTitle;
+        scene.hintSubtitle = candidate.hintSubtitle;
+        scene.hintTitleText = candidate.hintTitleText;
+        scene.hintSubtitleText = candidate.hintSubtitleText;
+        scene.hintStyle = candidate.hintStyle;
+        scene.hintFrequency = candidate.hintFrequency;
+        scene.onlyFirstTime = candidate.onlyFirstTime;
+        scene.triggerStructure = candidate.triggerStructure;
+        scene.triggerStructureRange = candidate.triggerStructureRange;
+        scene.triggerCoord1 = candidate.triggerCoord1;
+        scene.triggerCoord2 = candidate.triggerCoord2;
+
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
         return true;
@@ -520,17 +452,9 @@ public class TriggerEditorScreen extends AbstractStepEditorScreen {
             if (connection != null) {
                 return connection.registryAccess().registryOrThrow(Registries.STRUCTURE).containsKey(loc);
             }
-        } catch (Exception ignored) {}
-        return true;
-    }
-
-    private static int parseIntOr(@Nullable HintableTextFieldWidget field, int fallback) {
-        if (field == null) return fallback;
-        try {
-            return Integer.parseInt(field.getValue().trim());
-        } catch (NumberFormatException e) {
-            return fallback;
+        } catch (Exception ignored) {
         }
+        return true;
     }
 
     @Nullable

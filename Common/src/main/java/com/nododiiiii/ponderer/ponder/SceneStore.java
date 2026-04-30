@@ -4,7 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.resources.ResourceLocation;
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.Ponderer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -14,13 +16,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -33,6 +39,9 @@ import java.util.zip.ZipOutputStream;
 
 public final class SceneStore {
     private static final Logger LOGGER = LogUtils.getLogger();
+
+    public record SyncFileRef(String id, @javax.annotation.Nullable String pack, Path path) {
+    }
 
     /** Information about a pack that was updated during auto-load. */
     public static class PackUpdateInfo {
@@ -50,6 +59,152 @@ public final class SceneStore {
             this.conflictCount = conflictCount;
         }
     }
+
+    public static final class LocalSaveResult {
+        private final boolean success;
+        @javax.annotation.Nullable
+        private final Path path;
+        private final String englishMessage;
+        @javax.annotation.Nullable
+        private final String uiMessageKey;
+        private final Object[] uiMessageArgs;
+
+        private LocalSaveResult(boolean success, @javax.annotation.Nullable Path path, String englishMessage,
+                                @javax.annotation.Nullable String uiMessageKey, Object[] uiMessageArgs) {
+            this.success = success;
+            this.path = path;
+            this.englishMessage = englishMessage;
+            this.uiMessageKey = uiMessageKey;
+            this.uiMessageArgs = uiMessageArgs == null ? new Object[0] : Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        @javax.annotation.Nullable
+        public Path path() {
+            return path;
+        }
+
+        public String englishMessage() {
+            return englishMessage;
+        }
+
+        @javax.annotation.Nullable
+        public String uiMessageKey() {
+            return uiMessageKey;
+        }
+
+        public Object[] uiMessageArgs() {
+            return Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        private static LocalSaveResult success(Path path, String englishMessage) {
+            return new LocalSaveResult(true, path, englishMessage, null, new Object[0]);
+        }
+
+        private static LocalSaveResult failure(String englishMessage, String uiMessageKey, Object... uiMessageArgs) {
+            return new LocalSaveResult(false, null, englishMessage, uiMessageKey, uiMessageArgs);
+        }
+    }
+
+    public static final class PackExportResult {
+        private final boolean success;
+        @javax.annotation.Nullable
+        private final Path path;
+        private final String englishMessage;
+        @javax.annotation.Nullable
+        private final String uiMessageKey;
+        private final Object[] uiMessageArgs;
+
+        private PackExportResult(boolean success, @javax.annotation.Nullable Path path, String englishMessage,
+                                 @javax.annotation.Nullable String uiMessageKey, Object[] uiMessageArgs) {
+            this.success = success;
+            this.path = path;
+            this.englishMessage = englishMessage;
+            this.uiMessageKey = uiMessageKey;
+            this.uiMessageArgs = uiMessageArgs == null ? new Object[0] : Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        @javax.annotation.Nullable
+        public Path path() {
+            return path;
+        }
+
+        public String englishMessage() {
+            return englishMessage;
+        }
+
+        @javax.annotation.Nullable
+        public String uiMessageKey() {
+            return uiMessageKey;
+        }
+
+        public Object[] uiMessageArgs() {
+            return Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        private static PackExportResult success(Path path, String englishMessage) {
+            return new PackExportResult(true, path, englishMessage, null, new Object[0]);
+        }
+
+        private static PackExportResult failure(String englishMessage, String uiMessageKey, Object... uiMessageArgs) {
+            return new PackExportResult(false, null, englishMessage, uiMessageKey, uiMessageArgs);
+        }
+    }
+
+    public static final class PackImportResult {
+        private final boolean success;
+        private final int fileCount;
+        private final String englishMessage;
+        @javax.annotation.Nullable
+        private final String uiMessageKey;
+        private final Object[] uiMessageArgs;
+
+        private PackImportResult(boolean success, int fileCount, String englishMessage,
+                                 @javax.annotation.Nullable String uiMessageKey, Object[] uiMessageArgs) {
+            this.success = success;
+            this.fileCount = fileCount;
+            this.englishMessage = englishMessage;
+            this.uiMessageKey = uiMessageKey;
+            this.uiMessageArgs = uiMessageArgs == null ? new Object[0] : Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public int fileCount() {
+            return fileCount;
+        }
+
+        public String englishMessage() {
+            return englishMessage;
+        }
+
+        @javax.annotation.Nullable
+        public String uiMessageKey() {
+            return uiMessageKey;
+        }
+
+        public Object[] uiMessageArgs() {
+            return Arrays.copyOf(uiMessageArgs, uiMessageArgs.length);
+        }
+
+        private static PackImportResult success(int fileCount, String englishMessage, String uiMessageKey, Object... uiMessageArgs) {
+            return new PackImportResult(true, fileCount, englishMessage, uiMessageKey, uiMessageArgs);
+        }
+
+        private static PackImportResult failure(String englishMessage, String uiMessageKey, Object... uiMessageArgs) {
+            return new PackImportResult(false, 0, englishMessage, uiMessageKey, uiMessageArgs);
+        }
+    }
+
     private static final Gson GSON = new GsonBuilder().setLenient()
         .disableHtmlEscaping()
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
@@ -62,8 +217,17 @@ public final class SceneStore {
     private static final String SCRIPT_DIR = "scripts";
     private static final String STRUCTURE_DIR = "structures";
     private static final String PACKS_SUBDIR = "_packs";
+    private static final String SAVE_ERROR_KEY_PREFIX = "ponderer.ui.save_error.";
 
     private SceneStore() {
+    }
+
+    @javax.annotation.Nullable
+    public static DslScene copyScene(@javax.annotation.Nullable DslScene scene) {
+        if (scene == null) {
+            return null;
+        }
+        return GSON.fromJson(GSON.toJson(scene), DslScene.class);
     }
 
     public static Path getSceneDir() {
@@ -74,20 +238,106 @@ public final class SceneStore {
         return PondererServices.PLATFORM.getConfigDir().resolve(BASE_DIR).resolve(STRUCTURE_DIR);
     }
 
+    public static Path getReadonlyCacheRoot() {
+        return PondererServices.PLATFORM.getConfigDir().resolve(BASE_DIR).resolve(".cache").resolve("readonly");
+    }
+
+    public static Path getPacksRoot() {
+        return PondererServices.PLATFORM.getConfigDir().resolve(BASE_DIR).resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getReadonlyCachePacksRoot() {
+        return getReadonlyCacheRoot().resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getLegacyPackSceneRoot() {
+        return getSceneDir().resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getLegacyPackStructureRoot() {
+        return getStructureDir().resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getServerPacksRoot(MinecraftServer server) {
+        return server.getWorldPath(LevelResource.ROOT).resolve(BASE_DIR).resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getLegacyServerPackSceneRoot(MinecraftServer server) {
+        return getServerSceneDir(server).resolve(PACKS_SUBDIR);
+    }
+
+    private static Path getLegacyServerPackStructureRoot(MinecraftServer server) {
+        return getServerStructureDir(server).resolve(PACKS_SUBDIR);
+    }
+
+    @javax.annotation.Nullable
+    private static Path resolvePackTypeDir(@javax.annotation.Nullable Path packDir, String typeDir) {
+        return packDir == null ? null : SafePaths.resolveFileName(packDir, typeDir);
+    }
+
+    @javax.annotation.Nullable
+    public static Path getReadonlyCachePackDir(String packName) {
+        return SafePaths.resolveFileName(getReadonlyCachePacksRoot(), packName);
+    }
+
+    @javax.annotation.Nullable
+    public static Path getReadonlyCachePackSceneDir(String packName) {
+        return resolvePackTypeDir(getReadonlyCachePackDir(packName), SCRIPT_DIR);
+    }
+
+    @javax.annotation.Nullable
+    public static Path getReadonlyCachePackStructureDir(String packName) {
+        return resolvePackTypeDir(getReadonlyCachePackDir(packName), STRUCTURE_DIR);
+    }
+
+    @javax.annotation.Nullable
+    public static Path getPackDir(String packName) {
+        return SafePaths.resolveFileName(getPacksRoot(), packName);
+    }
+
+    @javax.annotation.Nullable
     public static Path getPackSceneDir(String packName) {
-        return getSceneDir().resolve(PACKS_SUBDIR).resolve(packName);
+        return resolvePackTypeDir(getPackDir(packName), SCRIPT_DIR);
     }
 
+    @javax.annotation.Nullable
     public static Path getPackStructureDir(String packName) {
-        return getStructureDir().resolve(PACKS_SUBDIR).resolve(packName);
+        return resolvePackTypeDir(getPackDir(packName), STRUCTURE_DIR);
     }
 
+    @javax.annotation.Nullable
+    private static Path getLegacyPackSceneDir(String packName) {
+        return SafePaths.resolveFileName(getLegacyPackSceneRoot(), packName);
+    }
+
+    @javax.annotation.Nullable
+    private static Path getLegacyPackStructureDir(String packName) {
+        return SafePaths.resolveFileName(getLegacyPackStructureRoot(), packName);
+    }
+
+    @javax.annotation.Nullable
+    private static Path getServerPackDir(MinecraftServer server, String packName) {
+        return SafePaths.resolveFileName(getServerPacksRoot(server), packName);
+    }
+
+    @javax.annotation.Nullable
+    public static Path getServerPackSceneDir(MinecraftServer server, String packName) {
+        return resolvePackTypeDir(getServerPackDir(server, packName), SCRIPT_DIR);
+    }
+
+    @javax.annotation.Nullable
+    public static Path getServerPackStructureDir(MinecraftServer server, String packName) {
+        return resolvePackTypeDir(getServerPackDir(server, packName), STRUCTURE_DIR);
+    }
+
+    @javax.annotation.Nullable
     public static Path getStructurePath(String path) {
-        return getStructureDir().resolve(path + ".nbt");
+        return SafePaths.resolveRelativePath(getStructureDir(), path + ".nbt");
     }
 
+    @javax.annotation.Nullable
     public static Path getStructurePath(ResourceLocation id) {
-        return getStructureDir().resolve(id.getPath() + ".nbt");
+        return resolveStructurePath(getStructureDir(), id);
     }
 
     /**
@@ -100,36 +350,80 @@ public final class SceneStore {
     public static Path resolveStructurePath(String path, @javax.annotation.Nullable String packName) {
         // 1. Check pack subdirectory first
         if (packName != null && !packName.isEmpty()) {
-            Path packPath = getPackStructureDir(packName).resolve("[" + packName + "] " + path + ".nbt");
-            if (Files.exists(packPath)) return packPath;
+            Path packPath = resolvePackScopedPath(getPackStructureDir(packName), packName, path + ".nbt");
+            if (packPath != null && Files.exists(packPath)) return packPath;
+            Path readonlyPackPath = resolvePackScopedPath(getReadonlyCachePackStructureDir(packName), packName, path + ".nbt");
+            if (readonlyPackPath != null && Files.exists(readonlyPackPath)) return readonlyPackPath;
         }
         // 2. Fall back to flat directory
-        Path flatPath = getStructureDir().resolve(path + ".nbt");
-        if (Files.exists(flatPath)) return flatPath;
-        // 3. Search all pack subdirectories
-        Path packsDir = getStructureDir().resolve(PACKS_SUBDIR);
-        if (Files.exists(packsDir)) {
-            try (Stream<Path> packDirs = Files.list(packsDir)) {
-                for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
-                    try (Stream<Path> files = Files.list(packDir)) {
-                        for (Path f : files.toList()) {
-                            String fname = f.getFileName().toString();
-                            if (fname.endsWith(".nbt")) {
-                                // Strip [PackName] prefix and .nbt extension to get the base name
-                                String baseName = fname;
-                                String prefix = DslScene.extractPackPrefix(fname);
-                                if (prefix != null) {
-                                    baseName = fname.substring(prefix.length()).trim();
-                                }
-                                if (baseName.endsWith(".nbt")) {
-                                    baseName = baseName.substring(0, baseName.length() - 4);
-                                }
-                                if (baseName.equals(path)) return f;
-                            }
-                        }
-                    } catch (IOException ignored) {}
+        Path flatPath = SafePaths.resolveRelativePath(getStructureDir(), path + ".nbt");
+        if (flatPath != null && Files.exists(flatPath)) return flatPath;
+        // 3. Search local imported pack subdirectories
+        Path importedPath = findStructureInPackRoots(getPacksRoot(), path);
+        if (importedPath != null) return importedPath;
+        // 4. Search readonly cached source packs
+        return findStructureInPackRoots(getReadonlyCachePacksRoot(), path);
+    }
+
+    private static Path getPackContentSearchRoot(Path packDir, String typeDir) {
+        if (packDir == null) {
+            return null;
+        }
+
+        Path typedRoot = packDir.resolve(typeDir);
+        return Files.isDirectory(typedRoot) ? typedRoot : packDir;
+    }
+
+    @javax.annotation.Nullable
+    private static Path findStructureInPackRoots(Path packsDir, String path) {
+        if (!Files.exists(packsDir)) {
+            return null;
+        }
+
+        try (Stream<Path> packDirs = Files.list(packsDir)) {
+            for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
+                Path searchRoot = getPackContentSearchRoot(packDir, STRUCTURE_DIR);
+                if (searchRoot == null || !Files.exists(searchRoot)) {
+                    continue;
                 }
-            } catch (IOException ignored) {}
+
+                try (Stream<Path> files = Files.walk(searchRoot)) {
+                    for (Path file : files.filter(Files::isRegularFile).toList()) {
+                        String fname = file.getFileName().toString();
+                        if (!fname.endsWith(".nbt")) {
+                            continue;
+                        }
+
+                        Path relative = searchRoot.relativize(file);
+                        if (relative.getNameCount() == 0) {
+                            continue;
+                        }
+
+                        String first = relative.getName(0).toString();
+                        String prefix = DslScene.extractPackPrefix(first);
+                        if (prefix != null) {
+                            first = first.substring(prefix.length()).trim();
+                        }
+
+                        String candidate = relative.getNameCount() == 1
+                            ? first
+                            : first + "/" + relative.subpath(1, relative.getNameCount()).toString().replace("\\", "/");
+                        if (candidate.endsWith(".nbt")) {
+                            candidate = candidate.substring(0, candidate.length() - 4);
+                        }
+
+                        String defaultNamespaceCandidate = candidate.startsWith(Ponderer.MODID + "/")
+                            ? candidate.substring((Ponderer.MODID + "/").length())
+                            : candidate;
+
+                        if (candidate.equals(path) || defaultNamespaceCandidate.equals(path)) {
+                            return file;
+                        }
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
         }
         return null;
     }
@@ -142,17 +436,87 @@ public final class SceneStore {
         return server.getWorldPath(LevelResource.ROOT).resolve(BASE_DIR).resolve(STRUCTURE_DIR);
     }
 
-    public static boolean saveToServer(MinecraftServer server, String sceneId, String json) {
+    @javax.annotation.Nullable
+    private static Path resolveScenePath(Path root, ResourceLocation id) {
+        return SafePaths.resolveNamespacedPath(root, id, Ponderer.MODID, ".json");
+    }
+
+    @javax.annotation.Nullable
+    private static Path resolveStructurePath(Path root, ResourceLocation id) {
+        return SafePaths.resolveNamespacedPath(root, id, Ponderer.MODID, ".nbt");
+    }
+
+    @javax.annotation.Nullable
+    private static Path resolveServerNamespacedPath(Path root, ResourceLocation id, String extension) {
+        return SafePaths.resolveRelativePath(root, id.getNamespace() + "/" + id.getPath() + extension);
+    }
+
+    @javax.annotation.Nullable
+    private static Path resolvePackScopedPath(Path packDir, String packName, String relativePath) {
+        List<String> segments = SafePaths.splitValidatedRelativePath(relativePath);
+        if (packDir == null || segments == null || segments.isEmpty()) {
+            return null;
+        }
+        List<String> targetSegments = new ArrayList<>(segments);
+        targetSegments.set(0, "[" + packName + "] " + targetSegments.get(0));
+        return SafePaths.resolveRelativePath(packDir, targetSegments);
+    }
+
+    @javax.annotation.Nullable
+    public static Path resolveServerScenePath(MinecraftServer server, ResourceLocation id, @javax.annotation.Nullable String pack) {
+        if (pack != null && !pack.isBlank()) {
+            ensureServerPackLayoutMigrated(server);
+            Path packDir = getServerPackSceneDir(server, pack);
+            return packDir == null ? null : resolvePackScopedPath(packDir, pack, id.getNamespace() + "/" + id.getPath() + ".json");
+        }
+        return resolveServerNamespacedPath(getServerSceneDir(server), id, ".json");
+    }
+
+    @javax.annotation.Nullable
+    public static Path resolveServerStructurePath(MinecraftServer server, ResourceLocation id,
+            @javax.annotation.Nullable String pack) {
+        if (pack != null && !pack.isBlank()) {
+            ensureServerPackLayoutMigrated(server);
+            Path packDir = getServerPackStructureDir(server, pack);
+            return packDir == null ? null : resolvePackScopedPath(packDir, pack, id.getNamespace() + "/" + id.getPath() + ".nbt");
+        }
+        return resolveServerNamespacedPath(getServerStructureDir(server), id, ".nbt");
+    }
+
+    @javax.annotation.Nullable
+    public static Path resolveLocalSyncStructurePath(ResourceLocation id, @javax.annotation.Nullable String pack) {
+        if (pack != null && !pack.isBlank()) {
+            Path packDir = getPackStructureDir(pack);
+            if (packDir == null) {
+                return null;
+            }
+            String relativePath = id.getNamespace().equals(Ponderer.MODID)
+                    ? id.getPath() + ".nbt"
+                    : id.getNamespace() + "/" + id.getPath() + ".nbt";
+            return resolvePackScopedPath(packDir, pack, relativePath);
+        }
+        return resolveStructurePath(getStructureDir(), id);
+    }
+
+    public static String displaySceneKey(String id, @javax.annotation.Nullable String pack) {
+        if (pack == null || pack.isBlank()) {
+            return id;
+        }
+        return "[" + pack + "] " + id;
+    }
+
+    public static boolean saveToServer(MinecraftServer server, String sceneId, @javax.annotation.Nullable String pack, String json) {
         ResourceLocation sceneLoc = ResourceLocation.tryParse(sceneId);
         if (sceneLoc == null) {
             LOGGER.warn("Invalid scene id: {}", sceneId);
             return false;
         }
 
-        Path sceneDir = getServerSceneDir(server);
-        Path scenePath = sceneLoc.getNamespace().equals(Ponderer.MODID)
-            ? sceneDir.resolve(sceneLoc.getPath() + ".json")
-            : sceneDir.resolve(sceneLoc.getNamespace()).resolve(sceneLoc.getPath() + ".json");
+        Path scenePath = resolveServerScenePath(server, sceneLoc, pack);
+        if (scenePath == null) {
+            LOGGER.warn("Rejected unsafe scene path for id {} pack {}", sceneId, pack);
+            return false;
+        }
 
         try {
             Files.createDirectories(scenePath.getParent());
@@ -162,11 +526,12 @@ public final class SceneStore {
             return false;
         }
 
-        LOGGER.info("Uploaded scene {} to server storage", sceneId);
+        LOGGER.info("Uploaded scene {} to server storage (pack={})", sceneId, pack);
         return true;
     }
 
-    public static boolean saveStructureToServer(MinecraftServer server, String structureId, byte[] structureBytes) {
+    public static boolean saveStructureToServer(MinecraftServer server, String structureId, @javax.annotation.Nullable String pack,
+            byte[] structureBytes) {
         if (structureId == null || structureId.isBlank() || structureBytes == null) {
             return true;
         }
@@ -176,10 +541,11 @@ public final class SceneStore {
             LOGGER.warn("Invalid structure id: {}", structureId);
             return false;
         }
-        Path structureDir = getServerStructureDir(server);
-        Path structurePath = structureLoc.getNamespace().equals(Ponderer.MODID)
-            ? structureDir.resolve(structureLoc.getPath() + ".nbt")
-            : structureDir.resolve(structureLoc.getNamespace()).resolve(structureLoc.getPath() + ".nbt");
+        Path structurePath = resolveServerStructurePath(server, structureLoc, pack);
+        if (structurePath == null) {
+            LOGGER.warn("Rejected unsafe structure path for id {} pack {}", structureId, pack);
+            return false;
+        }
         try {
             Files.createDirectories(structurePath.getParent());
             Files.write(structurePath, structureBytes);
@@ -190,60 +556,178 @@ public final class SceneStore {
         }
     }
 
-    public static List<com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry> collectServerScripts(MinecraftServer server) {
-        Path root = getServerSceneDir(server);
-        if (!Files.exists(root)) {
+    public static List<SyncFileRef> collectServerScriptRefs(MinecraftServer server) {
+        ensureServerPackLayoutMigrated(server);
+
+        Path flatRoot = getServerSceneDir(server);
+        Path packsRoot = getServerPacksRoot(server);
+        if (!Files.exists(flatRoot) && !Files.exists(packsRoot)) {
             return List.of();
         }
-        List<com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry> entries = new ArrayList<>();
-        try (var paths = Files.walk(root)) {
-            for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".json")).toList()) {
-                String id = toId(root, path, ".json");
-                if (id == null) continue;
-                entries.add(new com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry(id, Files.readAllBytes(path)));
+
+        List<SyncFileRef> entries = new ArrayList<>();
+        collectServerSceneRefsFromRoot(flatRoot, null, entries);
+
+        if (!Files.exists(packsRoot)) {
+            return entries;
+        }
+
+        try (Stream<Path> packDirs = Files.list(packsRoot)) {
+            for (Path packDir : packDirs.filter(Files::isDirectory).sorted().toList()) {
+                String packId = packDir.getFileName() != null ? packDir.getFileName().toString() : null;
+                if (packId == null || packId.isBlank()) {
+                    continue;
+                }
+                collectServerSceneRefsFromRoot(packDir.resolve(SCRIPT_DIR), packId, entries);
             }
         } catch (Exception e) {
-            LOGGER.warn("Failed to collect server scripts", e);
+            LOGGER.warn("Failed to collect packed server scripts", e);
         }
         return entries;
     }
 
-    public static List<com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry> collectServerStructures(MinecraftServer server) {
-        Path root = getServerStructureDir(server);
-        if (!Files.exists(root)) {
-            return List.of();
+    private static void collectServerSceneRefsFromRoot(Path root, @javax.annotation.Nullable String explicitPack, List<SyncFileRef> entries) {
+        if (root == null || !Files.exists(root)) {
+            return;
         }
-        List<com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry> entries = new ArrayList<>();
+
         try (var paths = Files.walk(root)) {
-            for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".nbt")).toList()) {
-                String id = toId(root, path, ".nbt");
-                if (id == null) continue;
-                entries.add(new com.nododiiiii.ponderer.network.SyncResponsePayload.FileEntry(id, Files.readAllBytes(path)));
+            for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                    .filter(path -> !path.startsWith(root.resolve(PACKS_SUBDIR)))
+                    .sorted(Comparator.comparing(Path::toString))
+                    .toList()) {
+                SyncFileRef ref = toServerSceneRef(root, path, explicitPack);
+                if (ref != null) {
+                    entries.add(ref);
+                }
             }
         } catch (Exception e) {
-            LOGGER.warn("Failed to collect server structures", e);
+            LOGGER.warn("Failed to collect server scripts from {}", root, e);
+        }
+    }
+
+    public static List<SyncFileRef> collectServerStructureRefs(MinecraftServer server) {
+        ensureServerPackLayoutMigrated(server);
+
+        Path flatRoot = getServerStructureDir(server);
+        Path packsRoot = getServerPacksRoot(server);
+        if (!Files.exists(flatRoot) && !Files.exists(packsRoot)) {
+            return List.of();
+        }
+
+        List<SyncFileRef> entries = new ArrayList<>();
+        collectServerStructureRefsFromRoot(flatRoot, null, entries);
+
+        if (!Files.exists(packsRoot)) {
+            return entries;
+        }
+
+        try (Stream<Path> packDirs = Files.list(packsRoot)) {
+            for (Path packDir : packDirs.filter(Files::isDirectory).sorted().toList()) {
+                String packId = packDir.getFileName() != null ? packDir.getFileName().toString() : null;
+                if (packId == null || packId.isBlank()) {
+                    continue;
+                }
+                collectServerStructureRefsFromRoot(packDir.resolve(STRUCTURE_DIR), packId, entries);
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to collect packed server structures", e);
         }
         return entries;
     }
 
-    private static String toId(Path root, Path file, String ext) {
+    private static void collectServerStructureRefsFromRoot(Path root, @javax.annotation.Nullable String explicitPack,
+            List<SyncFileRef> entries) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+
+        try (var paths = Files.walk(root)) {
+            for (Path path : paths.filter(p -> p.toString().toLowerCase(Locale.ROOT).endsWith(".nbt"))
+                    .filter(path -> !path.startsWith(root.resolve(PACKS_SUBDIR)))
+                    .sorted(Comparator.comparing(Path::toString))
+                    .toList()) {
+                SyncFileRef ref = toServerStructureRef(root, path, ".nbt", explicitPack);
+                if (ref != null) {
+                    entries.add(ref);
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to collect server structures from {}", root, e);
+        }
+    }
+
+    @javax.annotation.Nullable
+    private static SyncFileRef toServerSceneRef(Path root, Path file, @javax.annotation.Nullable String explicitPack) {
+        try {
+            String json = Files.readString(file, StandardCharsets.UTF_8);
+            DslScene scene = GSON.fromJson(json, DslScene.class);
+            if (scene == null || scene.id == null || scene.id.isBlank()) {
+                LOGGER.warn("Skipping invalid server scene file (missing id): {}", file);
+                return null;
+            }
+            String inferredPack = explicitPack != null && !explicitPack.isBlank() ? explicitPack : inferPackName(root, file);
+            String pack = scene.pack != null && !scene.pack.isBlank() ? scene.pack : inferredPack;
+            return new SyncFileRef(scene.id, pack, file);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to inspect server scene file: {}", file, e);
+            return null;
+        }
+    }
+
+    @javax.annotation.Nullable
+    static SyncFileRef toServerStructureRef(Path root, Path file, String ext, @javax.annotation.Nullable String explicitPack) {
         Path rel = root.relativize(file);
         if (rel.getNameCount() < 1) {
             return null;
         }
+
+        String pack = explicitPack;
+        Path idPath = rel;
+        if ((pack == null || pack.isBlank()) && PACKS_SUBDIR.equals(rel.getName(0).toString()) && rel.getNameCount() >= 3) {
+            pack = rel.getName(1).toString();
+            idPath = rel.subpath(2, rel.getNameCount());
+        }
+
+        if (pack != null && !pack.isBlank()) {
+            String first = idPath.getName(0).toString();
+            String prefix = "[" + pack + "] ";
+            if (first.startsWith(prefix)) {
+                idPath = idPath.getNameCount() == 1
+                        ? Path.of(first.substring(prefix.length()))
+                        : Path.of(first.substring(prefix.length()), idPath.subpath(1, idPath.getNameCount()).toString());
+            }
+        }
+
+        if (idPath.getNameCount() == 0) {
+            return null;
+        }
+
         String namespace;
         String path;
-        if (rel.getNameCount() == 1) {
+        if (idPath.getNameCount() == 1) {
             namespace = Ponderer.MODID;
-            path = rel.getName(0).toString();
+            path = idPath.getName(0).toString();
         } else {
-            namespace = rel.getName(0).toString();
-            path = rel.subpath(1, rel.getNameCount()).toString().replace("\\", "/");
+            namespace = idPath.getName(0).toString();
+            path = idPath.subpath(1, idPath.getNameCount()).toString().replace("\\", "/");
         }
         if (path.endsWith(ext)) {
             path = path.substring(0, path.length() - ext.length());
         }
-        return namespace + ":" + path;
+        if (namespace.isBlank() || path.isBlank()) {
+            return null;
+        }
+        return new SyncFileRef(namespace + ":" + path, pack, file);
+    }
+
+    @javax.annotation.Nullable
+    private static String inferPackName(Path root, Path file) {
+        Path rel = root.relativize(file);
+        if (rel.getNameCount() >= 2 && PACKS_SUBDIR.equals(rel.getName(0).toString())) {
+            return rel.getName(1).toString();
+        }
+        return null;
     }
 
     /**
@@ -253,33 +737,85 @@ public final class SceneStore {
      * @param scene the DslScene to serialize and save
      * @return true if saved successfully
      */
-    public static boolean saveSceneToLocal(DslScene scene) {
+    @javax.annotation.Nullable
+    public static Path resolveLocalScenePath(DslScene scene) {
         if (scene == null || scene.id == null || scene.id.isBlank()) {
-            LOGGER.warn("Cannot save scene with null/blank id");
-            return false;
+            return null;
         }
 
         ResourceLocation loc = ResourceLocation.tryParse(scene.id);
         if (loc == null) {
-            LOGGER.warn("Cannot save scene with invalid id: {}", scene.id);
-            return false;
+            return null;
         }
 
         Path dir;
         String filename;
         if (scene.pack != null && !scene.pack.isEmpty()) {
             dir = getPackSceneDir(scene.pack);
+            if (dir == null) {
+                return null;
+            }
             filename = "[" + scene.pack + "] " + loc.getPath().replace('/', '_') + ".json";
         } else {
             dir = getSceneDir();
             filename = loc.getPath().replace('/', '_') + ".json";
         }
-        Path filePath = dir.resolve(filename);
 
-        // Check if there's an existing file that contains this scene id
+        Path filePath = SafePaths.resolveFileName(dir, filename);
+        if (filePath == null) {
+            return null;
+        }
+
         Path existingFile = findExistingFileForScene(scene);
-        if (existingFile != null) {
-            filePath = existingFile;
+        return existingFile != null ? existingFile : filePath;
+    }
+
+    @javax.annotation.Nullable
+    public static Path findLocalSceneFile(String sceneId) {
+        return findLocalSceneFile(sceneId, null);
+    }
+
+    @javax.annotation.Nullable
+    public static Path findLocalSceneFile(String sceneId, @javax.annotation.Nullable String pack) {
+        if (sceneId == null || sceneId.isBlank()) {
+            return null;
+        }
+        DslScene temp = new DslScene();
+        temp.id = sceneId;
+        temp.pack = pack;
+
+        if (pack != null && !pack.isBlank()) {
+            Path packDir = getPackSceneDir(pack);
+            Path existing = packDir == null ? null : findExistingFile(packDir, sceneId);
+            return existing != null ? existing : resolveLocalScenePath(temp);
+        }
+
+        Path existing = findExistingFile(getSceneDir(), sceneId);
+        if (existing != null) {
+            return existing;
+        }
+        ResourceLocation loc = ResourceLocation.tryParse(sceneId);
+        if (loc == null) {
+            return null;
+        }
+        return resolveLocalScenePath(temp);
+    }
+
+    public static LocalSaveResult saveSceneToLocalDetailed(DslScene scene) {
+        LocalSaveResult validationFailure = validateLocalSceneSave(scene);
+        if (validationFailure != null) {
+            LOGGER.warn(validationFailure.englishMessage());
+            return validationFailure;
+        }
+
+        Path filePath = resolveLocalScenePath(scene);
+        if (filePath == null) {
+            LocalSaveResult failure = LocalSaveResult.failure(
+                "Cannot save scene '" + scene.id + "' because the output path could not be resolved safely",
+                SAVE_ERROR_KEY_PREFIX + "file_name_invalid"
+            );
+            LOGGER.warn(failure.englishMessage());
+            return failure;
         }
 
         try {
@@ -287,12 +823,21 @@ public final class SceneStore {
             sanitizeScene(scene);
             String json = GSON_PRETTY.toJson(scene);
             Files.writeString(filePath, json, StandardCharsets.UTF_8);
+            if (scene.pack != null && !scene.pack.isBlank()) {
+                deleteDirectoryRecursive(getReadonlyCachePackSceneDir(scene.pack));
+                deleteDirectoryRecursive(getReadonlyCachePackStructureDir(scene.pack));
+            }
             LOGGER.info("Saved scene {} to {}", scene.id, filePath);
-            return true;
+            return LocalSaveResult.success(filePath, "Saved scene '" + scene.id + "' to " + filePath);
         } catch (IOException e) {
-            LOGGER.error("Failed to save scene {} to {}", scene.id, filePath, e);
-            return false;
+            LocalSaveResult failure = mapIoFailure(scene.id, filePath, e);
+            LOGGER.error(failure.englishMessage(), e);
+            return failure;
         }
+    }
+
+    public static boolean saveSceneToLocal(DslScene scene) {
+        return saveSceneToLocalDetailed(scene).isSuccess();
     }
 
     /**
@@ -301,7 +846,8 @@ public final class SceneStore {
     @javax.annotation.Nullable
     private static Path findExistingFileForScene(DslScene scene) {
         if (scene.pack != null && !scene.pack.isEmpty()) {
-            return findExistingFile(getPackSceneDir(scene.pack), scene.id);
+            Path packDir = getPackSceneDir(scene.pack);
+            return packDir == null ? null : findExistingFile(packDir, scene.id);
         }
         return findExistingFile(getSceneDir(), scene.id);
     }
@@ -311,7 +857,7 @@ public final class SceneStore {
      */
     private static Path findExistingFile(Path dir, String sceneId) {
         if (!Files.exists(dir)) return null;
-        try (Stream<Path> paths = Files.list(dir)) {
+        try (Stream<Path> paths = Files.walk(dir)) {
             for (Path path : paths.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json")).toList()) {
                 try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
                     DslScene existing = GSON.fromJson(reader, DslScene.class);
@@ -358,11 +904,15 @@ public final class SceneStore {
      */
     @javax.annotation.Nullable
     private static Path findExistingFileInPacks(String sceneId) {
-        Path packsDir = getSceneDir().resolve(PACKS_SUBDIR);
+        Path packsDir = getPacksRoot();
         if (!Files.exists(packsDir)) return null;
         try (Stream<Path> packDirs = Files.list(packsDir)) {
             for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
-                Path found = findExistingFile(packDir, sceneId);
+                Path searchRoot = getPackContentSearchRoot(packDir, SCRIPT_DIR);
+                if (searchRoot == null || !Files.exists(searchRoot)) {
+                    continue;
+                }
+                Path found = findExistingFile(searchRoot, sceneId);
                 if (found != null) return found;
             }
         } catch (IOException ignored) {}
@@ -391,6 +941,9 @@ public final class SceneStore {
 
         // Search in the appropriate directory
         Path searchDir = packName != null ? getPackSceneDir(packName) : getSceneDir();
+        if (searchDir == null) {
+            return null;
+        }
         Path result = findExistingFile(searchDir, sceneId);
         if (result != null) return result;
 
@@ -419,6 +972,129 @@ public final class SceneStore {
         } catch (IOException e) {
             LOGGER.error("Failed to delete scene file: {}", existing, e);
             return false;
+        }
+    }
+
+    private static void ensureLocalPackLayoutMigrated() {
+        migrateLegacyPackTypeRoot(getLegacyPackSceneRoot(), getPacksRoot(), SCRIPT_DIR, "local script");
+        migrateLegacyPackTypeRoot(getLegacyPackStructureRoot(), getPacksRoot(), STRUCTURE_DIR, "local structure");
+    }
+
+    private static void ensureServerPackLayoutMigrated(MinecraftServer server) {
+        migrateLegacyPackTypeRoot(getLegacyServerPackSceneRoot(server), getServerPacksRoot(server), SCRIPT_DIR, "server script");
+        migrateLegacyPackTypeRoot(getLegacyServerPackStructureRoot(server), getServerPacksRoot(server), STRUCTURE_DIR, "server structure");
+    }
+
+    private static void migrateLegacyPackTypeRoot(Path legacyRoot, Path packsRoot, String typeDir, String label) {
+        if (legacyRoot == null || !Files.exists(legacyRoot)) {
+            return;
+        }
+
+        try (Stream<Path> packDirs = Files.list(legacyRoot)) {
+            for (Path legacyPackDir : packDirs.filter(Files::isDirectory).toList()) {
+                String packId = legacyPackDir.getFileName() != null ? legacyPackDir.getFileName().toString() : null;
+                if (packId == null || packId.isBlank()) {
+                    continue;
+                }
+
+                Path packDir = SafePaths.resolveFileName(packsRoot, packId);
+                Path targetDir = resolvePackTypeDir(packDir, typeDir);
+                if (packDir == null || targetDir == null) {
+                    LOGGER.warn("Rejected unsafe legacy {} pack path for {}", label, legacyPackDir);
+                    continue;
+                }
+
+                migrateLegacyPackDirectory(legacyPackDir, targetDir, label);
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Failed to inspect legacy {} pack root {}", label, legacyRoot, e);
+        }
+
+        deleteEmptyDirectories(legacyRoot);
+    }
+
+    private static void migrateLegacyPackDirectory(Path legacyDir, Path targetDir, String label) {
+        try {
+            Path targetParent = targetDir.getParent();
+            if (targetParent == null) {
+                LOGGER.warn("Missing parent for migrated {} pack directory {}", label, targetDir);
+                return;
+            }
+
+            Files.createDirectories(targetParent);
+            if (!Files.exists(targetDir)) {
+                Files.move(legacyDir, targetDir);
+                LOGGER.info("Migrated legacy {} pack directory: {} -> {}", label, legacyDir, targetDir);
+                return;
+            }
+
+            try (Stream<Path> paths = Files.walk(legacyDir)) {
+                for (Path path : paths.sorted(Comparator.comparingInt(Path::getNameCount)).toList()) {
+                    Path relative = legacyDir.relativize(path);
+                    if (relative.getNameCount() == 0) {
+                        continue;
+                    }
+
+                    Path targetPath = SafePaths.resolveRelativePath(targetDir, relative.toString().replace("\\", "/"));
+                    if (targetPath == null) {
+                        LOGGER.warn("Rejected unsafe migrated {} relative path {} in {}", label, relative, legacyDir);
+                        continue;
+                    }
+
+                    if (Files.isDirectory(path)) {
+                        Files.createDirectories(targetPath);
+                        continue;
+                    }
+
+                    Files.createDirectories(targetPath.getParent());
+                    if (!Files.exists(targetPath)) {
+                        Files.move(path, targetPath);
+                        continue;
+                    }
+
+                    if (filesHaveSameContent(path, targetPath)) {
+                        Files.deleteIfExists(path);
+                        continue;
+                    }
+
+                    LOGGER.warn("Keeping conflicting legacy {} file {} because target already exists at {}", label, path, targetPath);
+                }
+            }
+
+            deleteEmptyDirectories(legacyDir);
+            LOGGER.info("Merged legacy {} pack directory into {}", label, targetDir);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to migrate legacy {} pack directory {}", label, legacyDir, e);
+        }
+    }
+
+    private static boolean filesHaveSameContent(Path left, Path right) {
+        try {
+            return Files.size(left) == Files.size(right) && Files.mismatch(left, right) == -1;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static void deleteEmptyDirectories(Path root) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.walk(root)) {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                if (!Files.isDirectory(path)) {
+                    continue;
+                }
+
+                try (Stream<Path> children = Files.list(path)) {
+                    if (children.findAny().isEmpty()) {
+                        Files.deleteIfExists(path);
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
         }
     }
 
@@ -463,7 +1139,11 @@ public final class SceneStore {
      * Returns true if the file now exists locally.
      */
     public static boolean ensureBuiltinStructure(String path) {
-        Path target = getStructureDir().resolve(path + ".nbt");
+        Path target = SafePaths.resolveRelativePath(getStructureDir(), path + ".nbt");
+        if (target == null) {
+            LOGGER.warn("Rejected unsafe built-in structure path: {}", path);
+            return false;
+        }
         if (Files.exists(target)) return true;
         try (InputStream in = openBuiltinStructure(path)) {
             if (in == null) return false;
@@ -496,7 +1176,11 @@ public final class SceneStore {
      * Returns null if no built-in resource exists for the given path.
      */
     public static InputStream openBuiltinStructure(String path) {
-        String resourcePath = "data/ponderer/default_structures/" + path + ".nbt";
+        List<String> segments = SafePaths.splitValidatedRelativePath(path);
+        if (segments == null) {
+            return null;
+        }
+        String resourcePath = "data/ponderer/default_structures/" + String.join("/", segments) + ".nbt";
         return SceneStore.class.getClassLoader().getResourceAsStream(resourcePath);
     }
 
@@ -517,6 +1201,8 @@ public final class SceneStore {
     }
 
     public static int reloadFromDisk() {
+        ensureLocalPackLayoutMigrated();
+
         Path dir = getSceneDir();
         List<DslScene> loaded = new ArrayList<>();
 
@@ -529,35 +1215,49 @@ public final class SceneStore {
         }
 
         // 1. Load flat files (local scenes)
-        try (Stream<Path> paths = Files.list(dir)) {
+        try (Stream<Path> paths = Files.walk(dir)) {
             paths.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                .filter(path -> !path.startsWith(dir.resolve(PACKS_SUBDIR)))
                 .sorted(Comparator.comparing(Path::toString))
                 .forEach(path -> loadSceneFile(path, loaded));
         } catch (IOException e) {
             LOGGER.error("Failed to list scene directory: {}", dir, e);
         }
 
-        // 2. Load pack subdirectories (_packs/{PackName}/)
-        Path packsDir = dir.resolve(PACKS_SUBDIR);
-        if (Files.exists(packsDir)) {
-            try (Stream<Path> packDirs = Files.list(packsDir)) {
-                for (Path packDir : packDirs.filter(Files::isDirectory).sorted().toList()) {
-                    try (Stream<Path> paths = Files.list(packDir)) {
-                        paths.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
-                            .sorted(Comparator.comparing(Path::toString))
-                            .forEach(path -> loadSceneFile(path, loaded));
-                    } catch (IOException e) {
-                        LOGGER.warn("Failed to list pack directory: {}", packDir, e);
-                    }
-                }
-            } catch (IOException e) {
-                LOGGER.warn("Failed to list packs directory: {}", packsDir, e);
-            }
-        }
+        // 2. Load imported local packs (_packs/{PackName}/scripts)
+        loadPackScenesFromRoot(getPacksRoot(), loaded);
+
+        // 3. Load readonly cached source packs after imported locals.
+        loadPackScenesFromRoot(getReadonlyCachePacksRoot(), loaded);
 
         SceneRuntime.setScenes(loaded);
         LOGGER.info("Loaded {} ponderer scene(s) from {}", loaded.size(), dir);
         return loaded.size();
+    }
+
+    private static void loadPackScenesFromRoot(Path packsDir, List<DslScene> loaded) {
+        if (!Files.exists(packsDir)) {
+            return;
+        }
+
+        try (Stream<Path> packDirs = Files.list(packsDir)) {
+            for (Path packDir : packDirs.filter(Files::isDirectory).sorted().toList()) {
+                Path searchRoot = getPackContentSearchRoot(packDir, SCRIPT_DIR);
+                if (searchRoot == null || !Files.exists(searchRoot)) {
+                    continue;
+                }
+
+                try (Stream<Path> paths = Files.walk(searchRoot)) {
+                    paths.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                        .sorted(Comparator.comparing(Path::toString))
+                        .forEach(path -> loadSceneFile(path, loaded));
+                } catch (IOException e) {
+                    LOGGER.warn("Failed to list pack directory: {}", packDir, e);
+                }
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Failed to list packs directory: {}", packsDir, e);
+        }
     }
 
     private static void loadSceneFile(Path path, List<DslScene> loaded) {
@@ -576,11 +1276,15 @@ public final class SceneStore {
     }
 
     /**
-     * Ensure every scene segment starts with a "show_structure" step.
-     * If the first meaningful step is not show_structure, prepend one.
+     * Ensure every scene segment starts with a valid scene-start step.
+     * If the first meaningful step is neither show_structure nor show_interface,
+     * prepend show_structure + idle(20).
      * This prevents crashes when operations like hide_section come first.
      */
     public static void sanitizeScene(DslScene scene) {
+        if (scene.editable == null) {
+            scene.editable = Config.DEFAULT_EDITABLE.get();
+        }
         if (scene.scenes != null) {
             for (DslScene.SceneSegment seg : scene.scenes) {
                 ensureFirstStepIsShowStructure(seg);
@@ -592,8 +1296,10 @@ public final class SceneStore {
         if (seg.steps == null || seg.steps.isEmpty()) return;
         for (DslScene.DslStep step : seg.steps) {
             if (step == null || step.type == null) continue;
-            if ("show_structure".equalsIgnoreCase(step.type)) return; // already correct
-            break; // first meaningful step is not show_structure
+            if ("show_structure".equalsIgnoreCase(step.type) || "show_interface".equalsIgnoreCase(step.type)) {
+                return; // already correct
+            }
+            break; // first meaningful step is not a valid scene-start step
         }
         // Prepend show_structure + idle(20t)
         List<DslScene.DslStep> fixed = new ArrayList<>();
@@ -608,6 +1314,153 @@ public final class SceneStore {
         seg.steps = fixed;
     }
 
+    @javax.annotation.Nullable
+    private static LocalSaveResult validateLocalSceneSave(DslScene scene) {
+        if (scene == null || scene.id == null || scene.id.isBlank()) {
+            return LocalSaveResult.failure(
+                "Cannot save scene with blank id",
+                SAVE_ERROR_KEY_PREFIX + "scene_id_blank"
+            );
+        }
+
+        String invalidSceneIdChar = findInvalidSceneIdCharacter(scene.id);
+        ResourceLocation loc = ResourceLocation.tryParse(scene.id);
+        if (loc == null) {
+            if (invalidSceneIdChar != null) {
+                return LocalSaveResult.failure(
+                    "Cannot save scene '" + scene.id + "' because the scene id contains invalid character '" + invalidSceneIdChar + "'",
+                    SAVE_ERROR_KEY_PREFIX + "scene_id_invalid_char",
+                    invalidSceneIdChar
+                );
+            }
+            return LocalSaveResult.failure(
+                "Cannot save scene '" + scene.id + "' because the scene id is invalid",
+                SAVE_ERROR_KEY_PREFIX + "scene_id_invalid"
+            );
+        }
+
+        if (scene.pack != null && !scene.pack.isBlank()) {
+            SafePaths.FileNameValidationError packError = SafePaths.diagnosePortableAssetName(scene.pack);
+            if (packError != null) {
+                return toPackNameFailure(scene.id, scene.pack, packError);
+            }
+        }
+
+        String fileName = buildLocalSceneFileName(scene.pack, loc);
+        SafePaths.FileNameValidationError fileNameError = SafePaths.diagnoseWindowsFileNameSegment(fileName);
+        if (fileNameError != null) {
+            return toFileNameFailure(scene.id, fileName, fileNameError);
+        }
+
+        return null;
+    }
+
+    private static String buildLocalSceneFileName(@javax.annotation.Nullable String packName, ResourceLocation loc) {
+        String prefix = packName != null && !packName.isBlank() ? "[" + packName + "] " : "";
+        return prefix + loc.getPath().replace('/', '_') + ".json";
+    }
+
+    @javax.annotation.Nullable
+    private static String findInvalidSceneIdCharacter(String sceneId) {
+        if (sceneId == null) {
+            return null;
+        }
+        for (int i = 0; i < sceneId.length(); i++) {
+            char ch = sceneId.charAt(i);
+            boolean allowed = (ch >= 'a' && ch <= 'z')
+                || (ch >= '0' && ch <= '9')
+                || ch == '_'
+                || ch == '-'
+                || ch == '.'
+                || ch == '/'
+                || ch == ':';
+            if (!allowed) {
+                if (Character.isISOControl(ch)) {
+                    return String.format(Locale.ROOT, "U+%04X", (int) ch);
+                }
+                return Character.toString(ch);
+            }
+        }
+        return null;
+    }
+
+    private static LocalSaveResult toPackNameFailure(String sceneId, String packName, SafePaths.FileNameValidationError error) {
+        return switch (error.code()) {
+            case INVALID_CHARACTER -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because pack name '" + packName + "' contains invalid character '" + error.offendingText() + "'",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid_char",
+                error.offendingText()
+            );
+            case RESERVED_NAME -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because pack name '" + packName + "' is a reserved Windows name",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_reserved",
+                packName
+            );
+            case TRAILING_SPACE_OR_DOT -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because pack name '" + packName + "' ends with a space or dot",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_trailing"
+            );
+            case EMPTY, DOT_SEGMENT -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because pack name '" + packName + "' is invalid",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid"
+            );
+        };
+    }
+
+    private static LocalSaveResult toFileNameFailure(String sceneId, String fileName, SafePaths.FileNameValidationError error) {
+        return switch (error.code()) {
+            case INVALID_CHARACTER -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because output filename '" + fileName + "' contains invalid character '" + error.offendingText() + "'",
+                SAVE_ERROR_KEY_PREFIX + "file_name_invalid_char",
+                error.offendingText()
+            );
+            case RESERVED_NAME -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because output filename '" + fileName + "' is a reserved Windows name",
+                SAVE_ERROR_KEY_PREFIX + "file_name_reserved",
+                fileName
+            );
+            case TRAILING_SPACE_OR_DOT -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because output filename '" + fileName + "' ends with a space or dot",
+                SAVE_ERROR_KEY_PREFIX + "file_name_trailing"
+            );
+            case EMPTY, DOT_SEGMENT -> LocalSaveResult.failure(
+                "Cannot save scene '" + sceneId + "' because output filename '" + fileName + "' is invalid",
+                SAVE_ERROR_KEY_PREFIX + "file_name_invalid"
+            );
+        };
+    }
+
+    private static LocalSaveResult mapIoFailure(String sceneId, Path filePath, IOException e) {
+        if (e instanceof AccessDeniedException) {
+            return LocalSaveResult.failure(
+                "Failed to save scene '" + sceneId + "' to " + filePath + ": access denied",
+                SAVE_ERROR_KEY_PREFIX + "access_denied",
+                filePath.getFileName() != null ? filePath.getFileName().toString() : filePath.toString()
+            );
+        }
+        if (e instanceof NoSuchFileException) {
+            return LocalSaveResult.failure(
+                "Failed to save scene '" + sceneId + "' to " + filePath + ": target path does not exist",
+                SAVE_ERROR_KEY_PREFIX + "path_missing",
+                filePath.toString()
+            );
+        }
+
+        String detail = "I/O error";
+        if (e instanceof FileSystemException fileSystemException && fileSystemException.getReason() != null
+            && !fileSystemException.getReason().isBlank()) {
+            detail = "filesystem error: " + fileSystemException.getReason();
+        } else if (e.getMessage() != null && !e.getMessage().isBlank()) {
+            detail = "I/O error: " + e.getMessage();
+        }
+
+        return LocalSaveResult.failure(
+            "Failed to save scene '" + sceneId + "' to " + filePath + ": " + detail,
+            SAVE_ERROR_KEY_PREFIX + "io",
+            detail
+        );
+    }
+
     // ===== Pack Export/Import Methods =====
 
     /**
@@ -615,35 +1468,42 @@ public final class SceneStore {
      * File will be created at: resourcepacks/[Ponderer] {name}.zip
      * After export: reorganizes files into _packs/{name}/ and reloads.
      */
-    public static boolean packScenesAndStructures(String name, String version, String author) {
+    public static PackExportResult packScenesAndStructuresDetailed(String name, String version, String author) {
+        PackExportResult nameFailure = validatePackExportName(name);
+        if (nameFailure != null) {
+            LOGGER.warn(nameFailure.englishMessage());
+            return nameFailure;
+        }
+
+        String normalizedName = name.trim();
+        Path resourcepacksDir = PondererServices.PLATFORM.getGameDir().resolve("resourcepacks");
+        Path outputPath = resolvePackExportOutputPath(resourcepacksDir, normalizedName);
+        if (outputPath == null) {
+            PackExportResult failure = PackExportResult.failure(
+                "Cannot export pack '" + normalizedName + "' because the output path could not be resolved safely",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid"
+            );
+            LOGGER.warn(failure.englishMessage());
+            return failure;
+        }
+
         try {
-            // Prepare output directory
-            Path gameDir = PondererServices.PLATFORM.getGameDir();
-            Path resourcepacksDir = gameDir.resolve("resourcepacks");
             Files.createDirectories(resourcepacksDir);
 
-            String filename = "[Ponderer] " + name + ".zip";
-            Path outputPath = resourcepacksDir.resolve(filename);
+            String filename = outputPath.getFileName() != null ? outputPath.getFileName().toString() : "[Ponderer] " + normalizedName + ".zip";
+            String packJson = createPackMetadata(normalizedName, version, author);
 
-            // Create pack.json metadata
-            String packJson = createPackMetadata(name, version, author);
-
-            // Collect all scene files (flat + pack subdirectories)
             List<Path> allScriptFiles = collectAllScriptFiles();
             Set<String> allStructureRefs = new HashSet<>();
 
             try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath), StandardCharsets.UTF_8)) {
-                // Write pack.mcmeta
                 writeZipEntry(zos, "pack.mcmeta", "{\"pack\": {\"pack_format\": 15, \"description\": \"Ponderer scene collection\"}}");
-
-                // Write pack.json (Ponderer metadata)
                 writeZipEntry(zos, "pack.json", packJson);
 
-                // Write scripts: update pack field and strip filename prefix
                 int count = 0;
                 Set<String> usedEntryNames = new HashSet<>();
                 for (Path p : allScriptFiles) {
-                    String cleanJson = readAndUpdatePackField(p, name);
+                    String cleanJson = readAndUpdatePackField(p, normalizedName);
                     if (cleanJson == null) continue;
                     collectStructureReferences(cleanJson, allStructureRefs);
                     String cleanFilename = stripPackPrefix(p.getFileName().toString());
@@ -655,23 +1515,20 @@ public final class SceneStore {
                     count++;
                 }
 
-                // Write structures (strip prefix from filenames)
                 count += writeStructuresToZip(zos, allStructureRefs);
-
                 LOGGER.info("Packed {} files into {}", count, filename);
             }
 
-            // Auto-update registry on export
-            updateRegistryAfterExport(outputPath, name, version, author);
-
-            // Reorganize files on disk: move all to _packs/{name}/ with proper naming
-            reorganizeFilesForPack(name, allScriptFiles);
-
-            return true;
+            return PackExportResult.success(outputPath, "Exported pack '" + normalizedName + "' to " + outputPath);
         } catch (IOException e) {
-            LOGGER.error("Failed to pack Ponderer scenes and structures", e);
-            return false;
+            PackExportResult failure = mapPackExportIoFailure(normalizedName, outputPath, e);
+            LOGGER.error(failure.englishMessage(), e);
+            return failure;
         }
+    }
+
+    public static boolean packScenesAndStructures(String name, String version, String author) {
+        return packScenesAndStructuresDetailed(name, version, author).isSuccess();
     }
 
     /**
@@ -680,49 +1537,53 @@ public final class SceneStore {
      * File will be created at: resourcepacks/[Ponderer] {name}.zip
      * After export: reorganizes exported files into _packs/{name}/ and reloads.
      */
-    public static boolean packSelectedScenesAndStructures(String name, String version, String author, Set<String> selectedSceneIds) {
+    public static PackExportResult packSelectedScenesAndStructuresDetailed(String name, String version, String author, Set<String> selectedSceneIds) {
         if (selectedSceneIds == null || selectedSceneIds.isEmpty()) {
-            return packScenesAndStructures(name, version, author);
+            return packScenesAndStructuresDetailed(name, version, author);
+        }
+
+        PackExportResult nameFailure = validatePackExportName(name);
+        if (nameFailure != null) {
+            LOGGER.warn(nameFailure.englishMessage());
+            return nameFailure;
+        }
+
+        String normalizedName = name.trim();
+        Path resourcepacksDir = PondererServices.PLATFORM.getGameDir().resolve("resourcepacks");
+        Path outputPath = resolvePackExportOutputPath(resourcepacksDir, normalizedName);
+        if (outputPath == null) {
+            PackExportResult failure = PackExportResult.failure(
+                "Cannot export pack '" + normalizedName + "' because the output path could not be resolved safely",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid"
+            );
+            LOGGER.warn(failure.englishMessage());
+            return failure;
         }
 
         try {
-            // Prepare output directory
-            Path gameDir = PondererServices.PLATFORM.getGameDir();
-            Path resourcepacksDir = gameDir.resolve("resourcepacks");
             Files.createDirectories(resourcepacksDir);
-
-            String filename = "[Ponderer] " + name + ".zip";
-            Path outputPath = resourcepacksDir.resolve(filename);
-
-            // Create pack.json metadata
-            String packJson = createPackMetadata(name, version, author);
+            String filename = outputPath.getFileName() != null ? outputPath.getFileName().toString() : "[Ponderer] " + normalizedName + ".zip";
+            String packJson = createPackMetadata(normalizedName, version, author);
 
             Set<String> requiredStructures = new HashSet<>();
             List<Path> exportedFiles = new ArrayList<>();
 
             try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(outputPath), StandardCharsets.UTF_8)) {
-                // Write pack.mcmeta
                 writeZipEntry(zos, "pack.mcmeta", "{\"pack\": {\"pack_format\": 15, \"description\": \"Ponderer scene collection\"}}");
-
-                // Write pack.json (Ponderer metadata)
                 writeZipEntry(zos, "pack.json", packJson);
 
-                // Write selected scripts
                 int count = 0;
                 Set<String> usedEntryNames = new HashSet<>();
                 List<Path> allScriptFiles = collectAllScriptFiles();
                 for (Path p : allScriptFiles) {
-                    // Read scene to check if it's selected
                     try {
                         String rawJson = Files.readString(p, StandardCharsets.UTF_8);
                         DslScene scene = GSON.fromJson(rawJson, DslScene.class);
                         if (scene == null || scene.id == null) continue;
 
-                        // Check if this scene is in the selected set
                         boolean isSelected = selectedSceneIds.contains(scene.id) ||
                             selectedSceneIds.contains(scene.sceneKey());
                         if (!isSelected) {
-                            // Also try matching by filename without extension
                             String fileBase = p.getFileName().toString();
                             if (fileBase.endsWith(".json")) fileBase = fileBase.substring(0, fileBase.length() - 5);
                             String stripped = stripPackPrefix(fileBase);
@@ -731,8 +1592,7 @@ public final class SceneStore {
                         }
 
                         if (isSelected) {
-                            // Update pack field and write to zip
-                            scene.pack = name;
+                            scene.pack = normalizedName;
                             String cleanJson = GSON_PRETTY.toJson(scene);
                             collectStructureReferences(cleanJson, requiredStructures);
                             String cleanFilename = stripPackPrefix(p.getFileName().toString());
@@ -749,23 +1609,94 @@ public final class SceneStore {
                     }
                 }
 
-                // Write only referenced structures (strip prefix)
                 count += writeStructuresToZip(zos, requiredStructures);
-
                 LOGGER.info("Packed {} files into {} (selected {} scenes)", count, filename, selectedSceneIds.size());
             }
 
-            // Auto-update registry on export
-            updateRegistryAfterExport(outputPath, name, version, author);
-
-            // Reorganize exported files on disk
-            reorganizeFilesForPack(name, exportedFiles);
-
-            return true;
+            return PackExportResult.success(outputPath, "Exported pack '" + normalizedName + "' to " + outputPath);
         } catch (IOException e) {
-            LOGGER.error("Failed to pack selected Ponderer scenes and structures", e);
-            return false;
+            PackExportResult failure = mapPackExportIoFailure(normalizedName, outputPath, e);
+            LOGGER.error(failure.englishMessage(), e);
+            return failure;
         }
+    }
+
+    public static boolean packSelectedScenesAndStructures(String name, String version, String author, Set<String> selectedSceneIds) {
+        return packSelectedScenesAndStructuresDetailed(name, version, author, selectedSceneIds).isSuccess();
+    }
+
+    @javax.annotation.Nullable
+    private static PackExportResult validatePackExportName(String name) {
+        if (name == null || name.isBlank()) {
+            return PackExportResult.failure(
+                "Cannot export pack because the pack name is blank",
+                "ponderer.ui.export.name_empty"
+            );
+        }
+
+        SafePaths.FileNameValidationError error = SafePaths.diagnosePortableAssetName(name);
+        if (error == null) {
+            return null;
+        }
+
+        return switch (error.code()) {
+            case INVALID_CHARACTER -> PackExportResult.failure(
+                "Cannot export pack '" + name + "' because the pack name contains invalid character '" + error.offendingText() + "'",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid_char",
+                error.offendingText()
+            );
+            case RESERVED_NAME -> PackExportResult.failure(
+                "Cannot export pack '" + name + "' because the pack name is a reserved Windows name",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_reserved",
+                name
+            );
+            case TRAILING_SPACE_OR_DOT -> PackExportResult.failure(
+                "Cannot export pack '" + name + "' because the pack name ends with a space or dot",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_trailing"
+            );
+            case EMPTY, DOT_SEGMENT -> PackExportResult.failure(
+                "Cannot export pack '" + name + "' because the pack name is invalid",
+                SAVE_ERROR_KEY_PREFIX + "pack_name_invalid"
+            );
+        };
+    }
+
+    @javax.annotation.Nullable
+    private static Path resolvePackExportOutputPath(Path resourcepacksDir, String packName) {
+        String filename = "[Ponderer] " + packName + ".zip";
+        return SafePaths.resolveFileName(resourcepacksDir, filename);
+    }
+
+    private static PackExportResult mapPackExportIoFailure(String packName, @javax.annotation.Nullable Path outputPath, IOException e) {
+        String target = outputPath == null ? packName : outputPath.toString();
+        if (e instanceof AccessDeniedException) {
+            return PackExportResult.failure(
+                "Failed to export pack '" + packName + "' to " + target + ": access denied",
+                SAVE_ERROR_KEY_PREFIX + "access_denied",
+                outputPath != null && outputPath.getFileName() != null ? outputPath.getFileName().toString() : target
+            );
+        }
+        if (e instanceof NoSuchFileException) {
+            return PackExportResult.failure(
+                "Failed to export pack '" + packName + "' to " + target + ": target path does not exist",
+                SAVE_ERROR_KEY_PREFIX + "path_missing",
+                target
+            );
+        }
+
+        String detail = "I/O error";
+        if (e instanceof FileSystemException fileSystemException && fileSystemException.getReason() != null
+            && !fileSystemException.getReason().isBlank()) {
+            detail = "filesystem error: " + fileSystemException.getReason();
+        } else if (e.getMessage() != null && !e.getMessage().isBlank()) {
+            detail = "I/O error: " + e.getMessage();
+        }
+
+        return PackExportResult.failure(
+            "Failed to export pack '" + packName + "' to " + target + ": " + detail,
+            SAVE_ERROR_KEY_PREFIX + "io",
+            detail
+        );
     }
 
     /**
@@ -773,29 +1704,34 @@ public final class SceneStore {
      */
     private static List<Path> collectAllScriptFiles() {
         List<Path> result = new ArrayList<>();
-        Path scriptsDir = getSceneDir();
-        if (!Files.exists(scriptsDir)) return result;
+        collectFilesWithExtension(getSceneDir(), ".json", result);
 
-        // Flat files
-        try (Stream<Path> paths = Files.list(scriptsDir)) {
-            paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
-                .forEach(result::add);
-        } catch (IOException ignored) {}
-
-        // Pack subdirectories
-        Path packsDir = scriptsDir.resolve(PACKS_SUBDIR);
-        if (Files.exists(packsDir)) {
-            try (Stream<Path> packDirs = Files.list(packsDir)) {
-                for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
-                    try (Stream<Path> paths = Files.list(packDir)) {
-                        paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
-                            .forEach(result::add);
-                    } catch (IOException ignored) {}
-                }
-            } catch (IOException ignored) {}
+        Path packsDir = getPacksRoot();
+        if (!Files.exists(packsDir)) {
+            return result;
         }
 
+        try (Stream<Path> packDirs = Files.list(packsDir)) {
+            for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
+                collectFilesWithExtension(getPackContentSearchRoot(packDir, SCRIPT_DIR), ".json", result);
+            }
+        } catch (IOException ignored) {}
+
         return result;
+    }
+
+    private static void collectFilesWithExtension(@javax.annotation.Nullable Path root, String extension, List<Path> result) {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.walk(root)) {
+            paths.filter(Files::isRegularFile)
+                .filter(path -> !path.startsWith(root.resolve(PACKS_SUBDIR)))
+                .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(extension))
+                .forEach(result::add);
+        } catch (IOException ignored) {
+        }
     }
 
     /**
@@ -817,8 +1753,8 @@ public final class SceneStore {
 
     /**
      * Strip [PackName] prefix from a filename.
-    * "[MyPack] oak_log.json" → "oak_log.json"
-    * "oak_log.json" → "oak_log.json"
+     * "[MyPack] oak_log.json" → "oak_log.json"
+     * "oak_log.json" → "oak_log.json"
      */
     private static String stripPackPrefix(String filename) {
         String prefix = DslScene.extractPackPrefix(filename);
@@ -859,26 +1795,17 @@ public final class SceneStore {
      */
     private static int writeStructuresToZip(ZipOutputStream zos, Set<String> structureRefs) throws IOException {
         int count = 0;
-        Path structuresDir = getStructureDir();
-        if (!Files.exists(structuresDir)) return 0;
-
-        // Collect all structure files (flat + pack subdirectories)
         List<Path> allStructureFiles = new ArrayList<>();
-        try (Stream<Path> paths = Files.list(structuresDir)) {
-            paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".nbt"))
-                .forEach(allStructureFiles::add);
-        } catch (IOException ignored) {}
+        collectFilesWithExtension(getStructureDir(), ".nbt", allStructureFiles);
 
-        Path packsDir = structuresDir.resolve(PACKS_SUBDIR);
+        Path packsDir = getPacksRoot();
         if (Files.exists(packsDir)) {
             try (Stream<Path> packDirs = Files.list(packsDir)) {
                 for (Path packDir : packDirs.filter(Files::isDirectory).toList()) {
-                    try (Stream<Path> paths = Files.list(packDir)) {
-                        paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().endsWith(".nbt"))
-                            .forEach(allStructureFiles::add);
-                    } catch (IOException ignored) {}
+                    collectFilesWithExtension(getPackContentSearchRoot(packDir, STRUCTURE_DIR), ".nbt", allStructureFiles);
                 }
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
 
         Set<String> writtenEntries = new HashSet<>();
@@ -908,6 +1835,186 @@ public final class SceneStore {
         return count;
     }
 
+    public static List<PonderPackInfo> scanAvailableSourcePacks() {
+        Path resourcepacksDir = PondererServices.PLATFORM.getGameDir().resolve("resourcepacks");
+        if (!Files.exists(resourcepacksDir)) {
+            return List.of();
+        }
+
+        java.util.LinkedHashMap<String, PonderPackInfo> deduped = new java.util.LinkedHashMap<>();
+        try (Stream<Path> paths = Files.list(resourcepacksDir)) {
+            for (PonderPackInfo info : paths
+                .filter(path -> path.toString().toLowerCase(Locale.ROOT).endsWith(".zip"))
+                .map(PonderPackInfo::fromZip)
+                .filter(java.util.Objects::nonNull)
+                .sorted(Comparator.comparing((PonderPackInfo info) -> info.name.toLowerCase(Locale.ROOT))
+                    .thenComparing(info -> info.sourcePath.getFileName().toString().toLowerCase(Locale.ROOT)))
+                .toList()) {
+                PonderPackInfo existing = deduped.get(info.name);
+                if (existing == null || info.lastModified >= existing.lastModified) {
+                    deduped.put(info.name, info);
+                }
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Failed to scan resourcepacks directory", e);
+        }
+
+        return deduped.values().stream()
+            .sorted(Comparator.comparing(info -> info.name.toLowerCase(Locale.ROOT)))
+            .toList();
+    }
+
+    public static PackImportResult importPackFromResourcePack(Path zipPath) {
+        if (zipPath == null || !Files.exists(zipPath)) {
+            PackImportResult failure = PackImportResult.failure(
+                "Pack file not found: " + zipPath,
+                "ponderer.ui.import.failed",
+                "Pack file not found");
+            LOGGER.warn(failure.englishMessage());
+            return failure;
+        }
+
+        ensureLocalPackLayoutMigrated();
+        PackStateStore.load();
+        PonderPackInfo info = PonderPackInfo.fromZip(zipPath);
+        if (info == null) {
+            PackImportResult failure = PackImportResult.failure(
+                "Invalid Ponderer pack: " + zipPath,
+                "ponderer.ui.import.failed",
+                "Invalid Ponderer pack");
+            LOGGER.warn(failure.englishMessage());
+            return failure;
+        }
+
+        PackStateStore.ImportedPackState existing = PackStateStore.getImportedPack(info.name);
+        if (PackStateStore.isImported(info.name)) {
+            if (existing != null && existing.importedVersion != null && existing.importedVersion.equals(info.version)) {
+                return PackImportResult.failure(
+                    "Pack '" + info.name + "' is already imported",
+                    "ponderer.ui.import.already_imported",
+                    info.name);
+            }
+
+            if (existing != null && existing.importedVersion != null && !existing.importedVersion.isBlank()) {
+                return PackImportResult.failure(
+                    "Pack '" + info.name + "' has a newer source version v" + info.version
+                        + " while the imported local copy remains on v" + existing.importedVersion,
+                    "ponderer.ui.import.newer_source",
+                    info.name, info.version, existing.importedVersion);
+            }
+
+            return PackImportResult.failure(
+                "Pack '" + info.name + "' already has an imported local copy",
+                "ponderer.ui.import.already_imported",
+                info.name);
+        }
+
+        Path packScriptsDir = getPackSceneDir(info.name);
+        Path packStructuresDir = getPackStructureDir(info.name);
+        if (packScriptsDir == null || packStructuresDir == null) {
+            PackImportResult failure = PackImportResult.failure(
+                "Cannot import pack '" + info.name + "' because the local destination path is unsafe",
+                "ponderer.ui.import.failed",
+                "Unsafe local destination");
+            LOGGER.warn(failure.englishMessage());
+            return failure;
+        }
+
+        try {
+            int count = extractPackContents(zipPath, info, packScriptsDir, packStructuresDir);
+            PackStateStore.markImported(info);
+            return PackImportResult.success(
+                count,
+                "Imported pack '" + info.name + "' to local editable copy",
+                "ponderer.ui.import.success",
+                count, info.name);
+        } catch (IOException e) {
+            PackImportResult failure = PackImportResult.failure(
+                "Failed to import pack '" + info.name + "': " + e.getMessage(),
+                "ponderer.ui.import.failed",
+                e.getMessage());
+            LOGGER.warn(failure.englishMessage(), e);
+            return failure;
+        }
+    }
+
+    private static int extractPackContents(Path zipPath, PonderPackInfo info, Path packScriptsDir, Path packStructuresDir) throws IOException {
+        int count = 0;
+        Files.createDirectories(packScriptsDir);
+        Files.createDirectories(packStructuresDir);
+
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipPath), StandardCharsets.UTF_8)) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                String name = entry.getName();
+
+                if (name.startsWith("data/ponderer/scripts/")) {
+                    String fileName = name.substring("data/ponderer/scripts/".length());
+                    if (fileName.isEmpty() || fileName.endsWith("/")) {
+                        continue;
+                    }
+                    Path targetPath = resolvePackScopedPath(packScriptsDir, info.name, fileName);
+                    if (targetPath == null) {
+                        LOGGER.warn("Skipping unsafe script zip entry '{}' in {}", fileName, zipPath);
+                        continue;
+                    }
+                    Files.createDirectories(targetPath.getParent());
+                    String json = new String(zis.readAllBytes(), StandardCharsets.UTF_8);
+                    Files.writeString(targetPath, injectPackField(json, info.name), StandardCharsets.UTF_8);
+                    count++;
+                } else if (name.startsWith("data/ponderer/structures/")) {
+                    String fileName = name.substring("data/ponderer/structures/".length());
+                    if (fileName.isEmpty() || fileName.endsWith("/")) {
+                        continue;
+                    }
+                    Path targetPath = resolvePackScopedPath(packStructuresDir, info.name, fileName);
+                    if (targetPath == null) {
+                        LOGGER.warn("Skipping unsafe structure zip entry '{}' in {}", fileName, zipPath);
+                        continue;
+                    }
+                    Files.createDirectories(targetPath.getParent());
+                    Files.write(targetPath, zis.readAllBytes());
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    private static void rebuildReadonlyCacheForPack(Path zipPath, PonderPackInfo info) throws IOException {
+        Path packScriptsDir = getReadonlyCachePackSceneDir(info.name);
+        Path packStructuresDir = getReadonlyCachePackStructureDir(info.name);
+        if (packScriptsDir == null || packStructuresDir == null) {
+            LOGGER.warn("Rejected unsafe readonly cache directories for pack {}", info.name);
+            return;
+        }
+
+        extractPackContents(zipPath, info, packScriptsDir, packStructuresDir);
+    }
+
+    private static void clearReadonlyCache() {
+        deleteDirectoryRecursive(getReadonlyCacheRoot());
+    }
+
+    private static void deleteDirectoryRecursive(Path dir) {
+        if (dir == null || !Files.exists(dir)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.walk(dir)) {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException e) {
+                    LOGGER.warn("Failed to delete {}", path, e);
+                }
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Failed to delete directory tree {}", dir, e);
+        }
+    }
+
     /**
      * After export, reorganize files on disk:
      * Move exported files into _packs/{packName}/ with proper [PackName] prefix and pack field.
@@ -915,6 +2022,10 @@ public final class SceneStore {
      */
     private static void reorganizeFilesForPack(String packName, List<Path> exportedFiles) {
         Path packScriptsDir = getPackSceneDir(packName);
+        if (packScriptsDir == null) {
+            LOGGER.warn("Rejected unsafe pack script directory for pack {}", packName);
+            return;
+        }
         try {
             Files.createDirectories(packScriptsDir);
         } catch (IOException e) {
@@ -934,7 +2045,11 @@ public final class SceneStore {
                 // Determine target filename: [PackName] clean_name.json
                 String cleanFilename = stripPackPrefix(sourcePath.getFileName().toString());
                 String prefixedFilename = "[" + packName + "] " + cleanFilename;
-                Path targetPath = packScriptsDir.resolve(prefixedFilename);
+                Path targetPath = SafePaths.resolveFileName(packScriptsDir, prefixedFilename);
+                if (targetPath == null) {
+                    LOGGER.warn("Rejected unsafe pack script filename '{}' for pack {}", prefixedFilename, packName);
+                    continue;
+                }
 
                 // Write to new location
                 Files.writeString(targetPath, updatedJson, StandardCharsets.UTF_8);
@@ -960,11 +2075,15 @@ public final class SceneStore {
     private static void reorganizeStructuresForPack(String packName) {
         Path packStructuresDir = getPackStructureDir(packName);
         Path packScriptsDir = getPackSceneDir(packName);
+        if (packStructuresDir == null || packScriptsDir == null) {
+            LOGGER.warn("Rejected unsafe pack directories for pack {}", packName);
+            return;
+        }
 
         // Collect structure references from pack scripts
         Set<String> structureRefs = new HashSet<>();
         if (Files.exists(packScriptsDir)) {
-            try (Stream<Path> paths = Files.list(packScriptsDir)) {
+            try (Stream<Path> paths = Files.walk(packScriptsDir)) {
                 for (Path p : paths.filter(f -> f.getFileName().toString().endsWith(".json")).toList()) {
                     try {
                         String json = Files.readString(p, StandardCharsets.UTF_8);
@@ -985,7 +2104,7 @@ public final class SceneStore {
         // Move matching structures from flat directory to pack directory
         Path structuresDir = getStructureDir();
         if (Files.exists(structuresDir)) {
-            try (Stream<Path> paths = Files.list(structuresDir)) {
+            try (Stream<Path> paths = Files.walk(structuresDir)) {
                 for (Path p : paths.filter(f -> Files.isRegularFile(f) && f.getFileName().toString().endsWith(".nbt")).toList()) {
                     String fileName = p.getFileName().toString();
                     String baseName = fileName.endsWith(".nbt") ? fileName.substring(0, fileName.length() - 4) : fileName;
@@ -998,7 +2117,11 @@ public final class SceneStore {
 
                     if (isReferenced) {
                         String prefixedName = "[" + packName + "] " + fileName;
-                        Path targetPath = packStructuresDir.resolve(prefixedName);
+                        Path targetPath = SafePaths.resolveFileName(packStructuresDir, prefixedName);
+                        if (targetPath == null) {
+                            LOGGER.warn("Rejected unsafe pack structure filename '{}' for pack {}", prefixedName, packName);
+                            continue;
+                        }
                         if (!Files.exists(targetPath)) {
                             Files.copy(p, targetPath);
                         }
@@ -1011,30 +2134,85 @@ public final class SceneStore {
 
     private static void collectStructureReferences(String sceneJson, Set<String> structures) {
         try {
-            // Simple JSON parsing to find structure references
-            // Look for "structure": "xxx" patterns
-            int idx = 0;
-            String searchFor = "\"structure\"";
-            while ((idx = sceneJson.indexOf(searchFor, idx)) != -1) {
-                idx += searchFor.length();
-                // Find the colon
-                int colonIdx = sceneJson.indexOf(":", idx);
-                if (colonIdx != -1) {
-                    // Find the quoted value
-                    int quoteStart = sceneJson.indexOf("\"", colonIdx);
-                    if (quoteStart != -1) {
-                        int quoteEnd = sceneJson.indexOf("\"", quoteStart + 1);
-                        if (quoteEnd != -1) {
-                            String structRef = sceneJson.substring(quoteStart + 1, quoteEnd);
-                            if (!structRef.isEmpty() && !structRef.matches("\\d+")) {
-                                structures.add(structRef);
-                            }
-                        }
-                    }
-                }
-            }
+            collectStructureReferences(GSON.fromJson(sceneJson, DslScene.class), structures);
         } catch (Exception e) {
             LOGGER.warn("Failed to collect structure references from scene", e);
+        }
+    }
+
+    static void collectStructureReferences(@javax.annotation.Nullable DslScene scene, Set<String> structures) {
+        if (scene == null || structures == null) {
+            return;
+        }
+
+        List<String> pool = getStructurePool(scene);
+        for (String ref : pool) {
+            addStructureReference(ref, structures);
+        }
+
+        if (scene.scenes == null) {
+            return;
+        }
+
+        for (DslScene.SceneSegment segment : scene.scenes) {
+            if (segment == null || segment.steps == null) {
+                continue;
+            }
+            for (DslScene.DslStep step : segment.steps) {
+                if (step == null || step.structure == null || step.structure.isBlank()) {
+                    continue;
+                }
+                addStructureReference(resolveStructureReference(pool, step.structure), structures);
+            }
+        }
+    }
+
+    private static List<String> getStructurePool(DslScene scene) {
+        if (scene.structures != null && !scene.structures.isEmpty()) {
+            return scene.structures;
+        }
+        if (scene.structure != null && !scene.structure.isBlank()) {
+            return List.of(scene.structure);
+        }
+        return List.of();
+    }
+
+    @javax.annotation.Nullable
+    private static String resolveStructureReference(List<String> pool, String ref) {
+        if (ref == null || ref.isBlank()) {
+            return null;
+        }
+        String trimmed = ref.trim();
+        Integer parsed = tryParseInt(trimmed);
+        if (parsed == null) {
+            return trimmed;
+        }
+
+        int index = -1;
+        if (parsed >= 1 && parsed <= pool.size()) {
+            index = parsed - 1;
+        } else if (parsed >= 0 && parsed < pool.size()) {
+            index = parsed;
+        }
+        return index >= 0 ? pool.get(index) : null;
+    }
+
+    private static void addStructureReference(@javax.annotation.Nullable String ref, Set<String> structures) {
+        if (ref == null || ref.isBlank()) {
+            return;
+        }
+        String trimmed = ref.trim();
+        if (!trimmed.matches("\\d+")) {
+            structures.add(trimmed);
+        }
+    }
+
+    @javax.annotation.Nullable
+    private static Integer tryParseInt(String raw) {
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException ignored) {
+            return null;
         }
     }
 
@@ -1092,9 +2270,9 @@ public final class SceneStore {
      * Extracts scenes and structures into _packs/{PackName}/ subdirectories.
      *
      * Logic:
-    * - Same version → skip (already loaded)
-    * - Different version (higher or lower) → backup user-modified files as .bak, then overwrite
-    * - forceOverwrite → always extract (no version check)
+     * - Same version → skip (already loaded)
+     * - Different version (higher or lower) → backup user-modified files as .bak, then overwrite
+     * - forceOverwrite → always extract (no version check)
      *
      * @return PackUpdateInfo if the pack was updated, null if skipped
      */
@@ -1171,6 +2349,10 @@ public final class SceneStore {
         int conflicts = 0;
         Path packScriptsDir = getPackSceneDir(info.name);
         Path packStructuresDir = getPackStructureDir(info.name);
+        if (packScriptsDir == null || packStructuresDir == null) {
+            LOGGER.warn("Rejected unsafe extraction directories for pack {}", info.name);
+            return new int[]{0, 0};
+        }
 
         try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipPath), StandardCharsets.UTF_8)) {
             ZipEntry entry;
@@ -1180,8 +2362,11 @@ public final class SceneStore {
                 if (name.startsWith("data/ponderer/scripts/")) {
                     String fileName = name.substring("data/ponderer/scripts/".length());
                     if (fileName.isEmpty() || fileName.endsWith("/")) continue;
-                    String prefixedName = info.packPrefix + " " + fileName;
-                    Path targetPath = packScriptsDir.resolve(prefixedName);
+                    Path targetPath = resolvePackScopedPath(packScriptsDir, info.name, fileName);
+                    if (targetPath == null) {
+                        LOGGER.warn("Skipping unsafe script zip entry '{}' in {}", fileName, zipPath);
+                        continue;
+                    }
 
                     Files.createDirectories(targetPath.getParent());
                     if (backupIfModified(targetPath, loadedAtMillis)) {
@@ -1197,8 +2382,11 @@ public final class SceneStore {
                 } else if (name.startsWith("data/ponderer/structures/")) {
                     String fileName = name.substring("data/ponderer/structures/".length());
                     if (fileName.isEmpty() || fileName.endsWith("/")) continue;
-                    String prefixedName = info.packPrefix + " " + fileName;
-                    Path targetPath = packStructuresDir.resolve(prefixedName);
+                    Path targetPath = resolvePackScopedPath(packStructuresDir, info.name, fileName);
+                    if (targetPath == null) {
+                        LOGGER.warn("Skipping unsafe structure zip entry '{}' in {}", fileName, zipPath);
+                        continue;
+                    }
 
                     Files.createDirectories(targetPath.getParent());
                     if (backupIfModified(targetPath, loadedAtMillis)) {
@@ -1246,7 +2434,11 @@ public final class SceneStore {
             if (loadedAtMillis > 0 && fileModified <= loadedAtMillis + 5000) {
                 return false; // File was not modified by user, just overwrite
             }
-            Path bakPath = targetPath.resolveSibling(targetPath.getFileName().toString() + ".bak");
+            Path bakPath = SafePaths.resolveFileName(targetPath.getParent(), targetPath.getFileName().toString() + ".bak");
+            if (bakPath == null) {
+                LOGGER.warn("Rejected unsafe backup path for {}", targetPath);
+                return false;
+            }
             Files.copy(targetPath, bakPath, StandardCopyOption.REPLACE_EXISTING);
             LOGGER.info("Backed up user-modified file: {} -> {}", targetPath.getFileName(), bakPath.getFileName());
             return true;
@@ -1260,11 +2452,14 @@ public final class SceneStore {
      * Check if at least one extracted script file from a pack still exists on disk.
      */
     private static boolean packScriptFilesExist(String packName) {
-        // Check _packs/{packName}/ subdirectory
         Path packDir = getPackSceneDir(packName);
+        if (packDir == null) {
+            return false;
+        }
         if (Files.exists(packDir)) {
-            try (Stream<Path> paths = Files.list(packDir)) {
-                if (paths.anyMatch(p -> p.getFileName().toString().endsWith(".json"))) {
+            try (Stream<Path> paths = Files.walk(packDir)) {
+                if (paths.anyMatch(path -> Files.isRegularFile(path)
+                        && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))) {
                     return true;
                 }
             } catch (IOException ignored) {}
@@ -1307,46 +2502,34 @@ public final class SceneStore {
      * @return AutoLoadResult with orphaned pack names and updated pack info
      */
     public static AutoLoadResult autoLoadPonderPacks() {
-        PonderPackRegistry.load();
-
-        Path gameDir = PondererServices.PLATFORM.getGameDir();
-        Path resourcepacksDir = gameDir.resolve("resourcepacks");
-
+        ensureLocalPackLayoutMigrated();
+        PackStateStore.load();
+        clearReadonlyCache();
         List<PackUpdateInfo> updates = new ArrayList<>();
+        Set<String> presentSourcePacks = new HashSet<>();
 
-        if (Files.exists(resourcepacksDir)) {
-            try (Stream<Path> paths = Files.list(resourcepacksDir)) {
-                for (Path p : paths.filter(path -> path.toString().toLowerCase().endsWith(".zip")).toList()) {
-                    try {
-                        PackUpdateInfo updateInfo = loadPonderPackFromResourcePack(p, false);
-                        if (updateInfo != null) {
-                            updates.add(updateInfo);
-                        }
-                    } catch (Exception e) {
-                        LOGGER.warn("Failed to load pack: {}", p, e);
-                    }
+        for (PonderPackInfo info : scanAvailableSourcePacks()) {
+            presentSourcePacks.add(info.name);
+            PackStateStore.updateCurrentSource(info);
+
+            if (PackStateStore.isImported(info.name)) {
+                PackStateStore.ImportedPackState imported = PackStateStore.getImportedPack(info.name);
+                if (imported != null && PackStateStore.shouldNotifySourceUpdate(info.name, info.version)) {
+                    updates.add(new PackUpdateInfo(info.name, imported.importedVersion, info.version, 0, 0));
+                    PackStateStore.markNotified(info.name, info.version);
                 }
+                continue;
+            }
+
+            try {
+                rebuildReadonlyCacheForPack(info.sourcePath, info);
             } catch (IOException e) {
-                LOGGER.warn("Failed to scan resourcepacks directory", e);
+                LOGGER.warn("Failed to build readonly cache for pack {}", info.sourcePath, e);
             }
         }
 
-        // Detect orphaned packs: registered in registry but all scripts deleted
-        List<String> orphaned = new ArrayList<>();
-        for (var entry : PonderPackRegistry.getAllPacks().entrySet()) {
-            String displayName = entry.getKey();
-            PonderPackRegistry.PackEntry pack = entry.getValue();
-            // Extract pack name from packPrefix "[PackName]" or use name field
-            String packName = pack.name;
-            if (packName == null && pack.packPrefix != null && pack.packPrefix.startsWith("[") && pack.packPrefix.endsWith("]")) {
-                packName = pack.packPrefix.substring(1, pack.packPrefix.length() - 1);
-            }
-            if (packName != null && !packScriptFilesExist(packName)) {
-                orphaned.add(displayName);
-                LOGGER.info("Orphaned pack detected: {} (no script files found for pack {})", displayName, packName);
-            }
-        }
-        return new AutoLoadResult(orphaned, updates);
+        PackStateStore.clearMissingSources(presentSourcePacks);
+        return new AutoLoadResult(List.of(), updates);
     }
 
     /**
@@ -1354,8 +2537,8 @@ public final class SceneStore {
      */
     public static void removeOrphanedPacks(List<String> displayNames) {
         for (String name : displayNames) {
-            PonderPackRegistry.removePack(name);
-            LOGGER.info("Removed orphaned pack from registry: {}", name);
+            PackStateStore.removeImportedPack(name);
+            LOGGER.info("Removed imported pack state: {}", name);
         }
     }
 }

@@ -8,8 +8,9 @@ import java.lang.annotation.Target;
 /**
  * Marks a class or method as client-only.
  * The ASM transformer in buildSrc converts this to:
- * - NeoForge: @OnlyIn(Dist.CLIENT)
+ * - Forge: @OnlyIn(Dist.CLIENT)
  * - Fabric: @Environment(EnvType.CLIENT)
+ * - NeoForge: @OnlyIn(Dist.CLIENT)
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.METHOD, ElementType.FIELD, ElementType.CONSTRUCTOR})

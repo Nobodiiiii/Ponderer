@@ -12,12 +12,18 @@
     "MinecraftCoordPickScrollMixin",
     "WorldSectionElementImplMixin",
     "PonderSceneAccessor",
+    "PonderKeybindsAccessor",
     "PonderSceneViewOffsetMixin",
     "SceneTransformOffsetMixin",
+    "AbstractContainerScreenAccessor",
     "PonderUIAccessor",
     "PonderUIMixin",
     "PonderUINbtMixin",
-    "PonderTooltipNbtMixin"
+    "PonderTooltipNbtMixin",
+    "PonderUIMirrorRenderMixin",
+    "JeiGuiEventHandlerMixin",
+    "EmbeddedMirrorContainerScreenMixin",
+    "PonderProgressBarAccessorMixin"
   ],
   "server": [],
   "injectors": {

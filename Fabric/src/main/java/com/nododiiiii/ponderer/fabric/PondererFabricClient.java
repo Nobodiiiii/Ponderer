@@ -55,8 +55,9 @@ public class PondererFabricClient implements ClientModInitializer {
         BlueprintHandler.INSTANCE = blueprintHandler;
 
         // Key bindings
-        KeyBindingHelper.registerKeyBinding(ModKeyBindings.OPEN_FUNCTION_PAGE);
-        KeyBindingHelper.registerKeyBinding(ModKeyBindings.TRIGGER_PONDER);
+        for (var keyMapping : ModKeyBindings.all()) {
+            KeyBindingHelper.registerKeyBinding(keyMapping);
+        }
 
         // Ponder init
         SceneStore.extractDefaultsIfNeeded();
@@ -95,7 +96,7 @@ public class PondererFabricClient implements ClientModInitializer {
             // Key binding
             if (client.player != null && client.screen == null) {
                 if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
-                    ScreenOpener.transitionTo(new FunctionScreen());
+                    ScreenOpener.open(new FunctionScreen());
                 }
 
             }

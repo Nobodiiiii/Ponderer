@@ -33,9 +33,8 @@ public final class CoordPickState {
     @Nullable private static Direction selectedFace;
     private static int range = 10;
     private static Map<String, String> formSnapshot = new HashMap<>();
-    private static DslScene scene;
-    private static int sceneIndex;
-    private static SceneEditorScreen parent;
+    @Nullable
+    private static SnapshotReturnContext context;
     private static final Object OUTLINE_SLOT = new Object();
 
     private static final double PICK_RANGE = 75;
@@ -44,7 +43,7 @@ public final class CoordPickState {
 
     /** Start picking both coordinates sequentially. */
     public static void startPick(Map<String, String> snapshot,
-                                 DslScene scene, int sceneIndex, SceneEditorScreen parent) {
+                                 SnapshotReturnContext context) {
         CoordPickState.active = true;
         CoordPickState.phase = 1;
         CoordPickState.firstPos = null;
@@ -53,9 +52,7 @@ public final class CoordPickState {
         CoordPickState.selectedFace = null;
         CoordPickState.range = 10;
         CoordPickState.formSnapshot = new HashMap<>(snapshot);
-        CoordPickState.scene = scene;
-        CoordPickState.sceneIndex = sceneIndex;
-        CoordPickState.parent = parent;
+        CoordPickState.context = context;
     }
 
     public static boolean isActive() {
@@ -226,6 +223,7 @@ public final class CoordPickState {
         secondPos = null;
         selectedPos = null;
         selectedFace = null;
+        context = null;
         formSnapshot.clear();
     }
 
@@ -252,11 +250,18 @@ public final class CoordPickState {
     }
 
     private static void reopenEditor() {
+        SnapshotReturnContext reopenContext = context;
         active = false;
         phase = 0;
         firstPos = null;
-        TriggerEditorScreen editor = new TriggerEditorScreen(scene, sceneIndex, parent);
-        editor.setPendingFormRestore(formSnapshot);
-        Minecraft.getInstance().setScreen(editor);
+        secondPos = null;
+        selectedPos = null;
+        selectedFace = null;
+        context = null;
+        if (reopenContext != null) {
+            reopenContext.reopenEditor(formSnapshot);
+        } else {
+            formSnapshot.clear();
+        }
     }
 }

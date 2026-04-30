@@ -6,22 +6,22 @@ import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.network.DownloadStructurePayload;
 import com.nododiiiii.ponderer.network.UploadScenePayload;
 import com.nododiiiii.ponderer.network.SyncRequestPayload;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.CompoundTagArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.storage.LevelResource;
 import com.mojang.brigadier.CommandDispatcher;
-import net.minecraft.commands.CommandSourceStack;
 import com.nododiiiii.ponderer.platform.PondererServices;
 
 import java.io.*;
@@ -44,7 +44,7 @@ public final class PondererClientCommands {
     private PondererClientCommands() {
     }
 
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+    public static void register(CommandDispatcher<net.minecraft.commands.CommandSourceStack> dispatcher) {
         dispatcher.register(
                 Commands.literal("ponderer")
                         .then(Commands.literal("pull")
@@ -152,8 +152,14 @@ public final class PondererClientCommands {
     }
 
     public static int reloadLocal() {
+        SceneStore.AutoLoadResult autoLoadResult = SceneStore.autoLoadPonderPacks();
         int count = SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
+        for (SceneStore.PackUpdateInfo info : autoLoadResult.updatedPacks) {
+            notifyClient(Component.literal("[Ponderer] ")
+                .append(Component.translatable("ponderer.pack.update.readonly_newer_source",
+                    info.packName, info.newVersion, info.oldVersion)));
+        }
         notifyClient(Component.translatable("ponderer.cmd.reload.done", count));
         return count;
     }
@@ -204,12 +210,13 @@ public final class PondererClientCommands {
         String json = GSON.toJson(uploadScene);
 
         // Compute lastSyncHash for conflict detection
-        String metaKey = "scripts/" + scene.id;
+        String metaKey = SyncMeta.metaKey("scripts", scene.id, scene.pack);
         Map<String, String> meta = SyncMeta.load();
         String lastSyncHash = meta.getOrDefault(metaKey, "");
 
-        PondererServices.NETWORK.sendToServer(new UploadScenePayload(scene.id, json, structures, mode, lastSyncHash));
-        notifyClient(Component.translatable("ponderer.cmd.push.uploading", scene.id, mode));
+        PondererServices.NETWORK
+                .sendToServer(new UploadScenePayload(scene.id, scene.pack, json, structures, mode, lastSyncHash));
+        notifyClient(Component.translatable("ponderer.cmd.push.uploading", scene.sceneKey(), mode));
         return 1;
     }
 
@@ -220,12 +227,12 @@ public final class PondererClientCommands {
         if (scene.structures != null && !scene.structures.isEmpty()) {
             List<String> mapped = new ArrayList<>();
             for (String ref : scene.structures) {
-                String updated = remapStructureRef(ref, uploadEntries, remapped);
+                String updated = remapStructureRef(ref, scene.pack, uploadEntries, remapped);
                 mapped.add(updated == null ? ref : updated);
             }
             scene.structures = mapped;
         } else if (scene.structure != null && !scene.structure.isBlank()) {
-            String updated = remapStructureRef(scene.structure, uploadEntries, remapped);
+            String updated = remapStructureRef(scene.structure, scene.pack, uploadEntries, remapped);
             if (updated != null) {
                 scene.structure = updated;
             }
@@ -243,7 +250,7 @@ public final class PondererClientCommands {
                     if (isNumeric(step.structure.trim())) {
                         continue;
                     }
-                    String updated = remapStructureRef(step.structure, uploadEntries, remapped);
+                    String updated = remapStructureRef(step.structure, scene.pack, uploadEntries, remapped);
                     if (updated != null) {
                         step.structure = updated;
                     }
@@ -252,7 +259,8 @@ public final class PondererClientCommands {
         }
     }
 
-    private static String remapStructureRef(String ref, List<UploadScenePayload.StructureEntry> uploadEntries,
+    private static String remapStructureRef(String ref, @Nullable String pack,
+            List<UploadScenePayload.StructureEntry> uploadEntries,
             Map<String, String> remapped) {
         if (ref == null || ref.isBlank())
             return null;
@@ -268,20 +276,25 @@ public final class PondererClientCommands {
         }
 
         ResourceLocation target = ResourceLocation.fromNamespaceAndPath("ponderer", source.getPath());
-        Path sourcePath = findStructureSourcePath(source);
+        Path sourcePath = findStructureSourcePath(source, pack);
         if (sourcePath == null || !Files.exists(sourcePath)) {
             notifyClient(Component.translatable("ponderer.cmd.push.structure_not_found", source.toString()));
             return source.toString();
         }
 
-        Path targetPath = SceneStore.getStructurePath(target.getPath());
+        Path targetPath = SceneStore.resolveLocalSyncStructurePath(target, pack);
+        if (targetPath == null) {
+            notifyClient(Component.translatable("ponderer.cmd.push.copy_failed", source.toString(), target.toString()));
+            return source.toString();
+        }
         try {
             byte[] bytes = Files.readAllBytes(sourcePath);
             Files.createDirectories(targetPath.getParent());
             Files.write(targetPath, bytes);
 
-            if (uploadEntries.stream().noneMatch(e -> e.id().equals(target.toString()))) {
-                uploadEntries.add(new UploadScenePayload.StructureEntry(target.toString(), bytes));
+            if (uploadEntries.stream().noneMatch(e -> e.id().equals(target.toString())
+                    && java.util.Objects.equals(e.pack(), pack))) {
+                uploadEntries.add(new UploadScenePayload.StructureEntry(target.toString(), pack, bytes));
             }
 
             remapped.put(key, target.toString());
@@ -292,9 +305,15 @@ public final class PondererClientCommands {
         }
     }
 
-    private static Path findStructureSourcePath(ResourceLocation id) {
+    private static Path findStructureSourcePath(ResourceLocation id, @Nullable String pack) {
         if ("ponderer".equals(id.getNamespace())) {
-            return SceneStore.getStructurePath(id.getPath());
+            if (pack != null && !pack.isBlank()) {
+                Path packPath = SceneStore.resolveLocalSyncStructurePath(id, pack);
+                if (packPath != null && Files.exists(packPath)) {
+                    return packPath;
+                }
+            }
+            return SceneStore.getStructurePath(id);
         }
 
         var server = Minecraft.getInstance().getSingleplayerServer();
@@ -302,11 +321,9 @@ public final class PondererClientCommands {
             return null;
         }
 
-        return server.getWorldPath(LevelResource.ROOT)
-                .resolve("generated")
-                .resolve(id.getNamespace())
-                .resolve("structures")
-                .resolve(id.getPath() + ".nbt");
+        return SafePaths.resolveRelativePath(
+                server.getWorldPath(LevelResource.ROOT).resolve("generated"),
+                id.getNamespace() + "/structures/" + id.getPath() + ".nbt");
     }
 
     private static ResourceLocation parseStructureLocation(String raw) {
@@ -378,9 +395,7 @@ public final class PondererClientCommands {
     }
 
     /**
-     * Build a robust nbtFilter from a stack for 1.21.1 components model:
-     * - Prefer legacy-like custom_data payload when present (human-readable and compatible).
-     * - Otherwise use full-stack components subset to preserve modern component-based data.
+     * Build a robust nbtFilter from a stack for the 1.21.1 components model.
      */
     @Nullable
     public static CompoundTag extractStackNbtFilter(ItemStack stack) {
@@ -394,14 +409,12 @@ public final class PondererClientCommands {
         var level = Minecraft.getInstance().level;
         if (level != null) {
             Tag saved = stack.saveOptional(level.registryAccess());
-            if (saved instanceof CompoundTag ct) {
-                if (ct.contains("components", Tag.TAG_COMPOUND)) {
-                    CompoundTag components = ct.getCompound("components");
-                    if (!components.isEmpty()) {
-                        CompoundTag filter = new CompoundTag();
-                        filter.put("components", components.copy());
-                        return filter;
-                    }
+            if (saved instanceof CompoundTag ct && ct.contains("components", Tag.TAG_COMPOUND)) {
+                CompoundTag components = ct.getCompound("components");
+                if (!components.isEmpty()) {
+                    CompoundTag filter = new CompoundTag();
+                    filter.put("components", components.copy());
+                    return filter;
                 }
             }
         }
@@ -426,7 +439,7 @@ public final class PondererClientCommands {
         scene.items = List.of(itemId.toString());
         scene.title = LocalizedText.ofMap(Map.of(
                 "en_us", "New Scene - " + itemId.getPath(),
-            "zh_cn", "新场景 - " + itemId.getPath()));
+                "zh_cn", "新场景 - " + itemId.getPath()));
         scene.structures = List.of("ponderer:basic");
         scene.tags = List.of();
         if (nbt != null) {
@@ -437,7 +450,7 @@ public final class PondererClientCommands {
         seg.id = "scene_1";
         seg.title = LocalizedText.ofMap(Map.of(
                 "en_us", "Scene 1",
-            "zh_cn", "场景 1"));
+                "zh_cn", "场景 1"));
 
         DslScene.DslStep showStep = new DslScene.DslStep();
         showStep.type = "show_structure";
@@ -452,7 +465,7 @@ public final class PondererClientCommands {
         textStep.duration = 60;
         textStep.text = LocalizedText.ofMap(Map.of(
                 "en_us", "Edit this ponder scene!",
-            "zh_cn", "编辑这个思索场景！"));
+                "zh_cn", "编辑这个思索场景!"));
         textStep.point = List.of(2.5, 2.0, 2.5);
         textStep.placeNearTarget = true;
         textStep.attachKeyFrame = true;
@@ -622,37 +635,22 @@ public final class PondererClientCommands {
         var player = Minecraft.getInstance().player;
         if (player == null) return 0;
 
-        PonderPackRegistry.PackEntry entry = PonderPackRegistry.getPack(packName);
-        if (entry == null) {
+        PackStateStore.load();
+        boolean hasLocalCopy = PackStateStore.isImported(packName)
+            || (SceneStore.getPackDir(packName) != null && java.nio.file.Files.exists(SceneStore.getPackDir(packName)));
+        if (!hasLocalCopy && !PackStateStore.hasImportedState(packName)) {
             player.displayClientMessage(Component.translatable("ponderer.pack.unregister.not_found", packName), false);
             return 0;
         }
 
-        // Delete the zip file from resourcepacks/
-        if (entry.sourceFile != null && !entry.sourceFile.isEmpty()) {
-            Path zipPath = PondererServices.PLATFORM.getGameDir()
-                    .resolve("resourcepacks").resolve(entry.sourceFile);
-            try {
-                java.nio.file.Files.deleteIfExists(zipPath);
-            } catch (Exception e) {
-                // Non-fatal: log but continue with registry removal
-            }
+        Path packDir = SceneStore.getPackDir(packName);
+        if (packDir != null) {
+            deleteDirectoryRecursive(packDir);
         }
 
-        // Delete extracted script and structure files (pack subdirectories)
-        String name = entry.name;
-        if (name == null && entry.packPrefix != null && entry.packPrefix.startsWith("[") && entry.packPrefix.endsWith("]")) {
-            name = entry.packPrefix.substring(1, entry.packPrefix.length() - 1);
-        }
-        if (name != null && !name.isEmpty()) {
-            deleteDirectoryRecursive(SceneStore.getPackSceneDir(name));
-            deleteDirectoryRecursive(SceneStore.getPackStructureDir(name));
-        }
+        PackStateStore.removeImportedPack(packName);
 
-        // Remove from registry
-        PonderPackRegistry.removePack(packName);
-
-        // Reload
+        SceneStore.autoLoadPonderPacks();
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(PonderIndex::reload);
 

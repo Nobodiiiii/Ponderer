@@ -1,27 +1,22 @@
 package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.Ponderer;
+import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
 
-/**
- * Server -> Client response after an upload (push) attempt.
- * Status format:
- *   "ok:<newHash>"   - success, client should update SyncMeta
- *   "conflict"       - server file was modified, push rejected
- *   "error"          - write failed
- */
-public record UploadResponsePayload(String sceneId, String status) implements CustomPacketPayload {
+public record UploadResponsePayload(String sceneId, @Nullable String pack, String status) implements CustomPacketPayload {
 
     public static final Type<UploadResponsePayload> TYPE =
-        new Type<>(ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, "upload_response"));
+            new Type<>(ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, "upload_response"));
     public static final StreamCodec<RegistryFriendlyByteBuf, UploadResponsePayload> CODEC =
-        StreamCodec.of(UploadResponsePayload::encode, UploadResponsePayload::decode);
+            StreamCodec.of(UploadResponsePayload::encode, UploadResponsePayload::decode);
 
     @Override
     public Type<? extends CustomPacketPayload> type() {
@@ -30,19 +25,20 @@ public record UploadResponsePayload(String sceneId, String status) implements Cu
 
     private static void encode(RegistryFriendlyByteBuf buf, UploadResponsePayload payload) {
         buf.writeUtf(payload.sceneId());
+        writeOptionalUtf(buf, payload.pack());
         buf.writeUtf(payload.status());
     }
 
     private static UploadResponsePayload decode(RegistryFriendlyByteBuf buf) {
-        return new UploadResponsePayload(buf.readUtf(), buf.readUtf());
+        return new UploadResponsePayload(buf.readUtf(), readOptionalUtf(buf), buf.readUtf());
     }
 
     public static void handle(UploadResponsePayload payload) {
         if (payload.status() != null && payload.status().startsWith("ok:")) {
             String newHash = payload.status().substring(3);
-            String metaKey = "scripts/" + payload.sceneId();
+            String metaKey = SyncMeta.metaKey("scripts", payload.sceneId(), payload.pack());
 
-            java.nio.file.Path localFile = resolveLocalScenePath(payload.sceneId());
+            java.nio.file.Path localFile = SceneStore.findLocalSceneFile(payload.sceneId(), payload.pack());
             if (localFile != null && java.nio.file.Files.exists(localFile)) {
                 try {
                     byte[] bytes = java.nio.file.Files.readAllBytes(localFile);
@@ -54,22 +50,27 @@ public record UploadResponsePayload(String sceneId, String status) implements Cu
                 }
             }
         } else if ("conflict".equals(payload.status())) {
-            notifyClient(Component.translatable("ponderer.cmd.push.conflict", payload.sceneId()));
+            notifyClient(Component.translatable("ponderer.cmd.push.conflict",
+                    SceneStore.displaySceneKey(payload.sceneId(), payload.pack())));
         }
-    }
-
-    private static java.nio.file.Path resolveLocalScenePath(String sceneId) {
-        ResourceLocation loc = ResourceLocation.tryParse(sceneId);
-        if (loc == null) return null;
-        java.nio.file.Path dir = com.nododiiiii.ponderer.ponder.SceneStore.getSceneDir();
-        return loc.getNamespace().equals(Ponderer.MODID)
-            ? dir.resolve(loc.getPath() + ".json")
-            : dir.resolve(loc.getNamespace()).resolve(loc.getPath() + ".json");
     }
 
     private static void notifyClient(Component message) {
         if (Minecraft.getInstance().player != null) {
             Minecraft.getInstance().player.displayClientMessage(message, false);
         }
+    }
+
+    private static void writeOptionalUtf(RegistryFriendlyByteBuf buf, @Nullable String value) {
+        boolean present = value != null && !value.isBlank();
+        buf.writeBoolean(present);
+        if (present) {
+            buf.writeUtf(value);
+        }
+    }
+
+    @Nullable
+    private static String readOptionalUtf(RegistryFriendlyByteBuf buf) {
+        return buf.readBoolean() ? buf.readUtf() : null;
     }
 }

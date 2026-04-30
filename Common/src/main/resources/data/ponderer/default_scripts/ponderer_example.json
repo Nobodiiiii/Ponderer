@@ -320,7 +320,7 @@
             1,
             0
           ],
-          "nbt": "{patterns:[{pattern:\"minecraft:creeper\",color:\"green\"}]}",
+          "nbt": "{Patterns:[{Pattern:\"cre\",Color:13}]}",
           "reDrawBlocks": true,
           "attachKeyFrame": true
         },

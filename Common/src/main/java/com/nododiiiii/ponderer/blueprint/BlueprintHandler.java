@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.blueprint;
 
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.math.VecHelper;
 import net.createmod.catnip.outliner.Outliner;
 import net.createmod.ponder.enums.PonderSpecialTextures;
@@ -35,7 +36,7 @@ import java.nio.file.Path;
 public class BlueprintHandler {
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Platform entry points set this during client init. */
+    /** Singleton instance, set by platform entry point. */
     public static BlueprintHandler INSTANCE;
 
     private final Object outlineSlot = new Object();
@@ -195,22 +196,33 @@ public class BlueprintHandler {
 
     // -- save ---------------------------------------------------------------------
 
-    public void saveBlueprint(String name) {
+    public BlueprintExport.SaveResult saveBlueprint(String name) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
-        if (player == null || firstPos == null || secondPos == null) return;
+        if (player == null || firstPos == null || secondPos == null || mc.level == null) {
+            BlueprintExport.SaveResult failure = BlueprintExport.SaveResult.failure(
+                "Cannot save blueprint because the selection is incomplete",
+                "ponderer.ui.save_error.io",
+                "Selection is incomplete"
+            );
+            if (player != null) {
+                sendStatus(player, Component.literal(UIText.of(failure.uiMessageKey(), failure.uiMessageArgs()))
+                    .withStyle(ChatFormatting.RED));
+            }
+            return failure;
+        }
 
         Path dir = SceneStore.getStructureDir();
-        BlueprintExport.ExportResult result = BlueprintExport.saveBlueprint(
+        BlueprintExport.SaveResult result = BlueprintExport.saveBlueprint(
                 dir, name, true,
                 mc.level, firstPos, secondPos
         );
-        if (result == null) {
-            sendStatus(player, Component.translatable("item.ponderer.blueprint.save_failed")
-                    .withStyle(ChatFormatting.RED));
-            return;
+        if (!result.isSuccess() || result.exportResult() == null) {
+            sendStatus(player, Component.literal(UIText.of(result.uiMessageKey(), result.uiMessageArgs()))
+                .withStyle(ChatFormatting.RED));
+            return result;
         }
-        Path file = result.file();
+        Path file = result.exportResult().file();
         String savedName = file.getFileName().toString();
         if (savedName.endsWith(".nbt")) {
             savedName = savedName.substring(0, savedName.length() - 4);
@@ -220,6 +232,7 @@ public class BlueprintHandler {
                 .withStyle(ChatFormatting.GREEN));
         firstPos = null;
         secondPos = null;
+        return result;
     }
 
     // -- helpers ------------------------------------------------------------------

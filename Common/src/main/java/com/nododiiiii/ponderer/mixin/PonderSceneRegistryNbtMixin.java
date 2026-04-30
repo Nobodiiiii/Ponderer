@@ -22,9 +22,15 @@ public class PonderSceneRegistryNbtMixin {
     @Inject(
         method = "compile(Lnet/minecraft/resources/ResourceLocation;)Ljava/util/List;",
         at = @At("RETURN"),
-        cancellable = true
+        cancellable = true,
+        remap = false,
+        require = 0
     )
-    private void ponderer$filterByNbt(ResourceLocation id, CallbackInfoReturnable<List<PonderScene>> cir) {
+    private void ponderer$filterByNbtMoj(ResourceLocation id, CallbackInfoReturnable<List<PonderScene>> cir) {
+        ponderer$filterByNbtImpl(cir);
+    }
+
+    private void ponderer$filterByNbtImpl(CallbackInfoReturnable<List<PonderScene>> cir) {
         ItemStack stack = NbtSceneFilter.getCurrentStack();
         if (stack == null || stack.isEmpty()) return;
 

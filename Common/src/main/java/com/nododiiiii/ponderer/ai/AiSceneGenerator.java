@@ -9,6 +9,7 @@ import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import org.slf4j.Logger;
@@ -264,18 +265,12 @@ public class AiSceneGenerator {
                 autoAddKeyFrames(scene);
 
                 // 9. Pretty-print and save
-                String prettyJson = GSON_PRETTY.toJson(scene);
-                Path sceneDir = SceneStore.getSceneDir();
-                Files.createDirectories(sceneDir);
-                String fileName = scene.id.replace(":", "/") + ".json";
-                if (scene.id.startsWith("ponderer:")) {
-                    fileName = scene.id.substring("ponderer:".length()) + ".json";
+                SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(scene);
+                if (!saveResult.isSuccess() || saveResult.path() == null) {
+                    throw new RuntimeException(saveResult.englishMessage());
                 }
-                Path filePath = sceneDir.resolve(fileName);
-                Files.createDirectories(filePath.getParent());
-                Files.writeString(filePath, prettyJson, StandardCharsets.UTF_8);
 
-                return filePath.toString();
+                return saveResult.path().toString();
             } catch (Exception e) {
                 throw new RuntimeException(e.getMessage(), e);
             }
@@ -302,7 +297,11 @@ public class AiSceneGenerator {
     /** Write content to a log file under config/ponderer/logs/ for debugging. */
     private static void writeLog(String fileName, String content) {
         try {
-            Path file = getLogsDir().resolve(fileName);
+            Path file = SafePaths.resolveFileName(getLogsDir(), fileName);
+            if (file == null) {
+                LOGGER.warn("Rejected unsafe log filename {}", fileName);
+                return;
+            }
             Files.createDirectories(file.getParent());
             Files.writeString(file, content, StandardCharsets.UTF_8);
         } catch (Exception e) {
@@ -506,7 +505,11 @@ public class AiSceneGenerator {
      * The file is re-read on every generation call — no restart needed.
      */
     private static String loadOrCreatePrompt(String fileName, String defaultContent) {
-        Path file = getPromptsDir().resolve(fileName);
+        Path file = SafePaths.resolveFileName(getPromptsDir(), fileName);
+        if (file == null) {
+            LOGGER.warn("Rejected unsafe prompt filename {}", fileName);
+            return defaultContent;
+        }
         try {
             if (Files.exists(file)) {
                 return Files.readString(file, StandardCharsets.UTF_8);

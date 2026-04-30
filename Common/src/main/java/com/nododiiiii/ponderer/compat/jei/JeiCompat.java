@@ -5,6 +5,8 @@ import com.nododiiiii.ponderer.ui.IdFieldMode;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
 import net.createmod.catnip.gui.element.ScreenElement;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -17,6 +19,8 @@ import java.util.List;
 public final class JeiCompat {
     private static boolean checked = false;
     private static boolean available = false;
+
+    public record IngredientDescriptor(String id, @Nullable String kind) {}
 
     private JeiCompat() {}
 
@@ -48,6 +52,32 @@ public final class JeiCompat {
     }
 
     /**
+     * Returns true when PonderUI should skip JEI's default event-driven draw pass
+     * and render the active overlay manually at the very end of the screen render.
+     */
+    public static boolean shouldRenderPonderUiOverlayManually(Screen screen) {
+        if (!isAvailable()) return false;
+        return PondererJeiPlugin.shouldRenderPonderUiOverlayManually(screen);
+    }
+
+    /**
+     * Render JEI's current ingredient/bookmark overlays manually on top of PonderUI.
+     */
+    public static void renderPonderUiOverlay(Screen screen, GuiGraphics graphics, int mouseX, int mouseY,
+                                             float partialTicks) {
+        if (!isAvailable()) return;
+        PondererJeiPlugin.renderPonderUiOverlay(screen, graphics, mouseX, mouseY, partialTicks);
+    }
+
+    /**
+     * Render JEI's manual tooltip layer for the active PonderUI overlay.
+     */
+    public static void renderPonderUiTooltips(Screen screen, GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!isAvailable()) return;
+        PondererJeiPlugin.renderPonderUiTooltips(screen, graphics, mouseX, mouseY);
+    }
+
+    /**
      * Create a ScreenElement that renders the given ingredient object using JEI.
      * The ingredient can be an ItemStack, FluidStack, or any JEI-registered type.
      * Returns null if JEI is unavailable or the ingredient is not recognized.
@@ -56,6 +86,20 @@ public final class JeiCompat {
     public static ScreenElement createIngredientElement(Object ingredient) {
         if (!isAvailable()) return null;
         return JeiIngredientHelper.createScreenElement(ingredient);
+    }
+
+    /**
+     * Create a ScreenElement for a fluid using JEI, in a platform-agnostic way.
+     * Creates the appropriate FluidStack type via the platform's SPI helper.
+     * @param fluid the Minecraft Fluid
+     * @param amount amount in mB
+     * @return ScreenElement or null
+     */
+    @Nullable
+    public static ScreenElement createFluidIngredientElement(net.minecraft.world.level.material.Fluid fluid, int amount) {
+        if (!isAvailable()) return null;
+        // Delegate to JeiIngredientHelper which will handle platform FluidStack creation
+        return JeiIngredientHelper.createFluidScreenElement(fluid, amount);
     }
 
     /**
@@ -70,6 +114,16 @@ public final class JeiCompat {
     }
 
     /**
+     * Resolve an ingredient ID string from a specific JEI ingredient kind.
+     * The kind is the lower-case JEI ingredient family name, e.g. "item", "fluid", "chemical".
+     */
+    @Nullable
+    public static ScreenElement resolveIngredientById(String id, @Nullable String kind) {
+        if (!isAvailable()) return null;
+        return JeiIngredientHelper.resolveById(id, kind);
+    }
+
+    /**
      * Resolve an ingredient ID string from a JEI ITypedIngredient click.
      * Handles all ingredient types (items, fluids, chemicals, etc.).
      * Returns the registry ID string, or null if unable to resolve.
@@ -78,6 +132,15 @@ public final class JeiCompat {
     public static String resolveIngredientId(Object typedIngredient) {
         if (!isAvailable()) return null;
         return JeiIngredientHelper.resolveId(typedIngredient);
+    }
+
+    /**
+     * Resolve a JEI ingredient into an {id, kind} descriptor for persistence.
+     */
+    @Nullable
+    public static IngredientDescriptor resolveIngredientDescriptor(Object typedIngredient) {
+        if (!isAvailable()) return null;
+        return JeiIngredientHelper.resolveDescriptor(typedIngredient);
     }
 
     /**

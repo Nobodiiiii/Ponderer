@@ -5,6 +5,8 @@ import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot.ReplayEventInterceptors;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot.ReplaySessionManager;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
@@ -14,6 +16,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
 import java.util.ArrayList;
@@ -33,10 +36,13 @@ public class PondererNeoForge {
         NeoForgeRegistrationHelper.modEventBus = modEventBus;
         PondererServices.REGISTRATION.init();
 
-        modContainer.registerConfig(ModConfig.Type.CLIENT, Config.SPEC);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
+        modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
         modEventBus.addListener(this::onRegisterPayloads);
         modEventBus.addListener(this::onBuildCreativeTab);
+        NeoForge.EVENT_BUS.register(ReplaySessionManager.class);
+        NeoForge.EVENT_BUS.register(ReplayEventInterceptors.class);
 
         if (FMLEnvironment.dist.isClient()) {
             // All client event registration is in a separate class to avoid

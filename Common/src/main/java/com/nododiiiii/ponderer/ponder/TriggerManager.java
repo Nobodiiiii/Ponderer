@@ -13,13 +13,11 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
@@ -121,7 +119,7 @@ public final class TriggerManager {
         activeScene = newScene;
 
         if (activeScene != null) {
-            String sceneKey = activeScene.id != null ? activeScene.id : "";
+            String sceneKey = activeScene.sceneKey();
 
             // Resolve per-style frequencies (new parallel model or legacy fallback)
             String autoFreq = resolveHintFreq(activeScene, "auto");
@@ -310,10 +308,9 @@ public final class TriggerManager {
         DslScene sceneToOpen = activeScene != null ? activeScene : findTriggeredScene(mc);
         if (sceneToOpen == null) return false;
 
-        String sceneKey = sceneToOpen.id != null ? sceneToOpen.id : "";
+        String sceneKey = sceneToOpen.sceneKey();
         openPonderFor(sceneToOpen, sceneKey);
         activeScene = null;
-        // Keep in-zone state so "always" modes only retrigger after leave -> re-enter.
         return true;
     }
 
@@ -365,7 +362,19 @@ public final class TriggerManager {
             var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
             ItemStack stack = new ItemStack(item);
             var tag = net.minecraft.nbt.TagParser.parseTag(nbtFilter);
-            stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+            net.minecraft.nbt.CompoundTag fullTag = new net.minecraft.nbt.CompoundTag();
+            fullTag.putString("id", itemId.toString());
+            fullTag.putInt("count", 1);
+            fullTag.put("tag", tag);
+            var level = Minecraft.getInstance().level;
+            if (level != null) {
+                ItemStack parsed = ItemStack.parseOptional(level.registryAccess(), fullTag);
+                if (!parsed.isEmpty()) {
+                    return parsed;
+                }
+            }
+            stack.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                net.minecraft.world.item.component.CustomData.of(tag.copy()));
             return stack;
         } catch (Exception e) {
             var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);

@@ -19,16 +19,17 @@ public class SceneTransformOffsetMixin {
     @Final
     private PonderScene this$0;
 
+    @Unique
     private float ponderer$capturedPt;
 
-    @Inject(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;", at = @At("HEAD"), remap = false)
+    @Inject(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;", at = @At("HEAD"), require = 0, remap = false)
     private void ponderer$capturePt(PoseStack ms, float pt, CallbackInfoReturnable<PoseStack> cir) {
         this.ponderer$capturedPt = pt;
     }
 
     @Redirect(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;",
-            at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;scale(FFF)V"),
-            remap = false)
+            at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;scale(FFF)V", remap = true),
+            require = 0, remap = false)
     private void ponderer$redirectScale(PoseStack ms, float sx, float sy, float sz) {
         PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) this$0;
         if (access.ponderer$isScaleOverrideActive()) {
@@ -39,7 +40,7 @@ public class SceneTransformOffsetMixin {
         }
     }
 
-    @Inject(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;", at = @At("TAIL"), remap = false)
+    @Inject(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;", at = @At("TAIL"), require = 0, remap = false)
     private void ponderer$applyViewOffset(PoseStack ms, float pt, CallbackInfoReturnable<PoseStack> cir) {
         PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) this$0;
         float ox = access.ponderer$getViewOffsetX().getValue(pt);

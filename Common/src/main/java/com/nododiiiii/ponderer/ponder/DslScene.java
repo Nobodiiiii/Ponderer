@@ -18,6 +18,12 @@ public class DslScene {
      */
     public List<String> structures = List.of();
     public List<String> tags = List.of();
+    /**
+     * Whether normal users can edit this scene. Null means the client config's
+     * default editable value should be used.
+     */
+    @Nullable
+    public Boolean editable;
     public List<SceneSegment> scenes = List.of();
     /**
      * Optional SNBT filter string. When set, scenes for this DslScene
@@ -95,8 +101,8 @@ public class DslScene {
 
     /**
      * Extract pack prefix from a source filename.
-    * "[my_pack] example.json" → "[my_pack]"
-    * "example.json" → null
+     * "[my_pack] example.json" → "[my_pack]"
+     * "example.json" → null
      */
     @Nullable
     public static String extractPackPrefix(@Nullable String sourceFile) {
@@ -132,6 +138,14 @@ public class DslScene {
             return "[" + pack + "] " + id;
         }
         return id;
+    }
+
+    public boolean isEditable() {
+        return !Boolean.FALSE.equals(editable);
+    }
+
+    public boolean isEditable(boolean defaultEditable) {
+        return editable == null ? defaultEditable : editable;
     }
 
     public static class SceneSegment {
@@ -188,10 +202,39 @@ public class DslScene {
         public Boolean attachKeyFrame;
         public Boolean whileSneaking;
         public Boolean whileCTRL;
+        public Boolean enableNbt;
         public Boolean fullScene;
+        public List<InterfaceSlotBinding> interfaceSlots;
 
         public int durationOrDefault(int fallback) {
             return duration == null ? fallback : Math.max(duration, 0);
+        }
+    }
+
+    public static class InterfaceSlotBinding {
+        public Integer slotIndex;
+        @Nullable
+        public Integer slotX;
+        @Nullable
+        public Integer slotY;
+        public String ingredientId;
+        @Nullable
+        public String ingredientKind;
+
+        public InterfaceSlotBinding() {
+        }
+
+        public InterfaceSlotBinding(int slotIndex, String ingredientId, @Nullable String ingredientKind) {
+            this(slotIndex, null, null, ingredientId, ingredientKind);
+        }
+
+        public InterfaceSlotBinding(int slotIndex, @Nullable Integer slotX, @Nullable Integer slotY,
+                                    String ingredientId, @Nullable String ingredientKind) {
+            this.slotIndex = slotIndex;
+            this.slotX = slotX;
+            this.slotY = slotY;
+            this.ingredientId = ingredientId;
+            this.ingredientKind = ingredientKind;
         }
     }
 }

@@ -7,14 +7,14 @@ import net.minecraft.world.item.Item;
 import java.util.function.Supplier;
 
 /**
- * Mod items registered via platform-agnostic RegistrationHelper.
+ * Platform-agnostic item registration.
+ * The actual registration mechanism is handled by RegistrationHelper SPI.
  */
 public class ModItems {
-
     public static final Supplier<Item> BLUEPRINT = PondererServices.REGISTRATION.registerItem("blueprint",
         () -> new BlueprintItem(new Item.Properties().stacksTo(1)));
 
-    /** Force static init so registration runs. */
+    /** Call from platform init to ensure static fields are loaded. */
     public static void init() {}
 
     private ModItems() {}

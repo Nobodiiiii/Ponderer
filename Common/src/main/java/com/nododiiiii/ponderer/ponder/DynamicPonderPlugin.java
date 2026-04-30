@@ -4,7 +4,10 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
-import com.nododiiiii.ponderer.registry.ModItems;
+import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
+import com.nododiiiii.ponderer.ui.UiAnchorCoords;
+import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.ElementLink;
@@ -20,8 +23,8 @@ import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
 import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstruction;
 import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
-import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
@@ -39,6 +42,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -66,6 +70,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         final Set<Long> visibleBlockKeys = new java.util.HashSet<>();
         final Set<Long> hiddenBlockKeys = new java.util.HashSet<>();
         boolean allBlocksVisible;
+        boolean uiAnchorMode;
     }
 
     @Override
@@ -84,7 +89,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void registerBlueprintGuideScene(PonderSceneRegistrationHelper<ResourceLocation> helper) {
-        ResourceLocation carrier = BuiltInRegistries.ITEM.getKey(BlueprintFeature.resolveCarrierItem());
+        Item carrierItem = BlueprintFeature.resolveCarrierItem();
+        if (carrierItem == Items.AIR) {
+            return;
+        }
+        ResourceLocation carrier = BuiltInRegistries.ITEM.getKey(carrierItem);
         if (carrier == null) {
             return;
         }
@@ -369,6 +378,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 }
 
                 StepContext context = new StepContext();
+                if (firstStepIsShowInterface(sc)) {
+                    builder.removeShadow();
+                }
 
                 if (!firstStepIsShowStructure(sc)) {
                     applyShowStructure(builder, new DslScene.DslStep(), context);
@@ -397,14 +409,17 @@ public class DynamicPonderPlugin implements PonderPlugin {
         switch (step.type.toLowerCase(Locale.ROOT)) {
             case "show_structure" -> applyShowStructure(scene, step, context);
             case "idle" -> scene.idle(step.durationOrDefault(20));
-            case "text" -> applyText(scene, step);
-            case "shared_text" -> applySharedText(scene, step);
+            case "text" -> applyText(scene, step, context);
+            case "shared_text" -> applySharedText(scene, step, context);
             case "create_entity" -> applyCreateEntity(scene, step);
             case "create_item_entity" -> applyCreateItemEntity(scene, step);
             case "rotate_camera_y" -> applyRotateCameraY(scene, step);
             case "zoom_scene" -> applyZoomScene(scene, step);
             case "highlight_section" -> applyHighlightSection(scene, step);
-            case "show_controls" -> applyShowControls(scene, step);
+            case "show_controls" -> applyShowControls(scene, step, context);
+            case "show_interface" -> applyShowInterface(scene, step, context);
+            case "change_interface_slot" -> applyChangeInterfaceSlot(scene, step);
+            case "click_interface" -> applyClickInterface(scene, step);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
             case "set_block" -> applySetBlock(scene, step, context);
@@ -428,9 +443,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
-    private void applyText(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyText(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         String text = step.text == null ? "" : step.text.resolve();
-        Vec3 point = toPoint(step.point);
+        Vec3 point = resolveOverlayPoint(scene, step, context);
         int duration = step.durationOrDefault(60);
 
         TextElementBuilder builder = scene.overlay()
@@ -448,7 +463,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
-    private void applySharedText(SceneBuilder scene, DslScene.DslStep step) {
+    private void applySharedText(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         String key = step.key;
         if (key == null || key.isBlank()) {
             LOGGER.warn("shared_text missing key");
@@ -462,7 +477,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        Vec3 point = toPoint(step.point);
+        Vec3 point = resolveOverlayPoint(scene, step, context);
         int duration = step.durationOrDefault(60);
         TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc).pointAt(point);
 
@@ -623,8 +638,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
         scene.overlay().showOutline(palette, new Object(), selection, duration);
     }
 
-    private void applyShowControls(SceneBuilder scene, DslScene.DslStep step) {
-        Vec3 point = toPoint(step.point);
+    private void applyShowControls(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        Vec3 point = resolveOverlayPoint(scene, step, context);
         Pointing pointing = parsePointing(step.direction);
         int duration = step.durationOrDefault(60);
 
@@ -650,6 +665,61 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
+    private void applyShowInterface(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        if (step.block == null || step.block.isBlank()) {
+            LOGGER.warn("show_interface missing block id");
+            return;
+        }
+
+        if (step.blockPos == null || step.blockPos.size() < 3) {
+            LOGGER.warn("show_interface missing block context position");
+            return;
+        }
+
+        PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
+        InterfaceSlotOverlayRenderer.clearRuntimeBindings();
+        // Build-time pointAt() conversion for UI-anchored overlays happens after this step.
+        // Reset immediately so subsequent resolveOverlayPoint() uses a clean baseline.
+        ponderer$resetSceneViewState(scene.getScene());
+        // Keep a runtime reset as a safety net for replay/scene lifecycle paths.
+        scene.addInstruction(this::ponderer$resetSceneViewState);
+        scene.addInstruction(new ShowInterfaceInstruction(step));
+        context.uiAnchorMode = true;
+    }
+
+    private void applyClickInterface(SceneBuilder scene, DslScene.DslStep step) {
+        if (step.pos == null || step.pos.size() < 2) {
+            LOGGER.warn("click_interface missing point");
+            return;
+        }
+        if (step.action == null || step.action.isBlank()) {
+            LOGGER.warn("click_interface missing action");
+            return;
+        }
+        scene.addInstruction(new ClickInterfaceInstruction(step));
+    }
+
+    private void applyChangeInterfaceSlot(SceneBuilder scene, DslScene.DslStep step) {
+        if (step.interfaceSlots == null || step.interfaceSlots.isEmpty()) {
+            LOGGER.warn("change_interface_slot missing interfaceSlots");
+            return;
+        }
+        scene.addInstruction(new ChangeInterfaceSlotInstruction(step));
+    }
+
+    private void ponderer$resetSceneViewState(net.createmod.ponder.foundation.PonderScene ps) {
+        if (!(ps instanceof PonderSceneViewOffsetAccess viewOffset)) {
+            return;
+        }
+
+        viewOffset.ponderer$resetViewOffset();
+        float defaultScale = viewOffset.ponderer$getDefaultScale();
+        if (ps instanceof PonderSceneAccessor accessor && !Float.isNaN(defaultScale)) {
+            accessor.ponderer$setScaleFactor(defaultScale);
+        }
+        viewOffset.ponderer$setDefaultScale(Float.NaN);
+    }
+
     /**
      * Resolve an ingredient ID and apply it to the builder.
      * For items: use withItem() so the item renders alongside the action icon (LMB/RMB/Scroll).
@@ -673,8 +743,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 BuiltInRegistries.FLUID.getOptional(loc).orElse(null);
         if (fluid != null && fluid != net.minecraft.world.level.material.Fluids.EMPTY) {
             if (JeiCompat.isAvailable()) {
+                // Use JEI ingredient helper to create a fluid element in a platform-agnostic way
                 net.createmod.catnip.gui.element.ScreenElement element =
-                        JeiCompat.resolveIngredientById(id);
+                        JeiCompat.createFluidIngredientElement(fluid, 1000);
                 if (element != null) {
                     builder.showing(element);
                     return;
@@ -728,13 +799,10 @@ public class DynamicPonderPlugin implements PonderPlugin {
             try {
                 CompoundTag tag = TagParser.parseTag(finalNbtPart);
                 if (!tag.isEmpty()) {
-                    // 1.21+: Prefer component-aware reconstruction so visual data (e.g. banner patterns)
-                    // affects rendering, instead of storing everything in custom_data.
                     ItemStack componentStack = tryBuildComponentStack(itemLoc, 1, tag);
                     if (componentStack != null && !componentStack.isEmpty()) {
                         return componentStack;
                     }
-
                     stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag.copy()));
                 }
             } catch (Exception e) {
@@ -751,8 +819,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return null;
         }
 
-        // Generic bridge: treat incoming SNBT as legacy item tag payload and let
-        // vanilla parser convert it into modern components when possible.
         CompoundTag legacy = new CompoundTag();
         legacy.putString("id", itemLoc.toString());
         legacy.putInt("count", Math.max(1, count));
@@ -770,15 +836,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
             full.put("components", tag.getCompound("components").copy());
         } else {
             CompoundTag components = new CompoundTag();
-
-            // Legacy bridge: banner patterns used by prior versions.
             if (tag.contains("patterns", Tag.TAG_LIST)) {
                 components.put("minecraft:banner_patterns", tag.get("patterns").copy());
             }
             if (tag.contains("Patterns", Tag.TAG_LIST)) {
                 components.put("minecraft:banner_patterns", tag.get("Patterns").copy());
             }
-            // Legacy bridge: block entity tag payload.
             if (tag.contains("BlockEntityTag", Tag.TAG_COMPOUND)) {
                 components.put("minecraft:block_entity_data", tag.getCompound("BlockEntityTag").copy());
             }
@@ -795,6 +858,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_structure");
+        context.uiAnchorMode = false;
         Selection selection;
         boolean isEverywhere;
         if (step.blockPos != null && step.blockPos.size() >= 3) {
@@ -832,6 +897,37 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 yRotation.startWithValue(target);
             }
         });
+    }
+
+    private Vec3 resolveOverlayPoint(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        if (!context.uiAnchorMode) {
+            return toPoint(step.point);
+        }
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null || scene.getScene() == null) {
+            return toPoint(step.point);
+        }
+
+        double u = 0.0;
+        double v = 0.0;
+        if (step.point != null && !step.point.isEmpty()) {
+            u = step.point.get(0);
+            if (step.point.size() >= 2) {
+                v = step.point.get(1);
+            }
+        }
+
+        // Shared conversion with picker: centered UI anchor is canonical,
+        // where (0,0) is the UI center.
+        int guiW = Math.max(1, mc.getWindow().getGuiScaledWidth());
+        int guiH = Math.max(1, mc.getWindow().getGuiScaledHeight());
+        UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(mc);
+        double xTopLeft = viewport.left() + UiAnchorCoords.decodeToPixelX(u, (int) Math.max(1, viewport.width()));
+        double yTopLeft = viewport.top() + UiAnchorCoords.decodeToPixelYTopLeft(v, (int) Math.max(1, viewport.height()));
+        double screenX = UiAnchorCoords.topLeftToTransformX(xTopLeft, guiW);
+        double screenY = UiAnchorCoords.topLeftToTransformY(yTopLeft, guiH);
+        return scene.getScene().getTransform().screenToScene(screenX, screenY, 0, 0);
     }
 
     private void applyEncapsulateBounds(SceneBuilder scene, DslScene.DslStep step) {
@@ -1771,8 +1867,22 @@ public class DynamicPonderPlugin implements PonderPlugin {
             if (step == null || step.type == null) {
                 continue;
             }
-            // Return whether the first meaningful step is show_structure
-            return "show_structure".equalsIgnoreCase(step.type);
+            // Return whether the first meaningful step is a valid scene-start step
+            return "show_structure".equalsIgnoreCase(step.type)
+                    || "show_interface".equalsIgnoreCase(step.type);
+        }
+        return false;
+    }
+
+    private boolean firstStepIsShowInterface(DslScene.SceneSegment sc) {
+        if (sc.steps == null) {
+            return false;
+        }
+        for (DslScene.DslStep step : sc.steps) {
+            if (step == null || step.type == null) {
+                continue;
+            }
+            return "show_interface".equalsIgnoreCase(step.type);
         }
         return false;
     }

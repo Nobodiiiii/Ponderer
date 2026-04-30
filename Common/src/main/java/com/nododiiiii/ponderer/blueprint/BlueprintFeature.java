@@ -1,14 +1,12 @@
 package com.nododiiiii.ponderer.blueprint;
 
 import com.nododiiiii.ponderer.Config;
-import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import com.nododiiiii.ponderer.platform.PondererServices;
 
 /**
  * Utility class that resolves the carrier item for the Blueprint tool
@@ -23,11 +21,23 @@ public final class BlueprintFeature {
     }
 
     /**
+     * Returns true when the server config enables Ponderer's built-in Blueprint item.
+     */
+    public static boolean isBuiltinBlueprintItemEnabled() {
+        try {
+            return Config.ENABLE_BLUEPRINT_ITEM.get();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * Returns the configured carrier item id string.
      */
     public static String getCarrierId() {
         try {
-            return Config.BLUEPRINT_CARRIER_ITEM.get();
+            String carrierId = Config.BLUEPRINT_CARRIER_ITEM.get();
+            return carrierId == null || carrierId.isBlank() ? DEFAULT_CARRIER : carrierId.trim();
         } catch (Exception e) {
             return DEFAULT_CARRIER;
         }
@@ -35,15 +45,23 @@ public final class BlueprintFeature {
 
     /**
      * Resolves the configured carrier item from the registry.
-     * Falls back to the built-in blueprint if the config value is invalid.
+     * Falls back to paper if the config value is invalid.
+     * Returns air when the client selected the built-in Blueprint item but
+     * the server has disabled that item.
      */
     public static Item resolveCarrierItem() {
         String id = getCarrierId();
         ResourceLocation loc = ResourceLocation.tryParse(id);
         if (loc == null) {
+            return Items.PAPER;
+        }
+        if (BUILTIN_BLUEPRINT.equals(id)) {
+            if (!isBuiltinBlueprintItemEnabled()) {
+                return Items.AIR;
+            }
             return ModItems.BLUEPRINT.get();
         }
-        return BuiltInRegistries.ITEM.getOptional(loc).orElse(ModItems.BLUEPRINT.get());
+        return BuiltInRegistries.ITEM.getOptional(loc).orElse(Items.PAPER);
     }
 
     /**
@@ -63,21 +81,10 @@ public final class BlueprintFeature {
     }
 
     /**
-     * Returns true if Create mod is loaded.
-     */
-    public static boolean isCreateLoaded() {
-        return PondererServices.PLATFORM.isModLoaded("create");
-    }
-
-    /**
-     * Returns true if the built-in blueprint item should be registered in
-     * creative tabs. This is the case only when:
-     * <ul>
-     *   <li>The carrier item is explicitly set to "ponderer:blueprint"</li>
-     *   <li>Create is NOT loaded</li>
-     * </ul>
+     * Returns true if the built-in Blueprint item should be shown in
+     * creative tabs.
      */
     public static boolean shouldShowBlueprintInCreativeTab() {
-        return BUILTIN_BLUEPRINT.equals(getCarrierId()) && !isCreateLoaded();
+        return isBuiltinBlueprintItemEnabled();
     }
 }

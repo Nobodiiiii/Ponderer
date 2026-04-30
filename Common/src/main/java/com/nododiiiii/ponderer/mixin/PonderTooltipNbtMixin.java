@@ -21,9 +21,15 @@ public class PonderTooltipNbtMixin {
     @Inject(
         method = "updateHovered(Lnet/minecraft/world/item/ItemStack;)V",
         at = @At("HEAD"),
-        cancellable = true
+        cancellable = true,
+        remap = false,
+        require = 0
     )
-    private static void ponderer$checkNbtFilter(ItemStack stack, CallbackInfo ci) {
+    private static void ponderer$checkNbtFilterMoj(ItemStack stack, CallbackInfo ci) {
+        ponderer$checkNbtFilterImpl(stack, ci);
+    }
+
+    private static void ponderer$checkNbtFilterImpl(ItemStack stack, CallbackInfo ci) {
         if (stack.isEmpty()) return;
 
         try {

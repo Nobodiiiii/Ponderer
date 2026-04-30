@@ -36,16 +36,50 @@ final class JeiIngredientHelper {
     }
 
     /**
+     * Create a ScreenElement for a fluid, wrapping it in a platform-appropriate FluidStack
+     * via JEI's ingredient system. This avoids a direct dependency on Forge FluidStack in Common.
+     */
+    @Nullable
+    static ScreenElement createFluidScreenElement(net.minecraft.world.level.material.Fluid fluid, int amount) {
+        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        if (rt == null) return null;
+        IIngredientManager mgr = rt.getIngredientManager();
+        // Search JEI's registered fluid ingredient type for this fluid
+        ResourceLocation fluidId = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
+        if (fluidId == null) return null;
+        return resolveById(fluidId.toString());
+    }
+
+    /**
      * Resolve an ingredient by its registry ID, searching across all JEI-registered ingredient types.
      * Tries each registered type and checks if any ingredient matches the given ID.
      */
     @Nullable
     static ScreenElement resolveById(String id) {
+        return resolveById(id, null);
+    }
+
+    /**
+     * Resolve an ingredient by its registry ID, optionally preferring a JEI ingredient kind.
+     */
+    @Nullable
+    static ScreenElement resolveById(String id, @Nullable String preferredKind) {
         IJeiRuntime rt = PondererJeiPlugin.getRuntime();
         if (rt == null) return null;
         IIngredientManager mgr = rt.getIngredientManager();
         ResourceLocation target = ResourceLocation.tryParse(id);
         if (target == null) return null;
+
+        if (preferredKind != null && !preferredKind.isBlank()) {
+            String normalizedKind = preferredKind.toLowerCase(Locale.ROOT);
+            for (IIngredientType<?> type : mgr.getRegisteredIngredientTypes()) {
+                if (!normalizedKind.equals(inferKind(type))) {
+                    continue;
+                }
+                ScreenElement result = searchType(mgr, type, target);
+                if (result != null) return result;
+            }
+        }
 
         for (IIngredientType<?> type : mgr.getRegisteredIngredientTypes()) {
             ScreenElement result = searchType(mgr, type, target);
@@ -65,6 +99,25 @@ final class JeiIngredientHelper {
         if (rt == null) return null;
         IIngredientManager mgr = rt.getIngredientManager();
         return resolveIdTyped(mgr, (ITypedIngredient<Object>) typed);
+    }
+
+    /**
+     * Resolve a typed ingredient into a stable {id, kind} descriptor.
+     */
+    @Nullable
+    @SuppressWarnings("unchecked")
+    static JeiCompat.IngredientDescriptor resolveDescriptor(Object typedIngredientObj) {
+        if (!(typedIngredientObj instanceof ITypedIngredient<?> typed)) return null;
+        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        if (rt == null) return null;
+        IIngredientManager mgr = rt.getIngredientManager();
+        ITypedIngredient<Object> cast = (ITypedIngredient<Object>) typed;
+        String id = resolveIdTyped(mgr, cast);
+        if (id == null) {
+            return null;
+        }
+        String kind = inferKind(cast.getType());
+        return new JeiCompat.IngredientDescriptor(id, kind);
     }
 
     @SuppressWarnings("unchecked")
