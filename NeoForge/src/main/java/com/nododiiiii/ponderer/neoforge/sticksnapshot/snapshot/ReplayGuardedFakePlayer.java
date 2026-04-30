@@ -33,6 +33,11 @@ public class ReplayGuardedFakePlayer extends FakePlayer {
     }
 
     @Override
+    public OptionalInt openMenu(@Nullable MenuProvider menuProvider) {
+        return openMenu(menuProvider, (Consumer<RegistryFriendlyByteBuf>) null);
+    }
+
+    @Override
     public OptionalInt openMenu(@Nullable MenuProvider menuProvider,
             @Nullable Consumer<RegistryFriendlyByteBuf> extraDataWriter) {
         if (menuProvider == null) {

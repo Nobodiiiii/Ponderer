@@ -210,9 +210,8 @@ public class SnapshotReplayer {
                 }
 
                 ServerGamePacketListenerImpl oldConnection = fakePlayer.connection;
-                CapturingConnection captureConnection = new CapturingConnection();
-                new ServerGamePacketListenerImpl(level.getServer(), captureConnection, fakePlayer,
-                        CommonListenerCookie.createInitial(profile, false));
+                CapturingPacketListener captureConnection = new CapturingPacketListener(level, fakePlayer, profile);
+                fakePlayer.connection = captureConnection;
 
                 fakePlayer.setPos(sandboxHit.x, sandboxHit.y, sandboxHit.z);
                 fakePlayer.setYRot(realPlayer.getYRot());
@@ -228,7 +227,16 @@ public class SnapshotReplayer {
                             : null;
 
                     List<Packet<?>> packets = captureConnection.snapshot();
-                    if (fakeMenu == null || packets.isEmpty()) {
+                    if (fakeMenu == null) {
+                        StickSnapshotFeature.LOGGER.warn("Virtual UI replay opened no menu for player={} block={}",
+                                realPlayer.getScoreboardName(), snapshotState.getBlock());
+                        return null;
+                    }
+                    if (packets.isEmpty()) {
+                        StickSnapshotFeature.LOGGER.warn(
+                                "Virtual UI replay opened menu but captured no packets for player={} block={} menu={}",
+                                realPlayer.getScoreboardName(), snapshotState.getBlock(),
+                                fakeMenu.getClass().getName());
                         return null;
                     }
 
@@ -565,20 +573,25 @@ public class SnapshotReplayer {
     private record SandboxInjectedBlock(BlockPos pos, BlockState originalState, @Nullable CompoundTag originalBeTag) {
     }
 
-    private static class CapturingConnection extends Connection {
+    private static class CapturingPacketListener extends ServerGamePacketListenerImpl {
         private final List<Packet<?>> capturedPackets = new ArrayList<>();
 
-        private CapturingConnection() {
-            super(PacketFlow.CLIENTBOUND);
+        private CapturingPacketListener(ServerLevel level, ServerPlayer fakePlayer, GameProfile profile) {
+            super(level.getServer(), new CapturingConnection(), fakePlayer,
+                    CommonListenerCookie.createInitial(profile, false));
         }
 
         @Override
         public void send(Packet<?> packet) {
-            capturedPackets.add(packet);
+            capture(packet, null);
         }
 
         @Override
         public void send(Packet<?> packet, @Nullable PacketSendListener sendListener) {
+            capture(packet, sendListener);
+        }
+
+        private void capture(Packet<?> packet, @Nullable PacketSendListener sendListener) {
             capturedPackets.add(packet);
             if (sendListener != null) {
                 sendListener.onSuccess();
@@ -587,6 +600,12 @@ public class SnapshotReplayer {
 
         private List<Packet<?>> snapshot() {
             return new ArrayList<>(capturedPackets);
+        }
+    }
+
+    private static class CapturingConnection extends Connection {
+        private CapturingConnection() {
+            super(PacketFlow.SERVERBOUND);
         }
     }
 
