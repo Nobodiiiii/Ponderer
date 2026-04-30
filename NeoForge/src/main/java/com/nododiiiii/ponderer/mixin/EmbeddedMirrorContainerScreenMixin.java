@@ -53,11 +53,12 @@ public abstract class EmbeddedMirrorContainerScreenMixin {
     }
 
     @Inject(
-        method = "render",
+        method = "renderBackground",
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/client/gui/screens/inventory/AbstractContainerScreen;renderBg(Lnet/minecraft/client/gui/GuiGraphics;FII)V"
-        )
+        ),
+        require = 0
     )
     private void ponderer$raiseEmbeddedBackground(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTick, CallbackInfo ci) {
@@ -73,12 +74,13 @@ public abstract class EmbeddedMirrorContainerScreenMixin {
     }
 
     @Inject(
-        method = "render",
+        method = "renderBackground",
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/client/gui/screens/inventory/AbstractContainerScreen;renderBg(Lnet/minecraft/client/gui/GuiGraphics;FII)V",
             shift = At.Shift.AFTER
-        )
+        ),
+        require = 0
     )
     private void ponderer$restoreEmbeddedBackgroundZ(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTick, CallbackInfo ci) {
@@ -96,7 +98,8 @@ public abstract class EmbeddedMirrorContainerScreenMixin {
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/client/gui/screens/Screen;render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V"
-        )
+        ),
+        require = 0
     )
     private void ponderer$raiseEmbeddedWidgets(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTick, CallbackInfo ci) {
@@ -116,7 +119,8 @@ public abstract class EmbeddedMirrorContainerScreenMixin {
             value = "INVOKE",
             target = "Lnet/minecraft/client/gui/screens/Screen;render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V",
             shift = At.Shift.AFTER
-        )
+        ),
+        require = 0
     )
     private void ponderer$restoreEmbeddedWidgetsZ(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTick, CallbackInfo ci) {

@@ -7,18 +7,19 @@
   "mixins": [],
   "client": [
     "PonderLocalizationMixin",
-    "PonderSceneRegistryMixin",
-    "PonderSceneRegistryNbtMixin",
+    "PonderSceneRegistryMixinFabric",
+    "PonderSceneRegistryNbtMixinFabric",
     "MinecraftNbtPickMixin",
     "MinecraftCoordPickScrollMixin",
     "WorldSectionElementImplMixin",
     "PonderSceneAccessor",
+    "PonderKeybindsAccessor",
     "PonderSceneViewOffsetMixin",
     "SceneTransformOffsetMixinFabric",
     "PonderUIAccessor",
     "PonderUIMixin",
-    "PonderUINbtMixin",
-    "PonderTooltipNbtMixin"
+    "PonderUINbtMixinFabric",
+    "PonderTooltipNbtMixinFabric"
   ],
   "server": [],
   "injectors": {
