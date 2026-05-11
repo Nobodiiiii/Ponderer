@@ -27,11 +27,10 @@ public class PonderTextListWidget extends AbstractWidget {
     /** Persistent (per-session) toggle for whether the panel is shown. */
     public static boolean VISIBLE = true;
 
-    public static final int PANEL_WIDTH = 144;
-    /** Right padding when the screen is wide enough — matches the slowMode button's right padding. */
-    public static final int DESIRED_RIGHT_PADDING = 31;
-    /** Floor for the right padding when left space is tight. */
-    public static final int MIN_RIGHT_PADDING = 4;
+    /** Desired width when there is room. The actual width is computed dynamically. */
+    public static final int DESIRED_PANEL_WIDTH = 144;
+    /** Right padding — matches the slowMode button's right padding. */
+    public static final int DESIRED_RIGHT_PADDING = 30;
     public static final int TOP_Y = 70;
     public static final int BOTTOM_PAD = 60; // leave room for the bottom button row
 
@@ -61,23 +60,31 @@ public class PonderTextListWidget extends AbstractWidget {
 
     public PonderTextListWidget(PonderUI ponderUi) {
         super(computeLeft(ponderUi.width), TOP_Y,
-            PANEL_WIDTH, Math.max(60, ponderUi.height - TOP_Y - BOTTOM_PAD),
+            computeWidth(ponderUi.width), Math.max(60, ponderUi.height - TOP_Y - BOTTOM_PAD),
             Component.empty());
         this.ponderUi = ponderUi;
     }
 
+    private static int rightEdge(int screenWidth) {
+        return screenWidth - DESIRED_RIGHT_PADDING;
+    }
+
     /**
      * Compute the panel's left x.
-     * Default: aligned with the slowMode button's right padding ({@code width - PANEL_WIDTH - DESIRED_RIGHT_PADDING}).
-     * If left space is tight (would push left of {@code width/2 + 30}), shift right and trim the right padding,
-     * down to a floor of {@link #MIN_RIGHT_PADDING}.
+     *
+     * Right edge is fixed at {@code screenWidth - DESIRED_RIGHT_PADDING} (matches slowMode's right padding).
+     * Left edge is normally {@code right - DESIRED_PANEL_WIDTH}, but is clamped so it does not extend left of
+     * {@link net.createmod.ponder.foundation.ui.PonderProgressBar}'s right end ({@code width/2 + 110}); the panel
+     * shrinks in width when the screen is narrow rather than crossing that boundary.
      */
     private static int computeLeft(int screenWidth) {
-        int desiredLeft = screenWidth - PANEL_WIDTH - DESIRED_RIGHT_PADDING;
-        int minLeft = screenWidth / 2 + 30;
-        int left = Math.max(desiredLeft, minLeft);
-        int maxLeft = screenWidth - PANEL_WIDTH - MIN_RIGHT_PADDING;
-        return Math.min(left, maxLeft);
+        int desiredLeft = rightEdge(screenWidth) - DESIRED_PANEL_WIDTH;
+        int progressBarRight = screenWidth / 2 + 110;
+        return Math.max(desiredLeft, progressBarRight);
+    }
+
+    private static int computeWidth(int screenWidth) {
+        return Math.max(0, rightEdge(screenWidth) - computeLeft(screenWidth));
     }
 
     @Override

@@ -179,6 +179,21 @@ public abstract class PonderUIMixin extends Screen {
         }
     }
 
+    /**
+     * Append our edit button's label to PonderUI's shared bottom-button hover
+     * tooltip strip (the same row PonderUI uses for slowMode/userMode/etc.).
+     */
+    @Inject(method = "renderHoverTooltips", at = @At("TAIL"), remap = false)
+    private void ponderer$renderEditButtonTooltip(GuiGraphics graphics, int tooltipColor, CallbackInfo ci) {
+        if (ponderer$editButton == null || !ponderer$editButton.isHoveredOrFocused()) {
+            return;
+        }
+        int tooltipY = this.height - 16;
+        graphics.drawCenteredString(Minecraft.getInstance().font,
+            Component.translatable("ponderer.ui.tooltip.edit_scene"),
+            ponderer$editButton.getX() + 10, tooltipY, tooltipColor);
+    }
+
     @Inject(method = "removed", at = @At("TAIL"), remap = false)
     private void ponderer$clearSceneEditorUndoOnTrueExit(CallbackInfo ci) {
         PonderUI self = (PonderUI) (Object) this;

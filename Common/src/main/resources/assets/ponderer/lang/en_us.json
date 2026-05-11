@@ -138,6 +138,7 @@
   "ponderer.ui.invalid": "(invalid)",
   "ponderer.ui.none": "(none)",
   "ponderer.ui.text_progress": "Text Progress",
+  "ponderer.ui.tooltip.edit_scene": "Edit Scene",
   "ponderer.ui.ticks": "ticks",
   "ponderer.ui.error.invalid_number": "%s: invalid number",
   "ponderer.ui.error.invalid_integer": "%s: invalid integer",
