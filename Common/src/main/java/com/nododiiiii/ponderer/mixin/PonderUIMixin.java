@@ -54,6 +54,9 @@ public abstract class PonderUIMixin extends Screen {
     @Unique
     private PonderButton ponderer$editButton;
 
+    @Unique
+    private PonderButton ponderer$textListToggleButton;
+
     protected PonderUIMixin() {
         super(CommonComponents.EMPTY);
     }
@@ -62,6 +65,14 @@ public abstract class PonderUIMixin extends Screen {
     private void ponderer$addEditButton(CallbackInfo ci) {
         PonderUI self = (PonderUI) (Object) this;
         addRenderableWidget(new PonderTextListWidget(self));
+
+        int bY = this.height - 20 - 31;
+        PonderButton toggleButton = new PonderButton(this.width - 80 - 31, bY)
+                .showing(new ItemStack(Items.BOOK))
+                .enableFade(0, 5);
+        toggleButton.withCallback(() -> PonderTextListWidget.VISIBLE = !PonderTextListWidget.VISIBLE);
+        ponderer$textListToggleButton = toggleButton;
+        addRenderableWidget(toggleButton);
 
         var match = ponderer$resolveDynamicScene(self);
         if (match == null) {
@@ -73,9 +84,7 @@ public abstract class PonderUIMixin extends Screen {
             return;
         }
 
-        int bY = this.height - 20 - 31;
-
-        PonderButton editButton = new PonderButton(this.width - 80 - 31, bY)
+        PonderButton editButton = new PonderButton(this.width - 110 - 31, bY)
                 .showing(new ItemStack(Items.WRITABLE_BOOK))
                 .enableFade(0, 5);
         editButton.withCallback(() -> {

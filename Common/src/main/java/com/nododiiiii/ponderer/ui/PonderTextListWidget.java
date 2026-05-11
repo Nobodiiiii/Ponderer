@@ -19,19 +19,39 @@ import java.util.List;
  * Ponder scene segment. Clicking a row seeks the scene to the tick at which
  * that text appears, mirroring keyframe navigation in {@link PonderUI#seekToTime(int)}.
  *
- * Entries are populated by {@link com.nododiiiii.ponderer.ponder.TextMarkerInstruction}
- * during scene begin() and exposed through {@link TextIndexStore}.
+ * Visibility is controlled by a toggle button set up in PonderUIMixin via the
+ * {@code VISIBLE} flag.
  */
 public class PonderTextListWidget extends AbstractWidget {
 
-    public static final int PANEL_WIDTH = 140;
-    public static final int RIGHT_MARGIN = 4;
+    /** Persistent (per-session) toggle for whether the panel is shown. */
+    public static boolean VISIBLE = true;
+
+    public static final int PANEL_WIDTH = 144;
+    public static final int RIGHT_MARGIN = 14;
     public static final int TOP_Y = 70;
-    public static final int BOTTOM_PAD = 60; // leave room for bottom button row
+    public static final int BOTTOM_PAD = 60; // leave room for the bottom button row
 
     private static final int ROW_HEIGHT = 11;
-    private static final int HEADER_HEIGHT = 14;
-    private static final int PADDING_X = 6;
+    private static final int HEADER_HEIGHT = 24;
+    private static final int PADDING_X = 7;
+    private static final int CONTENT_RIGHT_PAD = 10;
+
+    // Catnip-style blue/navy palette.
+    private static final int BG_FILL          = 0xFF_000000;
+    private static final int BG_OUTER_BORDER  = 0xC0_28324a;
+    private static final int BG_INNER_BORDER  = 0x60_3d5070;
+    private static final int HEADER_RULE      = 0x80_4a6080;
+    private static final int HEADER_TEXT      = 0xFF_d6e4ff;
+    private static final int SUBHEADER_TEXT   = 0xFF_8ab6d6;
+    private static final int ACCENT_PLAYED    = 0xFF_8ab6d6;
+    private static final int ACCENT_UNPLAYED  = 0xFF_3a4666;
+    private static final int TEXT_PLAYED      = 0xFF_d8e6fa;
+    private static final int TEXT_HOVER       = 0xFF_ffffff;
+    private static final int TEXT_UNPLAYED    = 0xFF_707a90;
+    private static final int ROW_HOVER_BG     = 0x60_3a5a8a;
+    private static final int SCROLL_TRACK     = 0x40_28324a;
+    private static final int SCROLL_THUMB     = 0xC0_8ab6d6;
 
     private final PonderUI ponderUi;
     private int scrollOffset;
@@ -59,23 +79,35 @@ public class PonderTextListWidget extends AbstractWidget {
         int h = getHeight();
 
         RenderSystem.enableBlend();
-        // Frame
-        graphics.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xC0_5a4520);
-        graphics.fill(x, y, x + w, y + h, 0xE6_120E08);
+
+        // Outer border + inner border + fill (catnip-style dark navy box)
+        graphics.fill(x - 2, y - 2, x + w + 2, y + h + 2, BG_OUTER_BORDER);
+        graphics.fill(x - 1, y - 1, x + w + 1, y + h + 1, BG_INNER_BORDER);
+        graphics.fill(x,     y,     x + w,     y + h,     BG_FILL);
 
         Font font = Minecraft.getInstance().font;
-        String header = "Texts (" + entries.size() + ")";
-        graphics.drawString(font, header, x + PADDING_X, y + 3, 0xF8E5B0, false);
-        graphics.fill(x + 2, y + HEADER_HEIGHT, x + w - 2, y + HEADER_HEIGHT + 1, 0x60_8a6a30);
 
-        int listTop = y + HEADER_HEIGHT + 3;
-        int listBottom = y + h - 3;
+        // Bilingual header (two lines, Chinese above English subtitle)
+        String headerCn = "文本进度";
+        String headerEn = "Text Progress";
+        graphics.drawString(font, headerCn, x + PADDING_X, y + 4, HEADER_TEXT, false);
+        graphics.drawString(font, headerEn, x + PADDING_X, y + 14, SUBHEADER_TEXT, false);
+
+        String countLabel = String.valueOf(entries.size());
+        int countWidth = font.width(countLabel);
+        graphics.drawString(font, countLabel,
+            x + w - PADDING_X - countWidth, y + 4, SUBHEADER_TEXT, false);
+
+        graphics.fill(x + 3, y + HEADER_HEIGHT, x + w - 3, y + HEADER_HEIGHT + 1, HEADER_RULE);
+
+        int listTop = y + HEADER_HEIGHT + 4;
+        int listBottom = y + h - 4;
         int visibleRows = Math.max(0, (listBottom - listTop) / ROW_HEIGHT);
         int maxScroll = Math.max(0, entries.size() - visibleRows);
         scrollOffset = Math.min(scrollOffset, maxScroll);
 
         int currentSceneTime = ponderUi.getActiveScene().getCurrentTime();
-        int textWidth = w - PADDING_X * 2 - 4;
+        int textWidth = w - PADDING_X - CONTENT_RIGHT_PAD - 6;
 
         graphics.enableScissor(x, listTop, x + w, listBottom);
         for (int row = 0; row < visibleRows; row++) {
@@ -85,46 +117,48 @@ public class PonderTextListWidget extends AbstractWidget {
 
             int rowY = listTop + row * ROW_HEIGHT;
             boolean played = e.tick() <= currentSceneTime;
-            boolean hovered = mouseX >= x + 2 && mouseX < x + w - 2
+            boolean hovered = mouseX >= x + 3 && mouseX < x + w - CONTENT_RIGHT_PAD
                 && mouseY >= rowY - 1 && mouseY < rowY + ROW_HEIGHT - 1;
 
             if (hovered) {
-                graphics.fill(x + 2, rowY - 1, x + w - 2, rowY + ROW_HEIGHT - 1, 0x70_5a4520);
+                graphics.fill(x + 3, rowY - 1, x + w - CONTENT_RIGHT_PAD, rowY + ROW_HEIGHT - 1, ROW_HOVER_BG);
             }
-            // Accent bar on the left of each row
-            int accent = played ? 0xFF_F8C24A : 0xFF_555049;
-            graphics.fill(x + 2, rowY, x + 4, rowY + ROW_HEIGHT - 2, accent);
 
-            int textColor = played ? (hovered ? 0xFFFFE89A : 0xFFE0D8B0) : 0xFF888070;
+            int accent = played ? ACCENT_PLAYED : ACCENT_UNPLAYED;
+            graphics.fill(x + 3, rowY, x + 5, rowY + ROW_HEIGHT - 2, accent);
+
+            int textColor;
+            if (hovered) {
+                textColor = TEXT_HOVER;
+            } else if (played) {
+                textColor = TEXT_PLAYED;
+            } else {
+                textColor = TEXT_UNPLAYED;
+            }
             FormattedCharSequence line = truncate(font, e, textWidth);
-            graphics.drawString(font, line, x + PADDING_X, rowY + 1, textColor, false);
+            graphics.drawString(font, line, x + PADDING_X + 2, rowY + 1, textColor, false);
         }
         graphics.disableScissor();
 
-        // Scroll bar if needed
         if (entries.size() > visibleRows && visibleRows > 0) {
             int trackTop = listTop;
             int trackBottom = listBottom;
             int trackH = trackBottom - trackTop;
             int thumbH = Math.max(10, trackH * visibleRows / entries.size());
             int thumbY = trackTop + (trackH - thumbH) * scrollOffset / Math.max(1, maxScroll);
-            int barX = x + w - 4;
-            graphics.fill(barX, trackTop, barX + 2, trackBottom, 0x40_8a6a30);
-            graphics.fill(barX, thumbY, barX + 2, thumbY + thumbH, 0xC0_F8C24A);
+            int barX = x + w - 5;
+            graphics.fill(barX, trackTop, barX + 2, trackBottom, SCROLL_TRACK);
+            graphics.fill(barX, thumbY, barX + 2, thumbY + thumbH, SCROLL_THUMB);
         }
 
-        // Tooltip with full text on hover
         TextIndexStore.Entry hoveredEntry = entryAt(mouseX, mouseY, entries, listTop, listBottom, visibleRows);
         if (hoveredEntry != null) {
-            String full = previewLabel(hoveredEntry);
-            graphics.renderTooltip(font, Component.literal(full), mouseX, mouseY);
+            graphics.renderTooltip(font, Component.literal(previewLabel(hoveredEntry)), mouseX, mouseY);
         }
     }
 
     private FormattedCharSequence truncate(Font font, TextIndexStore.Entry e, int maxWidth) {
-        String label = previewLabel(e);
-        // Strip newlines for the list display
-        label = label.replace('\n', ' ').replace('\r', ' ');
+        String label = previewLabel(e).replace('\n', ' ').replace('\r', ' ');
         if (font.width(label) > maxWidth) {
             int chars = label.length();
             while (chars > 0 && font.width(label.substring(0, chars) + "…") > maxWidth) {
@@ -147,7 +181,7 @@ public class PonderTextListWidget extends AbstractWidget {
                                           int listTop, int listBottom, int visibleRows) {
         int x = getX();
         int w = getWidth();
-        if (mouseX < x + 2 || mouseX >= x + w - 2) return null;
+        if (mouseX < x + 3 || mouseX >= x + w - CONTENT_RIGHT_PAD) return null;
         if (mouseY < listTop || mouseY >= listBottom) return null;
         int row = (mouseY - listTop) / ROW_HEIGHT;
         if (row < 0 || row >= visibleRows) return null;
@@ -165,8 +199,8 @@ public class PonderTextListWidget extends AbstractWidget {
 
         int y = getY();
         int h = getHeight();
-        int listTop = y + HEADER_HEIGHT + 3;
-        int listBottom = y + h - 3;
+        int listTop = y + HEADER_HEIGHT + 4;
+        int listBottom = y + h - 4;
         int visibleRows = Math.max(0, (listBottom - listTop) / ROW_HEIGHT);
         TextIndexStore.Entry e = entryAt((int) mouseX, (int) mouseY, entries, listTop, listBottom, visibleRows);
         if (e == null) return false;
@@ -182,11 +216,11 @@ public class PonderTextListWidget extends AbstractWidget {
         List<TextIndexStore.Entry> entries = currentEntries();
         if (entries.isEmpty()) return false;
 
-        int listTop = getY() + HEADER_HEIGHT + 3;
-        int listBottom = getY() + getHeight() - 3;
+        int listTop = getY() + HEADER_HEIGHT + 4;
+        int listBottom = getY() + getHeight() - 4;
         int visibleRows = Math.max(0, (listBottom - listTop) / ROW_HEIGHT);
         int maxScroll = Math.max(0, entries.size() - visibleRows);
-        if (maxScroll <= 0) return true; // still consume to prevent scene switch
+        if (maxScroll <= 0) return true;
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - (int) Math.signum(delta)));
         return true;
     }
@@ -208,6 +242,7 @@ public class PonderTextListWidget extends AbstractWidget {
 
     private boolean shouldShow() {
         if (!this.visible) return false;
+        if (!VISIBLE) return false;
         if (PickState.isActive() || InterfaceSlotEditState.isActive()) return false;
         PonderScene active = ponderUi.getActiveScene();
         return active != null;
