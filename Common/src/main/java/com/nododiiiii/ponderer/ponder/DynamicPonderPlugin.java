@@ -445,6 +445,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
         String text = step.text == null ? "" : step.text.resolve();
         int duration = step.durationOrDefault(60);
 
+        scene.addInstruction(new TextMarkerInstruction(text, false));
+
         TextElementBuilder builder = scene.overlay()
             .showText(duration)
             .text(text);
@@ -478,6 +480,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         int duration = step.durationOrDefault(60);
+        scene.addInstruction(new TextMarkerInstruction(key, true));
         TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc);
 
         if (hasExplicitPoint(step)) {

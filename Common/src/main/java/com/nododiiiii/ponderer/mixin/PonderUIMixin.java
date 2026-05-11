@@ -9,6 +9,7 @@ import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.PonderScreenNavigation;
+import com.nododiiiii.ponderer.ui.PonderTextListWidget;
 import com.nododiiiii.ponderer.ui.PondererConfigScreen;
 import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.ReadonlyPackImportPromptScreen;
@@ -60,6 +61,8 @@ public abstract class PonderUIMixin extends Screen {
     @Inject(method = "init", at = @At("TAIL"))
     private void ponderer$addEditButton(CallbackInfo ci) {
         PonderUI self = (PonderUI) (Object) this;
+        addRenderableWidget(new PonderTextListWidget(self));
+
         var match = ponderer$resolveDynamicScene(self);
         if (match == null) {
             return;
