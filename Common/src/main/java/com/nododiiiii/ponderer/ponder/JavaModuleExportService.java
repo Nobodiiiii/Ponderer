@@ -1167,7 +1167,7 @@ public final class JavaModuleExportService {
             case "text" -> sb.append("        GeneratedPonderSupport.showText(scene, ")
                 .append(localizedTextExpr(step.text, ""))
                 .append(", ")
-                .append(vecExprOrDefault(step.point, 2.5, 1.5, 2.5))
+                .append(vecExpr(step.point))
                 .append(", ")
                 .append(step.durationOrDefault(60))
                 .append(", ")
@@ -1409,8 +1409,10 @@ public final class JavaModuleExportService {
                                             String color, boolean placeNearTarget) {
                     TextElementBuilder builder = scene.overlay()
                         .showText(duration)
-                        .text(text == null ? "" : text)
-                        .pointAt(point);
+                        .text(text == null ? "" : text);
+                    if (point != null) {
+                        builder.pointAt(point);
+                    }
                     PonderPalette palette = parsePalette(color);
                     if (palette != null) {
                         builder.colored(palette);

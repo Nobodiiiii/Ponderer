@@ -1009,7 +1009,7 @@ public class AiSceneGenerator {
             **IMPORTANT — overlap**: a text label stays visible for exactly "duration" ticks. With the standard 50-tick text duration and 60-tick idle, there is a natural 10-tick gap preventing overlap. If using non-standard durations, ensure the idle between consecutive text steps is at least as long as the previous text's duration, or use "point" coordinates with ≥ 2-block Y difference so labels are vertically separated.
             **Fields**:
             - text (LocalizedText, required): {"en_us":"English text", "zh_cn":"中文文本"}
-            - point (float[3], required): the 3D coordinate the text points at. Use x.5 values to point at block centers (e.g. [2.5, 1.5, 3.5] = center of block at [2,1,3])
+            - point (float[3], optional): the 3D coordinate the text points at. Use x.5 values to point at block centers (e.g. [2.5, 1.5, 3.5] = center of block at [2,1,3]). Omit to render the label centered at the top of the screen without a pointer line (vanilla "independent" text behavior).
             - duration (int, optional, default 40): how long the text stays visible (ticks)
             - color (string, optional): text color theme. Values: "green" (general info), "blue" (highlight), "red" (warning/danger), "cyan" (secondary info), "input" (player interaction), "output" (result), "slow"/"medium"/"fast" (speed indicators). Default is white.
             - placeNearTarget (bool, optional): if true, the text label floats near the pointed position instead of at a fixed screen location. Almost always set to true.

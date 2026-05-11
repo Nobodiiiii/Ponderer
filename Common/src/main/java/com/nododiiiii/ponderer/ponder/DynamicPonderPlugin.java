@@ -443,13 +443,15 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private void applyText(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         String text = step.text == null ? "" : step.text.resolve();
-        Vec3 point = resolveOverlayPoint(scene, step, context);
         int duration = step.durationOrDefault(60);
 
         TextElementBuilder builder = scene.overlay()
             .showText(duration)
-            .text(text)
-            .pointAt(point);
+            .text(text);
+
+        if (hasExplicitPoint(step)) {
+            builder.pointAt(resolveOverlayPoint(scene, step, context));
+        }
 
         PonderPalette palette = parsePalette(step.color);
         if (palette != null) {
@@ -475,9 +477,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        Vec3 point = resolveOverlayPoint(scene, step, context);
         int duration = step.durationOrDefault(60);
-        TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc).pointAt(point);
+        TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc);
+
+        if (hasExplicitPoint(step)) {
+            builder.pointAt(resolveOverlayPoint(scene, step, context));
+        }
 
         PonderPalette palette = parsePalette(step.color);
         if (palette != null) {
@@ -486,6 +491,10 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (Boolean.TRUE.equals(step.placeNearTarget)) {
             builder.placeNearTarget();
         }
+    }
+
+    private static boolean hasExplicitPoint(DslScene.DslStep step) {
+        return step.point != null && !step.point.isEmpty();
     }
 
     private void applyCreateEntity(SceneBuilder scene, DslScene.DslStep step) {
