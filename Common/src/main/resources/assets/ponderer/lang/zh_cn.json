@@ -137,6 +137,7 @@
   "ponderer.ui.edit_suffix": " (编辑)",
   "ponderer.ui.invalid": "(无效)",
   "ponderer.ui.none": "(无)",
+  "ponderer.ui.text_progress": "文本进度",
   "ponderer.ui.ticks": "刻",
   "ponderer.ui.error.invalid_number": "%s: 无效数字",
   "ponderer.ui.error.invalid_integer": "%s: 无效整数",

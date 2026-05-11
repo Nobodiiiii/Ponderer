@@ -54,9 +54,6 @@ public abstract class PonderUIMixin extends Screen {
     @Unique
     private PonderButton ponderer$editButton;
 
-    @Unique
-    private PonderButton ponderer$textListToggleButton;
-
     protected PonderUIMixin() {
         super(CommonComponents.EMPTY);
     }
@@ -66,13 +63,21 @@ public abstract class PonderUIMixin extends Screen {
         PonderUI self = (PonderUI) (Object) this;
         addRenderableWidget(new PonderTextListWidget(self));
 
+        // Hijack the Create "comfy reading" button (slowMode): repurpose it as
+        // the text-progress panel toggle. Reposition userMode and our edit
+        // button so the three right-bottom buttons sit flush against each other.
+        PonderUIAccessor accessor = (PonderUIAccessor) this;
+        PonderButton slowMode = accessor.ponderer$getSlowMode();
+        if (slowMode != null) {
+            slowMode.withCallback(() -> PonderTextListWidget.VISIBLE = !PonderTextListWidget.VISIBLE);
+        }
+
         int bY = this.height - 20 - 31;
-        PonderButton toggleButton = new PonderButton(this.width - 80 - 31, bY)
-                .showing(new ItemStack(Items.BOOK))
-                .enableFade(0, 5);
-        toggleButton.withCallback(() -> PonderTextListWidget.VISIBLE = !PonderTextListWidget.VISIBLE);
-        ponderer$textListToggleButton = toggleButton;
-        addRenderableWidget(toggleButton);
+        PonderButton userMode = accessor.ponderer$getUserMode();
+        if (userMode != null) {
+            userMode.setX(this.width - 40 - 31);
+            userMode.setY(bY);
+        }
 
         var match = ponderer$resolveDynamicScene(self);
         if (match == null) {
@@ -84,7 +89,8 @@ public abstract class PonderUIMixin extends Screen {
             return;
         }
 
-        PonderButton editButton = new PonderButton(this.width - 110 - 31, bY)
+        int editX = (userMode != null) ? (this.width - 60 - 31) : (this.width - 40 - 31);
+        PonderButton editButton = new PonderButton(editX, bY)
                 .showing(new ItemStack(Items.WRITABLE_BOOK))
                 .enableFade(0, 5);
         editButton.withCallback(() -> {
@@ -160,6 +166,24 @@ public abstract class PonderUIMixin extends Screen {
             SceneEditorScreen.handlePonderUiFocusChanged(match.scene());
         } else {
             SceneEditorScreen.handlePonderUiFocusChanged(null);
+        }
+    }
+
+    /**
+     * PonderUI eats the scroll wheel for scene navigation before the widget
+     * layer sees it. Route scroll to the text list widget first when the cursor
+     * is hovering it so users can page through the list.
+     */
+    @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
+    private void ponderer$routeScrollToTextList(double mouseX, double mouseY, double delta,
+            CallbackInfoReturnable<Boolean> cir) {
+        for (GuiEventListener child : this.children()) {
+            if (child instanceof PonderTextListWidget panel && panel.isMouseOver(mouseX, mouseY)) {
+                if (panel.mouseScrolled(mouseX, mouseY, delta)) {
+                    cir.setReturnValue(true);
+                }
+                return;
+            }
         }
     }
 

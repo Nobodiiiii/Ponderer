@@ -28,12 +28,15 @@ public class PonderTextListWidget extends AbstractWidget {
     public static boolean VISIBLE = true;
 
     public static final int PANEL_WIDTH = 144;
-    public static final int RIGHT_MARGIN = 14;
+    /** Right padding when the screen is wide enough — matches the slowMode button's right padding. */
+    public static final int DESIRED_RIGHT_PADDING = 31;
+    /** Floor for the right padding when left space is tight. */
+    public static final int MIN_RIGHT_PADDING = 4;
     public static final int TOP_Y = 70;
     public static final int BOTTOM_PAD = 60; // leave room for the bottom button row
 
     private static final int ROW_HEIGHT = 11;
-    private static final int HEADER_HEIGHT = 24;
+    private static final int HEADER_HEIGHT = 14;
     private static final int PADDING_X = 7;
     private static final int CONTENT_RIGHT_PAD = 10;
 
@@ -57,10 +60,24 @@ public class PonderTextListWidget extends AbstractWidget {
     private int scrollOffset;
 
     public PonderTextListWidget(PonderUI ponderUi) {
-        super(ponderUi.width - PANEL_WIDTH - RIGHT_MARGIN, TOP_Y,
+        super(computeLeft(ponderUi.width), TOP_Y,
             PANEL_WIDTH, Math.max(60, ponderUi.height - TOP_Y - BOTTOM_PAD),
             Component.empty());
         this.ponderUi = ponderUi;
+    }
+
+    /**
+     * Compute the panel's left x.
+     * Default: aligned with the slowMode button's right padding ({@code width - PANEL_WIDTH - DESIRED_RIGHT_PADDING}).
+     * If left space is tight (would push left of {@code width/2 + 30}), shift right and trim the right padding,
+     * down to a floor of {@link #MIN_RIGHT_PADDING}.
+     */
+    private static int computeLeft(int screenWidth) {
+        int desiredLeft = screenWidth - PANEL_WIDTH - DESIRED_RIGHT_PADDING;
+        int minLeft = screenWidth / 2 + 30;
+        int left = Math.max(desiredLeft, minLeft);
+        int maxLeft = screenWidth - PANEL_WIDTH - MIN_RIGHT_PADDING;
+        return Math.min(left, maxLeft);
     }
 
     @Override
@@ -87,11 +104,9 @@ public class PonderTextListWidget extends AbstractWidget {
 
         Font font = Minecraft.getInstance().font;
 
-        // Bilingual header (two lines, Chinese above English subtitle)
-        String headerCn = "文本进度";
-        String headerEn = "Text Progress";
-        graphics.drawString(font, headerCn, x + PADDING_X, y + 4, HEADER_TEXT, false);
-        graphics.drawString(font, headerEn, x + PADDING_X, y + 14, SUBHEADER_TEXT, false);
+        // Single localized header.
+        Component header = Component.translatable("ponderer.ui.text_progress");
+        graphics.drawString(font, header, x + PADDING_X, y + 4, HEADER_TEXT, false);
 
         String countLabel = String.valueOf(entries.size());
         int countWidth = font.width(countLabel);
