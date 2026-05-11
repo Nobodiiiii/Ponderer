@@ -41,9 +41,5 @@ public interface PonderUIAccessor {
 
     @Accessor(value = "slowMode", remap = false)
     PonderButton ponderer$getSlowMode();
-
-    @Accessor(value = "userMode", remap = false)
-    @Nullable
-    PonderButton ponderer$getUserMode();
 }
 

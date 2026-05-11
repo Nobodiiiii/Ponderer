@@ -64,19 +64,11 @@ public abstract class PonderUIMixin extends Screen {
         addRenderableWidget(new PonderTextListWidget(self));
 
         // Hijack the Create "comfy reading" button (slowMode): repurpose it as
-        // the text-progress panel toggle. Reposition userMode and our edit
-        // button so the three right-bottom buttons sit flush against each other.
+        // the text-progress panel toggle.
         PonderUIAccessor accessor = (PonderUIAccessor) this;
         PonderButton slowMode = accessor.ponderer$getSlowMode();
         if (slowMode != null) {
             slowMode.withCallback(() -> PonderTextListWidget.VISIBLE = !PonderTextListWidget.VISIBLE);
-        }
-
-        int bY = this.height - 20 - 31;
-        PonderButton userMode = accessor.ponderer$getUserMode();
-        if (userMode != null) {
-            userMode.setX(this.width - 40 - 31);
-            userMode.setY(bY);
         }
 
         var match = ponderer$resolveDynamicScene(self);
@@ -89,8 +81,8 @@ public abstract class PonderUIMixin extends Screen {
             return;
         }
 
-        int editX = (userMode != null) ? (this.width - 60 - 31) : (this.width - 40 - 31);
-        PonderButton editButton = new PonderButton(editX, bY)
+        int bY = this.height - 20 - 31;
+        PonderButton editButton = new PonderButton(this.width - 80 - 31, bY)
                 .showing(new ItemStack(Items.WRITABLE_BOOK))
                 .enableFade(0, 5);
         editButton.withCallback(() -> {
