@@ -88,6 +88,13 @@ public final class JavaModuleExportService {
     private static final String GENERATED_DIR = ".ponderer-export";
     private static final String MANIFEST_NAME = "manifest.json";
     private static final String REPORT_NAME = "last-report.json";
+    private static final String ATTRIBUTION_TAG_PATH = "ponderer_exported";
+    private static final String ATTRIBUTION_TITLE_EN_US = "The Ponderer...";
+    private static final String ATTRIBUTION_TITLE_ZH_CN = "思索者...";
+    private static final String ATTRIBUTION_DESCRIPTION_EN_US =
+        "This mod's Ponder scenes were created and exported with The Ponderer. Learn more: https://modrinth.com/mod/the-ponderer";
+    private static final String ATTRIBUTION_DESCRIPTION_ZH_CN =
+        "以上思索由模组思索者（Ponderer）制作并导出，了解更多：https://modrinth.com/mod/the-ponderer";
 
     private JavaModuleExportService() {
     }
@@ -137,12 +144,14 @@ public final class JavaModuleExportService {
         List<BinaryFile> binaryWrites = new ArrayList<>();
         List<Path> deletions = new ArrayList<>();
         List<SceneExportOutcome> outcomes = new ArrayList<>();
+        Map<String, Set<String>> staleManagedLangKeys = new LinkedHashMap<>();
 
         for (JavaModuleScanResult.ScenePlan scenePlan : scanResult.scenePlans) {
             JavaModuleExportManifest.SceneEntry existing = manifest.scenes.remove(scenePlan.sceneId);
             if (existing != null) {
                 collectOwnedPaths(scanResult.targetProject.targetRoot, existing.javaFiles, deletions);
                 collectOwnedPaths(scanResult.targetProject.targetRoot, existing.resourceFiles, deletions);
+                collectManagedLangKeys(existing, staleManagedLangKeys);
             }
 
             SceneExportOutcome outcome = new SceneExportOutcome();
@@ -170,7 +179,7 @@ public final class JavaModuleExportService {
             outcomes.add(outcome);
         }
 
-        List<TextFile> globalWrites = buildGlobalWrites(scanResult.targetProject, manifest);
+        List<TextFile> globalWrites = buildGlobalWrites(scanResult.targetProject, manifest, staleManagedLangKeys);
         textWrites.addAll(globalWrites);
 
         Path exportDir = scanResult.targetProject.targetRoot.resolve(GENERATED_DIR).normalize();
@@ -648,6 +657,7 @@ public final class JavaModuleExportService {
                                              SceneExportOutcome outcome) {
         String sceneSource = buildSceneSource(target, scenePlan);
         String sceneRelativePath = "src/main/java/" + packageToPath(target.scenePackage) + "/" + scenePlan.className + ".java";
+        Map<String, Map<String, String>> langEntries = buildSceneLangEntries(target, scenePlan);
 
         List<BinaryFile> structureFiles = new ArrayList<>();
         for (JavaModuleScanResult.StructureAsset asset : scenePlan.structures) {
@@ -669,7 +679,8 @@ public final class JavaModuleExportService {
             : SceneExportOutcome.Status.COMPLETE.name();
         entry.javaFiles.add(sceneRelativePath);
         scenePlan.structures.forEach(asset -> entry.resourceFiles.add(asset.targetRelativePath));
-        entry.contentHash = hashSceneContent(sceneSource, structureFiles);
+        entry.langEntries = copyLangEntries(langEntries);
+        entry.contentHash = hashSceneContent(sceneSource, structureFiles, entry.langEntries);
 
         outcome.status = scenePlan.blank ? SceneExportOutcome.Status.BLANK
             : scenePlan.partial ? SceneExportOutcome.Status.PARTIAL
@@ -679,15 +690,19 @@ public final class JavaModuleExportService {
     }
 
     private static List<TextFile> buildGlobalWrites(JavaModuleScanResult.TargetProject target,
-                                                    JavaModuleExportManifest manifest) {
+                                                    JavaModuleExportManifest manifest,
+                                                    Map<String, Set<String>> staleManagedLangKeys) {
         List<TextFile> writes = new ArrayList<>();
         String generatedPackagePath = packageToPath(target.generatedPackage);
         writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderPlugin.java",
             buildPluginSource(target)));
         writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderIndex.java",
             buildIndexSource(target, manifest)));
+        writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderAttribution.java",
+            buildAttributionSource(target)));
         writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderSupport.java",
             buildSupportSource(target)));
+        writes.addAll(buildLangWrites(target, manifest, staleManagedLangKeys));
         if ("fabric".equals(target.loader)) {
             writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderFabricClient.java",
                 buildFabricClientSource(target)));
@@ -698,12 +713,232 @@ public final class JavaModuleExportService {
         return writes;
     }
 
+    private static List<TextFile> buildLangWrites(JavaModuleScanResult.TargetProject target,
+                                                  JavaModuleExportManifest manifest,
+                                                  Map<String, Set<String>> staleManagedLangKeys) {
+        Map<String, Map<String, String>> managedEntries = collectManagedLangEntries(manifest);
+        mergeLangEntries(managedEntries, buildAttributionLangEntries(target.modId));
+        Set<String> locales = new LinkedHashSet<>();
+        locales.addAll(managedEntries.keySet());
+        locales.addAll(staleManagedLangKeys.keySet());
+
+        List<TextFile> writes = new ArrayList<>();
+        for (String locale : locales.stream().sorted().toList()) {
+            Path langPath = target.resourcesRoot.resolve("assets/" + target.modId + "/lang/" + locale + ".json").normalize();
+            Map<String, String> mergedEntries = readLangFile(langPath);
+            Set<String> managedKeys = new LinkedHashSet<>();
+            managedKeys.addAll(managedEntries.getOrDefault(locale, Map.of()).keySet());
+            managedKeys.addAll(staleManagedLangKeys.getOrDefault(locale, Set.of()));
+            managedKeys.forEach(mergedEntries::remove);
+            mergedEntries.putAll(managedEntries.getOrDefault(locale, Map.of()));
+            writes.add(new TextFile(relativeToRoot(target.targetRoot, langPath), GSON.toJson(mergedEntries)));
+        }
+        return writes;
+    }
+
+    private static void mergeLangEntries(Map<String, Map<String, String>> target,
+                                         Map<String, Map<String, String>> additions) {
+        additions.forEach((locale, values) -> {
+            if (locale == null || locale.isBlank() || values == null || values.isEmpty()) {
+                return;
+            }
+            target.computeIfAbsent(locale, unused -> new LinkedHashMap<>()).putAll(values);
+        });
+    }
+
+    private static Map<String, Map<String, String>> collectManagedLangEntries(JavaModuleExportManifest manifest) {
+        Map<String, Map<String, String>> merged = new LinkedHashMap<>();
+        if (manifest.scenes == null) {
+            return merged;
+        }
+        manifest.scenes.values().stream()
+            .sorted(Comparator.comparing(entry -> entry.sceneId == null ? "" : entry.sceneId))
+            .forEach(entry -> {
+                if (entry.langEntries == null) {
+                    return;
+                }
+                entry.langEntries.forEach((locale, values) -> {
+                    if (locale == null || locale.isBlank() || values == null || values.isEmpty()) {
+                        return;
+                    }
+                    Map<String, String> bucket = merged.computeIfAbsent(locale, unused -> new LinkedHashMap<>());
+                    values.entrySet().stream()
+                        .sorted(Map.Entry.comparingByKey())
+                        .forEach(langEntry -> bucket.put(langEntry.getKey(), langEntry.getValue()));
+                });
+            });
+        return merged;
+    }
+
+    private static void collectManagedLangKeys(JavaModuleExportManifest.SceneEntry entry,
+                                               Map<String, Set<String>> target) {
+        if (entry == null || entry.langEntries == null) {
+            return;
+        }
+        entry.langEntries.forEach((locale, values) -> {
+            if (locale == null || locale.isBlank() || values == null || values.isEmpty()) {
+                return;
+            }
+            target.computeIfAbsent(locale, unused -> new LinkedHashSet<>()).addAll(values.keySet());
+        });
+    }
+
+    private static Map<String, Map<String, String>> buildSceneLangEntries(JavaModuleScanResult.TargetProject target,
+                                                                          JavaModuleScanResult.ScenePlan scenePlan) {
+        Map<String, Map<String, String>> langEntries = new LinkedHashMap<>();
+        for (int segmentIndex = 0; segmentIndex < scenePlan.segments.size(); segmentIndex++) {
+            JavaModuleScanResult.SegmentPlan segment = scenePlan.segments.get(segmentIndex);
+            if (segment.schematic == null) {
+                continue;
+            }
+
+            String titleKey = specificLangKey(target.modId, segment.titlePath, "header");
+            exportSegmentTitleTranslations(scenePlan.sourceScene, segment.sourceSegment, segment.titlePath,
+                scenePlan.segments.size(), segmentIndex)
+                .forEach((locale, value) ->
+                    langEntries.computeIfAbsent(locale, unused -> new LinkedHashMap<>()).put(titleKey, value));
+
+            int textIndex = 1;
+            for (JavaModuleScanResult.GeneratedStep generatedStep : segment.steps) {
+                DslScene.DslStep step = generatedStep.sourceStep;
+                if (step == null || !"text".equalsIgnoreCase(step.type)) {
+                    continue;
+                }
+                String textKey = specificLangKey(target.modId, segment.titlePath, "text_" + textIndex);
+                addLangEntries(langEntries, textKey, step.text, "");
+                textIndex++;
+            }
+        }
+        return langEntries;
+    }
+
+    private static Map<String, Map<String, String>> buildAttributionLangEntries(String modId) {
+        Map<String, Map<String, String>> langEntries = new LinkedHashMap<>();
+        String titleKey = tagTitleLangKey(modId, ATTRIBUTION_TAG_PATH);
+        String descriptionKey = tagDescriptionLangKey(modId, ATTRIBUTION_TAG_PATH);
+
+        langEntries.computeIfAbsent("en_us", unused -> new LinkedHashMap<>()).put(titleKey, ATTRIBUTION_TITLE_EN_US);
+        langEntries.get("en_us").put(descriptionKey, ATTRIBUTION_DESCRIPTION_EN_US);
+
+        langEntries.computeIfAbsent("zh_cn", unused -> new LinkedHashMap<>()).put(titleKey, ATTRIBUTION_TITLE_ZH_CN);
+        langEntries.get("zh_cn").put(descriptionKey, ATTRIBUTION_DESCRIPTION_ZH_CN);
+        return langEntries;
+    }
+
+    private static Map<String, String> exportSegmentTitleTranslations(DslScene scene,
+                                                                      DslScene.SceneSegment segment,
+                                                                      String titlePath,
+                                                                      int total,
+                                                                      int index) {
+        if (segment != null && segment.title != null && !segment.title.isEmpty()) {
+            return exportTranslations(segment.title, fallbackSegmentTitle(scene, segment, titlePath, total, index));
+        }
+        if (scene != null && scene.title != null && !scene.title.isEmpty()) {
+            Map<String, String> base = exportTranslations(scene.title, resolveExportText(scene.title, titlePath));
+            if (total <= 1) {
+                return base;
+            }
+            Map<String, String> suffixed = new LinkedHashMap<>();
+            base.forEach((locale, value) -> suffixed.put(locale, value + " #" + (index + 1)));
+            return suffixed;
+        }
+        return exportTranslations(null, fallbackSegmentTitle(scene, segment, titlePath, total, index));
+    }
+
+    private static void addLangEntries(Map<String, Map<String, String>> target,
+                                       String langKey,
+                                       @Nullable LocalizedText text,
+                                       String fallback) {
+        Map<String, String> translations = exportTranslations(text, fallback);
+        translations.forEach((locale, value) ->
+            target.computeIfAbsent(locale, unused -> new LinkedHashMap<>()).put(langKey, value));
+    }
+
+    private static Map<String, String> exportTranslations(@Nullable LocalizedText text, String fallback) {
+        LinkedHashMap<String, String> translations = new LinkedHashMap<>();
+        if (text != null && !text.isPlain()) {
+            text.getAllTranslations().forEach((locale, value) -> {
+                if ("_plain".equals(locale)) {
+                    return;
+                }
+                String normalizedLocale = normalizeLangCode(locale);
+                if (normalizedLocale != null) {
+                    translations.put(normalizedLocale, value == null ? "" : value);
+                }
+            });
+        }
+
+        String defaultText = resolveExportText(text, fallback);
+        translations.putIfAbsent("en_us", defaultText);
+        if (translations.isEmpty()) {
+            translations.put("en_us", defaultText);
+        }
+        return translations;
+    }
+
+    @Nullable
+    private static String normalizeLangCode(@Nullable String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String normalized = raw.trim().toLowerCase(Locale.ROOT).replace('-', '_');
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private static String specificLangKey(String modId, String scenePath, String key) {
+        return modId + ".ponder." + scenePath + "." + key;
+    }
+
+    private static String generatedAttributionTagId(String modId) {
+        return modId + ":" + ATTRIBUTION_TAG_PATH;
+    }
+
+    private static String tagTitleLangKey(String modId, String tagPath) {
+        return modId + ".ponder.tag." + tagPath;
+    }
+
+    private static String tagDescriptionLangKey(String modId, String tagPath) {
+        return tagTitleLangKey(modId, tagPath) + ".description";
+    }
+
+    private static Map<String, String> readLangFile(Path langPath) {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (!Files.isRegularFile(langPath)) {
+            return values;
+        }
+        try (Reader reader = Files.newBufferedReader(langPath, StandardCharsets.UTF_8)) {
+            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+            root.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue().isJsonPrimitive())
+                .forEach(entry -> values.put(entry.getKey(), entry.getValue().getAsString()));
+        } catch (Exception ignored) {
+        }
+        return values;
+    }
+
+    private static Map<String, Map<String, String>> copyLangEntries(Map<String, Map<String, String>> source) {
+        Map<String, Map<String, String>> copy = new LinkedHashMap<>();
+        source.forEach((locale, values) -> copy.put(locale, new LinkedHashMap<>(values)));
+        return copy;
+    }
+
+    private static Map<String, String> sortStringMap(Map<String, String> values) {
+        return values.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                (left, right) -> right,
+                LinkedHashMap::new));
+    }
+
     private static String buildPluginSource(JavaModuleScanResult.TargetProject target) {
         return """
             package %s;
 
             import net.createmod.ponder.api.registration.PonderPlugin;
             import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
+            import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
             import net.minecraft.resources.ResourceLocation;
 
             public final class GeneratedPonderPlugin implements PonderPlugin {
@@ -716,6 +951,12 @@ public final class JavaModuleExportService {
                 public void registerScenes(PonderSceneRegistrationHelper<ResourceLocation> helper) {
                     GeneratedPonderIndex.register(helper);
                 }
+
+                @Override
+                public void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
+                    GeneratedPonderAttribution.registerTag(helper);
+                    GeneratedPonderIndex.registerTags(helper);
+                }
             }
             """.formatted(target.generatedPackage, escapeJava(target.modId));
     }
@@ -723,14 +964,16 @@ public final class JavaModuleExportService {
     private static String buildIndexSource(JavaModuleScanResult.TargetProject target,
                                            JavaModuleExportManifest manifest) {
         StringBuilder imports = new StringBuilder();
-        StringBuilder body = new StringBuilder();
+        StringBuilder sceneBody = new StringBuilder();
+        StringBuilder tagBody = new StringBuilder();
         for (JavaModuleExportManifest.SceneEntry entry : manifest.scenes.values()) {
             if (entry.className == null || entry.className.isBlank()) {
                 continue;
             }
             imports.append("import ").append(entry.className).append(";\n");
             String simpleName = entry.className.substring(entry.className.lastIndexOf('.') + 1);
-            body.append("        ").append(simpleName).append(".register(helper);\n");
+            sceneBody.append("        ").append(simpleName).append(".register(helper);\n");
+            tagBody.append("        ").append(simpleName).append(".registerTags(helper);\n");
         }
 
         return """
@@ -738,6 +981,7 @@ public final class JavaModuleExportService {
 
             %s
             import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
+            import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
             import net.minecraft.resources.ResourceLocation;
 
             public final class GeneratedPonderIndex {
@@ -746,8 +990,11 @@ public final class JavaModuleExportService {
 
                 public static void register(PonderSceneRegistrationHelper<ResourceLocation> helper) {
             %s    }
+
+                public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
+            %s    }
             }
-            """.formatted(target.generatedPackage, imports, body);
+            """.formatted(target.generatedPackage, imports, sceneBody, tagBody);
     }
 
     private static String buildFabricClientSource(JavaModuleScanResult.TargetProject target) {
@@ -789,12 +1036,48 @@ public final class JavaModuleExportService {
             """.formatted(target.generatedPackage, escapeJava(target.modId));
     }
 
+    private static String buildAttributionSource(JavaModuleScanResult.TargetProject target) {
+        return """
+            package %s;
+
+            import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
+            import net.minecraft.resources.ResourceLocation;
+            import net.minecraft.world.item.Items;
+
+            public final class GeneratedPonderAttribution {
+                private static final ResourceLocation TAG = new ResourceLocation(%s, %s);
+
+                private GeneratedPonderAttribution() {
+                }
+
+                public static ResourceLocation tag() {
+                    return TAG;
+                }
+
+                public static void registerTag(PonderTagRegistrationHelper<ResourceLocation> helper) {
+                    helper.registerTag(TAG)
+                        .title(%s)
+                        .description(%s)
+                        .item(Items.WRITABLE_BOOK)
+                        .register();
+                }
+            }
+            """.formatted(
+            target.generatedPackage,
+            stringExpr(target.modId),
+            stringExpr(ATTRIBUTION_TAG_PATH),
+            stringExpr(ATTRIBUTION_TITLE_EN_US),
+            stringExpr(ATTRIBUTION_DESCRIPTION_EN_US));
+    }
+
     private static String buildSceneSource(JavaModuleScanResult.TargetProject target,
                                            JavaModuleScanResult.ScenePlan plan) {
         StringBuilder sb = new StringBuilder();
         sb.append("package ").append(target.scenePackage).append(";\n\n");
+        sb.append("import ").append(target.generatedPackage).append(".GeneratedPonderAttribution;\n");
         sb.append("import ").append(target.generatedPackage).append(".GeneratedPonderSupport;\n");
         sb.append("import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;\n");
+        sb.append("import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;\n");
         sb.append("import net.createmod.ponder.api.scene.SceneBuilder;\n");
         sb.append("import net.createmod.ponder.api.scene.SceneBuildingUtil;\n");
         sb.append("import net.minecraft.core.BlockPos;\n");
@@ -805,7 +1088,8 @@ public final class JavaModuleExportService {
         sb.append("    private ").append(plan.className).append("() {\n");
         sb.append("    }\n\n");
         sb.append("    public static void register(PonderSceneRegistrationHelper<ResourceLocation> helper) {\n");
-        sb.append("        ResourceLocation[] tags = ").append(resourceLocationArrayExpr(plan.tags)).append(";\n");
+        sb.append("        ResourceLocation[] tags = ")
+            .append(resourceLocationArrayExpr(plan.tags, generatedAttributionTagId(target.modId))).append(";\n");
         sb.append("        var multi = helper.forComponents(java.util.List.of(")
             .append(plan.componentItems.stream().map(JavaModuleExportService::resourceLocationExpr).collect(Collectors.joining(", ")))
             .append("));\n");
@@ -818,6 +1102,14 @@ public final class JavaModuleExportService {
                 .append(", ")
                 .append(plan.className).append("::").append(segment.methodName)
                 .append(", tags);\n");
+        }
+        sb.append("    }\n\n");
+        sb.append("    public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {\n");
+        sb.append("        ResourceLocation tag = GeneratedPonderAttribution.tag();\n");
+        for (String componentItem : plan.componentItems) {
+            sb.append("        helper.addTagToComponent(")
+                .append(resourceLocationExpr(componentItem))
+                .append(", tag);\n");
         }
         sb.append("    }\n\n");
 
@@ -1077,26 +1369,6 @@ public final class JavaModuleExportService {
                 }
 
                 private GeneratedPonderSupport() {
-                }
-
-                public static String localized(Map<String, String> translations) {
-                    if (translations == null || translations.isEmpty()) {
-                        return "";
-                    }
-                    String lang = "en_us";
-                    try {
-                        lang = Minecraft.getInstance().getLanguageManager().getSelected();
-                    } catch (Exception ignored) {
-                    }
-                    String exact = translations.get(lang);
-                    if (exact != null) {
-                        return exact;
-                    }
-                    String enUs = translations.get("en_us");
-                    if (enUs != null) {
-                        return enUs;
-                    }
-                    return translations.values().iterator().next();
                 }
 
                 public static void showStructure(SceneBuilder scene, Context context, BlockPos pos1, BlockPos pos2,
@@ -2135,6 +2407,17 @@ public final class JavaModuleExportService {
         if (manifest.scenes == null) {
             manifest.scenes = new LinkedHashMap<>();
         }
+        manifest.scenes.values().forEach(entry -> {
+            if (entry.javaFiles == null) {
+                entry.javaFiles = new ArrayList<>();
+            }
+            if (entry.resourceFiles == null) {
+                entry.resourceFiles = new ArrayList<>();
+            }
+            if (entry.langEntries == null) {
+                entry.langEntries = new LinkedHashMap<>();
+            }
+        });
     }
 
     private static void collectOwnedPaths(Path root, List<String> relativePaths, List<Path> deletions) {
@@ -2424,11 +2707,12 @@ public final class JavaModuleExportService {
 
     private static String fallbackSegmentTitle(DslScene scene, DslScene.SceneSegment segment, String titlePath,
                                                int total, int index) {
-        if (segment != null && segment.title != null && !segment.title.resolve().isBlank()) {
-            return segment.title.resolve();
+        if (segment != null && segment.title != null && !resolveExportText(segment.title, "").isBlank()) {
+            return resolveExportText(segment.title, "");
         }
-        if (scene.title != null && !scene.title.resolve().isBlank()) {
-            return total > 1 ? scene.title.resolve() + " #" + (index + 1) : scene.title.resolve();
+        if (scene.title != null && !resolveExportText(scene.title, "").isBlank()) {
+            String sceneTitle = resolveExportText(scene.title, "");
+            return total > 1 ? sceneTitle + " #" + (index + 1) : sceneTitle;
         }
         return titlePath;
     }
@@ -2460,10 +2744,21 @@ public final class JavaModuleExportService {
     }
 
     private static String resourceLocationArrayExpr(List<String> ids) {
-        if (ids == null || ids.isEmpty()) {
+        return resourceLocationArrayExpr(ids, null);
+    }
+
+    private static String resourceLocationArrayExpr(List<String> ids, @Nullable String extraId) {
+        LinkedHashSet<String> combined = new LinkedHashSet<>();
+        if (ids != null) {
+            combined.addAll(ids);
+        }
+        if (extraId != null && !extraId.isBlank()) {
+            combined.add(extraId);
+        }
+        if (combined.isEmpty()) {
             return "new ResourceLocation[0]";
         }
-        return "new ResourceLocation[]{" + ids.stream().map(JavaModuleExportService::resourceLocationExpr).collect(Collectors.joining(", ")) + "}";
+        return "new ResourceLocation[]{" + combined.stream().map(JavaModuleExportService::resourceLocationExpr).collect(Collectors.joining(", ")) + "}";
     }
 
     private static String resourceLocationExpr(String id) {
@@ -2475,21 +2770,18 @@ public final class JavaModuleExportService {
     }
 
     private static String localizedTextExpr(@Nullable LocalizedText text, String fallback) {
+        return stringExpr(resolveExportText(text, fallback));
+    }
+
+    private static String resolveExportText(@Nullable LocalizedText text, String fallback) {
         if (text == null || text.isEmpty()) {
-            return stringExpr(fallback);
+            return fallback == null ? "" : fallback;
         }
-        if (text.isPlain()) {
-            return stringExpr(text.resolve());
+        String resolved = text.resolve("en_us");
+        if (resolved != null) {
+            return resolved;
         }
-        Map<String, String> translations = text.getAllTranslations();
-        String entries = translations.entrySet().stream()
-            .filter(entry -> !"_plain".equals(entry.getKey()))
-            .map(entry -> "Map.entry(" + stringExpr(entry.getKey()) + ", " + stringExpr(entry.getValue()) + ")")
-            .collect(Collectors.joining(", "));
-        if (entries.isEmpty()) {
-            return stringExpr(fallback);
-        }
-        return "GeneratedPonderSupport.localized(Map.ofEntries(" + entries + "))";
+        return fallback == null ? "" : fallback;
     }
 
     private static String stringExpr(@Nullable String value) {
@@ -2572,13 +2864,18 @@ public final class JavaModuleExportService {
         return packageName.replace('.', '/');
     }
 
-    private static String hashSceneContent(String source, List<BinaryFile> binaries) {
+    private static String hashSceneContent(String source,
+                                           List<BinaryFile> binaries,
+                                           Map<String, Map<String, String>> langEntries) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(source.getBytes(StandardCharsets.UTF_8));
             for (BinaryFile binary : binaries) {
                 digest.update(binary.relativePath().getBytes(StandardCharsets.UTF_8));
                 digest.update(binary.bytes());
+            }
+            if (langEntries != null && !langEntries.isEmpty()) {
+                digest.update(GSON.toJson(sortNestedStringMap(langEntries)).getBytes(StandardCharsets.UTF_8));
             }
             byte[] bytes = digest.digest();
             StringBuilder sb = new StringBuilder(bytes.length * 2);
@@ -2589,6 +2886,16 @@ public final class JavaModuleExportService {
         } catch (Exception e) {
             return shortDigest(source);
         }
+    }
+
+    private static Map<String, Map<String, String>> sortNestedStringMap(Map<String, Map<String, String>> values) {
+        return values.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> sortStringMap(entry.getValue()),
+                (left, right) -> right,
+                LinkedHashMap::new));
     }
 
     private static String shortDigest(String value) {

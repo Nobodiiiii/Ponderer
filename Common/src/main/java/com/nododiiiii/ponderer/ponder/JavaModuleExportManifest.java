@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 public class JavaModuleExportManifest {
-    public int version = 1;
+    public int version = 2;
     public String loader;
     public String modId;
     public String basePackage;
@@ -21,5 +21,6 @@ public class JavaModuleExportManifest {
         public String contentHash;
         public List<String> javaFiles = new ArrayList<>();
         public List<String> resourceFiles = new ArrayList<>();
+        public Map<String, Map<String, String>> langEntries = new LinkedHashMap<>();
     }
 }
