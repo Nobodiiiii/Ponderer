@@ -38,6 +38,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
         this.textField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 200, 20);
+        this.textField.setMaxLength(1024);
         EntryTextSupport.applyHint(textField, hintKey);
         this.textField.setValue(initialValue);
         this.textField.moveCursorToStart();
