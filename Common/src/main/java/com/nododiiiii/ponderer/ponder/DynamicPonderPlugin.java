@@ -48,6 +48,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
@@ -354,8 +355,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private PonderStoryBoard createStoryBoard(DslScene scene, DslScene.SceneSegment sc, int index, int total) {
+        BoundingBox scanBox = preScanSegmentBounds(sc);
         return (builder, util) -> {
             try {
+                if (scanBox != null) {
+                    builder.getScene().getWorld().getBounds().encapsulate(scanBox);
+                }
                 ResourceLocation baseId = ResourceLocation.tryParse(scene.id);
                 String basePath = baseId == null ? "scene" : baseId.getPath();
                 String scenePath = total > 1 ? basePath + "_" + sceneSuffix(sc, index) : basePath;
@@ -398,6 +403,53 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 LOGGER.error("Error building ponder storyboard for scene {} segment {}: {}", scene.id, index, e.getMessage(), e);
             }
         };
+    }
+
+    /**
+     * Pre-scan all coordinates referenced by a scene segment's steps to determine the full
+     * extent of the world the storyboard will touch. The result is encapsulated into world.bounds
+     * at storyboard compile time so that PonderSceneBuildingUtil snapshots (e.g. util.select.everywhere())
+     * include blocks placed outside the original schematic footprint — including negative coordinates.
+     * Returns null if no coordinate-bearing step is present.
+     */
+    private BoundingBox preScanSegmentBounds(DslScene.SceneSegment sc) {
+        if (sc == null || sc.steps == null) {
+            return null;
+        }
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        boolean any = false;
+        for (DslScene.DslStep step : sc.steps) {
+            if (step == null) {
+                continue;
+            }
+            if (step.blockPos != null && step.blockPos.size() >= 3) {
+                int x = step.blockPos.get(0), y = step.blockPos.get(1), z = step.blockPos.get(2);
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+                any = true;
+            }
+            if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+                int x = step.blockPos2.get(0), y = step.blockPos2.get(1), z = step.blockPos2.get(2);
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+                any = true;
+            }
+            if ("encapsulate_bounds".equalsIgnoreCase(step.type)
+                    && step.bounds != null && step.bounds.size() >= 3) {
+                int bx = step.bounds.get(0), by = step.bounds.get(1), bz = step.bounds.get(2);
+                if (0 < minX) minX = 0; if (bx > maxX) maxX = bx;
+                if (0 < minY) minY = 0; if (by > maxY) maxY = by;
+                if (0 < minZ) minZ = 0; if (bz > maxZ) maxZ = bz;
+                any = true;
+            }
+        }
+        if (!any) {
+            return null;
+        }
+        return new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     private void applyStep(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep step, StepContext context) {
@@ -1002,20 +1054,15 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     /**
-     * Ensure scene bounds and the base visible world section cover the target range.
-     * This prevents newly placed blocks from being clipped when initial structure height is too small.
-     * Only Y limit is expanded; XZ bounds are intentionally left unchanged.
+     * Ensure the base visible world section covers the target range.
+     * Bounds growth (including negative coordinates and blocks outside the schematic footprint)
+     * is handled up-front by preScanSegmentBounds at storyboard compile time;
+     * this method only manages baseWorldSection erase/add/redraw for newly placed blocks.
      */
     private void ensureSceneCanShowRange(SceneBuilder scene, BlockPos pos1, BlockPos pos2, boolean forceVisibleNow) {
-        int maxY = Math.max(pos1.getY(), pos2.getY());
-
-        // Bounds in ponder are effectively size-based for this use, so +1 keeps the max block included.
-        BlockPos requiredBounds = new BlockPos(0, maxY + 1, 0);
         Selection targetSelection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
 
         scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(requiredBounds);
-
             if (!forceVisibleNow) {
                 if (!ps.getBaseWorldSection().isEmpty()) {
                     ps.getBaseWorldSection().erase(targetSelection);
