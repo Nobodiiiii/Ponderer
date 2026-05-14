@@ -1647,6 +1647,9 @@ public final class JavaModuleExportService {
                     BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
                     Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
                     updateVisibleRange(context, pos1, targetPos2, false);
+                    final Selection hiddenSelection = selection;
+                    final List<ElementLink<WorldSectionElement>> existingSectionLinks =
+                        new ArrayList<>(context.sectionLinks.values());
                     scene.addInstruction(ps -> {
                         if (ps.getBaseWorldSection().isEmpty()) {
                             Selection all = ps.getSceneBuildingUtil().select().everywhere();
@@ -1654,6 +1657,12 @@ public final class JavaModuleExportService {
                             ps.getBaseWorldSection().setVisible(true);
                             ps.getBaseWorldSection().setFade(1);
                             ps.getBaseWorldSection().queueRedraw();
+                        }
+                        for (ElementLink<WorldSectionElement> existing : existingSectionLinks) {
+                            WorldSectionElement section = ps.resolve(existing);
+                            if (section != null) {
+                                section.erase(hiddenSelection);
+                            }
                         }
                     });
                     Direction direction = parseDirection(directionRaw);

@@ -1176,6 +1176,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
         updateVisibleRange(context, step, false);
         int duration = step.durationOrDefault(20);
+        final Selection hiddenSelection = selection;
+        final List<ElementLink<WorldSectionElement>> existingSectionLinks =
+                new ArrayList<>(context.sectionLinks.values());
         // Safety: ensure the base world section has been initialized before hiding.
         // If show_structure was somehow skipped, the base section's internal Selection is null,
         // and hideSection's erase() would NPE. This pre-instruction prevents that.
@@ -1187,6 +1190,17 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 ps.getBaseWorldSection().setVisible(true);
                 ps.getBaseWorldSection().setFade(1);
                 ps.getBaseWorldSection().queueRedraw();
+            }
+            // Erase the hidden selection from any independent sections that already
+            // contain those blocks (created by prior show_section_and_merge calls).
+            // Otherwise makeSectionIndependent only strips them from the base section,
+            // and the original independent section keeps rendering them while a fade
+            // animation plays on a different (now-empty-looking) ghost section.
+            for (ElementLink<WorldSectionElement> existing : existingSectionLinks) {
+                WorldSectionElement section = ps.resolve(existing);
+                if (section != null) {
+                    section.erase(hiddenSelection);
+                }
             }
         });
         Direction direction = parseDirection(step.direction);
