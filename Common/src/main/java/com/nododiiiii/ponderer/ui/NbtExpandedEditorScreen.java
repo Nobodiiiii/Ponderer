@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.mixin.MultiLineEditBoxAccessor;
+import com.nododiiiii.ponderer.mixin.MultilineTextFieldAccessor;
 import com.nododiiiii.ponderer.nbt.NbtCoordinateDetector;
 import com.nododiiiii.ponderer.nbt.NbtPrettyPrinter;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
@@ -10,11 +11,15 @@ import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.components.MultilineTextField;
+import net.minecraft.client.gui.components.Whence;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +29,7 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
     public static final String TEXT_SNAPSHOT_KEY = "_expanded_nbt_text";
     private static final String SCROLL_SNAPSHOT_KEY = "_expanded_nbt_scroll";
     private static final int PREFERRED_LAYOUT_WIDTH = 620;
+    private static final int HISTORY_LIMIT = 200;
     private static final int LABEL_WIDTH = 34;
     private static final int GUTTER_WIDTH = 24;
     private static final int GUTTER_GAP = 6;
@@ -44,6 +50,9 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
     private ScrollableNbtEditBox editor;
     private List<NbtCoordinateDetector.Candidate> candidates = List.of();
     private final List<RowPickButton> rowButtons = new ArrayList<>();
+    private final Deque<EditorHistoryState> undoHistory = new ArrayDeque<>();
+    private final Deque<EditorHistoryState> redoHistory = new ArrayDeque<>();
+    private boolean captureScrollInSnapshot = false;
 
     public NbtExpandedEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent,
                                    SnapshotReturnContext parentContext,
@@ -164,7 +173,23 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
 
     @Override
     protected void attemptBackToParent() {
-        parentContext.reopenEditor(parentSnapshot);
+        if (!hasUnsavedChanges()) {
+            reopenParentSnapshot();
+            return;
+        }
+
+        showLeavingPrompt(response -> {
+            if (response == net.createmod.catnip.gui.ConfirmationScreen.Response.Cancel) {
+                return;
+            }
+            if (response == net.createmod.catnip.gui.ConfirmationScreen.Response.Confirm) {
+                saveEdits();
+                return;
+            }
+
+            discardEdits();
+            reopenParentSnapshot();
+        });
     }
 
     @Override
@@ -189,6 +214,10 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
 
     @Override
     protected void appendCustomSnapshot(Map<String, String> snapshot) {
+        if (!captureScrollInSnapshot) {
+            return;
+        }
+
         if (editor != null) {
             pendingScroll = editor.visibleScroll();
         }
@@ -204,6 +233,12 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
         } else if (validationError != null) {
             setErrorMessage(validationError);
         }
+    }
+
+    @Override
+    protected void afterSnapshotRestored(Map<String, String> snapshot) {
+        syncEditorWidget(snapshot.containsKey(SCROLL_SNAPSHOT_KEY));
+        resetEditorHistory();
     }
 
     @Override
@@ -273,9 +308,8 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
         editor.setValue(editorText == null ? "" : editorText);
         editor.setValueListener(this::onEditorTextChanged);
         addRenderableWidget(editor);
-        if (pendingScroll > 0) {
-            editor.setVisibleScroll(pendingScroll);
-        }
+        editor.setVisibleScroll(Math.max(0, pendingScroll));
+        resetEditorHistory();
     }
 
     private void onEditorTextChanged(String value) {
@@ -399,7 +433,7 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
         }
 
         NbtExpandedPickState.startPick(
-            snapshotForm(),
+            snapshotFormWithScroll(),
             liveCandidate.path(),
             expandedContext,
             scene,
@@ -407,10 +441,82 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
             liveCandidate.usesFloatingPoint());
     }
 
+    private void reopenParentSnapshot() {
+        parentContext.reopenEditor(parentSnapshot);
+    }
+
+    private Map<String, String> snapshotFormWithScroll() {
+        boolean previous = captureScrollInSnapshot;
+        captureScrollInSnapshot = true;
+        try {
+            return snapshotForm();
+        } finally {
+            captureScrollInSnapshot = previous;
+        }
+    }
+
+    private void syncEditorWidget(boolean restoreScroll) {
+        if (editor == null) {
+            return;
+        }
+
+        boolean focused = editor.isFocused();
+        double targetScroll = restoreScroll ? pendingScroll : editor.visibleScroll();
+        editor.setValue(editorText == null ? "" : editorText);
+        editor.setVisibleScroll(targetScroll);
+        editor.setFocused(focused);
+    }
+
+    private void resetEditorHistory() {
+        undoHistory.clear();
+        redoHistory.clear();
+    }
+
+    private void recordEditorEdit(EditorHistoryState before, EditorHistoryState after) {
+        if (before.text().equals(after.text())) {
+            return;
+        }
+
+        undoHistory.addLast(before);
+        while (undoHistory.size() > HISTORY_LIMIT) {
+            undoHistory.removeFirst();
+        }
+        redoHistory.clear();
+    }
+
+    private boolean undoEditorEdit() {
+        if (editor == null || undoHistory.isEmpty()) {
+            return false;
+        }
+
+        redoHistory.addLast(editor.captureHistoryState());
+        while (redoHistory.size() > HISTORY_LIMIT) {
+            redoHistory.removeFirst();
+        }
+        editor.applyHistoryState(undoHistory.removeLast());
+        return true;
+    }
+
+    private boolean redoEditorEdit() {
+        if (editor == null || redoHistory.isEmpty()) {
+            return false;
+        }
+
+        undoHistory.addLast(editor.captureHistoryState());
+        while (undoHistory.size() > HISTORY_LIMIT) {
+            undoHistory.removeFirst();
+        }
+        editor.applyHistoryState(redoHistory.removeLast());
+        return true;
+    }
+
+    private record EditorHistoryState(String text, int cursor, int selectCursor, double scroll) {
+    }
+
     private record RowPickButton(NbtCoordinateDetector.Candidate candidate, BoxWidget button) {
     }
 
-    private static class ScrollableNbtEditBox extends MultiLineEditBox {
+    private class ScrollableNbtEditBox extends MultiLineEditBox {
 
         ScrollableNbtEditBox(net.minecraft.client.gui.Font font, int x, int y, int width, int height,
                              Component message, Component placeholder) {
@@ -429,6 +535,30 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
             return handled;
         }
 
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            if (handleUndoRedo(keyCode)) {
+                return true;
+            }
+
+            EditorHistoryState before = captureHistoryState();
+            boolean handled = super.keyPressed(keyCode, scanCode, modifiers);
+            if (handled) {
+                recordEditorEdit(before, captureHistoryState());
+            }
+            return handled;
+        }
+
+        @Override
+        public boolean charTyped(char codePoint, int modifiers) {
+            EditorHistoryState before = captureHistoryState();
+            boolean handled = super.charTyped(codePoint, modifiers);
+            if (handled) {
+                recordEditorEdit(before, captureHistoryState());
+            }
+            return handled;
+        }
+
         double visibleScroll() {
             return scrollAmount();
         }
@@ -439,6 +569,41 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
 
         int innerPaddingAmount() {
             return innerPadding();
+        }
+
+        EditorHistoryState captureHistoryState() {
+            MultiLineEditBoxAccessor accessor = (MultiLineEditBoxAccessor) this;
+            MultilineTextField textField = accessor.ponderer$getTextField();
+            MultilineTextFieldAccessor textAccessor = (MultilineTextFieldAccessor) textField;
+            return new EditorHistoryState(getValue(), textField.cursor(), textAccessor.ponderer$getSelectCursor(), visibleScroll());
+        }
+
+        void applyHistoryState(EditorHistoryState state) {
+            MultiLineEditBoxAccessor accessor = (MultiLineEditBoxAccessor) this;
+            MultilineTextField textField = accessor.ponderer$getTextField();
+            MultilineTextFieldAccessor textAccessor = (MultilineTextFieldAccessor) textField;
+            boolean focused = isFocused();
+
+            setValue(state.text());
+            textField.setSelecting(false);
+            textField.seekCursor(Whence.ABSOLUTE, state.cursor());
+            textAccessor.ponderer$setSelectCursor(state.selectCursor());
+            setVisibleScroll(state.scroll());
+            setFocused(focused);
+        }
+
+        private boolean handleUndoRedo(int keyCode) {
+            if (!isFocused() || !Screen.hasControlDown()) {
+                return false;
+            }
+
+            if (keyCode == GLFW.GLFW_KEY_Z) {
+                return Screen.hasShiftDown() ? redoEditorEdit() : undoEditorEdit();
+            }
+            if (keyCode == GLFW.GLFW_KEY_Y) {
+                return redoEditorEdit();
+            }
+            return false;
         }
     }
 }
