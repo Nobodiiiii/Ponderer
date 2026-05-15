@@ -1054,15 +1054,28 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     /**
-     * Ensure the base visible world section covers the target range.
-     * Bounds growth (including negative coordinates and blocks outside the schematic footprint)
-     * is handled up-front by preScanSegmentBounds at storyboard compile time;
-     * this method only manages baseWorldSection erase/add/redraw for newly placed blocks.
+     * Ensure the base visible world section covers the target range, and that world.bounds
+     * encapsulates pos1..pos2 at instruction execution time. preScanSegmentBounds handles bounds
+     * up-front for the common case, but the runtime guard here covers paths where bounds might
+     * have been reassigned (SchematicWorld.setBlock reassigns the BoundingBox reference on every
+     * placement) and ensures ReplaceBlocksInstruction's isInside() check passes for blocks placed
+     * outside the original schematic footprint — including animated-entrance set_block.
      */
     private void ensureSceneCanShowRange(SceneBuilder scene, BlockPos pos1, BlockPos pos2, boolean forceVisibleNow) {
         Selection targetSelection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        final BlockPos minPos = new BlockPos(
+                Math.min(pos1.getX(), pos2.getX()),
+                Math.min(pos1.getY(), pos2.getY()),
+                Math.min(pos1.getZ(), pos2.getZ()));
+        final BlockPos maxPos = new BlockPos(
+                Math.max(pos1.getX(), pos2.getX()),
+                Math.max(pos1.getY(), pos2.getY()),
+                Math.max(pos1.getZ(), pos2.getZ()));
 
         scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(minPos);
+            ps.getWorld().getBounds().encapsulate(maxPos);
+
             if (!forceVisibleNow) {
                 if (!ps.getBaseWorldSection().isEmpty()) {
                     ps.getBaseWorldSection().erase(targetSelection);
@@ -1247,6 +1260,23 @@ public class DynamicPonderPlugin implements PonderPlugin {
             if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
                 pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
             }
+            // Extend world bounds to cover the target range so ReplaceBlocksInstruction's
+            // isInside() check and WorldSectionElement rendering both accept positions outside
+            // the original schematic footprint. show_section_and_merge expects the blocks to
+            // already exist (typically placed by a prior hidden set_block); a runtime encapsulate
+            // here guards against bounds reassignment shrinking the visible region.
+            final BlockPos minPos = new BlockPos(
+                    Math.min(pos1.getX(), pos2.getX()),
+                    Math.min(pos1.getY(), pos2.getY()),
+                    Math.min(pos1.getZ(), pos2.getZ()));
+            final BlockPos maxPos = new BlockPos(
+                    Math.max(pos1.getX(), pos2.getX()),
+                    Math.max(pos1.getY(), pos2.getY()),
+                    Math.max(pos1.getZ(), pos2.getZ()));
+            scene.addInstruction(ps -> {
+                ps.getWorld().getBounds().encapsulate(minPos);
+                ps.getWorld().getBounds().encapsulate(maxPos);
+            });
             int rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
             int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
             applyAnimatedShowSectionAndMerge(scene, context, linkId, existing, pos1, pos2,
