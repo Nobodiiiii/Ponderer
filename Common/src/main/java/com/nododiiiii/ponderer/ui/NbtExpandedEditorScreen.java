@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.mixin.MultiLineEditBoxAccessor;
 import com.nododiiiii.ponderer.nbt.NbtCoordinateDetector;
 import com.nododiiiii.ponderer.nbt.NbtPrettyPrinter;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
@@ -9,6 +10,7 @@ import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.components.MultilineTextField;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -21,6 +23,7 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
 
     public static final String TEXT_SNAPSHOT_KEY = "_expanded_nbt_text";
     private static final String SCROLL_SNAPSHOT_KEY = "_expanded_nbt_scroll";
+    private static final int PREFERRED_LAYOUT_WIDTH = 620;
     private static final int LABEL_WIDTH = 34;
     private static final int GUTTER_WIDTH = 24;
     private static final int GUTTER_GAP = 6;
@@ -47,7 +50,7 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
                                    Map<String, String> parentSnapshot,
                                    String targetSnapshotKey) {
         super(scene, sceneIndex, parent, "ponderer.ui.scope.editor", "ponderer.ui.nbt_editor",
-            Math.min(620, Math.max(420, UILayoutConstants.EDITOR_LIST_W)), (screen, mode) -> {});
+            PREFERRED_LAYOUT_WIDTH, (screen, mode) -> {});
         this.parentContext = parentContext;
         this.parentSnapshot = new HashMap<>(parentSnapshot);
         this.targetSnapshotKey = targetSnapshotKey;
@@ -258,7 +261,7 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
             removeWidget(editor);
         }
 
-        int totalWidth = Math.min(width - 120, 620);
+        int totalWidth = currentListWidthValue();
         int editorWidth = Math.max(220, totalWidth - LABEL_WIDTH - GUTTER_WIDTH - GUTTER_GAP);
         int editorHeight = Math.max(80, height - 104);
         int left = width / 2 - totalWidth / 2 + LABEL_WIDTH;
@@ -360,7 +363,15 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
     }
 
     private int gutterX() {
-        return editor == null ? 0 : editor.getX() + editor.getWidth() + GUTTER_GAP;
+        if (editor == null) {
+            return 0;
+        }
+
+        int gutterX = editor.getX() + editor.getWidth() + GUTTER_GAP;
+        if (confirmButton != null) {
+            gutterX = Math.min(gutterX, confirmButton.getX() - BUTTON_WIDTH - GUTTER_GAP);
+        }
+        return gutterX;
     }
 
     private void startCoordinatePick(NbtCoordinateDetector.Candidate candidate) {
@@ -404,6 +415,18 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
         ScrollableNbtEditBox(net.minecraft.client.gui.Font font, int x, int y, int width, int height,
                              Component message, Component placeholder) {
             super(font, x, y, width, height, message, placeholder);
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            boolean handled = super.mouseClicked(mouseX, mouseY, button);
+            if (button == 0 && withinContentAreaPoint(mouseX, mouseY)) {
+                MultiLineEditBoxAccessor accessor = (MultiLineEditBoxAccessor) this;
+                accessor.ponderer$getTextField().setSelecting(Screen.hasShiftDown());
+                accessor.ponderer$seekCursorScreen(mouseX, mouseY);
+                return true;
+            }
+            return handled;
         }
 
         double visibleScroll() {

@@ -18,6 +18,7 @@
     "PonderSceneTextIndexMixin",
     "SceneTransformOffsetMixin",
     "AbstractContainerScreenAccessor",
+    "MultiLineEditBoxAccessor",
     "PonderUIAccessor",
     "PonderUIMixin",
     "PonderUINbtMixin",
