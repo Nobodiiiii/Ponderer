@@ -17,6 +17,7 @@ import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import com.nododiiiii.ponderer.ui.SceneEditorScreen;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
+import com.nododiiiii.ponderer.ui.NbtExpandedPickState;
 import com.nododiiiii.ponderer.ui.UIText;
 
 import com.mojang.blaze3d.platform.Window;
@@ -357,7 +358,7 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Inject(method = "tick", at = @At("HEAD"))
     private void ponderer$tickPickModeReset(CallbackInfo ci) {
-        if (!PickState.isActive())
+        if (!PickState.isActive() && !NbtExpandedPickState.isActive())
             return;
         if (PickState.isUiPointPickActive())
             return;
@@ -374,7 +375,7 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/createmod/ponder/foundation/ui/PonderUI;updateIdentifiedItem(Lnet/createmod/ponder/foundation/PonderScene;)V", remap = false))
     private void ponderer$tickPickModeEnable(CallbackInfo ci) {
-        if (!PickState.isActive())
+        if (!PickState.isActive() && !NbtExpandedPickState.isActive())
             return;
         if (PickState.isUiPointPickActive())
             return;
@@ -390,7 +391,7 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void ponderer$onPickClick(double x, double y, int button, CallbackInfoReturnable<Boolean> cir) {
-        if (!PickState.isActive())
+        if (!PickState.isActive() && !NbtExpandedPickState.isActive())
             return;
 
         if (PickState.isUiPointPickActive()) {
@@ -420,7 +421,11 @@ public abstract class PonderUIMixin extends Screen {
                     // Right-click: pick the adjacent block (offset by hit face normal)
                     pos = pos.relative(face);
                 }
-                PickState.completePick(pos, face);
+                if (PickState.isActive()) {
+                    PickState.completePick(pos, face);
+                } else {
+                    NbtExpandedPickState.completePick(pos, face);
+                }
                 cir.setReturnValue(true);
                 return;
             }
@@ -446,6 +451,12 @@ public abstract class PonderUIMixin extends Screen {
                 return true;
             }
         }
+        if (NbtExpandedPickState.isActive()) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+                NbtExpandedPickState.cancelPick();
+                return true;
+            }
+        }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
@@ -459,7 +470,7 @@ public abstract class PonderUIMixin extends Screen {
     @Inject(method = "renderWidgets", at = @At("TAIL"), remap = false)
     private void ponderer$renderPickHint(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks,
             CallbackInfo ci) {
-        if (!PickState.isActive())
+        if (!PickState.isActive() && !NbtExpandedPickState.isActive())
             {
                 if (!InterfaceSlotEditState.isActive()) {
                     return;
@@ -533,7 +544,8 @@ public abstract class PonderUIMixin extends Screen {
             BlockPos adjacent = pos.relative(face);
 
             String line1, line2;
-            if (PickState.isHalfOffset()) {
+            boolean halfOffset = PickState.isActive() ? PickState.isHalfOffset() : NbtExpandedPickState.isFloatingTarget();
+            if (halfOffset) {
                 Direction.Axis faceAxis = face.getAxis();
                 line1 = "[ " + ponderer$fmtCoord(pos.getX(), faceAxis != Direction.Axis.X)
                         + ", " + ponderer$fmtCoord(pos.getY(), faceAxis != Direction.Axis.Y)
@@ -623,6 +635,9 @@ public abstract class PonderUIMixin extends Screen {
     private void ponderer$onRemoved(CallbackInfo ci) {
         if (PickState.isActive()) {
             PickState.reset();
+        }
+        if (NbtExpandedPickState.isActive()) {
+            NbtExpandedPickState.reset();
         }
         if (InterfaceSlotEditState.isActive()) {
             InterfaceSlotEditState.reset();

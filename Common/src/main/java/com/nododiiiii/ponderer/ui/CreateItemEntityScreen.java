@@ -69,7 +69,8 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             "ponderer.ui.create_item_entity.nbt.tooltip",
             "{PickupDelay:40s}",
             124,
-            FieldDecorators.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt"),
+            FieldDecorators.nbtExpand("nbt")));
     }
 
     @Override

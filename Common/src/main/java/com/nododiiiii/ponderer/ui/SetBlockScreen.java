@@ -93,7 +93,8 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             "ponderer.ui.set_block.nbt.tooltip",
             "{CustomName:'\"Demo\"'}",
             124,
-            FieldDecorators.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt"),
+            FieldDecorators.nbtExpand("nbt")));
         entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui.set_block.pos_from",

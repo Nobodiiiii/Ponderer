@@ -1,18 +1,11 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
 import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
-import net.createmod.ponder.foundation.PonderScene;
-import net.createmod.ponder.foundation.ui.PonderUI;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -178,36 +171,9 @@ public final class PickState {
     public static void openPonderUIForPick() {
         if (!active || context == null) return;
 
-        ResourceLocation itemId = getItemId();
-        if (itemId == null) {
-            // Fallback: cancel pick if we can't find the item
+        if (!PonderScreenNavigation.openPonderUIForScene(context.scene(), context.sceneIndex())) {
             cancelPick();
-            return;
         }
-
-        PonderUI ponderUI = PonderUI.of(itemId);
-        PonderUIAccessor accessor = (PonderUIAccessor) ponderUI;
-
-        // Try to navigate PonderUI to the scene matching our DslScene + sceneIndex
-        List<PonderScene> ponderScenes = accessor.ponderer$getScenes();
-        for (int i = 0; i < ponderScenes.size(); i++) {
-            SceneRuntime.SceneMatch match = SceneRuntime.findBySceneId(ponderScenes.get(i).getId());
-            if (match != null && match.sceneIndex() == context.sceneIndex()
-                    && match.scene().id.equals(context.scene().id)) {
-                accessor.ponderer$setIndex(i);
-                accessor.ponderer$getLazyIndex().startWithValue(i);
-                ponderScenes.get(i).begin();
-                break;
-            }
-        }
-
-        Minecraft.getInstance().setScreen(ponderUI);
-    }
-
-    @Nullable
-    private static ResourceLocation getItemId() {
-        if (context == null || context.scene().items == null || context.scene().items.isEmpty()) return null;
-        return ResourceLocation.tryParse(context.scene().items.get(0));
     }
 
     // -- Queries --

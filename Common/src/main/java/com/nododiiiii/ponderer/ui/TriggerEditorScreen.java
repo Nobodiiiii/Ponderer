@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.nbt.NbtTextCodec;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
@@ -169,7 +170,8 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             null,
             UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
             124,
-            FieldDecorators.nbtPick("itemNbt")));
+            FieldDecorators.nbtPick("itemNbt"),
+            FieldDecorators.nbtExpand("itemNbt")));
         entries.add(FieldSpecs.cycle(
             triggerModeBinding,
             "ponderer.ui.trigger_editor.trigger_mode",
@@ -365,6 +367,14 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
         candidate.items = List.of(newItemId);
         String nbt = itemNbtField.getValue().trim();
+        if (!nbt.isEmpty()) {
+            NbtTextCodec.ParseResult parsed = NbtTextCodec.parse(nbt);
+            if (!parsed.success()) {
+                setErrorMessage(UIText.of("ponderer.ui.nbt_editor.error.invalid"));
+                return false;
+            }
+            nbt = NbtTextCodec.compact(parsed.tag());
+        }
         candidate.nbtFilter = nbt.isEmpty() ? null : nbt;
 
         String triggerMode = TRIGGER_MODES[triggerModeIndex];

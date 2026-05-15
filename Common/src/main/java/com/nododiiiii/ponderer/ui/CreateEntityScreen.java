@@ -81,7 +81,8 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             "ponderer.ui.create_entity.nbt.tooltip",
             "{NoAI:1b}",
             124,
-            FieldDecorators.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt"),
+            FieldDecorators.nbtExpand("nbt")));
     }
 
     @Override

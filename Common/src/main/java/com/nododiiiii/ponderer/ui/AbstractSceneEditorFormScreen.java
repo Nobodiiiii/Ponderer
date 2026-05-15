@@ -18,7 +18,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareFormScreen
-    implements HeldItemButtonHost, NbtPickButtonHost {
+    implements HeldItemButtonHost, NbtPickButtonHost, NbtExpandButtonHost {
 
     protected final DslScene scene;
     protected final int sceneIndex;
@@ -214,6 +214,18 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
         clearStatusMessages();
         NbtPickState.startPick(snapshotForm(), nbtSnapshotKey, captureBlockId, createReturnContext());
         mc.setScreen(null);
+    }
+
+    @Override
+    public final void startNbtExpandFromButton(String nbtSnapshotKey) {
+        clearStatusMessages();
+        Minecraft.getInstance().setScreen(new NbtExpandedEditorScreen(
+            scene,
+            sceneIndex,
+            parent,
+            createReturnContext(),
+            snapshotForm(),
+            nbtSnapshotKey));
     }
 
     @Override

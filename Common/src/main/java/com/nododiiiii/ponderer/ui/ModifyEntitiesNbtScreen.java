@@ -81,7 +81,8 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
             "ponderer.ui." + stepType + ".nbt.tooltip",
             "{NoGravity:1b}",
             124,
-            FieldDecorators.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt"),
+            FieldDecorators.nbtExpand("nbt")));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui." + stepType + ".full_scene",
             "ponderer.ui." + stepType + ".full_scene.tooltip",

@@ -86,7 +86,8 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
             "ponderer.ui.show_controls.nbt.tooltip",
             "{}",
             124,
-            FieldDecorators.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt"),
+            FieldDecorators.nbtExpand("nbt")));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.show_controls.sneaking",
             "ponderer.ui.show_controls.sneaking.tooltip",

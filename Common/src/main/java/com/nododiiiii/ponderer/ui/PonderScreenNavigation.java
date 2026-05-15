@@ -1,8 +1,15 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.mojang.logging.LogUtils;
+import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
+import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import net.createmod.catnip.gui.ScreenOpener;
+import net.createmod.ponder.foundation.PonderScene;
+import net.createmod.ponder.foundation.ui.PonderUI;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
@@ -46,6 +53,31 @@ public final class PonderScreenNavigation {
         return suppress;
     }
 
+    public static boolean openPonderUIForScene(@Nullable DslScene scene, int sceneIndex) {
+        ResourceLocation itemId = getItemId(scene);
+        if (itemId == null) {
+            return false;
+        }
+
+        PonderUI ponderUI = PonderUI.of(itemId);
+        PonderUIAccessor accessor = (PonderUIAccessor) ponderUI;
+
+        List<PonderScene> ponderScenes = accessor.ponderer$getScenes();
+        for (int i = 0; i < ponderScenes.size(); i++) {
+            SceneRuntime.SceneMatch match = SceneRuntime.findBySceneId(ponderScenes.get(i).getId());
+            if (match != null && match.sceneIndex() == sceneIndex
+                && match.scene() != null && scene != null && match.scene().id.equals(scene.id)) {
+                accessor.ponderer$setIndex(i);
+                accessor.ponderer$getLazyIndex().startWithValue(i);
+                ponderScenes.get(i).begin();
+                break;
+            }
+        }
+
+        Minecraft.getInstance().setScreen(ponderUI);
+        return true;
+    }
+
     private static void restoreScreenHistory(List<Screen> history) {
         if (BACK_STACK == null) {
             LOGGER.warn("Unable to restore Catnip screen history: ScreenOpener.backStack was not found");
@@ -78,6 +110,14 @@ public final class PonderScreenNavigation {
             LOGGER.warn("Unable to access ScreenOpener.{}", name, e);
             return null;
         }
+    }
+
+    @Nullable
+    private static ResourceLocation getItemId(@Nullable DslScene scene) {
+        if (scene == null || scene.items == null || scene.items.isEmpty()) {
+            return null;
+        }
+        return ResourceLocation.tryParse(scene.items.get(0));
     }
 
     public record ReturnState(List<Screen> screenHistory, @Nullable PonderItemGridScreen returnScreen) {

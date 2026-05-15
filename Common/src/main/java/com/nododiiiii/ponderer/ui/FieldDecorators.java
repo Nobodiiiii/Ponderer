@@ -125,6 +125,23 @@ public final class FieldDecorators {
         };
     }
 
+    public static FieldDecorator nbtExpand(String nbtSnapshotKey) {
+        return new FieldDecorator() {
+            @Override
+            public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
+                if (!(screen instanceof NbtExpandButtonHost host)) {
+                    throw new IllegalStateException("NBT expand decorator requires screen to implement NbtExpandButtonHost");
+                }
+                entry.addTrailingButton(
+                    FormTextButtonSpec.DEFAULT_WIDTH,
+                    () -> host.startNbtExpandFromButton(nbtSnapshotKey),
+                    () -> "V",
+                    () -> 0x80FFFF,
+                    UIText.of("ponderer.ui.nbt_editor.expand.tooltip"));
+            }
+        };
+    }
+
     public static FieldDecorator heldItem(java.util.function.Consumer<ItemStack> onItemPicked) {
         return new FieldDecorator() {
             @Override

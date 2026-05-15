@@ -44,7 +44,7 @@ class SceneStoreTest {
         Files.createDirectories(file.getParent());
         Files.write(file, new byte[]{1});
 
-        SceneStore.SyncFileRef ref = SceneStore.toServerStructureRef(root, file, ".nbt");
+        SceneStore.SyncFileRef ref = SceneStore.toServerStructureRef(root, file, ".nbt", null);
 
         assertNotNull(ref);
         assertEquals("ponderer:machines/press", ref.id());
@@ -58,7 +58,7 @@ class SceneStoreTest {
         Files.createDirectories(file.getParent());
         Files.write(file, new byte[]{1});
 
-        SceneStore.SyncFileRef ref = SceneStore.toServerStructureRef(root, file, ".nbt");
+        SceneStore.SyncFileRef ref = SceneStore.toServerStructureRef(root, file, ".nbt", null);
 
         assertNotNull(ref);
         assertEquals("ponderer:machines/press", ref.id());

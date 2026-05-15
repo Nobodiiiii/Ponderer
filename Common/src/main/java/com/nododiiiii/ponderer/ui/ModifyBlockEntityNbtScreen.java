@@ -66,7 +66,8 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
             "ponderer.ui.modify_block_entity_nbt.nbt.tooltip",
             "{CustomName:'\"Demo\"'}",
             124,
-            FieldDecorators.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt"),
+            FieldDecorators.nbtExpand("nbt")));
         entries.add(FieldSpecs.toggle(
             redrawBinding,
             "ponderer.ui.modify_block_entity_nbt.redraw",
