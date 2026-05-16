@@ -25,7 +25,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
-import org.joml.Vector4f;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
@@ -56,13 +55,15 @@ public class StructurePreviewWidget {
     private static final float PITCH_DEG = -25.0f;
 
     /**
-     * View-space Z offset applied via {@code pose.translate(..., MODEL_VIEW_Z)}.
+     * Pose-stack Z applied via {@code pose.translate(..., MODEL_VIEW_Z)}.
      *
-     * Diagnostic value while we hunt the half-cut bug. At 0, model lands at NDC z ≈ 0.8 (per
-     * diagnostic dump). Setting this to a large positive value pushes the model close to the
-     * GUI's view-z origin — if the half-cut goes away here, the bug is depth-test interaction
-     * with something at the original depth (probably a widget or panel-background fill writing
-     * depth at view z ≈ -10000).
+     * Combined with Mojang's implicit {@code RenderSystem.modelViewMatrix} translate
+     * (z = -10000), this lands the model's view-space center at ≈ -5000 and its NDC z near -0.2.
+     * The picker's panel background ({@code graphics.fill}) writes depth at the GUI's default
+     * pose z=0 → NDC z = +0.8; leaving the model at pose z=0 would put it at the same NDC z as
+     * the background and half the fragments would tie-fail the LEQUAL depth test, cutting the
+     * structure across its midline (the bug PonderUI exhibits in extreme zoom/move, too).
+     * A positive pose-z pushes the model toward the camera, well in front of the background.
      */
     private static final float MODEL_VIEW_Z = 5000.0f;
 
@@ -78,8 +79,6 @@ public class StructurePreviewWidget {
     private final Map<RenderType, SuperByteBuffer> cache = new LinkedHashMap<>();
     private double centerX, centerY, centerZ;
     private double scale = 1.0;
-    /** Print one diagnostic dump per loaded structure; set false after first frame logs. */
-    private boolean diagPending;
 
     private final long startMillis = System.currentTimeMillis();
 
@@ -208,7 +207,6 @@ public class StructurePreviewWidget {
                 cache.put(e.getKey(), sbb);
             }
         }
-        diagPending = true;
     }
 
     private void recomputeScale() {
@@ -265,11 +263,6 @@ public class StructurePreviewWidget {
         RenderSystem.enableDepthTest();
         RenderSystem.setupLevelDiffuseLighting(DIFFUSE_LIGHT_0, DIFFUSE_LIGHT_1, pose.last().pose());
 
-        if (diagPending) {
-            dumpRenderState(pose);
-            diagPending = false;
-        }
-
         pose.pushPose();
         // Park the model deep in Mojang's GUI ortho visible window (view z ∈ [-11000, -1000])
         // — see MODEL_VIEW_Z comment for the diagnostic that pinpointed this. No projection
@@ -322,113 +315,5 @@ public class StructurePreviewWidget {
         cache.values().forEach(SuperByteBuffer::delete);
         cache.clear();
         level = null;
-        diagPending = false;
-    }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // DIAGNOSTIC — prints once per load. Investigates why parts of the model
-    // get clipped despite PonderUI's translate(0,0,800) trick. We dump:
-    //   1. Mojang's CURRENT projection matrix (set up by GameRenderer for GUI)
-    //   2. The pose-stack's last() matrix AT renderScene entry (before our
-    //      transforms) — this tells us if there's an implicit ModelView
-    //      pre-translate we're not accounting for.
-    //   3. The matrix Mojang's setProjection would have if we read m22/m32
-    //      out — from these you can solve for the actual zNear/zFar.
-    //   4. A walk-through of the model-center vertex (cx,cy,cz) through:
-    //      pose-stack → view space → after proj.translate(800) → clip space → NDC.
-    //   5. Same walk for two opposite corners of the model bounding box so we
-    //      can see which side ends up outside NDC z range [-1, +1].
-    // ──────────────────────────────────────────────────────────────────────
-    private void dumpRenderState(PoseStack poseAtEntry) {
-        Matrix4f mojangProj = new Matrix4f(RenderSystem.getProjectionMatrix());
-        Matrix4f poseEntry = new Matrix4f(poseAtEntry.last().pose());
-        Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix());
-
-        LOGGER.info("============================================================");
-        LOGGER.info("STRUCTURE PREVIEW DIAG  (panel x={} y={} w={} h={}, scale={}, center=({}, {}, {}))",
-            x, y, w, h,
-            String.format("%.4f", scale),
-            String.format("%.3f", centerX),
-            String.format("%.3f", centerY),
-            String.format("%.3f", centerZ));
-        LOGGER.info("[1] Mojang projection (raw, before our translate):");
-        logMatrix(mojangProj);
-        LOGGER.info("    Reading zNear/zFar from m22={}, m32={}:",
-            mojangProj.m22(), mojangProj.m32());
-        if (Math.abs(mojangProj.m22()) > 1e-9f) {
-            float diff = 2.0f / mojangProj.m22();        // zNear - zFar
-            float sum  = mojangProj.m32() * diff;        // zNear + zFar
-            float zNear = (sum + diff) / 2.0f;
-            float zFar  = (sum - diff) / 2.0f;
-            LOGGER.info("    → zNear = {}, zFar = {}  (visible view z ∈ [{}, {}])",
-                zNear, zFar, -zFar, -zNear);
-        }
-
-        LOGGER.info("[2a] PoseStack.last() at renderScene entry (graphics.pose()):");
-        logMatrix(poseEntry);
-
-        LOGGER.info("[2b] RenderSystem.modelViewMatrix (the matrix the shader actually applies):");
-        logMatrix(modelView);
-        LOGGER.info("    → implicit view-z translation = m32 = {}  (pose-z=0 → view-z = this value)",
-            modelView.m32());
-
-        // Effective transform on a vertex: ProjMat * ModelView * PoseMat * objectPos
-        Matrix4f fullPose = new Matrix4f(poseEntry);
-        fullPose.translate((float) (x + w / 2.0), (float) (y + h / 2.0), MODEL_VIEW_Z);
-        fullPose.rotate(Axis.XP.rotationDegrees(PITCH_DEG));
-        fullPose.rotate(Axis.YP.rotationDegrees(0));   // yaw=0 for diag (model snapshot)
-        fullPose.mul(new Matrix4f().scaling(1, -1, 1));   // flipForGuiRender
-        fullPose.scale((float) scale, (float) scale, (float) scale);
-        fullPose.translate((float) -centerX, (float) -centerY, (float) -centerZ);
-
-        Matrix4f projUsed = new Matrix4f(mojangProj);
-
-        LOGGER.info("[3] Projection used for draw (no more proj.translate trick):");
-        logMatrix(projUsed);
-
-        BoundingBox b = level != null ? level.getBounds() : new BoundingBox(BlockPos.ZERO);
-        Vector3f[] probes = new Vector3f[]{
-            new Vector3f((float) centerX,      (float) centerY,      (float) centerZ),       // model center
-            new Vector3f((float) (b.minX()),   (float) (b.minY()),   (float) (b.minZ())),    // min corner
-            new Vector3f((float) (b.maxX()+1), (float) (b.maxY()+1), (float) (b.maxZ()+1)),  // max corner
-            new Vector3f((float) (b.minX()),   (float) (b.minY()),   (float) (b.maxZ()+1)),  // mixed corner 1
-            new Vector3f((float) (b.maxX()+1), (float) (b.minY()),   (float) (b.minZ())),    // mixed corner 2
-        };
-        String[] labels = {"center", "min-corner", "max-corner", "min-XY/max-Z", "max-X/min-YZ"};
-
-        LOGGER.info("[4] Sample vertex transforms (yaw=0 snapshot; including ModelView):");
-        for (int i = 0; i < probes.length; i++) {
-            Vector4f v = new Vector4f(probes[i], 1);
-            Vector4f afterPose = new Vector4f(v).mul(fullPose);
-            Vector4f afterModelView = new Vector4f(afterPose).mul(modelView);
-            Vector4f clip = new Vector4f(afterModelView).mul(projUsed);
-            float ndcZ = clip.w() != 0 ? clip.z() / clip.w() : Float.NaN;
-            float ndcX = clip.w() != 0 ? clip.x() / clip.w() : Float.NaN;
-            float ndcY = clip.w() != 0 ? clip.y() / clip.w() : Float.NaN;
-            String inRange = (ndcZ >= -1f && ndcZ <= 1f) ? "visible" : "CLIPPED";
-            LOGGER.info("    {} (object={}) → pose=({}, {}, {})  → mv=({}, {}, {})  → ndc=({}, {}, {}) [{}]",
-                String.format("%-14s", labels[i]),
-                fmt(probes[i]),
-                fmt3(afterPose.x()),       fmt3(afterPose.y()),       fmt3(afterPose.z()),
-                fmt3(afterModelView.x()),  fmt3(afterModelView.y()),  fmt3(afterModelView.z()),
-                fmt3(ndcX), fmt3(ndcY), fmt3(ndcZ),
-                inRange);
-        }
-        LOGGER.info("============================================================");
-    }
-
-    private static void logMatrix(Matrix4f m) {
-        LOGGER.info("    | {} {} {} {} |", fmt3(m.m00()), fmt3(m.m10()), fmt3(m.m20()), fmt3(m.m30()));
-        LOGGER.info("    | {} {} {} {} |", fmt3(m.m01()), fmt3(m.m11()), fmt3(m.m21()), fmt3(m.m31()));
-        LOGGER.info("    | {} {} {} {} |", fmt3(m.m02()), fmt3(m.m12()), fmt3(m.m22()), fmt3(m.m32()));
-        LOGGER.info("    | {} {} {} {} |", fmt3(m.m03()), fmt3(m.m13()), fmt3(m.m23()), fmt3(m.m33()));
-    }
-
-    private static String fmt(Vector3f v) {
-        return "(" + fmt3(v.x()) + ", " + fmt3(v.y()) + ", " + fmt3(v.z()) + ")";
-    }
-
-    private static String fmt3(float f) {
-        return String.format("%12.4f", f);
     }
 }
