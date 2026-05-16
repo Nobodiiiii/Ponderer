@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.ui.ShowExtraStructureScreen;
 import com.nododiiiii.ponderer.ui.ShowStructureScreen;
 import net.minecraft.network.FriendlyByteBuf;
 
@@ -24,5 +25,6 @@ public record DownloadStructureResultPayload(String sourceId, String targetId,
 
     public static void handle(DownloadStructureResultPayload payload) {
         ShowStructureScreen.onDownloadResult(payload.sourceId(), payload.targetId(), payload.success(), payload.message());
+        ShowExtraStructureScreen.onDownloadResult(payload.sourceId(), payload.targetId(), payload.success(), payload.message());
     }
 }

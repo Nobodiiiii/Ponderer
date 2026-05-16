@@ -27,6 +27,7 @@ public final class PonderJsEmitters {
 
     static {
         EMITTERS.put("show_structure", PonderJsEmitters::emitShowStructure);
+        EMITTERS.put("show_extra_structure", PonderJsEmitters::emitShowExtraStructure);
         EMITTERS.put("idle", PonderJsEmitters::emitIdle);
         EMITTERS.put("text", PonderJsEmitters::emitText);
         EMITTERS.put("shared_text", PonderJsEmitters::emitSharedText);
@@ -70,6 +71,13 @@ public final class PonderJsEmitters {
             line += "\nscene.scaleSceneView(" + fmtFloat(step.scale) + ");";
         }
         return line;
+    }
+
+    private static String emitShowExtraStructure(DslScene.DslStep step, EmitContext ctx) {
+        // PonderJS has no concept of layered NBT structure overlays + air filtering;
+        // emit an explicit warning comment rather than a misleading approximation.
+        String ref = step.structure == null ? "?" : step.structure;
+        return "// UNSUPPORTED show_extra_structure (structure=" + ref + "): PonderJS cannot reproduce this step";
     }
 
     private static String emitIdle(DslScene.DslStep step, EmitContext ctx) {

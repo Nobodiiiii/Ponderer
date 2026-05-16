@@ -88,6 +88,12 @@ public class JavaModuleScanResult {
     static class GeneratedStep {
         transient DslScene.DslStep sourceStep;
         boolean omitControlItem;
+        /**
+         * For show_extra_structure: the resource id (as it will live in the target mod's
+         * assets) used to load the structure file at runtime. Null for other step types
+         * or when the structure could not be resolved.
+         */
+        String extraStructureResourceId;
     }
 
     static class StructureAsset {

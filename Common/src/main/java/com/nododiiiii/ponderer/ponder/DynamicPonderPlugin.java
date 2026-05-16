@@ -458,6 +458,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
         switch (step.type.toLowerCase(Locale.ROOT)) {
             case "show_structure" -> applyShowStructure(scene, step, context);
+            case "show_extra_structure" -> applyShowExtraStructure(scene, dsl, step, context);
             case "idle" -> scene.idle(step.durationOrDefault(20));
             case "text" -> applyText(scene, step, context);
             case "shared_text" -> applySharedText(scene, step, context);
@@ -910,6 +911,153 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 yRotation.startWithValue(target);
             }
         });
+    }
+
+    private void applyShowExtraStructure(SceneBuilder scene, DslScene dsl, DslScene.DslStep step, StepContext context) {
+        if (step.structure == null || step.structure.isBlank()) {
+            LOGGER.warn("show_extra_structure missing structure");
+            return;
+        }
+        if (step.blockPos == null || step.blockPos.size() < 3) {
+            LOGGER.warn("show_extra_structure missing blockPos");
+            return;
+        }
+
+        java.nio.file.Path file = resolveExtraStructureFile(dsl, step.structure);
+        if (file == null || !java.nio.file.Files.exists(file)) {
+            LOGGER.warn("show_extra_structure structure not found: {}", step.structure);
+            return;
+        }
+
+        BlockPos base = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+        int rotationDegrees = step.rotation == null ? 0 : Math.round(step.rotation);
+
+        List<ExtraStructurePlanner.PlacedBlock> placed;
+        try {
+            placed = ExtraStructurePlanner.plan(file, base, rotationDegrees);
+        } catch (Exception e) {
+            LOGGER.error("show_extra_structure failed to read structure '{}': {}", step.structure, e.getMessage());
+            return;
+        }
+        if (placed.isEmpty()) {
+            return;
+        }
+
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        for (ExtraStructurePlanner.PlacedBlock b : placed) {
+            int x = b.pos.getX();
+            int y = b.pos.getY();
+            int z = b.pos.getZ();
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (z < minZ) minZ = z;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+            if (z > maxZ) maxZ = z;
+        }
+        BlockPos minCorner = new BlockPos(minX, minY, minZ);
+        BlockPos maxCorner = new BlockPos(maxX, maxY, maxZ);
+
+        String entranceAnimation = normalizeEntranceAnimation(step.entranceAnimation);
+        boolean animatedMode = entranceAnimation != null && !"none".equals(entranceAnimation);
+        boolean immediateDisplay = !animatedMode && !Boolean.FALSE.equals(step.immediateDisplay);
+        boolean particles = immediateDisplay && !Boolean.FALSE.equals(step.spawnParticles);
+
+        ensureSceneCanShowRange(scene, minCorner, maxCorner, immediateDisplay);
+
+        for (ExtraStructurePlanner.PlacedBlock b : placed) {
+            BlockState placedState = b.state;
+            BlockPos placedPos = b.pos;
+            scene.world().setBlock(placedPos, placedState, particles);
+            if (b.nbt != null && !b.nbt.isEmpty()) {
+                CompoundTag patch = b.nbt;
+                Selection sel = scene.getScene().getSceneBuildingUtil().select().position(placedPos);
+                scene.world().modifyBlockEntityNBT(sel, BlockEntity.class, nbt -> nbt.merge(patch.copy()), true);
+            }
+        }
+
+        applyPlacedVisibility(context, placed, immediateDisplay);
+
+        if (!animatedMode) {
+            return;
+        }
+
+        String linkId = step.linkId == null ? "" : step.linkId.trim();
+        if (linkId.isEmpty()) {
+            linkId = autoLinkId(context);
+        }
+        Direction direction = parseDirection(step.direction);
+        int rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+        int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
+        boolean smartDisplay = !Boolean.FALSE.equals(step.smartDisplay);
+
+        List<List<BlockPos>> groups = ExtraStructurePlanner.segmentForAnimation(placed, entranceAnimation);
+        if (smartDisplay) {
+            groups = filterVisibleGroups(groups, context);
+        }
+        if (groups.isEmpty()) {
+            return;
+        }
+
+        ElementLink<WorldSectionElement> working = context.sectionLinks.get(linkId);
+        for (List<BlockPos> group : groups) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            Selection groupSelection = selectionForGroup(scene, group);
+            if (working == null) {
+                DisplayWorldSectionInstruction inst =
+                        new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection, null);
+                scene.addInstruction(inst);
+                working = inst.createLink(scene.getScene());
+                context.sectionLinks.put(linkId, working);
+            } else {
+                ElementLink<WorldSectionElement> target = working;
+                scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection,
+                        () -> scene.getScene().resolve(target)));
+            }
+            scene.idle(rowInterval);
+        }
+
+        applyPlacedVisibility(context, placed, true);
+    }
+
+    private void applyPlacedVisibility(StepContext context, List<ExtraStructurePlanner.PlacedBlock> placed, boolean visible) {
+        for (ExtraStructurePlanner.PlacedBlock b : placed) {
+            long key = b.pos.asLong();
+            if (context.allBlocksVisible) {
+                if (visible) {
+                    context.hiddenBlockKeys.remove(key);
+                } else {
+                    context.hiddenBlockKeys.add(key);
+                }
+            } else {
+                if (visible) {
+                    context.visibleBlockKeys.add(key);
+                } else {
+                    context.visibleBlockKeys.remove(key);
+                }
+            }
+        }
+    }
+
+    @Nullable
+    private java.nio.file.Path resolveExtraStructureFile(DslScene dsl, String reference) {
+        String trimmed = reference.trim();
+        String relativePath;
+        if (trimmed.contains(":")) {
+            ResourceLocation rl = ResourceLocation.tryParse(trimmed);
+            if (rl == null) {
+                return null;
+            }
+            relativePath = "ponderer".equals(rl.getNamespace())
+                    ? rl.getPath()
+                    : rl.getNamespace() + "/" + rl.getPath();
+        } else {
+            relativePath = trimmed;
+        }
+        return SceneStore.resolveStructurePath(relativePath, dsl.pack);
     }
 
     private Vec3 resolveOverlayPoint(SceneBuilder scene, DslScene.DslStep step, StepContext context) {

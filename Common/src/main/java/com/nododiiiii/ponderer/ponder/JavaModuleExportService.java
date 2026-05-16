@@ -46,6 +46,7 @@ public final class JavaModuleExportService {
 
     private static final Set<String> SUPPORTED_STEP_TYPES = Set.of(
         "show_structure",
+        "show_extra_structure",
         "idle",
         "text",
         "create_entity",
@@ -451,6 +452,21 @@ public final class JavaModuleExportService {
                     addFinding(result.warningFindings, "step/meta warnings", scene.id, scene.sceneKey(), segmentId(segment),
                         stepType, "Non-item show_controls ingredient will be omitted.");
                 }
+                if ("show_extra_structure".equals(stepType)) {
+                    StructureResolution extraResolution = resolveStructureReference(target, scene, step.structure);
+                    if (extraResolution == null) {
+                        plan.partial = true;
+                        plan.hadOmittedSteps = true;
+                        segmentPlan.omittedStepTypes.add(stepType);
+                        addFinding(result.warningFindings, "step/meta warnings", scene.id, scene.sceneKey(), segmentId(segment),
+                            stepType, "show_extra_structure structure could not be resolved: " + step.structure);
+                        continue;
+                    }
+                    plan.structures.add(toStructureAsset(extraResolution));
+                    generatedStep.extraStructureResourceId = target.modId
+                        + ":ponder/generated/" + extraResolution.sourceId.getNamespace()
+                        + "/" + extraResolution.sourceId.getPath() + ".nbt";
+                }
                 segmentPlan.steps.add(generatedStep);
                 supportedStepCount++;
             }
@@ -637,6 +653,7 @@ public final class JavaModuleExportService {
         String type = step.type == null ? "" : step.type.toLowerCase(Locale.ROOT);
         return switch (type) {
             case "show_structure", "idle", "text", "show_controls", "rotate_camera_y", "next_scene" -> true;
+            case "show_extra_structure" -> hasPos(step.blockPos) && isNonBlank(step.structure);
             case "create_entity" -> isNonBlank(step.entity);
             case "create_item_entity" -> isNonBlank(step.item);
             case "highlight_section", "destroy_block", "indicate_redstone", "indicate_success",
@@ -1163,6 +1180,22 @@ public final class JavaModuleExportService {
                 .append(blockPosExpr(step.blockPos2)).append(", ")
                 .append(floatExpr(step.scale)).append(", ")
                 .append(floatExpr(step.rotation)).append(");\n");
+            case "show_extra_structure" -> {
+                String resId = generatedStep.extraStructureResourceId;
+                int rotationDegrees = step.rotation == null ? 0 : Math.round(step.rotation);
+                sb.append("        GeneratedPonderSupport.showExtraStructure(scene, context, ")
+                    .append(resourceLocationExpr(resId)).append(", ")
+                    .append(blockPosExpr(step.blockPos)).append(", ")
+                    .append(rotationDegrees).append(", ")
+                    .append(boolExpr(step.immediateDisplay)).append(", ")
+                    .append(boolExpr(step.spawnParticles)).append(", ")
+                    .append(stringExpr(step.entranceAnimation)).append(", ")
+                    .append(intExpr(step.entranceDuration)).append(", ")
+                    .append(intExpr(step.entranceInterval)).append(", ")
+                    .append(boolExpr(step.smartDisplay)).append(", ")
+                    .append(stringExpr(step.linkId)).append(", ")
+                    .append(stringExpr(step.direction)).append(");\n");
+            }
             case "idle" -> sb.append("        scene.idle(").append(step.durationOrDefault(20)).append(");\n");
             case "text" -> sb.append("        GeneratedPonderSupport.showText(scene, ")
                 .append(localizedTextExpr(step.text, ""))
@@ -1329,6 +1362,9 @@ public final class JavaModuleExportService {
             import net.minecraft.core.Direction;
             import net.minecraft.core.registries.BuiltInRegistries;
             import net.minecraft.nbt.CompoundTag;
+            import net.minecraft.nbt.ListTag;
+            import net.minecraft.nbt.NbtAccounter;
+            import net.minecraft.nbt.NbtIo;
             import net.minecraft.nbt.Tag;
             import net.minecraft.nbt.TagParser;
             import net.minecraft.resources.ResourceLocation;
@@ -1343,12 +1379,16 @@ public final class JavaModuleExportService {
             import net.minecraft.world.level.Level;
             import net.minecraft.world.level.block.Block;
             import net.minecraft.world.level.block.Blocks;
+            import net.minecraft.world.level.block.Rotation;
             import net.minecraft.world.level.block.entity.BlockEntity;
             import net.minecraft.world.level.block.state.BlockState;
             import net.minecraft.world.level.block.state.properties.Property;
             import net.minecraft.world.phys.Vec3;
             import org.slf4j.Logger;
 
+            import java.io.BufferedInputStream;
+            import java.io.DataInputStream;
+            import java.io.InputStream;
             import java.util.ArrayList;
             import java.util.Comparator;
             import java.util.HashMap;
@@ -1357,6 +1397,8 @@ public final class JavaModuleExportService {
             import java.util.Locale;
             import java.util.Map;
             import java.util.Set;
+            import java.util.function.ToIntFunction;
+            import java.util.zip.GZIPInputStream;
 
             public final class GeneratedPonderSupport {
                 private static final Logger LOGGER = LogUtils.getLogger();
@@ -2361,6 +2403,313 @@ public final class JavaModuleExportService {
                     entity.saveWithoutId(data);
                     data.merge(patch.copy());
                     entity.load(data);
+                }
+
+                // ---- show_extra_structure ----------------------------------------------------
+
+                private static final Set<String> EXTRA_SKIPPED_BLOCKS = Set.of(
+                    "minecraft:air", "minecraft:cave_air", "minecraft:void_air", "minecraft:structure_void");
+                private static final Set<String> EXTRA_POS_NBT_KEYS = Set.of("x", "y", "z");
+
+                private static final class PlacedBlock {
+                    final BlockPos pos;
+                    final BlockState state;
+                    final CompoundTag nbt;
+
+                    PlacedBlock(BlockPos pos, BlockState state, CompoundTag nbt) {
+                        this.pos = pos;
+                        this.state = state;
+                        this.nbt = nbt;
+                    }
+                }
+
+                public static void showExtraStructure(SceneBuilder scene, Context context, ResourceLocation structureAssetId,
+                                                      BlockPos base, int rotationDegrees,
+                                                      Boolean immediateDisplayFlag, Boolean spawnParticlesFlag,
+                                                      String entranceAnimation, Integer entranceDuration,
+                                                      Integer entranceInterval, Boolean smartDisplayFlag,
+                                                      String linkIdRaw, String directionRaw) {
+                    if (structureAssetId == null || base == null) {
+                        return;
+                    }
+                    CompoundTag root;
+                    try {
+                        var resourceOpt = Minecraft.getInstance().getResourceManager().getResource(structureAssetId);
+                        if (resourceOpt.isEmpty()) {
+                            LOGGER.warn("show_extra_structure resource not found: {}", structureAssetId);
+                            return;
+                        }
+                        try (InputStream is = resourceOpt.get().open()) {
+                            root = NbtIo.read(
+                                new DataInputStream(new BufferedInputStream(new GZIPInputStream(is))),
+                                new NbtAccounter(0x20000000L));
+                        }
+                    } catch (Exception e) {
+                        LOGGER.warn("show_extra_structure failed to read {}: {}", structureAssetId, e.getMessage());
+                        return;
+                    }
+
+                    List<PlacedBlock> placed = planExtraStructure(root, base, rotationDegrees);
+                    if (placed.isEmpty()) {
+                        return;
+                    }
+
+                    int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+                    int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+                    for (PlacedBlock b : placed) {
+                        int x = b.pos.getX(), y = b.pos.getY(), z = b.pos.getZ();
+                        if (x < minX) minX = x;
+                        if (y < minY) minY = y;
+                        if (z < minZ) minZ = z;
+                        if (x > maxX) maxX = x;
+                        if (y > maxY) maxY = y;
+                        if (z > maxZ) maxZ = z;
+                    }
+                    BlockPos minCorner = new BlockPos(minX, minY, minZ);
+                    BlockPos maxCorner = new BlockPos(maxX, maxY, maxZ);
+
+                    String anim = normalizeEntranceAnimation(entranceAnimation);
+                    boolean animatedMode = anim != null && !"none".equals(anim);
+                    boolean immediate = !animatedMode && !Boolean.FALSE.equals(immediateDisplayFlag);
+                    boolean particles = immediate && !Boolean.FALSE.equals(spawnParticlesFlag);
+
+                    ensureSceneCanShowRange(scene, minCorner, maxCorner, immediate);
+
+                    for (PlacedBlock b : placed) {
+                        scene.world().setBlock(b.pos, b.state, particles);
+                        if (b.nbt != null && !b.nbt.isEmpty()) {
+                            CompoundTag patch = b.nbt;
+                            Selection sel = scene.getScene().getSceneBuildingUtil().select().position(b.pos);
+                            scene.world().modifyBlockEntityNBT(sel, BlockEntity.class, nbt -> nbt.merge(patch.copy()), true);
+                        }
+                    }
+                    applyExtraPlacedVisibility(context, placed, immediate);
+
+                    if (!animatedMode) {
+                        return;
+                    }
+
+                    String linkId = linkIdRaw == null ? "" : linkIdRaw.trim();
+                    if (linkId.isEmpty()) {
+                        linkId = autoLinkId(context);
+                    }
+                    Direction direction = parseDirection(directionRaw);
+                    int rowDuration = entranceDuration == null ? 20 : Math.max(0, entranceDuration);
+                    int rowInterval = entranceInterval == null ? 1 : Math.max(0, entranceInterval);
+                    boolean smartDisplay = !Boolean.FALSE.equals(smartDisplayFlag);
+
+                    List<List<BlockPos>> groups = segmentExtraForAnimation(placed, anim);
+                    if (smartDisplay) {
+                        groups = filterVisibleGroups(groups, context);
+                    }
+                    if (groups.isEmpty()) {
+                        return;
+                    }
+                    ElementLink<WorldSectionElement> working = context.sectionLinks.get(linkId);
+                    for (List<BlockPos> group : groups) {
+                        if (group.isEmpty()) {
+                            continue;
+                        }
+                        Selection groupSelection = selectionForGroup(scene, group);
+                        if (working == null) {
+                            DisplayWorldSectionInstruction inst =
+                                new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection, null);
+                            scene.addInstruction(inst);
+                            working = inst.createLink(scene.getScene());
+                            context.sectionLinks.put(linkId, working);
+                        } else {
+                            ElementLink<WorldSectionElement> target = working;
+                            scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection,
+                                () -> scene.getScene().resolve(target)));
+                        }
+                        scene.idle(rowInterval);
+                    }
+                    applyExtraPlacedVisibility(context, placed, true);
+                }
+
+                private static void applyExtraPlacedVisibility(Context context, List<PlacedBlock> placed, boolean visible) {
+                    for (PlacedBlock b : placed) {
+                        long key = b.pos.asLong();
+                        if (context.allBlocksVisible) {
+                            if (visible) {
+                                context.hiddenBlockKeys.remove(key);
+                            } else {
+                                context.hiddenBlockKeys.add(key);
+                            }
+                        } else {
+                            if (visible) {
+                                context.visibleBlockKeys.add(key);
+                            } else {
+                                context.visibleBlockKeys.remove(key);
+                            }
+                        }
+                    }
+                }
+
+                private static Rotation toExtraRotation(int degrees) {
+                    int normalized = ((degrees %% 360) + 360) %% 360;
+                    return switch (normalized) {
+                        case 90 -> Rotation.CLOCKWISE_90;
+                        case 180 -> Rotation.CLOCKWISE_180;
+                        case 270 -> Rotation.COUNTERCLOCKWISE_90;
+                        default -> Rotation.NONE;
+                    };
+                }
+
+                private static List<PlacedBlock> planExtraStructure(CompoundTag root, BlockPos base, int rotationDegrees) {
+                    Rotation rotation = toExtraRotation(rotationDegrees);
+                    ListTag paletteTag = root.getList("palette", Tag.TAG_COMPOUND);
+                    BlockState[] palette = new BlockState[paletteTag.size()];
+                    for (int i = 0; i < paletteTag.size(); i++) {
+                        palette[i] = parsePaletteEntry(paletteTag.getCompound(i));
+                    }
+                    ListTag blocks = root.getList("blocks", Tag.TAG_COMPOUND);
+                    List<BlockPos> rotatedPositions = new ArrayList<>(blocks.size());
+                    List<BlockState> rotatedStates = new ArrayList<>(blocks.size());
+                    List<CompoundTag> blockNbts = new ArrayList<>(blocks.size());
+
+                    int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+
+                    for (int i = 0; i < blocks.size(); i++) {
+                        CompoundTag entry = blocks.getCompound(i);
+                        ListTag pos = entry.getList("pos", Tag.TAG_INT);
+                        if (pos.size() < 3) {
+                            continue;
+                        }
+                        int stateIdx = entry.getInt("state");
+                        if (stateIdx < 0 || stateIdx >= palette.length) {
+                            continue;
+                        }
+                        BlockState state = palette[stateIdx];
+                        if (state == null) {
+                            continue;
+                        }
+                        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+                        if (key != null && EXTRA_SKIPPED_BLOCKS.contains(key.toString())) {
+                            continue;
+                        }
+                        BlockPos rotatedPos = new BlockPos(pos.getInt(0), pos.getInt(1), pos.getInt(2)).rotate(rotation);
+                        BlockState rotatedState = state.rotate(rotation);
+                        CompoundTag patch = null;
+                        if (entry.contains("nbt", Tag.TAG_COMPOUND)) {
+                            CompoundTag raw = entry.getCompound("nbt").copy();
+                            for (String absoluteKey : EXTRA_POS_NBT_KEYS) {
+                                raw.remove(absoluteKey);
+                            }
+                            if (!raw.isEmpty()) {
+                                patch = raw;
+                            }
+                        }
+                        rotatedPositions.add(rotatedPos);
+                        rotatedStates.add(rotatedState);
+                        blockNbts.add(patch);
+                        if (rotatedPos.getX() < minX) minX = rotatedPos.getX();
+                        if (rotatedPos.getY() < minY) minY = rotatedPos.getY();
+                        if (rotatedPos.getZ() < minZ) minZ = rotatedPos.getZ();
+                    }
+                    if (rotatedPositions.isEmpty()) {
+                        return List.of();
+                    }
+                    int offsetX = base.getX() - minX;
+                    int offsetY = base.getY() - minY;
+                    int offsetZ = base.getZ() - minZ;
+                    List<PlacedBlock> result = new ArrayList<>(rotatedPositions.size());
+                    for (int i = 0; i < rotatedPositions.size(); i++) {
+                        BlockPos rp = rotatedPositions.get(i);
+                        BlockPos world = new BlockPos(
+                            rp.getX() + offsetX,
+                            rp.getY() + offsetY,
+                            rp.getZ() + offsetZ);
+                        result.add(new PlacedBlock(world, rotatedStates.get(i), blockNbts.get(i)));
+                    }
+                    return result;
+                }
+
+                private static BlockState parsePaletteEntry(CompoundTag entry) {
+                    String name = entry.getString("Name");
+                    ResourceLocation id = ResourceLocation.tryParse(name);
+                    if (id == null) {
+                        return null;
+                    }
+                    Block block = BuiltInRegistries.BLOCK.getOptional(id).orElse(null);
+                    if (block == null) {
+                        return null;
+                    }
+                    BlockState state = block.defaultBlockState();
+                    if (entry.contains("Properties", Tag.TAG_COMPOUND)) {
+                        CompoundTag props = entry.getCompound("Properties");
+                        var def = block.getStateDefinition();
+                        for (String key : props.getAllKeys()) {
+                            Property<?> prop = def.getProperty(key);
+                            if (prop != null) {
+                                state = applyExtraProperty(state, prop, props.getString(key));
+                            }
+                        }
+                    }
+                    return state;
+                }
+
+                private static <T extends Comparable<T>> BlockState applyExtraProperty(BlockState state,
+                                                                                       Property<T> prop, String value) {
+                    return prop.getValue(value).map(v -> state.setValue(prop, v)).orElse(state);
+                }
+
+                private static List<List<BlockPos>> segmentExtraForAnimation(List<PlacedBlock> blocks, String anim) {
+                    if (blocks.isEmpty()) {
+                        return List.of();
+                    }
+                    String a = anim == null ? "" : anim;
+                    ToIntFunction<BlockPos> layerKey;
+                    ToIntFunction<BlockPos> rowKey;
+                    ToIntFunction<BlockPos> stripKey;
+                    boolean reverseLayer;
+                    switch (a) {
+                        case "down" -> { layerKey = BlockPos::getY; rowKey = BlockPos::getZ; stripKey = BlockPos::getX; reverseLayer = true; }
+                        case "up" -> { layerKey = BlockPos::getY; rowKey = BlockPos::getZ; stripKey = BlockPos::getX; reverseLayer = false; }
+                        case "south" -> { layerKey = BlockPos::getZ; rowKey = BlockPos::getY; stripKey = BlockPos::getX; reverseLayer = false; }
+                        case "north" -> { layerKey = BlockPos::getZ; rowKey = BlockPos::getY; stripKey = BlockPos::getX; reverseLayer = true; }
+                        case "east" -> { layerKey = BlockPos::getX; rowKey = BlockPos::getY; stripKey = BlockPos::getZ; reverseLayer = false; }
+                        case "west" -> { layerKey = BlockPos::getX; rowKey = BlockPos::getY; stripKey = BlockPos::getZ; reverseLayer = true; }
+                        case "simultaneous" -> { layerKey = p -> 0; rowKey = BlockPos::getY; stripKey = BlockPos::getX; reverseLayer = false; }
+                        default -> { layerKey = BlockPos::getY; rowKey = BlockPos::getZ; stripKey = BlockPos::getX; reverseLayer = false; }
+                    }
+                    List<BlockPos> positions = new ArrayList<>(blocks.size());
+                    for (PlacedBlock b : blocks) {
+                        positions.add(b.pos);
+                    }
+                    Comparator<BlockPos> cmp = Comparator
+                        .comparingInt(layerKey)
+                        .thenComparingInt(rowKey)
+                        .thenComparingInt(stripKey);
+                    if (reverseLayer) {
+                        cmp = Comparator.comparingInt(layerKey).reversed()
+                            .thenComparingInt(rowKey)
+                            .thenComparingInt(stripKey);
+                    }
+                    positions.sort(cmp);
+                    List<List<BlockPos>> groups = new ArrayList<>();
+                    List<BlockPos> currentStrip = null;
+                    int curLayer = Integer.MIN_VALUE;
+                    int curRow = Integer.MIN_VALUE;
+                    int curStrip = Integer.MIN_VALUE;
+                    for (BlockPos p : positions) {
+                        int lk = layerKey.applyAsInt(p);
+                        int rk = rowKey.applyAsInt(p);
+                        int sk = stripKey.applyAsInt(p);
+                        boolean breakStrip = currentStrip == null
+                            || lk != curLayer
+                            || rk != curRow
+                            || sk != curStrip + 1;
+                        if (breakStrip) {
+                            currentStrip = new ArrayList<>();
+                            groups.add(currentStrip);
+                            curLayer = lk;
+                            curRow = rk;
+                        }
+                        currentStrip.add(p);
+                        curStrip = sk;
+                    }
+                    return groups;
                 }
             }
             """.formatted(target.generatedPackage);

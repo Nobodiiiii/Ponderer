@@ -599,6 +599,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         return switch (step.type.toLowerCase(Locale.ROOT)) {
             case "show_structure" ->
                 UIText.of("ponderer.ui.step.summary.show_structure", stepTypeName("show_structure"));
+            case "show_extra_structure" -> UIText.of("ponderer.ui.step.summary.single_arg",
+                stepTypeName("show_extra_structure"),
+                step.structure != null && !step.structure.isBlank() ? step.structure : "?");
             case "idle" -> UIText.of("ponderer.ui.step.summary.idle", stepTypeName("idle"), step.durationOrDefault(20),
                 UIText.of("ponderer.ui.ticks"));
             case "text" -> UIText.of("ponderer.ui.step.summary.text", stepTypeName("text"),
