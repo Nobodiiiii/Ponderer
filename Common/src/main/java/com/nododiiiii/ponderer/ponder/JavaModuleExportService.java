@@ -2634,51 +2634,74 @@ public final class JavaModuleExportService {
                         palette[i] = parsePaletteEntry(paletteTag.getCompound(i));
                     }
                     ListTag blocks = root.getList("blocks", Tag.TAG_COMPOUND);
-                    List<BlockPos> rotatedPositions = new ArrayList<>(blocks.size());
-                    List<BlockState> rotatedStates = new ArrayList<>(blocks.size());
-                    List<CompoundTag> blockNbts = new ArrayList<>(blocks.size());
 
-                    int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+                    List<BlockPos> rotatedPositions = new ArrayList<>();
+                    List<BlockState> rotatedStates = new ArrayList<>();
+                    List<CompoundTag> blockNbts = new ArrayList<>();
 
-                    for (int i = 0; i < blocks.size(); i++) {
-                        CompoundTag entry = blocks.getCompound(i);
-                        ListTag pos = entry.getList("pos", Tag.TAG_INT);
-                        if (pos.size() < 3) {
-                            continue;
+                    if (skipAir) {
+                        for (int i = 0; i < blocks.size(); i++) {
+                            CompoundTag entry = blocks.getCompound(i);
+                            BlockPos src = readExtraEntryPos(entry);
+                            if (src == null) continue;
+                            BlockState state = resolveExtraEntryState(entry, palette);
+                            if (state == null || isExtraSkippedBlock(state)) continue;
+                            rotatedPositions.add(src.rotate(rotation));
+                            rotatedStates.add(state.rotate(rotation));
+                            blockNbts.add(readExtraBlockEntityPatch(entry));
                         }
-                        int stateIdx = entry.getInt("state");
-                        if (stateIdx < 0 || stateIdx >= palette.length) {
-                            continue;
+                    } else {
+                        ListTag sizeTag = root.getList("size", Tag.TAG_INT);
+                        if (sizeTag.size() < 3) {
+                            return List.of();
                         }
-                        BlockState state = palette[stateIdx];
-                        if (state == null) {
-                            continue;
+                        int sizeX = sizeTag.getInt(0);
+                        int sizeY = sizeTag.getInt(1);
+                        int sizeZ = sizeTag.getInt(2);
+
+                        Map<Long, CompoundTag> entryByPos = new HashMap<>(blocks.size());
+                        for (int i = 0; i < blocks.size(); i++) {
+                            CompoundTag entry = blocks.getCompound(i);
+                            BlockPos p = readExtraEntryPos(entry);
+                            if (p == null) continue;
+                            entryByPos.put(p.asLong(), entry);
                         }
-                        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-                        if (skipAir && key != null && EXTRA_SKIPPED_BLOCKS.contains(key.toString())) {
-                            continue;
-                        }
-                        BlockPos rotatedPos = new BlockPos(pos.getInt(0), pos.getInt(1), pos.getInt(2)).rotate(rotation);
-                        BlockState rotatedState = state.rotate(rotation);
-                        CompoundTag patch = null;
-                        if (entry.contains("nbt", Tag.TAG_COMPOUND)) {
-                            CompoundTag raw = entry.getCompound("nbt").copy();
-                            for (String absoluteKey : EXTRA_POS_NBT_KEYS) {
-                                raw.remove(absoluteKey);
+
+                        BlockState airState = Blocks.AIR.defaultBlockState();
+                        for (int x = 0; x < sizeX; x++) {
+                            for (int y = 0; y < sizeY; y++) {
+                                for (int z = 0; z < sizeZ; z++) {
+                                    BlockPos src = new BlockPos(x, y, z);
+                                    CompoundTag entry = entryByPos.get(src.asLong());
+                                    BlockState state;
+                                    CompoundTag patch = null;
+                                    if (entry == null) {
+                                        state = airState;
+                                    } else {
+                                        BlockState resolved = resolveExtraEntryState(entry, palette);
+                                        if (resolved == null || isExtraSkippedBlock(resolved)) {
+                                            state = airState;
+                                        } else {
+                                            state = resolved;
+                                            patch = readExtraBlockEntityPatch(entry);
+                                        }
+                                    }
+                                    rotatedPositions.add(src.rotate(rotation));
+                                    rotatedStates.add(state.rotate(rotation));
+                                    blockNbts.add(patch);
+                                }
                             }
-                            if (!raw.isEmpty()) {
-                                patch = raw;
-                            }
                         }
-                        rotatedPositions.add(rotatedPos);
-                        rotatedStates.add(rotatedState);
-                        blockNbts.add(patch);
-                        if (rotatedPos.getX() < minX) minX = rotatedPos.getX();
-                        if (rotatedPos.getY() < minY) minY = rotatedPos.getY();
-                        if (rotatedPos.getZ() < minZ) minZ = rotatedPos.getZ();
                     }
+
                     if (rotatedPositions.isEmpty()) {
                         return List.of();
+                    }
+                    int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+                    for (BlockPos p : rotatedPositions) {
+                        if (p.getX() < minX) minX = p.getX();
+                        if (p.getY() < minY) minY = p.getY();
+                        if (p.getZ() < minZ) minZ = p.getZ();
                     }
                     int offsetX = base.getX() - minX;
                     int offsetY = base.getY() - minY;
@@ -2693,6 +2716,32 @@ public final class JavaModuleExportService {
                         result.add(new PlacedBlock(world, rotatedStates.get(i), blockNbts.get(i)));
                     }
                     return result;
+                }
+
+                private static BlockPos readExtraEntryPos(CompoundTag entry) {
+                    ListTag pos = entry.getList("pos", Tag.TAG_INT);
+                    if (pos.size() < 3) return null;
+                    return new BlockPos(pos.getInt(0), pos.getInt(1), pos.getInt(2));
+                }
+
+                private static BlockState resolveExtraEntryState(CompoundTag entry, BlockState[] palette) {
+                    int stateIdx = entry.getInt("state");
+                    if (stateIdx < 0 || stateIdx >= palette.length) return null;
+                    return palette[stateIdx];
+                }
+
+                private static boolean isExtraSkippedBlock(BlockState state) {
+                    ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+                    return key != null && EXTRA_SKIPPED_BLOCKS.contains(key.toString());
+                }
+
+                private static CompoundTag readExtraBlockEntityPatch(CompoundTag entry) {
+                    if (!entry.contains("nbt", Tag.TAG_COMPOUND)) return null;
+                    CompoundTag raw = entry.getCompound("nbt").copy();
+                    for (String absoluteKey : EXTRA_POS_NBT_KEYS) {
+                        raw.remove(absoluteKey);
+                    }
+                    return raw.isEmpty() ? null : raw;
                 }
 
                 private static BlockState parsePaletteEntry(CompoundTag entry) {

@@ -10,6 +10,7 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
@@ -24,7 +25,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.ToIntFunction;
 import java.util.zip.GZIPInputStream;
@@ -96,65 +99,83 @@ public final class ExtraStructurePlanner {
 
     public static List<PlacedBlock> plan(CompoundTag root, BlockPos base, int rotationDegrees, boolean skipAir) {
         Rotation rotation = toVanillaRotation(rotationDegrees);
-
         BlockState[] palette = parsePalette(root.getList("palette", Tag.TAG_COMPOUND));
         ListTag blocks = root.getList("blocks", Tag.TAG_COMPOUND);
-        if (blocks.isEmpty()) {
-            return List.of();
-        }
 
-        List<BlockPos> rotatedPositions = new ArrayList<>(blocks.size());
-        List<BlockState> rotatedStates = new ArrayList<>(blocks.size());
-        List<CompoundTag> blockNbts = new ArrayList<>(blocks.size());
+        List<BlockPos> rotatedPositions = new ArrayList<>();
+        List<BlockState> rotatedStates = new ArrayList<>();
+        List<CompoundTag> blockNbts = new ArrayList<>();
 
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        if (skipAir) {
+            // Default: only place explicit non-air, non-structure_void entries.
+            for (int i = 0; i < blocks.size(); i++) {
+                CompoundTag entry = blocks.getCompound(i);
+                BlockPos src = readEntryPos(entry);
+                if (src == null) continue;
+                BlockState state = resolveEntryState(entry, palette);
+                if (state == null || isSkippedBlock(state)) continue;
 
-        for (int i = 0; i < blocks.size(); i++) {
-            CompoundTag entry = blocks.getCompound(i);
-            ListTag pos = entry.getList("pos", Tag.TAG_INT);
-            if (pos.size() < 3) {
-                continue;
+                rotatedPositions.add(src.rotate(rotation));
+                rotatedStates.add(state.rotate(rotation));
+                blockNbts.add(readBlockEntityPatch(entry));
             }
-            int stateIdx = entry.getInt("state");
-            if (stateIdx < 0 || stateIdx >= palette.length) {
-                continue;
+        } else {
+            // Replace mode: clear the entire size bounding box. Every cell that isn't an
+            // explicit non-air block becomes minecraft:air (air-family / structure_void /
+            // cells missing from the blocks list).
+            ListTag sizeTag = root.getList("size", Tag.TAG_INT);
+            if (sizeTag.size() < 3) {
+                return List.of();
             }
-            BlockState state = palette[stateIdx];
-            if (state == null) {
-                continue;
-            }
-            ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-            if (skipAir && key != null && SKIPPED_BLOCK_IDS.contains(key.toString())) {
-                continue;
+            int sizeX = sizeTag.getInt(0);
+            int sizeY = sizeTag.getInt(1);
+            int sizeZ = sizeTag.getInt(2);
+
+            Map<Long, CompoundTag> entryByPos = new HashMap<>(blocks.size());
+            for (int i = 0; i < blocks.size(); i++) {
+                CompoundTag entry = blocks.getCompound(i);
+                BlockPos p = readEntryPos(entry);
+                if (p == null) continue;
+                entryByPos.put(p.asLong(), entry);
             }
 
-            BlockPos rotatedPos = new BlockPos(pos.getInt(0), pos.getInt(1), pos.getInt(2)).rotate(rotation);
-            BlockState rotatedState = state.rotate(rotation);
-
-            CompoundTag patch = null;
-            if (entry.contains("nbt", Tag.TAG_COMPOUND)) {
-                CompoundTag raw = entry.getCompound("nbt").copy();
-                for (String absoluteKey : ABSOLUTE_POS_NBT_KEYS) {
-                    raw.remove(absoluteKey);
+            BlockState airState = Blocks.AIR.defaultBlockState();
+            for (int x = 0; x < sizeX; x++) {
+                for (int y = 0; y < sizeY; y++) {
+                    for (int z = 0; z < sizeZ; z++) {
+                        BlockPos src = new BlockPos(x, y, z);
+                        CompoundTag entry = entryByPos.get(src.asLong());
+                        BlockState state;
+                        CompoundTag patch = null;
+                        if (entry == null) {
+                            state = airState;
+                        } else {
+                            BlockState resolved = resolveEntryState(entry, palette);
+                            if (resolved == null || isSkippedBlock(resolved)) {
+                                state = airState;
+                            } else {
+                                state = resolved;
+                                patch = readBlockEntityPatch(entry);
+                            }
+                        }
+                        rotatedPositions.add(src.rotate(rotation));
+                        rotatedStates.add(state.rotate(rotation));
+                        blockNbts.add(patch);
+                    }
                 }
-                if (!raw.isEmpty()) {
-                    patch = raw;
-                }
             }
-
-            rotatedPositions.add(rotatedPos);
-            rotatedStates.add(rotatedState);
-            blockNbts.add(patch);
-
-            if (rotatedPos.getX() < minX) minX = rotatedPos.getX();
-            if (rotatedPos.getY() < minY) minY = rotatedPos.getY();
-            if (rotatedPos.getZ() < minZ) minZ = rotatedPos.getZ();
         }
 
         if (rotatedPositions.isEmpty()) {
             return List.of();
         }
 
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        for (BlockPos p : rotatedPositions) {
+            if (p.getX() < minX) minX = p.getX();
+            if (p.getY() < minY) minY = p.getY();
+            if (p.getZ() < minZ) minZ = p.getZ();
+        }
         int offsetX = base.getX() - minX;
         int offsetY = base.getY() - minY;
         int offsetZ = base.getZ() - minZ;
@@ -170,6 +191,35 @@ public final class ExtraStructurePlanner {
             result.add(new PlacedBlock(world, rotatedStates.get(i), blockNbts.get(i)));
         }
         return result;
+    }
+
+    @Nullable
+    private static BlockPos readEntryPos(CompoundTag entry) {
+        ListTag pos = entry.getList("pos", Tag.TAG_INT);
+        if (pos.size() < 3) return null;
+        return new BlockPos(pos.getInt(0), pos.getInt(1), pos.getInt(2));
+    }
+
+    @Nullable
+    private static BlockState resolveEntryState(CompoundTag entry, BlockState[] palette) {
+        int stateIdx = entry.getInt("state");
+        if (stateIdx < 0 || stateIdx >= palette.length) return null;
+        return palette[stateIdx];
+    }
+
+    private static boolean isSkippedBlock(BlockState state) {
+        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        return key != null && SKIPPED_BLOCK_IDS.contains(key.toString());
+    }
+
+    @Nullable
+    private static CompoundTag readBlockEntityPatch(CompoundTag entry) {
+        if (!entry.contains("nbt", Tag.TAG_COMPOUND)) return null;
+        CompoundTag raw = entry.getCompound("nbt").copy();
+        for (String absoluteKey : ABSOLUTE_POS_NBT_KEYS) {
+            raw.remove(absoluteKey);
+        }
+        return raw.isEmpty() ? null : raw;
     }
 
     private static BlockState[] parsePalette(ListTag paletteTag) {
