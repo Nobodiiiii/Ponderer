@@ -8,7 +8,9 @@ import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.createmod.catnip.gui.ConfirmationScreen;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -49,6 +51,12 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
     private boolean selectedExternal;
     @Nullable
     private String selectedExternalName;
+
+    private final StructurePreviewWidget preview = new StructurePreviewWidget(0, 0, 0, 0);
+    private static final int PREVIEW_WIDTH = 140;
+    private static final int PREVIEW_GAP = 10;
+    private int previewX, previewY, previewW, previewH;
+    private boolean previewVisible;
 
     public StructurePickerScreen(SnapshotReturnContext context,
                                  Map<String, String> formSnapshot,
@@ -92,6 +100,49 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
             discardChanges.withCallback(this::clearSelection);
             discardChanges.getToolTip().clear();
             discardChanges.getToolTip().add(Component.translatable("ponderer.ui.structure_picker.clear_selection"));
+        }
+        layoutPreviewPanel();
+        if (selectedPath != null && !selectedExternal && previewVisible) {
+            preview.load(selectedPath);
+        }
+    }
+
+    private void layoutPreviewPanel() {
+        int listLeft = width / 2 - currentListWidthValue() / 2;
+        int availableLeft = listLeft - PREVIEW_GAP;
+        int desiredWidth = PREVIEW_WIDTH;
+        if (availableLeft < desiredWidth + PREVIEW_GAP) {
+            previewVisible = false;
+            preview.setBounds(0, 0, 0, 0);
+            return;
+        }
+        previewVisible = true;
+        previewW = desiredWidth;
+        previewX = listLeft - PREVIEW_GAP - previewW;
+        previewY = contentAreaTop();
+        previewH = contentAreaHeight();
+        preview.setBounds(previewX, previewY, previewW, previewH);
+    }
+
+    @Override
+    public void resize(Minecraft client, int newWidth, int newHeight) {
+        super.resize(client, newWidth, newHeight);
+        layoutPreviewPanel();
+    }
+
+    @Override
+    public void removed() {
+        super.removed();
+        preview.dispose();
+    }
+
+    @Override
+    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.renderWindow(graphics, mouseX, mouseY, partialTicks);
+        if (previewVisible) {
+            graphics.enableScissor(previewX, previewY, previewX + previewW, previewY + previewH);
+            preview.render(graphics, partialTicks);
+            graphics.disableScissor();
         }
     }
 
@@ -208,13 +259,40 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
         selectedExternal = false;
         selectedExternalName = null;
         rebuildListPreservingScroll();
+        triggerPreviewLoad(file);
     }
 
     private void clearSelection() {
         selectedPath = null;
         selectedExternal = false;
         selectedExternalName = null;
+        preview.clear();
         rebuildListPreservingScroll();
+    }
+
+    private void triggerPreviewLoad(Path file) {
+        if (!previewVisible) return;
+        int count = StructurePreviewWidget.countBlocks(file);
+        if (count <= 0) {
+            preview.setStatus("ponderer.ui.structure_picker.preview.empty");
+            return;
+        }
+        if (count > StructurePreviewWidget.DEFAULT_LARGE_THRESHOLD) {
+            preview.setStatus("ponderer.ui.structure_picker.preview.confirm_pending");
+            new ConfirmationScreen()
+                .centered()
+                .withText(Component.translatable("ponderer.ui.structure_picker.preview.large", count))
+                .withAction(success -> {
+                    if (Boolean.TRUE.equals(success)) {
+                        preview.load(file);
+                    } else {
+                        preview.setStatus("ponderer.ui.structure_picker.preview.skipped");
+                    }
+                })
+                .open(this);
+            return;
+        }
+        preview.load(file);
     }
 
     private boolean confirmSelection() {
@@ -320,24 +398,34 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
     private void applyExternalSelection(Path picked) {
         Path structuresDir = SceneStore.getStructureDir();
         Path schematicsDir = createSchematicsDir();
+        boolean wasExternal;
         if (picked.startsWith(structuresDir)) {
             selectedSource = Source.PONDERER;
             selectedPath = picked;
             selectedExternal = false;
             selectedExternalName = null;
             currentSource = Source.PONDERER;
+            wasExternal = false;
         } else if (picked.startsWith(schematicsDir)) {
             selectedSource = Source.CREATE;
             selectedPath = picked;
             selectedExternal = false;
             selectedExternalName = null;
             currentSource = Source.CREATE;
+            wasExternal = false;
         } else {
             selectedPath = picked;
             selectedExternal = true;
             selectedExternalName = picked.getFileName().toString();
+            wasExternal = true;
         }
         rescanEntries();
         rebuildListAtTop();
+        if (!wasExternal) {
+            triggerPreviewLoad(picked);
+        } else {
+            // External file — still try to preview (read directly, no on-disk path normalization needed).
+            triggerPreviewLoad(picked);
+        }
     }
 }
