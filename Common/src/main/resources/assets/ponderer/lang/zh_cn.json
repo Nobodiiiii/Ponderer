@@ -220,6 +220,8 @@
   "ponderer.ui.show_extra_structure.pos.tooltip": "旋转并过滤空气后包围盒的最小角；整组方块会平移使最低占据格落在此处。",
   "ponderer.ui.show_extra_structure.rotation": "旋转",
   "ponderer.ui.show_extra_structure.rotation.tooltip": "绕 Y 轴顺时针旋转结构与各方块朝向，仅支持 0/90/180/270。",
+  "ponderer.ui.show_extra_structure.replace_air": "替换空气位置",
+  "ponderer.ui.show_extra_structure.replace_air.tooltip": "开启后，结构里的空气格也会覆盖到原场景（清空那些位置上原有的方块）。默认关闭——结构空气格不会影响原场景。",
   "ponderer.ui.show_extra_structure.error.required_structure": "必须填写结构引用",
   "ponderer.ui.show_structure.height": "高度",
   "ponderer.ui.show_structure.height.hint": "自动",

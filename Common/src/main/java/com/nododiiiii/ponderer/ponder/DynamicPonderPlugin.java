@@ -931,10 +931,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
         BlockPos base = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
         int rotationDegrees = step.rotation == null ? 0 : Math.round(step.rotation);
+        boolean skipAir = !Boolean.TRUE.equals(step.replaceAir);
 
         List<ExtraStructurePlanner.PlacedBlock> placed;
         try {
-            placed = ExtraStructurePlanner.plan(file, base, rotationDegrees);
+            placed = ExtraStructurePlanner.plan(file, base, rotationDegrees, skipAir);
         } catch (Exception e) {
             LOGGER.error("show_extra_structure failed to read structure '{}': {}", step.structure, e.getMessage());
             return;

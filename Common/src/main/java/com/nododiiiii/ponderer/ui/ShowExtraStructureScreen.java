@@ -31,6 +31,7 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
 
     private boolean spawnParticles = false;
     private boolean smartDisplay = true;
+    private boolean replaceAir = false;
     private int rotationIndex = 0;
     private int entranceModeIndex = 1;
     private int directionIndex = 0;
@@ -44,6 +45,8 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
         FieldBindings.bool("particles", () -> spawnParticles, value -> spawnParticles = Boolean.TRUE.equals(value));
     private final FieldBinding<Boolean> smartDisplayBinding =
         FieldBindings.bool("smartDisplay", () -> smartDisplay, value -> smartDisplay = Boolean.TRUE.equals(value));
+    private final FieldBinding<Boolean> replaceAirBinding =
+        FieldBindings.bool("replaceAir", () -> replaceAir, value -> replaceAir = Boolean.TRUE.equals(value));
     private final FieldBinding<Integer> rotationBinding =
         FieldBindings.integer("rotation", () -> rotationIndex, value -> rotationIndex = value);
     private final FieldBinding<Integer> entranceModeBinding =
@@ -77,6 +80,7 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
     protected void configureFormState(List<SnapshotParticipant> participants) {
         participants.add(spawnParticlesBinding);
         participants.add(smartDisplayBinding);
+        participants.add(replaceAirBinding);
         participants.add(rotationBinding);
         participants.add(entranceModeBinding);
         participants.add(directionBinding);
@@ -127,6 +131,11 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
             },
             () -> ROTATION_OPTIONS[rotationIndex] + "°",
             () -> 0xFFFFFF));
+
+        entries.add(FieldSpecs.toggle(
+            replaceAirBinding,
+            "ponderer.ui.show_extra_structure.replace_air",
+            "ponderer.ui.show_extra_structure.replace_air.tooltip"));
 
         entries.add(FieldSpecs.cycle(
             entranceModeBinding,
@@ -218,6 +227,9 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
         if (step.smartDisplay != null) {
             smartDisplay = step.smartDisplay;
         }
+        if (step.replaceAir != null) {
+            replaceAir = step.replaceAir;
+        }
         if (step.entranceAnimation != null && !step.entranceAnimation.isBlank()) {
             String normalized = SelectionAnimationOptions.normalizeEntranceAnimation(step.entranceAnimation);
             for (int i = 0; i < SelectionAnimationOptions.ENTRANCE_ANIMATIONS.length; i++) {
@@ -278,6 +290,9 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
         step.type = "show_extra_structure";
         step.blockPos = List.of(px, py, pz);
         step.rotation = (float) ROTATION_OPTIONS[rotationIndex];
+        if (replaceAir) {
+            step.replaceAir = true;
+        }
 
         String entranceMode = ENTRANCE_MODES[entranceModeIndex];
         if ("hidden".equals(entranceMode)) {

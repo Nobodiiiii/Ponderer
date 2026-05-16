@@ -204,6 +204,12 @@ public class DslScene {
         public Boolean whileCTRL;
         public Boolean enableNbt;
         public Boolean fullScene;
+        /**
+         * show_extra_structure only: when true, air-family blocks in the structure also
+         * overwrite the corresponding scene cells (cleared with air). Default false — air
+         * positions leave the existing scene untouched.
+         */
+        public Boolean replaceAir;
         public List<InterfaceSlotBinding> interfaceSlots;
 
         public int durationOrDefault(int fallback) {

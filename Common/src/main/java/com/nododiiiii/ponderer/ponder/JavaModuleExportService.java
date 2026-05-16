@@ -1187,6 +1187,7 @@ public final class JavaModuleExportService {
                     .append(resourceLocationExpr(resId)).append(", ")
                     .append(blockPosExpr(step.blockPos)).append(", ")
                     .append(rotationDegrees).append(", ")
+                    .append(Boolean.TRUE.equals(step.replaceAir)).append(", ")
                     .append(boolExpr(step.immediateDisplay)).append(", ")
                     .append(boolExpr(step.spawnParticles)).append(", ")
                     .append(stringExpr(step.entranceAnimation)).append(", ")
@@ -2424,7 +2425,7 @@ public final class JavaModuleExportService {
                 }
 
                 public static void showExtraStructure(SceneBuilder scene, Context context, ResourceLocation structureAssetId,
-                                                      BlockPos base, int rotationDegrees,
+                                                      BlockPos base, int rotationDegrees, boolean replaceAir,
                                                       Boolean immediateDisplayFlag, Boolean spawnParticlesFlag,
                                                       String entranceAnimation, Integer entranceDuration,
                                                       Integer entranceInterval, Boolean smartDisplayFlag,
@@ -2449,7 +2450,7 @@ public final class JavaModuleExportService {
                         return;
                     }
 
-                    List<PlacedBlock> placed = planExtraStructure(root, base, rotationDegrees);
+                    List<PlacedBlock> placed = planExtraStructure(root, base, rotationDegrees, !replaceAir);
                     if (placed.isEmpty()) {
                         return;
                     }
@@ -2625,7 +2626,7 @@ public final class JavaModuleExportService {
                     };
                 }
 
-                private static List<PlacedBlock> planExtraStructure(CompoundTag root, BlockPos base, int rotationDegrees) {
+                private static List<PlacedBlock> planExtraStructure(CompoundTag root, BlockPos base, int rotationDegrees, boolean skipAir) {
                     Rotation rotation = toExtraRotation(rotationDegrees);
                     ListTag paletteTag = root.getList("palette", Tag.TAG_COMPOUND);
                     BlockState[] palette = new BlockState[paletteTag.size()];
@@ -2654,7 +2655,7 @@ public final class JavaModuleExportService {
                             continue;
                         }
                         ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-                        if (key != null && EXTRA_SKIPPED_BLOCKS.contains(key.toString())) {
+                        if (skipAir && key != null && EXTRA_SKIPPED_BLOCKS.contains(key.toString())) {
                             continue;
                         }
                         BlockPos rotatedPos = new BlockPos(pos.getInt(0), pos.getInt(1), pos.getInt(2)).rotate(rotation);

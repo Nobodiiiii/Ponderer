@@ -76,6 +76,10 @@ public final class ExtraStructurePlanner {
     }
 
     public static List<PlacedBlock> plan(Path nbtFile, BlockPos base, int rotationDegrees) throws IOException {
+        return plan(nbtFile, base, rotationDegrees, true);
+    }
+
+    public static List<PlacedBlock> plan(Path nbtFile, BlockPos base, int rotationDegrees, boolean skipAir) throws IOException {
         CompoundTag root;
         try (InputStream is = Files.newInputStream(nbtFile)) {
             root = NbtIo.read(
@@ -83,10 +87,14 @@ public final class ExtraStructurePlanner {
                 new NbtAccounter(0x20000000L)
             );
         }
-        return plan(root, base, rotationDegrees);
+        return plan(root, base, rotationDegrees, skipAir);
     }
 
     public static List<PlacedBlock> plan(CompoundTag root, BlockPos base, int rotationDegrees) {
+        return plan(root, base, rotationDegrees, true);
+    }
+
+    public static List<PlacedBlock> plan(CompoundTag root, BlockPos base, int rotationDegrees, boolean skipAir) {
         Rotation rotation = toVanillaRotation(rotationDegrees);
 
         BlockState[] palette = parsePalette(root.getList("palette", Tag.TAG_COMPOUND));
@@ -116,7 +124,7 @@ public final class ExtraStructurePlanner {
                 continue;
             }
             ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-            if (key != null && SKIPPED_BLOCK_IDS.contains(key.toString())) {
+            if (skipAir && key != null && SKIPPED_BLOCK_IDS.contains(key.toString())) {
                 continue;
             }
 
