@@ -2469,11 +2469,17 @@ public final class JavaModuleExportService {
                     BlockPos maxCorner = new BlockPos(maxX, maxY, maxZ);
 
                     String anim = normalizeEntranceAnimation(entranceAnimation);
-                    boolean animatedMode = anim != null && !"none".equals(anim);
-                    boolean immediate = !animatedMode && !Boolean.FALSE.equals(immediateDisplayFlag);
-                    boolean particles = immediate && !Boolean.FALSE.equals(spawnParticlesFlag);
+                    boolean simultaneous = "simultaneous".equals(anim);
+                    boolean directional = anim != null && !"none".equals(anim) && !simultaneous;
+                    boolean animatedReveal = simultaneous || directional;
+                    boolean placeVisible = !animatedReveal && !Boolean.FALSE.equals(immediateDisplayFlag);
+                    boolean particles = placeVisible && !Boolean.FALSE.equals(spawnParticlesFlag);
 
-                    ensureSceneCanShowRange(scene, minCorner, maxCorner, immediate);
+                    // Air-free strip decomposition shared between base-section ensure and the
+                    // simultaneous reveal path.
+                    List<List<BlockPos>> placedStrips = segmentExtraForAnimation(placed, "up");
+
+                    ensureSceneCanShowExtra(scene, minCorner, maxCorner, placedStrips, placeVisible);
 
                     for (PlacedBlock b : placed) {
                         scene.world().setBlock(b.pos, b.state, particles);
@@ -2483,9 +2489,9 @@ public final class JavaModuleExportService {
                             scene.world().modifyBlockEntityNBT(sel, BlockEntity.class, nbt -> nbt.merge(patch.copy()), true);
                         }
                     }
-                    applyExtraPlacedVisibility(context, placed, immediate);
+                    applyExtraPlacedVisibility(context, placed, placeVisible);
 
-                    if (!animatedMode) {
+                    if (!animatedReveal) {
                         return;
                     }
 
@@ -2498,15 +2504,23 @@ public final class JavaModuleExportService {
                     int rowInterval = entranceInterval == null ? 1 : Math.max(0, entranceInterval);
                     boolean smartDisplay = !Boolean.FALSE.equals(smartDisplayFlag);
 
-                    List<List<BlockPos>> groups = segmentExtraForAnimation(placed, anim);
-                    if (smartDisplay) {
-                        groups = filterVisibleGroups(groups, context);
+                    List<List<BlockPos>> revealGroups;
+                    int revealInterval;
+                    if (simultaneous) {
+                        revealGroups = placedStrips;
+                        revealInterval = 0;
+                    } else {
+                        revealGroups = segmentExtraForAnimation(placed, anim);
+                        revealInterval = rowInterval;
                     }
-                    if (groups.isEmpty()) {
+                    if (smartDisplay) {
+                        revealGroups = filterVisibleGroups(revealGroups, context);
+                    }
+                    if (revealGroups.isEmpty()) {
                         return;
                     }
                     ElementLink<WorldSectionElement> working = context.sectionLinks.get(linkId);
-                    for (List<BlockPos> group : groups) {
+                    for (List<BlockPos> group : revealGroups) {
                         if (group.isEmpty()) {
                             continue;
                         }
@@ -2522,9 +2536,64 @@ public final class JavaModuleExportService {
                             scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection,
                                 () -> scene.getScene().resolve(target)));
                         }
-                        scene.idle(rowInterval);
+                        if (revealInterval > 0) {
+                            scene.idle(revealInterval);
+                        }
                     }
                     applyExtraPlacedVisibility(context, placed, true);
+                }
+
+                private static void ensureSceneCanShowExtra(SceneBuilder scene, BlockPos minCorner, BlockPos maxCorner,
+                                                            List<List<BlockPos>> placedStrips, boolean forceVisibleNow) {
+                    List<int[]> stripBounds = new ArrayList<>(placedStrips.size());
+                    for (List<BlockPos> strip : placedStrips) {
+                        if (strip.isEmpty()) {
+                            continue;
+                        }
+                        BlockPos first = strip.get(0);
+                        int sxMin = first.getX(), syMin = first.getY(), szMin = first.getZ();
+                        int sxMax = sxMin, syMax = syMin, szMax = szMin;
+                        for (int i = 1; i < strip.size(); i++) {
+                            BlockPos p = strip.get(i);
+                            if (p.getX() < sxMin) sxMin = p.getX();
+                            if (p.getX() > sxMax) sxMax = p.getX();
+                            if (p.getY() < syMin) syMin = p.getY();
+                            if (p.getY() > syMax) syMax = p.getY();
+                            if (p.getZ() < szMin) szMin = p.getZ();
+                            if (p.getZ() > szMax) szMax = p.getZ();
+                        }
+                        stripBounds.add(new int[]{sxMin, syMin, szMin, sxMax, syMax, szMax});
+                    }
+                    BlockPos minCornerCaptured = minCorner;
+                    BlockPos maxCornerCaptured = maxCorner;
+                    scene.addInstruction(ps -> {
+                        ps.getWorld().getBounds().encapsulate(minCornerCaptured);
+                        ps.getWorld().getBounds().encapsulate(maxCornerCaptured);
+                        if (!forceVisibleNow) {
+                            if (!ps.getBaseWorldSection().isEmpty()) {
+                                for (int[] b : stripBounds) {
+                                    Selection sel = ps.getSceneBuildingUtil().select().fromTo(
+                                        b[0], b[1], b[2], b[3], b[4], b[5]);
+                                    ps.getBaseWorldSection().erase(sel);
+                                }
+                                ps.getBaseWorldSection().queueRedraw();
+                            }
+                            return;
+                        }
+                        if (ps.getBaseWorldSection().isEmpty()) {
+                            Selection all = ps.getSceneBuildingUtil().select().everywhere();
+                            ps.getBaseWorldSection().set(all);
+                            ps.getBaseWorldSection().setVisible(true);
+                            ps.getBaseWorldSection().setFade(1);
+                        } else {
+                            for (int[] b : stripBounds) {
+                                Selection sel = ps.getSceneBuildingUtil().select().fromTo(
+                                    b[0], b[1], b[2], b[3], b[4], b[5]);
+                                ps.getBaseWorldSection().add(sel);
+                            }
+                        }
+                        ps.getBaseWorldSection().queueRedraw();
+                    });
                 }
 
                 private static void applyExtraPlacedVisibility(Context context, List<PlacedBlock> placed, boolean visible) {

@@ -299,7 +299,7 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
                 step.linkId = linkId;
             }
             String entranceAnimation = SelectionAnimationOptions.ENTRANCE_ANIMATIONS[entranceAnimationIndex];
-            step.entranceAnimation = "none".equals(entranceAnimation) ? "down" : entranceAnimation;
+            step.entranceAnimation = entranceAnimation;
             step.entranceDuration = Math.max(0, parseIntOr(durationField.getValue(), 20));
             step.entranceInterval = Math.max(0, parseIntOr(intervalField.getValue(), 1));
             step.smartDisplay = smartDisplay;
