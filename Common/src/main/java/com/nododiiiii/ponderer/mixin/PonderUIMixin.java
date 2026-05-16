@@ -22,6 +22,7 @@ import com.nododiiiii.ponderer.ui.UIText;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import org.joml.Matrix4f;
 import net.createmod.ponder.foundation.PonderScene;
@@ -46,6 +47,7 @@ import org.spongepowered.asm.mixin.Unique;
 import java.util.List;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -620,6 +622,41 @@ public abstract class PonderUIMixin extends Screen {
         Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
         projection.translate(0, 0, 400);
         RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
+    }
+
+    /**
+     * Fix the "vertical-line cut through the scene midline" bug that surfaces in PonderUI when
+     * scenes are zoomed/translated to extreme values (and in any 3D content rendered over the
+     * GUI in general).
+     *
+     * Root cause: PonderUI pairs {@code matrix4f.translate(0,0,800)} (projection) with
+     * {@code poseStack.translate(0,0,-800)} (pose). The +800/-800 *cancel out* in clip space —
+     * the net depth of the scene is identical to no-translate-at-all. With Mojang's 1.20.1 GUI
+     * ortho (zNear=1000, zFar=11000) and the implicit ModelView z-translate of -10000, this lands
+     * the scene at NDC z ≈ 0.76, which is right next to GUI widgets / panel backgrounds drawn at
+     * pose z = 0 (NDC z = 0.8). LEQUAL depth tests then tie-fail for half the fragments,
+     * producing the characteristic "midline cut" — also visible inside Ponder itself at extreme
+     * zoom/move.
+     *
+     * Fix: override just the pose translate, keep the projection translate alone. With pose-z
+     * pushed to +5000, the scene lands at NDC z ≈ -0.4 — well separated from anything at pose z=0
+     * (NDC 0.8), and still solidly inside [-1, +1] even after the scene's own scale/rotation
+     * extents.
+     *
+     * Ordinal 0 targets the first {@code PoseStack.translate(F,F,F)} call inside
+     * {@code renderScene} (line 632 in upstream Ponder 1.20.1 sources, offset 140 in 1.0.92
+     * bytecode). There is only one {@code renderScene} declaration in PonderUI, so the bare
+     * method name is unambiguous and avoids depending on cross-loader signature remapping of
+     * {@code GuiGraphics}.
+     */
+    @Redirect(method = "renderScene",
+        at = @At(value = "INVOKE",
+            target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(FFF)V",
+            ordinal = 0,
+            remap = true),
+        remap = false)
+    private void ponderer$liftSceneOutOfBackgroundDepth(PoseStack ps, float x, float y, float z) {
+        ps.translate(x, y, 5000.0f);
     }
 
     @Inject(method = "renderOverlay", at = @At("RETURN"), remap = false)
