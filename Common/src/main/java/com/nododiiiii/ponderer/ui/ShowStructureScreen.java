@@ -7,17 +7,13 @@ import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import org.lwjgl.PointerBuffer;
 
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.CompletableFuture;
 
 /** Editor for "show_structure" step - optional height and optional structure reference. */
 public class ShowStructureScreen extends AbstractStepEditorScreen {
@@ -97,60 +93,11 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     }
 
     private void openFilePicker() {
-        Path structuresDir = SceneStore.getStructureDir();
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                String defaultPath = Files.exists(structuresDir)
-                    ? structuresDir.toAbsolutePath().toString() + java.io.File.separator
-                    : null;
-                MemoryStack stack = MemoryStack.stackPush();
-                try {
-                    PointerBuffer filters = stack.mallocPointer(1);
-                    filters.put(stack.UTF8("*.nbt"));
-                    filters.flip();
-                    return TinyFileDialogs.tinyfd_openFileDialog(
-                        UIText.of("ponderer.ui.show_structure.browse"),
-                        defaultPath,
-                        filters,
-                        "NBT files (*.nbt)",
-                        false
-                    );
-                } finally {
-                    stack.pop();
-                }
-            } catch (Exception e) {
-                return null;
-            }
-        }).thenAcceptAsync(result -> {
-            if (result == null) return;
-            Path selected = Path.of(result);
-            if (selected.startsWith(structuresDir)) {
-                Path relative = structuresDir.relativize(selected);
-                String refPath = relative.toString().replace('\\', '/');
-                if (refPath.toLowerCase().endsWith(".nbt")) {
-                    refPath = refPath.substring(0, refPath.length() - 4);
-                }
-                structureField.setValue("ponderer:" + refPath);
-            } else {
-                String fileName = selected.getFileName().toString();
-                if (fileName.toLowerCase().endsWith(".nbt")) {
-                    fileName = fileName.substring(0, fileName.length() - 4);
-                }
-                fileName = SafePaths.sanitizeWindowsFileName(fileName, "structure");
-                Path target = SafePaths.resolveFileName(structuresDir, fileName + ".nbt");
-                if (target == null) {
-                    setErrorMessage(UIText.of("ponderer.ui.show_structure.structure.error.copy_failed"));
-                    return;
-                }
-                try {
-                    Files.createDirectories(target.getParent());
-                    Files.copy(selected, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    structureField.setValue("ponderer:" + fileName);
-                } catch (Exception e) {
-                    setErrorMessage(UIText.of("ponderer.ui.show_structure.structure.error.copy_failed"));
-                }
-            }
-        }, Minecraft.getInstance());
+        Minecraft.getInstance().setScreen(new StructurePickerScreen(
+            createReturnContext(),
+            snapshotForm(),
+            "structure",
+            structureField.getValue()));
     }
 
     @Override

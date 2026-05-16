@@ -1,0 +1,1489 @@
+package ${PACKAGE};
+
+import com.mojang.logging.LogUtils;
+import net.createmod.catnip.math.Pointing;
+import net.createmod.ponder.api.PonderPalette;
+import net.createmod.ponder.api.element.ElementLink;
+import net.createmod.ponder.api.element.InputElementBuilder;
+import net.createmod.ponder.api.element.TextElementBuilder;
+import net.createmod.ponder.api.element.WorldSectionElement;
+import net.createmod.ponder.api.scene.SceneBuilder;
+import net.createmod.ponder.api.scene.Selection;
+import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstruction;
+import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.commands.arguments.EntityAnchorArgument;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
+import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.ToIntFunction;
+import java.util.zip.GZIPInputStream;
+
+public final class GeneratedPonderSupport {
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    public static final class Context {
+        final Map<String, ElementLink<WorldSectionElement>> sectionLinks = new HashMap<>();
+        final Set<Long> visibleBlockKeys = new HashSet<>();
+        final Set<Long> hiddenBlockKeys = new HashSet<>();
+        boolean allBlocksVisible;
+    }
+
+    private GeneratedPonderSupport() {
+    }
+
+    public static void showStructure(SceneBuilder scene, Context context, BlockPos pos1, BlockPos pos2,
+                                     Float scale, Float rotation) {
+        Selection selection;
+        boolean everywhere;
+        if (pos1 != null) {
+            selection = pos2 == null
+                ? scene.getScene().getSceneBuildingUtil().select().position(pos1)
+                : scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+            everywhere = false;
+        } else {
+            selection = scene.getScene().getSceneBuildingUtil().select().everywhere();
+            everywhere = true;
+        }
+        scene.world().showSection(selection, Direction.UP);
+        if (everywhere) {
+            context.allBlocksVisible = true;
+            context.visibleBlockKeys.clear();
+            context.hiddenBlockKeys.clear();
+        } else {
+            updateVisibleRange(context, pos1, pos2, true);
+        }
+        if (scale != null) {
+            scene.scaleSceneView(scale);
+        }
+        float rotationOffset = rotation == null ? 0f : rotation;
+        if (rotationOffset != 0f) {
+            scene.addInstruction(ps -> {
+                var yRotation = ps.getTransform().yRotation;
+                float target = yRotation.getChaseTarget() + rotationOffset;
+                yRotation.startWithValue(target);
+            });
+        }
+    }
+
+    public static void showText(SceneBuilder scene, String text, Vec3 point, int duration,
+                                String color, boolean placeNearTarget) {
+        TextElementBuilder builder = scene.overlay()
+            .showText(duration)
+            .text(text == null ? "" : text);
+        if (point != null) {
+            builder.pointAt(point);
+        }
+        PonderPalette palette = parsePalette(color);
+        if (palette != null) {
+            builder.colored(palette);
+        }
+        if (placeNearTarget) {
+            builder.placeNearTarget();
+        }
+    }
+
+    public static void createEntity(SceneBuilder scene, String entityId, Vec3 pos, Vec3 lookAt,
+                                    Float yaw, Float pitch, String nbt) {
+        ResourceLocation loc = entityId == null ? null : ResourceLocation.tryParse(entityId);
+        if (loc == null) {
+            return;
+        }
+        scene.world().createEntity((Level level) -> {
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(loc).orElse(null);
+            if (type == null) {
+                return null;
+            }
+            Entity entity = type.create(level);
+            if (entity == null) {
+                return null;
+            }
+            entity.setPosRaw(pos.x, pos.y, pos.z);
+            entity.setOldPosAndRot();
+            Vec3 targetLook = lookAt == null ? pos.add(0, 0, -1) : lookAt;
+            entity.lookAt(EntityAnchorArgument.Anchor.FEET, targetLook);
+            if (yaw != null) {
+                entity.setYRot(yaw);
+                entity.setYHeadRot(yaw);
+                entity.setYBodyRot(yaw);
+            }
+            if (pitch != null) {
+                entity.setXRot(pitch);
+            }
+            if (entity instanceof Mob mob) {
+                mob.setNoAi(true);
+            }
+            entity.setNoGravity(true);
+            entity.setDeltaMovement(Vec3.ZERO);
+            if (nbt != null && !nbt.isBlank()) {
+                try {
+                    CompoundTag patch = TagParser.parseTag(nbt);
+                    CompoundTag data = new CompoundTag();
+                    entity.saveWithoutId(data);
+                    data.merge(patch);
+                    entity.load(data);
+                } catch (Exception ignored) {
+                }
+            }
+            return entity;
+        });
+    }
+
+    public static void createItemEntity(SceneBuilder scene, String itemId, int count, Vec3 pos,
+                                        Vec3 motion, String nbt) {
+        ResourceLocation loc = itemId == null ? null : ResourceLocation.tryParse(itemId);
+        Item item = loc == null ? null : BuiltInRegistries.ITEM.getOptional(loc).orElse(null);
+        if (item == null) {
+            return;
+        }
+        CompoundTag patch = null;
+        if (nbt != null && !nbt.isBlank()) {
+            try {
+                patch = TagParser.parseTag(nbt);
+            } catch (Exception ignored) {
+            }
+        }
+        CompoundTag finalPatch = patch;
+        scene.world().createEntity((Level level) -> {
+            ItemStack stack = new ItemStack(item, Math.max(1, count));
+            if (finalPatch != null) {
+                stack = applyPatchToItemStack(stack, finalPatch);
+            }
+            ItemEntity entity = new ItemEntity(level, pos.x, pos.y, pos.z, stack);
+            entity.setDeltaMovement(motion);
+            if (finalPatch != null && isLikelyEntityPatch(finalPatch)) {
+                mergeEntityNbt(entity, finalPatch);
+            }
+            return entity;
+        });
+    }
+
+    public static void rotateCameraY(SceneBuilder scene, float degrees, int duration) {
+        scene.addInstruction(ponderScene -> {
+            var yRotation = ponderScene.getTransform().yRotation;
+            float target = yRotation.getChaseTarget() + degrees;
+            if (duration == 0) {
+                yRotation.startWithValue(target);
+            } else {
+                yRotation.chaseTimed(target, duration);
+            }
+        });
+        if (duration > 0) {
+            scene.idle(duration);
+        }
+    }
+
+    public static void highlightSection(SceneBuilder scene, String color, BlockPos pos1, BlockPos pos2,
+                                        int duration) {
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        PonderPalette palette = parsePalette(color);
+        if (palette == null) {
+            palette = PonderPalette.BLUE;
+        }
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        scene.overlay().showOutline(palette, new Object(), selection, duration);
+    }
+
+    public static void showControls(SceneBuilder scene, Vec3 point, String direction, int duration,
+                                    String action, String itemSpec, String nbt,
+                                    boolean whileSneaking, boolean whileCtrl) {
+        InputElementBuilder builder = scene.overlay().showControls(point, parsePointing(direction), duration);
+        String normalizedAction = action == null ? "" : action.toLowerCase(Locale.ROOT);
+        switch (normalizedAction) {
+            case "left" -> builder.leftClick();
+            case "right" -> builder.rightClick();
+            case "scroll" -> builder.scroll();
+            default -> {
+            }
+        }
+        if (itemSpec != null && !itemSpec.isBlank()) {
+            ItemStack stack = parseItemStackSpec(itemSpec, nbt);
+            if (stack != null) {
+                builder.withItem(stack);
+            }
+        }
+        if (whileSneaking) {
+            builder.whileSneaking();
+        }
+        if (whileCtrl) {
+            builder.whileCTRL();
+        }
+    }
+
+    public static void encapsulateBounds(SceneBuilder scene, BlockPos size) {
+        scene.addInstruction(ps -> ps.getWorld().getBounds().encapsulate(size));
+    }
+
+    public static void playSound(SceneBuilder scene, String soundId, float volume, float pitch, String source) {
+        ResourceLocation loc = soundId == null ? null : ResourceLocation.tryParse(soundId);
+        if (loc == null) {
+            return;
+        }
+        SoundEvent sound = BuiltInRegistries.SOUND_EVENT.getOptional(loc).orElse(null);
+        if (sound == null) {
+            return;
+        }
+        SoundSource soundSource = parseSoundSource(source);
+        scene.addInstruction(ps -> {
+            if (Minecraft.getInstance().player == null) {
+                return;
+            }
+            var instance = new SimpleSoundInstance(
+                sound,
+                soundSource,
+                volume,
+                pitch,
+                SoundInstance.createUnseededRandom(),
+                Minecraft.getInstance().player.blockPosition());
+            Minecraft.getInstance().getSoundManager().play(instance);
+        });
+    }
+
+    public static void setBlock(SceneBuilder scene, Context context, String blockId,
+                                Map<String, String> blockProperties, BlockPos pos1, BlockPos pos2,
+                                String nbt, Boolean immediateDisplay, Boolean spawnParticles,
+                                String entranceAnimation, Integer entranceDuration, Integer entranceInterval,
+                                Boolean smartDisplay, String linkId, String direction) {
+        ResourceLocation loc = blockId == null ? null : ResourceLocation.tryParse(blockId);
+        Block block = loc == null ? null : BuiltInRegistries.BLOCK.getOptional(loc).orElse(null);
+        if (block == null || pos1 == null) {
+            return;
+        }
+        BlockState state = applyBlockProperties(block.defaultBlockState(), blockProperties);
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        boolean immediate = !Boolean.FALSE.equals(immediateDisplay);
+        boolean particles = immediate && !Boolean.FALSE.equals(spawnParticles);
+        String normalizedAnimation = normalizeEntranceAnimation(entranceAnimation);
+        if (normalizedAnimation != null && !"none".equals(normalizedAnimation)) {
+            applyAnimatedSetBlock(scene, context, state, pos1, targetPos2, nbt,
+                normalizedAnimation, entranceDuration, entranceInterval, smartDisplay, linkId, direction);
+            return;
+        }
+        ensureSceneCanShowRange(scene, pos1, targetPos2, immediate);
+        updateVisibleRange(context, pos1, targetPos2, immediate);
+        if (!pos1.equals(targetPos2)) {
+            Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+            scene.world().setBlocks(selection, state, particles);
+            applySetBlockNbtPatch(scene, nbt, selection);
+        } else {
+            scene.world().setBlock(pos1, state, particles);
+            applySetBlockNbtPatch(scene, nbt, scene.getScene().getSceneBuildingUtil().select().position(pos1));
+        }
+    }
+
+    public static void destroyBlock(SceneBuilder scene, Context context, BlockPos pos, Boolean destroyParticles) {
+        if (pos == null) {
+            return;
+        }
+        boolean particles = !Boolean.FALSE.equals(destroyParticles);
+        if (particles) {
+            scene.world().destroyBlock(pos);
+        } else {
+            scene.world().setBlock(pos, Blocks.AIR.defaultBlockState(), false);
+        }
+        updateVisibleRange(context, pos, pos, false);
+    }
+
+    public static void replaceBlocks(SceneBuilder scene, Context context, String blockId,
+                                     Map<String, String> blockProperties, BlockPos pos1, BlockPos pos2,
+                                     Boolean spawnParticles) {
+        ResourceLocation loc = blockId == null ? null : ResourceLocation.tryParse(blockId);
+        Block block = loc == null ? null : BuiltInRegistries.BLOCK.getOptional(loc).orElse(null);
+        if (block == null || pos1 == null) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        ensureSceneCanShowRange(scene, pos1, targetPos2, true);
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        scene.world().replaceBlocks(selection, applyBlockProperties(block.defaultBlockState(), blockProperties),
+            !Boolean.FALSE.equals(spawnParticles));
+        updateVisibleRange(context, pos1, targetPos2, true);
+    }
+
+    public static void hideSection(SceneBuilder scene, Context context, BlockPos pos1, BlockPos pos2,
+                                   int duration, String directionRaw) {
+        if (pos1 == null) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        updateVisibleRange(context, pos1, targetPos2, false);
+        final Selection hiddenSelection = selection;
+        final List<ElementLink<WorldSectionElement>> existingSectionLinks =
+            new ArrayList<>(context.sectionLinks.values());
+        scene.addInstruction(ps -> {
+            if (ps.getBaseWorldSection().isEmpty()) {
+                Selection all = ps.getSceneBuildingUtil().select().everywhere();
+                ps.getBaseWorldSection().set(all);
+                ps.getBaseWorldSection().setVisible(true);
+                ps.getBaseWorldSection().setFade(1);
+                ps.getBaseWorldSection().queueRedraw();
+            }
+            for (ElementLink<WorldSectionElement> existing : existingSectionLinks) {
+                WorldSectionElement section = ps.resolve(existing);
+                if (section != null) {
+                    section.erase(hiddenSelection);
+                }
+            }
+        });
+        Direction direction = parseDirection(directionRaw);
+        ElementLink<WorldSectionElement> link = scene.world().makeSectionIndependent(selection);
+        if (duration <= 0) {
+            scene.addInstruction(ps -> {
+                WorldSectionElement element = ps.resolve(link);
+                if (element != null) {
+                    element.setVisible(false);
+                    element.setFade(0);
+                }
+            });
+            return;
+        }
+        if (duration == 15) {
+            scene.world().hideIndependentSection(link, direction);
+            return;
+        }
+        scene.addInstruction(new FadeOutOfSceneInstruction<>(duration, direction, link));
+    }
+
+    public static void showSectionAndMerge(SceneBuilder scene, Context context, BlockPos pos1, BlockPos pos2,
+                                           String linkId, int duration, String directionRaw,
+                                           String entranceAnimation, Integer entranceDuration,
+                                           Integer entranceInterval, Boolean smartDisplay) {
+        if (pos1 == null) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        String key = linkId == null ? "" : linkId.trim();
+        if (key.isEmpty()) {
+            key = autoLinkId(context);
+        }
+        Direction direction = parseDirection(directionRaw);
+        ElementLink<WorldSectionElement> existing = context.sectionLinks.get(key);
+        String normalizedAnimation = normalizeEntranceAnimation(entranceAnimation);
+        if ("none".equals(normalizedAnimation)) {
+            duration = 0;
+        }
+        if (normalizedAnimation != null && !"none".equals(normalizedAnimation)) {
+            int rowDuration = entranceDuration == null ? 20 : Math.max(0, entranceDuration);
+            int rowInterval = entranceInterval == null ? 1 : Math.max(0, entranceInterval);
+            applyAnimatedShowSectionAndMerge(scene, context, key, existing, pos1, targetPos2,
+                normalizedAnimation, direction, rowDuration, rowInterval, !Boolean.FALSE.equals(smartDisplay));
+            updateVisibleRange(context, pos1, targetPos2, true);
+            return;
+        }
+        if (existing == null) {
+            ElementLink<WorldSectionElement> created;
+            if (duration <= 0) {
+                created = scene.world().showIndependentSectionImmediately(selection);
+            } else if (duration == 15) {
+                created = scene.world().showIndependentSection(selection, direction);
+            } else {
+                DisplayWorldSectionInstruction instruction =
+                    new DisplayWorldSectionInstruction(duration, direction, selection, null);
+                scene.addInstruction(instruction);
+                created = instruction.createLink(scene.getScene());
+            }
+            context.sectionLinks.put(key, created);
+            updateVisibleRange(context, pos1, targetPos2, true);
+            return;
+        }
+        if (duration <= 0) {
+            ElementLink<WorldSectionElement> target = existing;
+            scene.addInstruction(ps -> {
+                WorldSectionElement element = ps.resolve(target);
+                if (element != null) {
+                    element.add(selection);
+                    element.queueRedraw();
+                }
+            });
+            updateVisibleRange(context, pos1, targetPos2, true);
+            return;
+        }
+        if (duration == 15) {
+            scene.world().showSectionAndMerge(selection, direction, existing);
+            updateVisibleRange(context, pos1, targetPos2, true);
+            return;
+        }
+        scene.addInstruction(new DisplayWorldSectionInstruction(duration, direction, selection,
+            () -> scene.getScene().resolve(existing)));
+        updateVisibleRange(context, pos1, targetPos2, true);
+    }
+
+    public static void rotateSection(SceneBuilder scene, Context context, String linkId,
+                                     BlockPos pos1, BlockPos pos2,
+                                     double rotX, double rotY, double rotZ, int duration) {
+        ElementLink<WorldSectionElement> link = resolveSectionLink(scene, context, linkId, pos1, pos2);
+        if (link != null) {
+            scene.world().rotateSection(link, rotX, rotY, rotZ, duration);
+        }
+    }
+
+    public static void moveSection(SceneBuilder scene, Context context, String linkId,
+                                   BlockPos pos1, BlockPos pos2, Vec3 offset, int duration) {
+        ElementLink<WorldSectionElement> link = resolveSectionLink(scene, context, linkId, pos1, pos2);
+        if (link != null) {
+            scene.world().moveSection(link, offset, duration);
+        }
+    }
+
+    public static void toggleRedstonePower(SceneBuilder scene, BlockPos pos1, BlockPos pos2) {
+        if (pos1 == null) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        scene.world().toggleRedstonePower(scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2));
+    }
+
+    public static void modifyBlockEntity(SceneBuilder scene, Map<String, String> blockProperties, String nbt,
+                                         Boolean redraw, BlockPos pos1, BlockPos pos2) {
+        if (pos1 == null) {
+            return;
+        }
+        boolean hasProps = blockProperties != null && !blockProperties.isEmpty();
+        boolean hasNbt = nbt != null && !nbt.isBlank();
+        if (!hasProps && !hasNbt) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        if (hasProps) {
+            for (BlockPos cursor : BlockPos.betweenClosed(pos1, targetPos2)) {
+                BlockPos target = cursor.immutable();
+                scene.world().modifyBlock(target, state -> applyBlockProperties(state, blockProperties), false);
+            }
+        }
+        if (hasNbt) {
+            try {
+                CompoundTag patch = TagParser.parseTag(nbt);
+                scene.world().modifyBlockEntityNBT(selection, BlockEntity.class,
+                    data -> data.merge(patch.copy()), Boolean.TRUE.equals(redraw));
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    public static void indicateRedstone(SceneBuilder scene, BlockPos pos) {
+        if (pos != null) {
+            scene.effects().indicateRedstone(pos);
+        }
+    }
+
+    public static void indicateSuccess(SceneBuilder scene, BlockPos pos) {
+        if (pos != null) {
+            scene.effects().indicateSuccess(pos);
+        }
+    }
+
+    public static void clearEntities(SceneBuilder scene, boolean fullScene, String entityId,
+                                     BlockPos pos1, BlockPos pos2) {
+        ResourceLocation filter = entityId == null || entityId.isBlank() ? null : ResourceLocation.tryParse(entityId);
+        if (fullScene) {
+            scene.world().modifyEntities(Entity.class, entity -> {
+                if (entity instanceof ItemEntity) {
+                    return;
+                }
+                if (filter == null || EntityType.getKey(entity.getType()).equals(filter)) {
+                    entity.discard();
+                }
+            });
+            return;
+        }
+        if (pos1 == null) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
+            if (entity instanceof ItemEntity) {
+                return;
+            }
+            if (filter == null || EntityType.getKey(entity.getType()).equals(filter)) {
+                entity.discard();
+            }
+        });
+    }
+
+    public static void clearItemEntities(SceneBuilder scene, boolean fullScene, String itemId,
+                                         BlockPos pos1, BlockPos pos2) {
+        ResourceLocation filter = itemId == null || itemId.isBlank() ? null : ResourceLocation.tryParse(itemId);
+        if (fullScene) {
+            scene.world().modifyEntities(ItemEntity.class, entity -> {
+                if (filter == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filter)) {
+                    entity.discard();
+                }
+            });
+            return;
+        }
+        if (pos1 == null) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
+            if (filter == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filter)) {
+                entity.discard();
+            }
+        });
+    }
+
+    public static void modifyEntitiesNbt(SceneBuilder scene, boolean fullScene, String entityId, String nbt,
+                                         BlockPos pos1, BlockPos pos2) {
+        CompoundTag patch = parseEntityPatch(nbt);
+        if (patch == null) {
+            return;
+        }
+        ResourceLocation filter = entityId == null || entityId.isBlank() ? null : ResourceLocation.tryParse(entityId);
+        if (fullScene) {
+            scene.world().modifyEntities(Entity.class, entity -> {
+                if (entity instanceof ItemEntity) {
+                    return;
+                }
+                if (filter == null || EntityType.getKey(entity.getType()).equals(filter)) {
+                    mergeEntityNbt(entity, patch);
+                }
+            });
+            return;
+        }
+        if (pos1 == null) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
+            if (entity instanceof ItemEntity) {
+                return;
+            }
+            if (filter == null || EntityType.getKey(entity.getType()).equals(filter)) {
+                mergeEntityNbt(entity, patch);
+            }
+        });
+    }
+
+    public static void modifyItemEntitiesNbt(SceneBuilder scene, boolean fullScene, String itemId, String nbt,
+                                             BlockPos pos1, BlockPos pos2) {
+        CompoundTag patch = parseEntityPatch(nbt);
+        if (patch == null) {
+            return;
+        }
+        ResourceLocation filter = itemId == null || itemId.isBlank() ? null : ResourceLocation.tryParse(itemId);
+        if (fullScene) {
+            scene.world().modifyEntities(ItemEntity.class, entity -> {
+                if (filter == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filter)) {
+                    entity.setItem(applyPatchToItemStack(entity.getItem(), patch));
+                    if (isLikelyEntityPatch(patch)) {
+                        mergeEntityNbt(entity, patch);
+                    }
+                }
+            });
+            return;
+        }
+        if (pos1 == null) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
+            if (filter == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filter)) {
+                entity.setItem(applyPatchToItemStack(entity.getItem(), patch));
+                if (isLikelyEntityPatch(patch)) {
+                    mergeEntityNbt(entity, patch);
+                }
+            }
+        });
+    }
+
+    private static CompoundTag parseEntityPatch(String nbt) {
+        if (nbt == null || nbt.isBlank()) {
+            return null;
+        }
+        try {
+            return TagParser.parseTag(nbt);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static void applyAnimatedSetBlock(SceneBuilder scene, Context context, BlockState state,
+                                              BlockPos pos1, BlockPos pos2, String nbt,
+                                              String entranceAnimation, Integer entranceDuration,
+                                              Integer entranceInterval, Boolean smartDisplay,
+                                              String linkId, String direction) {
+        ensureSceneCanShowRange(scene, pos1, pos2, false);
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        scene.world().setBlocks(selection, state, false);
+        applySetBlockNbtPatch(scene, nbt, selection);
+        String key = linkId == null ? "" : linkId.trim();
+        if (key.isEmpty()) {
+            key = autoLinkId(context);
+        }
+        Direction entryDirection = parseDirection(direction);
+        ElementLink<WorldSectionElement> existing = context.sectionLinks.get(key);
+        int rowDuration = entranceDuration == null ? 20 : Math.max(0, entranceDuration);
+        int rowInterval = entranceInterval == null ? 1 : Math.max(0, entranceInterval);
+        applyAnimatedShowSectionAndMerge(scene, context, key, existing, pos1, pos2,
+            entranceAnimation, entryDirection, rowDuration, rowInterval, !Boolean.FALSE.equals(smartDisplay));
+        updateVisibleRange(context, pos1, pos2, true);
+    }
+
+    private static void applySetBlockNbtPatch(SceneBuilder scene, String nbt, Selection selection) {
+        if (nbt == null || nbt.isBlank()) {
+            return;
+        }
+        try {
+            CompoundTag patch = TagParser.parseTag(nbt);
+            scene.world().modifyBlockEntityNBT(selection, BlockEntity.class, data -> data.merge(patch.copy()), true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static void ensureSceneCanShowRange(SceneBuilder scene, BlockPos pos1, BlockPos pos2,
+                                                boolean forceVisibleNow) {
+        int maxY = Math.max(pos1.getY(), pos2.getY());
+        BlockPos requiredBounds = new BlockPos(0, maxY + 1, 0);
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(requiredBounds);
+            if (!forceVisibleNow) {
+                if (!ps.getBaseWorldSection().isEmpty()) {
+                    ps.getBaseWorldSection().erase(selection);
+                    ps.getBaseWorldSection().queueRedraw();
+                }
+                return;
+            }
+            if (ps.getBaseWorldSection().isEmpty()) {
+                Selection all = ps.getSceneBuildingUtil().select().everywhere();
+                ps.getBaseWorldSection().set(all);
+                ps.getBaseWorldSection().setVisible(true);
+                ps.getBaseWorldSection().setFade(1);
+            } else {
+                ps.getBaseWorldSection().add(selection);
+            }
+            ps.getBaseWorldSection().queueRedraw();
+        });
+    }
+
+    private static ElementLink<WorldSectionElement> resolveSectionLink(SceneBuilder scene, Context context,
+                                                                       String linkId, BlockPos pos1, BlockPos pos2) {
+        String normalized = linkId == null ? "" : linkId.trim();
+        if (!normalized.isEmpty()) {
+            ElementLink<WorldSectionElement> existing = context.sectionLinks.get(normalized);
+            if (existing != null) {
+                return existing;
+            }
+        }
+        if (pos1 == null) {
+            return null;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
+        ElementLink<WorldSectionElement> created = scene.world().showIndependentSectionImmediately(selection);
+        String key = normalized.isEmpty() ? autoLinkId(context) : normalized;
+        context.sectionLinks.put(key, created);
+        updateVisibleRange(context, pos1, targetPos2, true);
+        return created;
+    }
+
+    private static void applyAnimatedShowSectionAndMerge(SceneBuilder scene, Context context, String linkId,
+                                                         ElementLink<WorldSectionElement> existing,
+                                                         BlockPos pos1, BlockPos pos2,
+                                                         String entranceAnimation,
+                                                         Direction entryDirection,
+                                                         int rowDuration, int rowInterval,
+                                                         boolean smartDisplay) {
+        List<List<BlockPos>> groups = orderedLayerGroups(pos1, pos2, entranceAnimation);
+        if (smartDisplay) {
+            groups = filterVisibleGroups(groups, context);
+        }
+        if (groups.isEmpty()) {
+            return;
+        }
+        ElementLink<WorldSectionElement> working = existing;
+        for (List<BlockPos> group : groups) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            Selection groupSelection = selectionForGroup(scene, group);
+            if (working == null) {
+                DisplayWorldSectionInstruction instruction =
+                    new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection, null);
+                scene.addInstruction(instruction);
+                working = instruction.createLink(scene.getScene());
+                context.sectionLinks.put(linkId, working);
+            } else {
+                ElementLink<WorldSectionElement> target = working;
+                scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection,
+                    () -> scene.getScene().resolve(target)));
+            }
+            scene.idle(rowInterval);
+        }
+    }
+
+    private static Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
+        BlockPos first = group.get(0);
+        int minX = first.getX();
+        int minY = first.getY();
+        int minZ = first.getZ();
+        int maxX = first.getX();
+        int maxY = first.getY();
+        int maxZ = first.getZ();
+        for (int i = 1; i < group.size(); i++) {
+            BlockPos pos = group.get(i);
+            minX = Math.min(minX, pos.getX());
+            minY = Math.min(minY, pos.getY());
+            minZ = Math.min(minZ, pos.getZ());
+            maxX = Math.max(maxX, pos.getX());
+            maxY = Math.max(maxY, pos.getY());
+            maxZ = Math.max(maxZ, pos.getZ());
+        }
+        return scene.getScene().getSceneBuildingUtil().select().fromTo(
+            new BlockPos(minX, minY, minZ),
+            new BlockPos(maxX, maxY, maxZ));
+    }
+
+    private static List<List<BlockPos>> orderedLayerGroups(BlockPos pos1, BlockPos pos2, String entranceAnimation) {
+        int minX = Math.min(pos1.getX(), pos2.getX());
+        int minY = Math.min(pos1.getY(), pos2.getY());
+        int minZ = Math.min(pos1.getZ(), pos2.getZ());
+        int maxX = Math.max(pos1.getX(), pos2.getX());
+        int maxY = Math.max(pos1.getY(), pos2.getY());
+        int maxZ = Math.max(pos1.getZ(), pos2.getZ());
+
+        List<BlockPos> positions = new ArrayList<>();
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    positions.add(new BlockPos(x, y, z));
+                }
+            }
+        }
+
+        Comparator<BlockPos> tieBreaker = Comparator
+            .comparingInt((BlockPos p) -> p.getY())
+            .thenComparingInt(BlockPos::getZ)
+            .thenComparingInt(BlockPos::getX);
+
+        Comparator<BlockPos> comparator = switch (entranceAnimation) {
+            case "down" -> Comparator.comparingInt((BlockPos p) -> p.getY()).reversed().thenComparing(tieBreaker);
+            case "up" -> Comparator.comparingInt((BlockPos p) -> p.getY()).thenComparing(tieBreaker);
+            case "south" -> Comparator.comparingInt((BlockPos p) -> p.getZ()).thenComparing(tieBreaker);
+            case "north" -> Comparator.comparingInt((BlockPos p) -> p.getZ()).reversed().thenComparing(tieBreaker);
+            case "east" -> Comparator.comparingInt((BlockPos p) -> p.getX()).thenComparing(tieBreaker);
+            case "west" -> Comparator.comparingInt((BlockPos p) -> p.getX()).reversed().thenComparing(tieBreaker);
+            default -> tieBreaker;
+        };
+        positions.sort(comparator);
+
+        java.util.function.ToIntFunction<BlockPos> layerKey = switch (entranceAnimation) {
+            case "simultaneous" -> p -> 0;
+            case "south", "north" -> BlockPos::getZ;
+            case "east", "west" -> BlockPos::getX;
+            default -> BlockPos::getY;
+        };
+
+        List<List<BlockPos>> groups = new ArrayList<>();
+        List<BlockPos> currentGroup = null;
+        int currentKey = Integer.MIN_VALUE;
+        for (BlockPos pos : positions) {
+            int key = layerKey.applyAsInt(pos);
+            if (currentGroup == null || key != currentKey) {
+                currentGroup = new ArrayList<>();
+                groups.add(currentGroup);
+                currentKey = key;
+            }
+            currentGroup.add(pos);
+        }
+        return groups;
+    }
+
+    private static List<List<BlockPos>> filterVisibleGroups(List<List<BlockPos>> groups, Context context) {
+        List<List<BlockPos>> filtered = new ArrayList<>();
+        for (List<BlockPos> group : groups) {
+            List<BlockPos> pending = new ArrayList<>();
+            for (BlockPos pos : group) {
+                if (!isBlockVisible(context, pos.asLong())) {
+                    pending.add(pos);
+                }
+            }
+            if (!pending.isEmpty()) {
+                filtered.add(pending);
+            }
+        }
+        return filtered;
+    }
+
+    private static void updateVisibleRange(Context context, BlockPos pos1, BlockPos pos2, boolean visible) {
+        if (pos1 == null) {
+            return;
+        }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        int minX = Math.min(pos1.getX(), targetPos2.getX());
+        int minY = Math.min(pos1.getY(), targetPos2.getY());
+        int minZ = Math.min(pos1.getZ(), targetPos2.getZ());
+        int maxX = Math.max(pos1.getX(), targetPos2.getX());
+        int maxY = Math.max(pos1.getY(), targetPos2.getY());
+        int maxZ = Math.max(pos1.getZ(), targetPos2.getZ());
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    long key = BlockPos.asLong(x, y, z);
+                    if (context.allBlocksVisible) {
+                        if (visible) {
+                            context.hiddenBlockKeys.remove(key);
+                        } else {
+                            context.hiddenBlockKeys.add(key);
+                        }
+                    } else {
+                        if (visible) {
+                            context.visibleBlockKeys.add(key);
+                        } else {
+                            context.visibleBlockKeys.remove(key);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean isBlockVisible(Context context, long key) {
+        if (context.allBlocksVisible) {
+            return !context.hiddenBlockKeys.contains(key);
+        }
+        return context.visibleBlockKeys.contains(key);
+    }
+
+    private static String autoLinkId(Context context) {
+        return "section_" + (context.sectionLinks.size() + 1);
+    }
+
+    private static String normalizeEntranceAnimation(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "none", "(无)", "无" -> "none";
+            case "simultaneous", "同时" -> "simultaneous";
+            case "down", "从上到下", "上到下", "top_to_bottom", "top-down" -> "down";
+            case "up", "从下到上", "下到上", "bottom_to_top", "bottom-up" -> "up";
+            case "south", "从北到南", "北到南", "north_to_south", "north-south" -> "south";
+            case "north", "从南到北", "南到北", "south_to_north", "south-north" -> "north";
+            case "east", "从西到东", "西到东", "west_to_east", "west-east" -> "east";
+            case "west", "从东到西", "东到西", "east_to_west", "east-west" -> "west";
+            default -> null;
+        };
+    }
+
+    private static Direction parseDirection(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Direction.DOWN;
+        }
+        return switch (raw.toLowerCase(Locale.ROOT)) {
+            case "up" -> Direction.UP;
+            case "north" -> Direction.NORTH;
+            case "south" -> Direction.SOUTH;
+            case "west" -> Direction.WEST;
+            case "east" -> Direction.EAST;
+            default -> Direction.DOWN;
+        };
+    }
+
+    private static Pointing parsePointing(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Pointing.DOWN;
+        }
+        return switch (raw.toLowerCase(Locale.ROOT)) {
+            case "up" -> Pointing.UP;
+            case "left" -> Pointing.LEFT;
+            case "right" -> Pointing.RIGHT;
+            default -> Pointing.DOWN;
+        };
+    }
+
+    private static SoundSource parseSoundSource(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return SoundSource.MASTER;
+        }
+        try {
+            return SoundSource.valueOf(raw.toUpperCase(Locale.ROOT));
+        } catch (Exception ignored) {
+            return SoundSource.MASTER;
+        }
+    }
+
+    private static PonderPalette parsePalette(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "white" -> PonderPalette.WHITE;
+            case "black" -> PonderPalette.BLACK;
+            case "red" -> PonderPalette.RED;
+            case "green" -> PonderPalette.GREEN;
+            case "blue" -> PonderPalette.BLUE;
+            case "input" -> PonderPalette.INPUT;
+            case "output" -> PonderPalette.OUTPUT;
+            case "slow" -> PonderPalette.SLOW;
+            case "medium" -> PonderPalette.MEDIUM;
+            case "fast" -> PonderPalette.FAST;
+            default -> null;
+        };
+    }
+
+    private static BlockState applyBlockProperties(BlockState state, Map<String, String> blockProperties) {
+        if (blockProperties == null || blockProperties.isEmpty()) {
+            return state;
+        }
+        var definition = state.getBlock().getStateDefinition();
+        BlockState result = state;
+        for (var entry : blockProperties.entrySet()) {
+            Property<?> property = definition.getProperty(entry.getKey());
+            if (property != null) {
+                result = setPropertyValue(result, property, entry.getValue());
+            }
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Comparable<T>> BlockState setPropertyValue(BlockState state, Property<T> property, String value) {
+        return property.getValue(value)
+            .map(v -> state.setValue(property, v))
+            .orElse(state);
+    }
+
+    private static ItemStack parseItemStackSpec(String raw, String nbtOverride) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        String itemIdPart = trimmed;
+        String nbtPart = null;
+        int brace = trimmed.indexOf('{');
+        if (brace >= 0) {
+            itemIdPart = trimmed.substring(0, brace).trim();
+            nbtPart = trimmed.substring(brace).trim();
+        }
+        ResourceLocation itemLoc = ResourceLocation.tryParse(itemIdPart);
+        if (itemLoc == null) {
+            return null;
+        }
+        Item item = BuiltInRegistries.ITEM.getOptional(itemLoc).orElse(null);
+        if (item == null) {
+            return null;
+        }
+        ItemStack stack = new ItemStack(item);
+        String finalNbt = nbtOverride != null && !nbtOverride.isBlank() ? nbtOverride.trim() : nbtPart;
+        if (finalNbt != null && !finalNbt.isBlank() && !"{}".equals(finalNbt)) {
+            try {
+                CompoundTag tag = TagParser.parseTag(finalNbt);
+                if (!tag.isEmpty()) {
+                    stack.setTag(tag);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return stack;
+    }
+
+    private static ItemStack applyPatchToItemStack(ItemStack base, CompoundTag patch) {
+        ItemStack copy = base.copy();
+        CompoundTag itemPatch = patch;
+        if (patch.contains("Item", Tag.TAG_COMPOUND)) {
+            CompoundTag entityItem = patch.getCompound("Item");
+            if (entityItem.contains("tag", Tag.TAG_COMPOUND)) {
+                itemPatch = entityItem.getCompound("tag");
+            } else {
+                itemPatch = new CompoundTag();
+            }
+        }
+        if (!itemPatch.isEmpty()) {
+            copy.getOrCreateTag().merge(itemPatch.copy());
+        }
+        return copy;
+    }
+
+    private static boolean isLikelyEntityPatch(CompoundTag patch) {
+        return patch.contains("Item", Tag.TAG_COMPOUND)
+            || patch.contains("Age")
+            || patch.contains("PickupDelay")
+            || patch.contains("Health")
+            || patch.contains("Motion")
+            || patch.contains("Pos")
+            || patch.contains("Rotation")
+            || patch.contains("NoGravity")
+            || patch.contains("Glowing")
+            || patch.contains("Invulnerable")
+            || patch.contains("UUID")
+            || patch.contains("Tags");
+    }
+
+    private static void mergeEntityNbt(Entity entity, CompoundTag patch) {
+        CompoundTag data = new CompoundTag();
+        entity.saveWithoutId(data);
+        data.merge(patch.copy());
+        entity.load(data);
+    }
+
+    // ---- show_extra_structure ----------------------------------------------------
+
+    private static final Set<String> EXTRA_SKIPPED_BLOCKS = Set.of(
+        "minecraft:air", "minecraft:cave_air", "minecraft:void_air", "minecraft:structure_void");
+    private static final Set<String> EXTRA_POS_NBT_KEYS = Set.of("x", "y", "z");
+
+    private static final class PlacedBlock {
+        final BlockPos pos;
+        final BlockState state;
+        final CompoundTag nbt;
+
+        PlacedBlock(BlockPos pos, BlockState state, CompoundTag nbt) {
+            this.pos = pos;
+            this.state = state;
+            this.nbt = nbt;
+        }
+    }
+
+    public static void showExtraStructure(SceneBuilder scene, Context context, ResourceLocation structureAssetId,
+                                          BlockPos base, int rotationDegrees, boolean replaceAir,
+                                          Boolean immediateDisplayFlag, Boolean spawnParticlesFlag,
+                                          String entranceAnimation, Integer entranceDuration,
+                                          Integer entranceInterval, Boolean smartDisplayFlag,
+                                          String linkIdRaw, String directionRaw) {
+        if (structureAssetId == null || base == null) {
+            return;
+        }
+        CompoundTag root;
+        try {
+            var resourceOpt = Minecraft.getInstance().getResourceManager().getResource(structureAssetId);
+            if (resourceOpt.isEmpty()) {
+                LOGGER.warn("show_extra_structure resource not found: {}", structureAssetId);
+                return;
+            }
+            try (InputStream is = resourceOpt.get().open()) {
+                root = NbtIo.read(
+                    new DataInputStream(new BufferedInputStream(new GZIPInputStream(is))),
+                    new NbtAccounter(0x20000000L));
+            }
+        } catch (Exception e) {
+            LOGGER.warn("show_extra_structure failed to read {}: {}", structureAssetId, e.getMessage());
+            return;
+        }
+
+        List<PlacedBlock> placed = planExtraStructure(root, base, rotationDegrees, !replaceAir);
+        if (placed.isEmpty()) {
+            return;
+        }
+
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        for (PlacedBlock b : placed) {
+            int x = b.pos.getX(), y = b.pos.getY(), z = b.pos.getZ();
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (z < minZ) minZ = z;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+            if (z > maxZ) maxZ = z;
+        }
+        BlockPos minCorner = new BlockPos(minX, minY, minZ);
+        BlockPos maxCorner = new BlockPos(maxX, maxY, maxZ);
+
+        String anim = normalizeEntranceAnimation(entranceAnimation);
+        boolean simultaneous = "simultaneous".equals(anim);
+        boolean directional = anim != null && !"none".equals(anim) && !simultaneous;
+        boolean animatedReveal = simultaneous || directional;
+        boolean placeVisible = !animatedReveal && !Boolean.FALSE.equals(immediateDisplayFlag);
+        boolean particles = placeVisible && !Boolean.FALSE.equals(spawnParticlesFlag);
+
+        // Air-free strip decomposition shared between base-section ensure and the
+        // simultaneous reveal path.
+        List<List<BlockPos>> placedStrips = segmentExtraForAnimation(placed, "up");
+
+        ensureSceneCanShowExtra(scene, minCorner, maxCorner, placedStrips, placeVisible);
+
+        for (PlacedBlock b : placed) {
+            scene.world().setBlock(b.pos, b.state, particles);
+            if (b.nbt != null && !b.nbt.isEmpty()) {
+                CompoundTag patch = b.nbt;
+                Selection sel = scene.getScene().getSceneBuildingUtil().select().position(b.pos);
+                scene.world().modifyBlockEntityNBT(sel, BlockEntity.class, nbt -> nbt.merge(patch.copy()), true);
+            }
+        }
+        applyExtraPlacedVisibility(context, placed, placeVisible);
+
+        if (!animatedReveal) {
+            return;
+        }
+
+        String linkId = linkIdRaw == null ? "" : linkIdRaw.trim();
+        if (linkId.isEmpty()) {
+            linkId = autoLinkId(context);
+        }
+        Direction direction = parseDirection(directionRaw);
+        int rowDuration = entranceDuration == null ? 20 : Math.max(0, entranceDuration);
+        int rowInterval = entranceInterval == null ? 1 : Math.max(0, entranceInterval);
+        boolean smartDisplay = !Boolean.FALSE.equals(smartDisplayFlag);
+
+        List<List<BlockPos>> revealGroups;
+        int revealInterval;
+        if (simultaneous) {
+            revealGroups = placedStrips;
+            revealInterval = 0;
+        } else {
+            revealGroups = segmentExtraForAnimation(placed, anim);
+            revealInterval = rowInterval;
+        }
+        if (smartDisplay) {
+            revealGroups = filterVisibleGroups(revealGroups, context);
+        }
+        if (revealGroups.isEmpty()) {
+            return;
+        }
+        ElementLink<WorldSectionElement> working = context.sectionLinks.get(linkId);
+        for (List<BlockPos> group : revealGroups) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            Selection groupSelection = selectionForGroup(scene, group);
+            if (working == null) {
+                DisplayWorldSectionInstruction inst =
+                    new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection, null);
+                scene.addInstruction(inst);
+                working = inst.createLink(scene.getScene());
+                context.sectionLinks.put(linkId, working);
+            } else {
+                ElementLink<WorldSectionElement> target = working;
+                scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection,
+                    () -> scene.getScene().resolve(target)));
+            }
+            if (revealInterval > 0) {
+                scene.idle(revealInterval);
+            }
+        }
+        applyExtraPlacedVisibility(context, placed, true);
+    }
+
+    private static void ensureSceneCanShowExtra(SceneBuilder scene, BlockPos minCorner, BlockPos maxCorner,
+                                                List<List<BlockPos>> placedStrips, boolean forceVisibleNow) {
+        List<int[]> stripBounds = new ArrayList<>(placedStrips.size());
+        for (List<BlockPos> strip : placedStrips) {
+            if (strip.isEmpty()) {
+                continue;
+            }
+            BlockPos first = strip.get(0);
+            int sxMin = first.getX(), syMin = first.getY(), szMin = first.getZ();
+            int sxMax = sxMin, syMax = syMin, szMax = szMin;
+            for (int i = 1; i < strip.size(); i++) {
+                BlockPos p = strip.get(i);
+                if (p.getX() < sxMin) sxMin = p.getX();
+                if (p.getX() > sxMax) sxMax = p.getX();
+                if (p.getY() < syMin) syMin = p.getY();
+                if (p.getY() > syMax) syMax = p.getY();
+                if (p.getZ() < szMin) szMin = p.getZ();
+                if (p.getZ() > szMax) szMax = p.getZ();
+            }
+            stripBounds.add(new int[]{sxMin, syMin, szMin, sxMax, syMax, szMax});
+        }
+        BlockPos minCornerCaptured = minCorner;
+        BlockPos maxCornerCaptured = maxCorner;
+        scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(minCornerCaptured);
+            ps.getWorld().getBounds().encapsulate(maxCornerCaptured);
+            if (!forceVisibleNow) {
+                if (!ps.getBaseWorldSection().isEmpty()) {
+                    for (int[] b : stripBounds) {
+                        Selection sel = ps.getSceneBuildingUtil().select().fromTo(
+                            b[0], b[1], b[2], b[3], b[4], b[5]);
+                        ps.getBaseWorldSection().erase(sel);
+                    }
+                    ps.getBaseWorldSection().queueRedraw();
+                }
+                return;
+            }
+            if (ps.getBaseWorldSection().isEmpty()) {
+                Selection all = ps.getSceneBuildingUtil().select().everywhere();
+                ps.getBaseWorldSection().set(all);
+                ps.getBaseWorldSection().setVisible(true);
+                ps.getBaseWorldSection().setFade(1);
+            } else {
+                for (int[] b : stripBounds) {
+                    Selection sel = ps.getSceneBuildingUtil().select().fromTo(
+                        b[0], b[1], b[2], b[3], b[4], b[5]);
+                    ps.getBaseWorldSection().add(sel);
+                }
+            }
+            ps.getBaseWorldSection().queueRedraw();
+        });
+    }
+
+    private static void applyExtraPlacedVisibility(Context context, List<PlacedBlock> placed, boolean visible) {
+        for (PlacedBlock b : placed) {
+            long key = b.pos.asLong();
+            if (context.allBlocksVisible) {
+                if (visible) {
+                    context.hiddenBlockKeys.remove(key);
+                } else {
+                    context.hiddenBlockKeys.add(key);
+                }
+            } else {
+                if (visible) {
+                    context.visibleBlockKeys.add(key);
+                } else {
+                    context.visibleBlockKeys.remove(key);
+                }
+            }
+        }
+    }
+
+    private static Rotation toExtraRotation(int degrees) {
+        int normalized = ((degrees %% 360) + 360) %% 360;
+        return switch (normalized) {
+            case 90 -> Rotation.CLOCKWISE_90;
+            case 180 -> Rotation.CLOCKWISE_180;
+            case 270 -> Rotation.COUNTERCLOCKWISE_90;
+            default -> Rotation.NONE;
+        };
+    }
+
+    private static List<PlacedBlock> planExtraStructure(CompoundTag root, BlockPos base, int rotationDegrees, boolean skipAir) {
+        Rotation rotation = toExtraRotation(rotationDegrees);
+        ListTag paletteTag = root.getList("palette", Tag.TAG_COMPOUND);
+        BlockState[] palette = new BlockState[paletteTag.size()];
+        for (int i = 0; i < paletteTag.size(); i++) {
+            palette[i] = parsePaletteEntry(paletteTag.getCompound(i));
+        }
+        ListTag blocks = root.getList("blocks", Tag.TAG_COMPOUND);
+
+        List<BlockPos> rotatedPositions = new ArrayList<>();
+        List<BlockState> rotatedStates = new ArrayList<>();
+        List<CompoundTag> blockNbts = new ArrayList<>();
+
+        if (skipAir) {
+            for (int i = 0; i < blocks.size(); i++) {
+                CompoundTag entry = blocks.getCompound(i);
+                BlockPos src = readExtraEntryPos(entry);
+                if (src == null) continue;
+                BlockState state = resolveExtraEntryState(entry, palette);
+                if (state == null || isExtraSkippedBlock(state)) continue;
+                rotatedPositions.add(src.rotate(rotation));
+                rotatedStates.add(state.rotate(rotation));
+                blockNbts.add(readExtraBlockEntityPatch(entry));
+            }
+        } else {
+            ListTag sizeTag = root.getList("size", Tag.TAG_INT);
+            if (sizeTag.size() < 3) {
+                return List.of();
+            }
+            int sizeX = sizeTag.getInt(0);
+            int sizeY = sizeTag.getInt(1);
+            int sizeZ = sizeTag.getInt(2);
+
+            Map<Long, CompoundTag> entryByPos = new HashMap<>(blocks.size());
+            for (int i = 0; i < blocks.size(); i++) {
+                CompoundTag entry = blocks.getCompound(i);
+                BlockPos p = readExtraEntryPos(entry);
+                if (p == null) continue;
+                entryByPos.put(p.asLong(), entry);
+            }
+
+            BlockState airState = Blocks.AIR.defaultBlockState();
+            for (int x = 0; x < sizeX; x++) {
+                for (int y = 0; y < sizeY; y++) {
+                    for (int z = 0; z < sizeZ; z++) {
+                        BlockPos src = new BlockPos(x, y, z);
+                        CompoundTag entry = entryByPos.get(src.asLong());
+                        BlockState state;
+                        CompoundTag patch = null;
+                        if (entry == null) {
+                            state = airState;
+                        } else {
+                            BlockState resolved = resolveExtraEntryState(entry, palette);
+                            if (resolved == null || isExtraSkippedBlock(resolved)) {
+                                state = airState;
+                            } else {
+                                state = resolved;
+                                patch = readExtraBlockEntityPatch(entry);
+                            }
+                        }
+                        rotatedPositions.add(src.rotate(rotation));
+                        rotatedStates.add(state.rotate(rotation));
+                        blockNbts.add(patch);
+                    }
+                }
+            }
+        }
+
+        if (rotatedPositions.isEmpty()) {
+            return List.of();
+        }
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        for (BlockPos p : rotatedPositions) {
+            if (p.getX() < minX) minX = p.getX();
+            if (p.getY() < minY) minY = p.getY();
+            if (p.getZ() < minZ) minZ = p.getZ();
+        }
+        int offsetX = base.getX() - minX;
+        int offsetY = base.getY() - minY;
+        int offsetZ = base.getZ() - minZ;
+        List<PlacedBlock> result = new ArrayList<>(rotatedPositions.size());
+        for (int i = 0; i < rotatedPositions.size(); i++) {
+            BlockPos rp = rotatedPositions.get(i);
+            BlockPos world = new BlockPos(
+                rp.getX() + offsetX,
+                rp.getY() + offsetY,
+                rp.getZ() + offsetZ);
+            result.add(new PlacedBlock(world, rotatedStates.get(i), blockNbts.get(i)));
+        }
+        return result;
+    }
+
+    private static BlockPos readExtraEntryPos(CompoundTag entry) {
+        ListTag pos = entry.getList("pos", Tag.TAG_INT);
+        if (pos.size() < 3) return null;
+        return new BlockPos(pos.getInt(0), pos.getInt(1), pos.getInt(2));
+    }
+
+    private static BlockState resolveExtraEntryState(CompoundTag entry, BlockState[] palette) {
+        int stateIdx = entry.getInt("state");
+        if (stateIdx < 0 || stateIdx >= palette.length) return null;
+        return palette[stateIdx];
+    }
+
+    private static boolean isExtraSkippedBlock(BlockState state) {
+        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        return key != null && EXTRA_SKIPPED_BLOCKS.contains(key.toString());
+    }
+
+    private static CompoundTag readExtraBlockEntityPatch(CompoundTag entry) {
+        if (!entry.contains("nbt", Tag.TAG_COMPOUND)) return null;
+        CompoundTag raw = entry.getCompound("nbt").copy();
+        for (String absoluteKey : EXTRA_POS_NBT_KEYS) {
+            raw.remove(absoluteKey);
+        }
+        return raw.isEmpty() ? null : raw;
+    }
+
+    private static BlockState parsePaletteEntry(CompoundTag entry) {
+        String name = entry.getString("Name");
+        ResourceLocation id = ResourceLocation.tryParse(name);
+        if (id == null) {
+            return null;
+        }
+        Block block = BuiltInRegistries.BLOCK.getOptional(id).orElse(null);
+        if (block == null) {
+            return null;
+        }
+        BlockState state = block.defaultBlockState();
+        if (entry.contains("Properties", Tag.TAG_COMPOUND)) {
+            CompoundTag props = entry.getCompound("Properties");
+            var def = block.getStateDefinition();
+            for (String key : props.getAllKeys()) {
+                Property<?> prop = def.getProperty(key);
+                if (prop != null) {
+                    state = applyExtraProperty(state, prop, props.getString(key));
+                }
+            }
+        }
+        return state;
+    }
+
+    private static <T extends Comparable<T>> BlockState applyExtraProperty(BlockState state,
+                                                                           Property<T> prop, String value) {
+        return prop.getValue(value).map(v -> state.setValue(prop, v)).orElse(state);
+    }
+
+    private static List<List<BlockPos>> segmentExtraForAnimation(List<PlacedBlock> blocks, String anim) {
+        if (blocks.isEmpty()) {
+            return List.of();
+        }
+        String a = anim == null ? "" : anim;
+        ToIntFunction<BlockPos> layerKey;
+        ToIntFunction<BlockPos> rowKey;
+        ToIntFunction<BlockPos> stripKey;
+        boolean reverseLayer;
+        switch (a) {
+            case "down" -> { layerKey = BlockPos::getY; rowKey = BlockPos::getZ; stripKey = BlockPos::getX; reverseLayer = true; }
+            case "up" -> { layerKey = BlockPos::getY; rowKey = BlockPos::getZ; stripKey = BlockPos::getX; reverseLayer = false; }
+            case "south" -> { layerKey = BlockPos::getZ; rowKey = BlockPos::getY; stripKey = BlockPos::getX; reverseLayer = false; }
+            case "north" -> { layerKey = BlockPos::getZ; rowKey = BlockPos::getY; stripKey = BlockPos::getX; reverseLayer = true; }
+            case "east" -> { layerKey = BlockPos::getX; rowKey = BlockPos::getY; stripKey = BlockPos::getZ; reverseLayer = false; }
+            case "west" -> { layerKey = BlockPos::getX; rowKey = BlockPos::getY; stripKey = BlockPos::getZ; reverseLayer = true; }
+            case "simultaneous" -> { layerKey = p -> 0; rowKey = BlockPos::getY; stripKey = BlockPos::getX; reverseLayer = false; }
+            default -> { layerKey = BlockPos::getY; rowKey = BlockPos::getZ; stripKey = BlockPos::getX; reverseLayer = false; }
+        }
+        List<BlockPos> positions = new ArrayList<>(blocks.size());
+        for (PlacedBlock b : blocks) {
+            positions.add(b.pos);
+        }
+        Comparator<BlockPos> cmp = Comparator
+            .comparingInt(layerKey)
+            .thenComparingInt(rowKey)
+            .thenComparingInt(stripKey);
+        if (reverseLayer) {
+            cmp = Comparator.comparingInt(layerKey).reversed()
+                .thenComparingInt(rowKey)
+                .thenComparingInt(stripKey);
+        }
+        positions.sort(cmp);
+        List<List<BlockPos>> groups = new ArrayList<>();
+        List<BlockPos> currentStrip = null;
+        int curLayer = Integer.MIN_VALUE;
+        int curRow = Integer.MIN_VALUE;
+        int curStrip = Integer.MIN_VALUE;
+        for (BlockPos p : positions) {
+            int lk = layerKey.applyAsInt(p);
+            int rk = rowKey.applyAsInt(p);
+            int sk = stripKey.applyAsInt(p);
+            boolean breakStrip = currentStrip == null
+                || lk != curLayer
+                || rk != curRow
+                || sk != curStrip + 1;
+            if (breakStrip) {
+                currentStrip = new ArrayList<>();
+                groups.add(currentStrip);
+                curLayer = lk;
+                curRow = rk;
+            }
+            currentStrip.add(p);
+            curStrip = sk;
+        }
+        return groups;
+    }
+}
