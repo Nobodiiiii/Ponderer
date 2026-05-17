@@ -53,8 +53,10 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
     private String selectedExternalName;
 
     private final StructurePreviewWidget preview = new StructurePreviewWidget(0, 0, 0, 0);
-    private static final int PREVIEW_WIDTH = 140;
+    private static final int PREVIEW_WIDTH = 220;
     private static final int PREVIEW_GAP = 10;
+    /** Reserved space on the right of the list for the save/discard/back action buttons. */
+    private static final int ACTION_BUTTONS_RESERVE = 40;
     private int previewX, previewY, previewW, previewH;
     private boolean previewVisible;
 
@@ -108,7 +110,7 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
     }
 
     private void layoutPreviewPanel() {
-        int listLeft = width / 2 - currentListWidthValue() / 2;
+        int listLeft = width / 2 - currentListWidthValue() / 2 + listHorizontalOffset();
         int availableLeft = listLeft - PREVIEW_GAP;
         int desiredWidth = PREVIEW_WIDTH;
         if (availableLeft < desiredWidth + PREVIEW_GAP) {
@@ -122,6 +124,16 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
         previewY = contentAreaTop();
         previewH = contentAreaHeight();
         preview.setBounds(previewX, previewY, previewW, previewH);
+    }
+
+    @Override
+    protected int listHorizontalOffset() {
+        int listW = currentListWidthValue();
+        int composite = PREVIEW_WIDTH + PREVIEW_GAP + listW + ACTION_BUTTONS_RESERVE;
+        if (composite > width - 20) {
+            return 0;
+        }
+        return (PREVIEW_WIDTH + PREVIEW_GAP) / 2;
     }
 
     @Override

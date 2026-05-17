@@ -62,7 +62,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         listWidth = Math.min(width - 80, preferredListWidth);
 
         int yCenter = height / 2;
-        int listLeft = width / 2 - listWidth / 2;
+        int listLeft = width / 2 - listWidth / 2 + listHorizontalOffset();
         int actionLeft = listLeft + listWidth + 10;
 
         saveChanges = new BoxWidget(actionLeft, yCenter - 25, 20, 20)
@@ -102,10 +102,10 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             contentAreaTop(),
             contentAreaTop() + contentAreaHeight(),
             getEntryHeight());
-        list.setLeftPos(width / 2 - list.getWidth() / 2);
+        list.setLeftPos(width / 2 - list.getWidth() / 2 + listHorizontalOffset());
         addRenderableWidget(list);
 
-        search = new ClippedConfigTextField(font, width / 2 - listWidth / 2, height - 35, listWidth, 20);
+        search = new ClippedConfigTextField(font, width / 2 - listWidth / 2 + listHorizontalOffset(), height - 35, listWidth, 20);
         search.setResponder(this::updateFilter);
         search.setHint(Component.translatable("catnip.ui.search_hint"));
         search.moveCursorToStart();
@@ -149,7 +149,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         renderBreadcrumb(graphics, width / 2, 15);
-        renderStatusMessage(graphics, width / 2 - listWidth / 2, height - 48, listWidth);
+        renderStatusMessage(graphics, width / 2 - listWidth / 2 + listHorizontalOffset(), height - 48, listWidth);
     }
 
     @Override
@@ -243,6 +243,15 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     protected final int currentListWidthValue() {
         return listWidth;
+    }
+
+    /**
+     * Horizontal offset added to the centered list position. Subclasses can override
+     * to push the list (and its anchored widgets) sideways — e.g. to free space for
+     * a side panel like a preview pane.
+     */
+    protected int listHorizontalOffset() {
+        return 0;
     }
 
     protected final int contentAreaTop() {
@@ -342,7 +351,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             return;
         }
 
-        int left = width / 2 - listWidth / 2;
+        int left = width / 2 - listWidth / 2 + listHorizontalOffset();
         if (hasHeaderEntries()) {
             int headerHeight = currentHeaderHeight();
             int headerTop = contentAreaTop();
@@ -387,7 +396,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
                 contentAreaTop(),
                 contentAreaTop() + currentHeaderHeight(),
                 getEntryHeight());
-            headerList.setLeftPos(width / 2 - headerList.getWidth() / 2);
+            headerList.setLeftPos(width / 2 - headerList.getWidth() / 2 + listHorizontalOffset());
             addRenderableWidget(headerList);
         }
 

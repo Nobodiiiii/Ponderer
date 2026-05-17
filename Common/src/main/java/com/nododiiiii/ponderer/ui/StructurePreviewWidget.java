@@ -218,10 +218,10 @@ public class StructurePreviewWidget {
         centerX = (b.minX() + b.maxX()) / 2.0 + 0.5;
         centerY = (b.minY() + b.maxY()) / 2.0 + 0.5;
         centerZ = (b.minZ() + b.maxZ()) / 2.0 + 0.5;
-        // Diagonal of the AABB; 0.45 leaves a 10% margin after the rotation sweeps the corners around.
+        // Diagonal of the AABB; 0.48 leaves a small (~4%) margin after the rotation sweeps the corners around.
         double diag = Math.sqrt((double) sx * sx + (double) sy * sy + (double) sz * sz);
         if (diag < 1.0) diag = 1.0;
-        scale = Math.min(w, h) * 0.45 / diag;
+        scale = Math.min(w, h) * 0.48 / diag;
     }
 
     public void render(GuiGraphics graphics, float partialTicks) {
