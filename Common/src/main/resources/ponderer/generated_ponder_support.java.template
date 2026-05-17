@@ -252,6 +252,16 @@ public final class GeneratedPonderSupport {
         scene.addInstruction(ps -> ps.getWorld().getBounds().encapsulate(size));
     }
 
+    public static void preScanBounds(SceneBuilder scene, BlockPos minCorner, BlockPos maxCorner) {
+        if (minCorner == null || maxCorner == null) {
+            return;
+        }
+        scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(minCorner);
+            ps.getWorld().getBounds().encapsulate(maxCorner);
+        });
+    }
+
     public static void playSound(SceneBuilder scene, String soundId, float volume, float pitch, String source) {
         ResourceLocation loc = soundId == null ? null : ResourceLocation.tryParse(soundId);
         if (loc == null) {
@@ -677,11 +687,18 @@ public final class GeneratedPonderSupport {
 
     private static void ensureSceneCanShowRange(SceneBuilder scene, BlockPos pos1, BlockPos pos2,
                                                 boolean forceVisibleNow) {
-        int maxY = Math.max(pos1.getY(), pos2.getY());
-        BlockPos requiredBounds = new BlockPos(0, maxY + 1, 0);
         Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        final BlockPos minPos = new BlockPos(
+            Math.min(pos1.getX(), pos2.getX()),
+            Math.min(pos1.getY(), pos2.getY()),
+            Math.min(pos1.getZ(), pos2.getZ()));
+        final BlockPos maxPos = new BlockPos(
+            Math.max(pos1.getX(), pos2.getX()),
+            Math.max(pos1.getY(), pos2.getY()),
+            Math.max(pos1.getZ(), pos2.getZ()));
         scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(requiredBounds);
+            ps.getWorld().getBounds().encapsulate(minPos);
+            ps.getWorld().getBounds().encapsulate(maxPos);
             if (!forceVisibleNow) {
                 if (!ps.getBaseWorldSection().isEmpty()) {
                     ps.getBaseWorldSection().erase(selection);
@@ -729,6 +746,18 @@ public final class GeneratedPonderSupport {
                                                          Direction entryDirection,
                                                          int rowDuration, int rowInterval,
                                                          boolean smartDisplay) {
+        final BlockPos minPos = new BlockPos(
+            Math.min(pos1.getX(), pos2.getX()),
+            Math.min(pos1.getY(), pos2.getY()),
+            Math.min(pos1.getZ(), pos2.getZ()));
+        final BlockPos maxPos = new BlockPos(
+            Math.max(pos1.getX(), pos2.getX()),
+            Math.max(pos1.getY(), pos2.getY()),
+            Math.max(pos1.getZ(), pos2.getZ()));
+        scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(minPos);
+            ps.getWorld().getBounds().encapsulate(maxPos);
+        });
         List<List<BlockPos>> groups = orderedLayerGroups(pos1, pos2, entranceAnimation);
         if (smartDisplay) {
             groups = filterVisibleGroups(groups, context);

@@ -1141,6 +1141,7 @@ public final class JavaModuleExportService {
                 .append(localizedTextExpr(segment.sourceSegment.title, fallbackSegmentTitle(plan.sourceScene, segment.sourceSegment, segment.titlePath, plan.segments.size(), plan.segments.indexOf(segment))))
                 .append(");\n");
             sb.append("        GeneratedPonderSupport.Context context = new GeneratedPonderSupport.Context();\n");
+            appendPreScanBounds(sb, segment.sourceSegment);
 
             boolean firstIsShowStructure = !segment.steps.isEmpty()
                 && "show_structure".equalsIgnoreCase(segment.steps.get(0).sourceStep.type);
@@ -1171,6 +1172,56 @@ public final class JavaModuleExportService {
 
         sb.append("}\n");
         return sb.toString();
+    }
+
+    /**
+     * Mirror of DynamicPonderPlugin.preScanSegmentBounds: scan every step's coordinate-bearing
+     * fields and emit a single preScanBounds() call so the generated storyboard can encapsulate
+     * the full extent (including negative coords and points outside the schematic footprint)
+     * before any instruction touches world.bounds.
+     */
+    private static void appendPreScanBounds(StringBuilder sb, DslScene.SceneSegment segment) {
+        if (segment == null || segment.steps == null || segment.steps.isEmpty()) {
+            return;
+        }
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        boolean any = false;
+        for (DslScene.DslStep step : segment.steps) {
+            if (step == null) {
+                continue;
+            }
+            if (step.blockPos != null && step.blockPos.size() >= 3) {
+                int x = step.blockPos.get(0), y = step.blockPos.get(1), z = step.blockPos.get(2);
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+                any = true;
+            }
+            if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+                int x = step.blockPos2.get(0), y = step.blockPos2.get(1), z = step.blockPos2.get(2);
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+                any = true;
+            }
+            if ("encapsulate_bounds".equalsIgnoreCase(step.type)
+                && step.bounds != null && step.bounds.size() >= 3) {
+                int bx = step.bounds.get(0), by = step.bounds.get(1), bz = step.bounds.get(2);
+                if (0 < minX) minX = 0; if (bx > maxX) maxX = bx;
+                if (0 < minY) minY = 0; if (by > maxY) maxY = by;
+                if (0 < minZ) minZ = 0; if (bz > maxZ) maxZ = bz;
+                any = true;
+            }
+        }
+        if (!any) {
+            return;
+        }
+        sb.append("        GeneratedPonderSupport.preScanBounds(scene, new BlockPos(")
+            .append(minX).append(", ").append(minY).append(", ").append(minZ)
+            .append("), new BlockPos(")
+            .append(maxX).append(", ").append(maxY).append(", ").append(maxZ)
+            .append("));\n");
     }
 
     private static void appendStepSource(StringBuilder sb, JavaModuleScanResult.GeneratedStep generatedStep) {
