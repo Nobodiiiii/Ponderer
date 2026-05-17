@@ -218,10 +218,20 @@ public class StructurePreviewWidget {
         centerX = (b.minX() + b.maxX()) / 2.0 + 0.5;
         centerY = (b.minY() + b.maxY()) / 2.0 + 0.5;
         centerZ = (b.minZ() + b.maxZ()) / 2.0 + 0.5;
-        // Diagonal of the AABB; 0.48 leaves a small (~4%) margin after the rotation sweeps the corners around.
-        double diag = Math.sqrt((double) sx * sx + (double) sy * sy + (double) sz * sz);
-        if (diag < 1.0) diag = 1.0;
-        scale = Math.min(w, h) * 0.48 / diag;
+        // The model rotates only around Y at a fixed pitch, so the worst-case projected extent
+        // is much smaller than the 3D diagonal. Compute the actual rotation-swept bounds:
+        //   horizontal swept = √(sx² + sz²)
+        //   vertical swept   = sy·cos(pitch) + horizontalSwept·sin(|pitch|)
+        // Fit each axis independently and pick the tighter constraint. 0.95 fill ⇒ ~2.5% margin.
+        double horizontalSwept = Math.sqrt((double) sx * sx + (double) sz * sz);
+        if (horizontalSwept < 1.0) horizontalSwept = 1.0;
+        double pitchRad = Math.toRadians(Math.abs(PITCH_DEG));
+        double verticalSwept = sy * Math.cos(pitchRad) + horizontalSwept * Math.sin(pitchRad);
+        if (verticalSwept < 1.0) verticalSwept = 1.0;
+        double fill = 0.95;
+        double scaleByWidth = w * fill / horizontalSwept;
+        double scaleByHeight = h * fill / verticalSwept;
+        scale = Math.min(scaleByWidth, scaleByHeight);
     }
 
     public void render(GuiGraphics graphics, float partialTicks) {
