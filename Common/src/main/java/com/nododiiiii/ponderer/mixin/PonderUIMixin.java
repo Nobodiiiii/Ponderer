@@ -23,12 +23,11 @@ import com.nododiiiii.ponderer.ui.UIText;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexSorting;
-import org.joml.Matrix4f;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -135,11 +134,38 @@ public abstract class PonderUIMixin extends Screen {
     private void ponderer$renderWidgetsOnTop(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER);
+        // The scene is drawn at pose-z ≈ +5800 (after ponderer$liftSceneOutOfBackgroundDepth
+        // pushes it to +5000 and the projection translate of +800 adds on top), with geometry
+        // extents reaching pose-z ≈ +6100. Anything added with addRenderableWidget normally
+        // renders at pose-z = 0 in Screen.render and fails LEQUAL against the scene's stored
+        // depth, so we re-issue every renderable here above the scene envelope.
         for (GuiEventListener child : this.children()) {
-            if (child instanceof PonderButton button && button.visible) {
-                button.render(graphics, mouseX, mouseY, partialTicks);
+            if (child instanceof Renderable renderable) {
+                renderable.render(graphics, mouseX, mouseY, partialTicks);
             }
         }
+        graphics.pose().popPose();
+    }
+
+    /**
+     * Lift every draw inside {@link PonderUI#renderWidgets} above the scene's depth envelope.
+     * The scene is rendered at pose-z ≈ 5800 (5000 pose + 800 projection) with geometry
+     * extents reaching ~6100. Pushing the pose to {@link PonderRuntimeZLayers#PONDER_TEXT_BASELINE_LAYER}
+     * (6500) means all of {@code renderSceneInformation}, the inner {@code renderOverlay} chain
+     * (ponder text via TextWindowElement), {@code renderNextUp}, breadcrumbs, tag chips and
+     * {@code renderHoverTooltips} land at NDC z below the scene's max NDC z and pass LEQUAL
+     * regardless of whether depth-test is on or off at the time of buffer flush.
+     */
+    @Inject(method = "renderWidgets", at = @At("HEAD"), remap = false)
+    private void ponderer$liftRenderWidgetsAboveScene(GuiGraphics graphics, int mouseX, int mouseY,
+            float partialTicks, CallbackInfo ci) {
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_TEXT_BASELINE_LAYER);
+    }
+
+    @Inject(method = "renderWidgets", at = @At("RETURN"), remap = false)
+    private void ponderer$popRenderWidgetsLift(GuiGraphics graphics, int mouseX, int mouseY,
+            float partialTicks, CallbackInfo ci) {
         graphics.pose().popPose();
     }
 
@@ -617,11 +643,10 @@ public abstract class PonderUIMixin extends Screen {
         RenderSystem.depthMask(false);
     }
 
-    @Inject(method = "renderScene", at = @At("TAIL"), remap = false)
-    private void ponderer$extendProjectionDepth(GuiGraphics graphics, int mouseX, int mouseY, int i, float partialTicks, CallbackInfo ci) {
-        Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
-        projection.translate(0, 0, 400);
-        RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
+    @Inject(method = "renderOverlay", at = @At("RETURN"), remap = false)
+    private void ponderer$overlayNoDepthPost(GuiGraphics graphics, int i, float partialTicks, CallbackInfo ci) {
+        RenderSystem.depthMask(true);
+        RenderSystem.enableDepthTest();
     }
 
     /**
@@ -657,12 +682,6 @@ public abstract class PonderUIMixin extends Screen {
         remap = false)
     private void ponderer$liftSceneOutOfBackgroundDepth(PoseStack ps, float x, float y, float z) {
         ps.translate(x, y, 5000.0f);
-    }
-
-    @Inject(method = "renderOverlay", at = @At("RETURN"), remap = false)
-    private void ponderer$overlayNoDepthPost(GuiGraphics graphics, int i, float partialTicks, CallbackInfo ci) {
-        RenderSystem.depthMask(true);
-        RenderSystem.enableDepthTest();
     }
 
     /**
