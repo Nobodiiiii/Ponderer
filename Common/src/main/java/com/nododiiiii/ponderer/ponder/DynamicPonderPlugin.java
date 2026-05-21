@@ -655,15 +655,25 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyRotateCameraY(SceneBuilder scene, DslScene.DslStep step) {
-        float degrees = step.degrees == null ? 90f : step.degrees;
+        float degreesY = step.degrees == null ? 90f : step.degrees;
+        Float degreesX = step.degreesX;
         int duration = step.durationOrDefault(20);
         scene.addInstruction(ponderScene -> {
             var yRotation = ponderScene.getTransform().yRotation;
-            float target = yRotation.getChaseTarget() + degrees;
+            float targetY = yRotation.getChaseTarget() + degreesY;
             if (duration == 0) {
-                yRotation.startWithValue(target);
+                yRotation.startWithValue(targetY);
             } else {
-                yRotation.chaseTimed(target, duration);
+                yRotation.chaseTimed(targetY, duration);
+            }
+            if (degreesX != null) {
+                var xRotation = ponderScene.getTransform().xRotation;
+                float targetX = xRotation.getChaseTarget() + degreesX;
+                if (duration == 0) {
+                    xRotation.startWithValue(targetX);
+                } else {
+                    xRotation.chaseTimed(targetX, duration);
+                }
             }
         });
         if (duration > 0) {

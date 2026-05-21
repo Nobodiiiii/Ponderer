@@ -149,10 +149,15 @@ public final class PonderJsEmitters {
     private static String emitRotateCameraY(DslScene.DslStep step, EmitContext ctx) {
         float deg = step.degrees == null ? 90f : step.degrees;
         int duration = step.durationOrDefault(20);
-        if (duration <= 0) {
-            return "scene.rotateCameraY(" + fmtFloat(deg) + ");";
+        String prefix = "";
+        if (step.degreesX != null && step.degreesX != 0f) {
+            prefix = "// note: X-axis camera rotation (" + fmtFloat(step.degreesX)
+                + " deg) is not supported by Ponder's KubeJS API and was skipped\n";
         }
-        return "scene.rotateCameraY(" + fmtFloat(deg) + ");\nscene.idle(" + duration + ");";
+        if (duration <= 0) {
+            return prefix + "scene.rotateCameraY(" + fmtFloat(deg) + ");";
+        }
+        return prefix + "scene.rotateCameraY(" + fmtFloat(deg) + ");\nscene.idle(" + duration + ");";
     }
 
     private static String emitShowControls(DslScene.DslStep step, EmitContext ctx) {

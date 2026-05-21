@@ -196,7 +196,7 @@ public final class GeneratedPonderSupport {
         });
     }
 
-    public static void rotateCameraY(SceneBuilder scene, float degrees, int duration) {
+    public static void rotateCameraY(SceneBuilder scene, float degrees, float degreesX, int duration) {
         scene.addInstruction(ponderScene -> {
             var yRotation = ponderScene.getTransform().yRotation;
             float target = yRotation.getChaseTarget() + degrees;
@@ -205,10 +205,23 @@ public final class GeneratedPonderSupport {
             } else {
                 yRotation.chaseTimed(target, duration);
             }
+            if (degreesX != 0f) {
+                var xRotation = ponderScene.getTransform().xRotation;
+                float targetX = xRotation.getChaseTarget() + degreesX;
+                if (duration == 0) {
+                    xRotation.startWithValue(targetX);
+                } else {
+                    xRotation.chaseTimed(targetX, duration);
+                }
+            }
         });
         if (duration > 0) {
             scene.idle(duration);
         }
+    }
+
+    public static void rotateCameraY(SceneBuilder scene, float degrees, int duration) {
+        rotateCameraY(scene, degrees, 0f, duration);
     }
 
     public static void highlightSection(SceneBuilder scene, String color, BlockPos pos1, BlockPos pos2,

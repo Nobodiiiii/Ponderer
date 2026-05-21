@@ -169,6 +169,7 @@ public class DslScene {
         public Float yaw;
         public Float pitch;
         public Float degrees;
+        public Float degreesX;
         public Float scale;
         public Float rotation;
         public Integer count;

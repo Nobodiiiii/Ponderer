@@ -1277,6 +1277,7 @@ public final class JavaModuleExportService {
                 .append(stringExpr(step.nbt)).append(");\n");
             case "rotate_camera_y" -> sb.append("        GeneratedPonderSupport.rotateCameraY(scene, ")
                 .append(step.degrees == null ? "90f" : floatLiteral(step.degrees)).append(", ")
+                .append(step.degreesX == null ? "0f" : floatLiteral(step.degreesX)).append(", ")
                 .append(step.durationOrDefault(20)).append(");\n");
             case "highlight_section" -> sb.append("        GeneratedPonderSupport.highlightSection(scene, ")
                 .append(stringExpr(step.color)).append(", ")
