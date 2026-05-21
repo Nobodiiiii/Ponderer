@@ -149,6 +149,30 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
     }
 
     @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (previewVisible && preview.onMouseDown(mouseX, mouseY)) {
+            setFocused(null);
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (preview.onMouseDrag(mouseX, mouseY)) {
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        boolean handled = preview.onMouseUp();
+        boolean superHandled = super.mouseReleased(mouseX, mouseY, button);
+        return handled || superHandled;
+    }
+
+    @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.renderWindow(graphics, mouseX, mouseY, partialTicks);
         if (previewVisible) {

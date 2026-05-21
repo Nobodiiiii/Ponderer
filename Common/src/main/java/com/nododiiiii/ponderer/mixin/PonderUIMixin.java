@@ -23,6 +23,7 @@ import com.nododiiiii.ponderer.ui.UIText;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -78,6 +79,10 @@ public abstract class PonderUIMixin extends Screen {
             return;
         }
         SceneEditorScreen.handlePonderUiFocusChanged(match.scene());
+
+        if (PickState.isActive() || NbtExpandedPickState.isActive()) {
+            return;
+        }
 
         if (!canEdit(Minecraft.getInstance().player)) {
             return;
@@ -259,6 +264,62 @@ public abstract class PonderUIMixin extends Screen {
                 return true;
         }
         return false;
+    }
+
+    /**
+     * True while the user is in the coordinate-pick flow targeting a real block
+     * position (POS1 / POS2 / LOOK_AT / POINT for {@link PickState}, or any
+     * {@link NbtExpandedPickState} pick). UI-anchor picks are excluded — they
+     * have no block under the cursor.
+     */
+    @Unique
+    private static boolean ponderer$isBlockPickActive() {
+        if (PickState.isActive() && !PickState.isUiPointPickActive()) {
+            return true;
+        }
+        return NbtExpandedPickState.isActive();
+    }
+
+    /**
+     * Force {@code PonderIndex.editingModeActive()} to behave as true inside
+     * PonderUI during block-pick mode, so Ponder's native editor view shows
+     * (axis labels, hovered block coordinates, userMode toggle). Scoped to
+     * PonderUI methods only — global mixin would break {@link PonderLocalizationMixin}.
+     */
+    @Redirect(method = "init",
+        at = @At(value = "INVOKE",
+            target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
+            remap = false),
+        remap = false, require = 0)
+    private boolean ponderer$forceEditingActiveInInit() {
+        return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
+    }
+
+    @Redirect(method = "renderScene",
+        at = @At(value = "INVOKE",
+            target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
+            remap = false),
+        remap = false, require = 0)
+    private boolean ponderer$forceEditingActiveInRenderScene() {
+        return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
+    }
+
+    @Redirect(method = "renderWidgets",
+        at = @At(value = "INVOKE",
+            target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
+            remap = false),
+        remap = false, require = 0)
+    private boolean ponderer$forceEditingActiveInRenderWidgets() {
+        return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
+    }
+
+    @Redirect(method = "renderHoverTooltips",
+        at = @At(value = "INVOKE",
+            target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
+            remap = false),
+        remap = false, require = 0)
+    private boolean ponderer$forceEditingActiveInRenderHoverTooltips() {
+        return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
     }
 
     /**

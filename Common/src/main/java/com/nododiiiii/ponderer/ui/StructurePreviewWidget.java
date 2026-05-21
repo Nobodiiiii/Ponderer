@@ -53,6 +53,13 @@ public class StructurePreviewWidget {
     private static final float YAW_DEG_PER_SECOND = 6.0f;
     /** Fixed pitch giving a turntable-ish angle. */
     private static final float PITCH_DEG = -25.0f;
+    /** Initial yaw offset — face the structure 180° from the auto-rotation origin. */
+    private static final float INITIAL_YAW_DEG = 180.0f;
+    /** Drag sensitivity in degrees per pixel. */
+    private static final float DRAG_YAW_PER_PIXEL = 0.6f;
+    private static final float DRAG_PITCH_PER_PIXEL = 0.4f;
+    private static final float MIN_PITCH = -89.0f;
+    private static final float MAX_PITCH = 89.0f;
 
     /**
      * Pose-stack Z applied via {@code pose.translate(..., MODEL_VIEW_Z)}.
@@ -80,7 +87,16 @@ public class StructurePreviewWidget {
     private double centerX, centerY, centerZ;
     private double scale = 1.0;
 
-    private final long startMillis = System.currentTimeMillis();
+    private long startMillis = System.currentTimeMillis();
+
+    /** Extra yaw accumulated from drag, on top of the time-based auto-rotation. */
+    private float dragYawDeg = 0.0f;
+    /** Pitch offset on top of {@link #PITCH_DEG}, accumulated from drag. */
+    private float dragPitchDeg = 0.0f;
+    /** When true, auto-rotation is paused (mouse held). The last computed yaw is frozen in {@link #lockedYawDeg}. */
+    private boolean rotationLocked;
+    private float lockedYawDeg;
+    private double lastDragX, lastDragY;
 
     @Nullable
     private String statusKey;
@@ -281,9 +297,10 @@ public class StructurePreviewWidget {
         // Transform chain mirrors PonderScene.SceneTransform.apply (vertex pipeline runs
         // innermost-first: T_(-center) → S → flipForGuiRender → R_yaw(Y) → R_pitch(X) → T_panel).
         pose.translate(x + w / 2.0, y + h / 2.0, MODEL_VIEW_Z);
-        pose.mulPose(Axis.XP.rotationDegrees(PITCH_DEG));
-        float yawDeg = (((System.currentTimeMillis() - startMillis) / 1000.0f) * YAW_DEG_PER_SECOND
-            + partialTicks * (YAW_DEG_PER_SECOND / 20.0f)) % 360.0f;
+        pose.mulPose(Axis.XP.rotationDegrees(PITCH_DEG + dragPitchDeg));
+        float yawDeg = rotationLocked
+            ? (lockedYawDeg + dragYawDeg) % 360.0f
+            : computeAutoYawDeg(partialTicks);
         pose.mulPose(Axis.YP.rotationDegrees(yawDeg));
         UIRenderHelper.flipForGuiRender(pose);
         pose.scale((float) scale, (float) scale, (float) scale);
@@ -325,5 +342,56 @@ public class StructurePreviewWidget {
         cache.values().forEach(SuperByteBuffer::delete);
         cache.clear();
         level = null;
+        dragYawDeg = 0.0f;
+        dragPitchDeg = 0.0f;
+        rotationLocked = false;
+        startMillis = System.currentTimeMillis();
+    }
+
+    public boolean isInside(double mouseX, double mouseY) {
+        return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
+    }
+
+    /** Begin drag: freeze the auto-rotation at its current angle so the drag continues from where it visually is. */
+    public boolean onMouseDown(double mouseX, double mouseY) {
+        if (level == null || cache.isEmpty()) return false;
+        if (!isInside(mouseX, mouseY)) return false;
+        lockedYawDeg = computeAutoYawDeg(0.0f);
+        rotationLocked = true;
+        lastDragX = mouseX;
+        lastDragY = mouseY;
+        return true;
+    }
+
+    public boolean onMouseDrag(double mouseX, double mouseY) {
+        if (!rotationLocked) return false;
+        double dx = mouseX - lastDragX;
+        double dy = mouseY - lastDragY;
+        lastDragX = mouseX;
+        lastDragY = mouseY;
+        dragYawDeg += (float) (dx * DRAG_YAW_PER_PIXEL);
+        dragPitchDeg += (float) (dy * DRAG_PITCH_PER_PIXEL);
+        if (dragPitchDeg < MIN_PITCH - PITCH_DEG) dragPitchDeg = MIN_PITCH - PITCH_DEG;
+        if (dragPitchDeg > MAX_PITCH - PITCH_DEG) dragPitchDeg = MAX_PITCH - PITCH_DEG;
+        return true;
+    }
+
+    /** Release drag: resume auto-rotation seamlessly from the current visual yaw. */
+    public boolean onMouseUp() {
+        if (!rotationLocked) return false;
+        // Re-anchor startMillis so that computeAutoYawDeg(0) at this instant equals (lockedYawDeg + dragYawDeg),
+        // then fold the offset into the time anchor and reset the drag accumulator. This avoids a visual jump.
+        float resumedYaw = (lockedYawDeg + dragYawDeg) % 360.0f;
+        startMillis = System.currentTimeMillis()
+            - (long) ((resumedYaw - INITIAL_YAW_DEG) / YAW_DEG_PER_SECOND * 1000.0f);
+        dragYawDeg = 0.0f;
+        rotationLocked = false;
+        return true;
+    }
+
+    private float computeAutoYawDeg(float partialTicks) {
+        return (INITIAL_YAW_DEG
+            + ((System.currentTimeMillis() - startMillis) / 1000.0f) * YAW_DEG_PER_SECOND
+            + partialTicks * (YAW_DEG_PER_SECOND / 20.0f)) % 360.0f;
     }
 }
