@@ -26,7 +26,7 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
     private final StepTextFieldHandle intervalField = new StepTextFieldHandle("entranceInterval");
 
     private boolean spawnParticles = false;
-    private boolean smartDisplay = true;
+    private boolean smartDisplay = false;
     private boolean replaceAir = false;
     private int rotationIndex = 0;
     private int entranceModeIndex = 1;

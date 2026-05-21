@@ -22,7 +22,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     private final KeyValueListState blockProperties = new KeyValueListState("prop", 1);
 
     private boolean spawnParticles = true;
-    private boolean smartDisplay = true;
+    private boolean smartDisplay = false;
     private int entranceModeIndex = 1;
     private int directionIndex = 0;
     private int entranceAnimationIndex = 0;

@@ -24,7 +24,7 @@ public class TextStepScreen extends AbstractStepEditorScreen {
     private final StepXyzFieldHandle pointField = new StepXyzFieldHandle("point");
     private final StepTextFieldHandle durationField = new StepTextFieldHandle("duration");
     private int colorIndex = 0;
-    private boolean placeNearTarget = false;
+    private boolean placeNearTarget = true;
 
     /** The language currently being edited; defaults to MC's current language. */
     private String editingLang;

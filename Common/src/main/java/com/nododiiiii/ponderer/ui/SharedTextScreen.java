@@ -22,7 +22,7 @@ public class SharedTextScreen extends AbstractStepEditorScreen {
     private final StepXyzFieldHandle pointField = new StepXyzFieldHandle("point");
     private final StepTextFieldHandle durationField = new StepTextFieldHandle("duration");
     private int colorIndex = 0;
-    private boolean placeNearTarget = false;
+    private boolean placeNearTarget = true;
 
     public SharedTextScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.shared_text"), scene, sceneIndex, parent);

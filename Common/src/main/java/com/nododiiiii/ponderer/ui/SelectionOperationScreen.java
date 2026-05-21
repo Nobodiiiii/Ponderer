@@ -21,7 +21,7 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
 
     private int directionIndex = 0;
     private int entranceAnimationIndex = 0;
-    private boolean smartDisplay = true;
+    private boolean smartDisplay = false;
 
     private final FieldBinding<Integer> directionBinding =
         FieldBindings.integer("direction", () -> directionIndex, value -> directionIndex = value);
