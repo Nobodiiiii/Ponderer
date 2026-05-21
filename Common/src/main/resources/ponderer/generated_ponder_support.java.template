@@ -746,18 +746,6 @@ public final class GeneratedPonderSupport {
                                                          Direction entryDirection,
                                                          int rowDuration, int rowInterval,
                                                          boolean smartDisplay) {
-        final BlockPos minPos = new BlockPos(
-            Math.min(pos1.getX(), pos2.getX()),
-            Math.min(pos1.getY(), pos2.getY()),
-            Math.min(pos1.getZ(), pos2.getZ()));
-        final BlockPos maxPos = new BlockPos(
-            Math.max(pos1.getX(), pos2.getX()),
-            Math.max(pos1.getY(), pos2.getY()),
-            Math.max(pos1.getZ(), pos2.getZ()));
-        scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(minPos);
-            ps.getWorld().getBounds().encapsulate(maxPos);
-        });
         List<List<BlockPos>> groups = orderedLayerGroups(pos1, pos2, entranceAnimation);
         if (smartDisplay) {
             groups = filterVisibleGroups(groups, context);
@@ -765,12 +753,12 @@ public final class GeneratedPonderSupport {
         if (groups.isEmpty()) {
             return;
         }
+        List<Selection> groupSelections = prepareAnimatedRevealSelections(scene, existing, groups);
+        if (groupSelections.isEmpty()) {
+            return;
+        }
         ElementLink<WorldSectionElement> working = existing;
-        for (List<BlockPos> group : groups) {
-            if (group.isEmpty()) {
-                continue;
-            }
-            Selection groupSelection = selectionForGroup(scene, group);
+        for (Selection groupSelection : groupSelections) {
             if (working == null) {
                 DisplayWorldSectionInstruction instruction =
                     new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection, null);
@@ -786,26 +774,65 @@ public final class GeneratedPonderSupport {
         }
     }
 
-    private static Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
-        BlockPos first = group.get(0);
-        int minX = first.getX();
-        int minY = first.getY();
-        int minZ = first.getZ();
-        int maxX = first.getX();
-        int maxY = first.getY();
-        int maxZ = first.getZ();
-        for (int i = 1; i < group.size(); i++) {
-            BlockPos pos = group.get(i);
-            minX = Math.min(minX, pos.getX());
-            minY = Math.min(minY, pos.getY());
-            minZ = Math.min(minZ, pos.getZ());
-            maxX = Math.max(maxX, pos.getX());
-            maxY = Math.max(maxY, pos.getY());
-            maxZ = Math.max(maxZ, pos.getZ());
+    private static List<Selection> prepareAnimatedRevealSelections(SceneBuilder scene,
+                                                                   ElementLink<WorldSectionElement> existing,
+                                                                   List<List<BlockPos>> groups) {
+        List<Selection> selections = new ArrayList<>();
+        int minX = Integer.MAX_VALUE;
+        int minY = Integer.MAX_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+        for (List<BlockPos> group : groups) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            selections.add(selectionForGroup(scene, group));
+            for (BlockPos pos : group) {
+                minX = Math.min(minX, pos.getX());
+                minY = Math.min(minY, pos.getY());
+                minZ = Math.min(minZ, pos.getZ());
+                maxX = Math.max(maxX, pos.getX());
+                maxY = Math.max(maxY, pos.getY());
+                maxZ = Math.max(maxZ, pos.getZ());
+            }
         }
-        return scene.getScene().getSceneBuildingUtil().select().fromTo(
-            new BlockPos(minX, minY, minZ),
-            new BlockPos(maxX, maxY, maxZ));
+        if (selections.isEmpty()) {
+            return selections;
+        }
+        BlockPos minPos = new BlockPos(minX, minY, minZ);
+        BlockPos maxPos = new BlockPos(maxX, maxY, maxZ);
+        List<Selection> revealSelections = List.copyOf(selections);
+        ElementLink<WorldSectionElement> target = existing;
+        scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(minPos);
+            ps.getWorld().getBounds().encapsulate(maxPos);
+            if (!ps.getBaseWorldSection().isEmpty()) {
+                for (Selection revealSelection : revealSelections) {
+                    ps.getBaseWorldSection().erase(revealSelection);
+                }
+                ps.getBaseWorldSection().queueRedraw();
+            }
+            if (target != null) {
+                WorldSectionElement element = ps.resolve(target);
+                if (element != null) {
+                    for (Selection revealSelection : revealSelections) {
+                        element.erase(revealSelection);
+                    }
+                    element.queueRedraw();
+                }
+            }
+        });
+        return selections;
+    }
+
+    private static Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().position(group.get(0));
+        for (int i = 1; i < group.size(); i++) {
+            selection = selection.add(scene.getScene().getSceneBuildingUtil().select().position(group.get(i)));
+        }
+        return selection;
     }
 
     private static List<List<BlockPos>> orderedLayerGroups(BlockPos pos1, BlockPos pos2, String entranceAnimation) {
@@ -1302,7 +1329,7 @@ public final class GeneratedPonderSupport {
     }
 
     private static Rotation toExtraRotation(int degrees) {
-        int normalized = ((degrees %% 360) + 360) %% 360;
+        int normalized = ((degrees % 360) + 360) % 360;
         return switch (normalized) {
             case 90 -> Rotation.CLOCKWISE_90;
             case 180 -> Rotation.CLOCKWISE_180;

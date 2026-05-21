@@ -1492,28 +1492,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
             if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
                 pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
             }
-            // Extend world bounds to cover the target range so ReplaceBlocksInstruction's
-            // isInside() check and WorldSectionElement rendering both accept positions outside
-            // the original schematic footprint. show_section_and_merge expects the blocks to
-            // already exist (typically placed by a prior hidden set_block); a runtime encapsulate
-            // here guards against bounds reassignment shrinking the visible region.
-            final BlockPos minPos = new BlockPos(
-                    Math.min(pos1.getX(), pos2.getX()),
-                    Math.min(pos1.getY(), pos2.getY()),
-                    Math.min(pos1.getZ(), pos2.getZ()));
-            final BlockPos maxPos = new BlockPos(
-                    Math.max(pos1.getX(), pos2.getX()),
-                    Math.max(pos1.getY(), pos2.getY()),
-                    Math.max(pos1.getZ(), pos2.getZ()));
-            scene.addInstruction(ps -> {
-                ps.getWorld().getBounds().encapsulate(minPos);
-                ps.getWorld().getBounds().encapsulate(maxPos);
-            });
             int rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
             int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
             applyAnimatedShowSectionAndMerge(scene, context, linkId, existing, pos1, pos2,
                     entranceAnimation, direction, rowDuration, rowInterval, smartDisplay);
-                updateVisibleRange(context, step, true);
+            updateVisibleRange(context, step, true);
             return;
         }
 
@@ -1571,12 +1554,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
+        List<Selection> groupSelections = prepareAnimatedRevealSelections(scene, existing, groups);
+        if (groupSelections.isEmpty()) {
+            return;
+        }
+
         ElementLink<WorldSectionElement> working = existing;
-        for (List<BlockPos> group : groups) {
-            if (group.isEmpty()) {
-                continue;
-            }
-            Selection groupSelection = selectionForGroup(scene, group);
+        for (Selection groupSelection : groupSelections) {
             if (working == null) {
                 DisplayWorldSectionInstruction instruction = new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection, null);
                 scene.addInstruction(instruction);
@@ -1591,28 +1575,69 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
-    private Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
-        BlockPos first = group.get(0);
-        int minX = first.getX();
-        int minY = first.getY();
-        int minZ = first.getZ();
-        int maxX = first.getX();
-        int maxY = first.getY();
-        int maxZ = first.getZ();
+    private List<Selection> prepareAnimatedRevealSelections(SceneBuilder scene,
+                                                            @Nullable ElementLink<WorldSectionElement> existing,
+                                                            List<List<BlockPos>> groups) {
+        List<Selection> selections = new ArrayList<>();
+        int minX = Integer.MAX_VALUE;
+        int minY = Integer.MAX_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        int maxZ = Integer.MIN_VALUE;
 
-        for (int i = 1; i < group.size(); i++) {
-            BlockPos pos = group.get(i);
-            if (pos.getX() < minX) minX = pos.getX();
-            if (pos.getY() < minY) minY = pos.getY();
-            if (pos.getZ() < minZ) minZ = pos.getZ();
-            if (pos.getX() > maxX) maxX = pos.getX();
-            if (pos.getY() > maxY) maxY = pos.getY();
-            if (pos.getZ() > maxZ) maxZ = pos.getZ();
+        for (List<BlockPos> group : groups) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            selections.add(selectionForGroup(scene, group));
+            for (BlockPos pos : group) {
+                if (pos.getX() < minX) minX = pos.getX();
+                if (pos.getY() < minY) minY = pos.getY();
+                if (pos.getZ() < minZ) minZ = pos.getZ();
+                if (pos.getX() > maxX) maxX = pos.getX();
+                if (pos.getY() > maxY) maxY = pos.getY();
+                if (pos.getZ() > maxZ) maxZ = pos.getZ();
+            }
+        }
+        if (selections.isEmpty()) {
+            return selections;
         }
 
-        return scene.getScene().getSceneBuildingUtil().select().fromTo(
-                new BlockPos(minX, minY, minZ),
-                new BlockPos(maxX, maxY, maxZ));
+        final BlockPos minPos = new BlockPos(minX, minY, minZ);
+        final BlockPos maxPos = new BlockPos(maxX, maxY, maxZ);
+        final List<Selection> revealSelections = List.copyOf(selections);
+        final ElementLink<WorldSectionElement> target = existing;
+        scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(minPos);
+            ps.getWorld().getBounds().encapsulate(maxPos);
+
+            if (!ps.getBaseWorldSection().isEmpty()) {
+                for (Selection revealSelection : revealSelections) {
+                    ps.getBaseWorldSection().erase(revealSelection);
+                }
+                ps.getBaseWorldSection().queueRedraw();
+            }
+
+            if (target != null) {
+                WorldSectionElement element = ps.resolve(target);
+                if (element != null) {
+                    for (Selection revealSelection : revealSelections) {
+                        element.erase(revealSelection);
+                    }
+                    element.queueRedraw();
+                }
+            }
+        });
+        return selections;
+    }
+
+    private Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().position(group.get(0));
+        for (int i = 1; i < group.size(); i++) {
+            selection = selection.add(scene.getScene().getSceneBuildingUtil().select().position(group.get(i)));
+        }
+        return selection;
     }
 
     private void applyRotateSection(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
