@@ -1500,6 +1500,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
+        // Non-animated path: the new section renders all of `selection` immediately, so any
+        // prior independent section that already contains overlapping positions must release
+        // them — otherwise both sections render the same blocks and produce the ghost effect.
+        eraseSelectionFromOtherSections(scene, context, existing, selection);
+
         if (existing == null) {
             ElementLink<WorldSectionElement> created;
             if (duration <= 0) {
@@ -1554,7 +1559,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        List<Selection> groupSelections = prepareAnimatedRevealSelections(scene, existing, groups);
+        // Without erasing the reveal positions from previously-created independent sections,
+        // a second show_section_and_merge covering the same positions would render them via
+        // both the old section (still visible) and the new animated section, producing the
+        // "instant placement + animation" ghost.
+        List<ElementLink<WorldSectionElement>> otherSectionLinks = snapshotOtherSectionLinks(context, existing);
+
+        List<Selection> groupSelections = prepareAnimatedRevealSelections(scene, existing, groups, otherSectionLinks);
         if (groupSelections.isEmpty()) {
             return;
         }
@@ -1577,7 +1588,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private List<Selection> prepareAnimatedRevealSelections(SceneBuilder scene,
                                                             @Nullable ElementLink<WorldSectionElement> existing,
-                                                            List<List<BlockPos>> groups) {
+                                                            List<List<BlockPos>> groups,
+                                                            List<ElementLink<WorldSectionElement>> otherSectionLinks) {
         List<Selection> selections = new ArrayList<>();
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
@@ -1608,6 +1620,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         final BlockPos maxPos = new BlockPos(maxX, maxY, maxZ);
         final List<Selection> revealSelections = List.copyOf(selections);
         final ElementLink<WorldSectionElement> target = existing;
+        final List<ElementLink<WorldSectionElement>> priorSections = List.copyOf(otherSectionLinks);
         scene.addInstruction(ps -> {
             ps.getWorld().getBounds().encapsulate(minPos);
             ps.getWorld().getBounds().encapsulate(maxPos);
@@ -1627,6 +1640,17 @@ public class DynamicPonderPlugin implements PonderPlugin {
                     }
                     element.queueRedraw();
                 }
+            }
+
+            for (ElementLink<WorldSectionElement> link : priorSections) {
+                WorldSectionElement element = ps.resolve(link);
+                if (element == null) {
+                    continue;
+                }
+                for (Selection revealSelection : revealSelections) {
+                    element.erase(revealSelection);
+                }
+                element.queueRedraw();
             }
         });
         return selections;
@@ -1947,6 +1971,39 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private String autoLinkId(StepContext context) {
         return "section_" + (context.sectionLinks.size() + 1);
+    }
+
+    private List<ElementLink<WorldSectionElement>> snapshotOtherSectionLinks(
+            StepContext context, @Nullable ElementLink<WorldSectionElement> exclude) {
+        List<ElementLink<WorldSectionElement>> result = new ArrayList<>();
+        for (ElementLink<WorldSectionElement> link : context.sectionLinks.values()) {
+            if (link == exclude) {
+                continue;
+            }
+            result.add(link);
+        }
+        return result;
+    }
+
+    private void eraseSelectionFromOtherSections(SceneBuilder scene, StepContext context,
+                                                 @Nullable ElementLink<WorldSectionElement> exclude,
+                                                 Selection selection) {
+        List<ElementLink<WorldSectionElement>> others = snapshotOtherSectionLinks(context, exclude);
+        if (others.isEmpty()) {
+            return;
+        }
+        final List<ElementLink<WorldSectionElement>> snap = List.copyOf(others);
+        final Selection target = selection;
+        scene.addInstruction(ps -> {
+            for (ElementLink<WorldSectionElement> link : snap) {
+                WorldSectionElement element = ps.resolve(link);
+                if (element == null) {
+                    continue;
+                }
+                element.erase(target);
+                element.queueRedraw();
+            }
+        });
     }
 
     @Nullable

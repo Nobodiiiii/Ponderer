@@ -420,6 +420,9 @@ public final class GeneratedPonderSupport {
             updateVisibleRange(context, pos1, targetPos2, true);
             return;
         }
+        // Non-animated path: erase the reveal positions from any prior independent sections
+        // (other than the target) so the new section is the sole renderer of those positions.
+        eraseSelectionFromOtherSections(scene, context, existing, selection);
         if (existing == null) {
             ElementLink<WorldSectionElement> created;
             if (duration <= 0) {
@@ -753,7 +756,8 @@ public final class GeneratedPonderSupport {
         if (groups.isEmpty()) {
             return;
         }
-        List<Selection> groupSelections = prepareAnimatedRevealSelections(scene, existing, groups);
+        List<ElementLink<WorldSectionElement>> otherSectionLinks = snapshotOtherSectionLinks(context, existing);
+        List<Selection> groupSelections = prepareAnimatedRevealSelections(scene, existing, groups, otherSectionLinks);
         if (groupSelections.isEmpty()) {
             return;
         }
@@ -776,7 +780,8 @@ public final class GeneratedPonderSupport {
 
     private static List<Selection> prepareAnimatedRevealSelections(SceneBuilder scene,
                                                                    ElementLink<WorldSectionElement> existing,
-                                                                   List<List<BlockPos>> groups) {
+                                                                   List<List<BlockPos>> groups,
+                                                                   List<ElementLink<WorldSectionElement>> otherSectionLinks) {
         List<Selection> selections = new ArrayList<>();
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
@@ -805,6 +810,7 @@ public final class GeneratedPonderSupport {
         BlockPos maxPos = new BlockPos(maxX, maxY, maxZ);
         List<Selection> revealSelections = List.copyOf(selections);
         ElementLink<WorldSectionElement> target = existing;
+        List<ElementLink<WorldSectionElement>> priorSections = List.copyOf(otherSectionLinks);
         scene.addInstruction(ps -> {
             ps.getWorld().getBounds().encapsulate(minPos);
             ps.getWorld().getBounds().encapsulate(maxPos);
@@ -822,6 +828,16 @@ public final class GeneratedPonderSupport {
                     }
                     element.queueRedraw();
                 }
+            }
+            for (ElementLink<WorldSectionElement> link : priorSections) {
+                WorldSectionElement element = ps.resolve(link);
+                if (element == null) {
+                    continue;
+                }
+                for (Selection revealSelection : revealSelections) {
+                    element.erase(revealSelection);
+                }
+                element.queueRedraw();
             }
         });
         return selections;
@@ -948,6 +964,39 @@ public final class GeneratedPonderSupport {
 
     private static String autoLinkId(Context context) {
         return "section_" + (context.sectionLinks.size() + 1);
+    }
+
+    private static List<ElementLink<WorldSectionElement>> snapshotOtherSectionLinks(
+            Context context, ElementLink<WorldSectionElement> exclude) {
+        List<ElementLink<WorldSectionElement>> result = new ArrayList<>();
+        for (ElementLink<WorldSectionElement> link : context.sectionLinks.values()) {
+            if (link == exclude) {
+                continue;
+            }
+            result.add(link);
+        }
+        return result;
+    }
+
+    private static void eraseSelectionFromOtherSections(SceneBuilder scene, Context context,
+                                                       ElementLink<WorldSectionElement> exclude,
+                                                       Selection selection) {
+        List<ElementLink<WorldSectionElement>> others = snapshotOtherSectionLinks(context, exclude);
+        if (others.isEmpty()) {
+            return;
+        }
+        List<ElementLink<WorldSectionElement>> snap = List.copyOf(others);
+        Selection target = selection;
+        scene.addInstruction(ps -> {
+            for (ElementLink<WorldSectionElement> link : snap) {
+                WorldSectionElement element = ps.resolve(link);
+                if (element == null) {
+                    continue;
+                }
+                element.erase(target);
+                element.queueRedraw();
+            }
+        });
     }
 
     private static String normalizeEntranceAnimation(String raw) {
