@@ -182,7 +182,13 @@ public final class JavaModuleExportService {
             outcomes.add(outcome);
         }
 
-        List<TextFile> globalWrites = buildGlobalWrites(scanResult.targetProject, manifest, staleManagedLangKeys);
+        Set<String> currentSceneIds = outcomes.stream()
+            .filter(outcome -> outcome.status != SceneExportOutcome.Status.SKIPPED_SCENE)
+            .map(outcome -> outcome.sceneId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<TextFile> globalWrites = buildGlobalWrites(scanResult.targetProject, manifest, currentSceneIds, staleManagedLangKeys);
         textWrites.addAll(globalWrites);
 
         Path exportDir = scanResult.targetProject.targetRoot.resolve(GENERATED_DIR).normalize();
@@ -710,6 +716,7 @@ public final class JavaModuleExportService {
 
     private static List<TextFile> buildGlobalWrites(JavaModuleScanResult.TargetProject target,
                                                     JavaModuleExportManifest manifest,
+                                                    Set<String> currentSceneIds,
                                                     Map<String, Set<String>> staleManagedLangKeys) {
         List<TextFile> writes = new ArrayList<>();
         String generatedPackagePath = packageToPath(target.generatedPackage);
@@ -721,7 +728,7 @@ public final class JavaModuleExportService {
             buildAttributionSource(target)));
         writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderSupport.java",
             buildSupportSource(target)));
-        writes.addAll(buildLangWrites(target, manifest, staleManagedLangKeys));
+        writes.addAll(buildLangWrites(target, manifest, currentSceneIds, staleManagedLangKeys));
         if ("fabric".equals(target.loader)) {
             writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderFabricClient.java",
                 buildFabricClientSource(target)));
@@ -734,22 +741,26 @@ public final class JavaModuleExportService {
 
     private static List<TextFile> buildLangWrites(JavaModuleScanResult.TargetProject target,
                                                   JavaModuleExportManifest manifest,
+                                                  Set<String> currentSceneIds,
                                                   Map<String, Set<String>> staleManagedLangKeys) {
-        Map<String, Map<String, String>> managedEntries = collectManagedLangEntries(manifest);
-        mergeLangEntries(managedEntries, buildAttributionLangEntries(target.modId));
+        // Incremental: only touch lang keys belonging to this export's scenes (plus stale removals
+        // and the always-on attribution). Other scenes' entries — even those tracked in the
+        // manifest — are left alone so partial exports cannot rewrite untouched translations.
+        Map<String, Map<String, String>> currentEntries = collectManagedLangEntriesForScenes(manifest, currentSceneIds);
+        mergeLangEntries(currentEntries, buildAttributionLangEntries(target.modId));
         Set<String> locales = new LinkedHashSet<>();
-        locales.addAll(managedEntries.keySet());
+        locales.addAll(currentEntries.keySet());
         locales.addAll(staleManagedLangKeys.keySet());
 
         List<TextFile> writes = new ArrayList<>();
         for (String locale : locales.stream().sorted().toList()) {
             Path langPath = target.resourcesRoot.resolve("assets/" + target.modId + "/lang/" + locale + ".json").normalize();
             Map<String, String> mergedEntries = readLangFile(langPath);
-            Set<String> managedKeys = new LinkedHashSet<>();
-            managedKeys.addAll(managedEntries.getOrDefault(locale, Map.of()).keySet());
-            managedKeys.addAll(staleManagedLangKeys.getOrDefault(locale, Set.of()));
-            managedKeys.forEach(mergedEntries::remove);
-            mergedEntries.putAll(managedEntries.getOrDefault(locale, Map.of()));
+            Set<String> keysToRemove = new LinkedHashSet<>();
+            keysToRemove.addAll(currentEntries.getOrDefault(locale, Map.of()).keySet());
+            keysToRemove.addAll(staleManagedLangKeys.getOrDefault(locale, Set.of()));
+            keysToRemove.forEach(mergedEntries::remove);
+            mergedEntries.putAll(currentEntries.getOrDefault(locale, Map.of()));
             writes.add(new TextFile(relativeToRoot(target.targetRoot, langPath), GSON.toJson(mergedEntries)));
         }
         return writes;
@@ -765,12 +776,14 @@ public final class JavaModuleExportService {
         });
     }
 
-    private static Map<String, Map<String, String>> collectManagedLangEntries(JavaModuleExportManifest manifest) {
+    private static Map<String, Map<String, String>> collectManagedLangEntriesForScenes(JavaModuleExportManifest manifest,
+                                                                                       Set<String> sceneIds) {
         Map<String, Map<String, String>> merged = new LinkedHashMap<>();
-        if (manifest.scenes == null) {
+        if (manifest.scenes == null || sceneIds == null || sceneIds.isEmpty()) {
             return merged;
         }
         manifest.scenes.values().stream()
+            .filter(entry -> entry.sceneId != null && sceneIds.contains(entry.sceneId))
             .sorted(Comparator.comparing(entry -> entry.sceneId == null ? "" : entry.sceneId))
             .forEach(entry -> {
                 if (entry.langEntries == null) {
@@ -951,8 +964,15 @@ public final class JavaModuleExportService {
                 LinkedHashMap::new));
     }
 
+    private static final String GENERATED_NOTICE_LINE_EN =
+        "// Auto-generated by The Ponderer — do not edit; will be overwritten on next export.";
+    private static final String GENERATED_NOTICE_LINE_ZH =
+        "// 由思索者自动生成 — 请勿手动修改；下次导出时会被覆盖。";
+    private static final String GENERATED_NOTICE_BLOCK =
+        GENERATED_NOTICE_LINE_EN + "\n" + GENERATED_NOTICE_LINE_ZH + "\n";
+
     private static String buildPluginSource(JavaModuleScanResult.TargetProject target) {
-        return """
+        return GENERATED_NOTICE_BLOCK + """
             package %s;
 
             import net.createmod.ponder.api.registration.PonderPlugin;
@@ -995,7 +1015,7 @@ public final class JavaModuleExportService {
             tagBody.append("        ").append(simpleName).append(".registerTags(helper);\n");
         }
 
-        return """
+        return GENERATED_NOTICE_BLOCK + """
             package %s;
 
             %s
@@ -1017,7 +1037,7 @@ public final class JavaModuleExportService {
     }
 
     private static String buildFabricClientSource(JavaModuleScanResult.TargetProject target) {
-        return """
+        return GENERATED_NOTICE_BLOCK + """
             package %s;
 
             import net.createmod.ponder.foundation.PonderIndex;
@@ -1033,7 +1053,7 @@ public final class JavaModuleExportService {
     }
 
     private static String buildForgeClientSource(JavaModuleScanResult.TargetProject target) {
-        return """
+        return GENERATED_NOTICE_BLOCK + """
             package %s;
 
             import net.createmod.ponder.foundation.PonderIndex;
@@ -1056,7 +1076,7 @@ public final class JavaModuleExportService {
     }
 
     private static String buildAttributionSource(JavaModuleScanResult.TargetProject target) {
-        return """
+        return GENERATED_NOTICE_BLOCK + """
             package %s;
 
             import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
@@ -1092,6 +1112,7 @@ public final class JavaModuleExportService {
     private static String buildSceneSource(JavaModuleScanResult.TargetProject target,
                                            JavaModuleScanResult.ScenePlan plan) {
         StringBuilder sb = new StringBuilder();
+        sb.append(GENERATED_NOTICE_BLOCK);
         sb.append("package ").append(target.scenePackage).append(";\n\n");
         sb.append("import ").append(target.generatedPackage).append(".GeneratedPonderAttribution;\n");
         sb.append("import ").append(target.generatedPackage).append(".GeneratedPonderSupport;\n");
