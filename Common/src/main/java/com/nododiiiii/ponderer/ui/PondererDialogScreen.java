@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class PondererDialogScreen extends AbstractSimiScreen implements PondererUiScaling.ScaledScreen {
+public class PondererDialogScreen extends AbstractSimiScreen {
 
     private static final int BUTTON_HEIGHT = 16;
     private static final int BUTTON_GAP = 12;
@@ -70,7 +70,6 @@ public class PondererDialogScreen extends AbstractSimiScreen implements Ponderer
 
     public void open() {
         Minecraft client = CatnipClientServices.CLIENT_HOOKS.getMinecraftFromScreen(source);
-        PondererUiScaling.apply(client, this);
         this.init(client, client.getWindow().getGuiScaledWidth(), client.getWindow().getGuiScaledHeight());
         this.minecraft.screen = this;
     }
@@ -80,14 +79,11 @@ public class PondererDialogScreen extends AbstractSimiScreen implements Ponderer
     }
 
     public void closeToSource() {
-        Minecraft mc = Minecraft.getInstance();
-        mc.screen = source;
-        PondererUiScaling.scheduleRestore(mc);
+        Minecraft.getInstance().screen = source;
     }
 
     @Override
     protected void init() {
-        PondererUiScaling.apply(minecraft, this);
         super.init();
 
         text.clear();
