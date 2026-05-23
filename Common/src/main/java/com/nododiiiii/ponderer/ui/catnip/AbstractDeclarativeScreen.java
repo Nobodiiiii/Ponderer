@@ -1,11 +1,13 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.PondererUiScaling;
 import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.config.ui.ConfigScreen;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.widget.AbstractSimiWidget;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -13,7 +15,7 @@ import net.minecraft.network.chat.Component;
 import javax.annotation.Nullable;
 import java.util.function.Consumer;
 
-public abstract class AbstractDeclarativeScreen extends ConfigScreen {
+public abstract class AbstractDeclarativeScreen extends ConfigScreen implements PondererUiScaling.ScaledScreen {
 
     protected final String scopeKey;
     protected final String titleKey;
@@ -27,6 +29,19 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen {
         super(parent);
         this.scopeKey = scopeKey;
         this.titleKey = titleKey;
+    }
+
+    @Override
+    protected void init() {
+        PondererUiScaling.apply(minecraft, this);
+        super.init();
+    }
+
+    @Override
+    public void removed() {
+        Minecraft mc = minecraft != null ? minecraft : Minecraft.getInstance();
+        super.removed();
+        PondererUiScaling.scheduleRestore(mc);
     }
 
     protected final void clearStatusMessages() {

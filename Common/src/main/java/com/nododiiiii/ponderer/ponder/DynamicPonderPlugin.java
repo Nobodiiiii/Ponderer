@@ -1063,11 +1063,45 @@ public class DynamicPonderPlugin implements PonderPlugin {
         boolean placeVisible = !animatedReveal && !Boolean.FALSE.equals(step.immediateDisplay);
         boolean particles = placeVisible && !Boolean.FALSE.equals(step.spawnParticles);
 
-        // A strip decomposition that contains only placed positions — never bridges an air gap.
-        // Used for the base-section erase/add so existing scene blocks at air positions stay visible.
+        // An air-free strip decomposition used by the non-animated path and the simultaneous
+        // reveal path. Smart-display may later trim positions out of these groups.
         List<List<BlockPos>> placedStrips = ExtraStructurePlanner.segmentForAnimation(placed, "up");
 
-        ensureSceneCanShowExtra(scene, minCorner, maxCorner, placedStrips, placeVisible);
+        List<List<BlockPos>> revealGroups = placedStrips;
+        int revealInterval = 0;
+        String linkId = null;
+        Direction direction = Direction.DOWN;
+        int rowDuration = 20;
+        if (animatedReveal) {
+            linkId = step.linkId == null ? "" : step.linkId.trim();
+            if (linkId.isEmpty()) {
+                linkId = autoLinkId(context);
+            }
+            direction = parseDirection(step.direction);
+            rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+            int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
+            boolean smartDisplay = !Boolean.FALSE.equals(step.smartDisplay);
+
+            // Simultaneous → reuse the air-free strips and start every reveal at the same scene
+            // tick (rowInterval=0). Directional → segment along the chosen axis as usual.
+            if (simultaneous) {
+                revealGroups = placedStrips;
+                revealInterval = 0;
+            } else {
+                revealGroups = ExtraStructurePlanner.segmentForAnimation(placed, entranceAnimation);
+                revealInterval = rowInterval;
+            }
+
+            // Filter against PRIOR visibility (e.g. blocks already shown by a previous
+            // show_extra_structure). Only the still-hidden positions should be removed from the
+            // base section; otherwise already-visible overlaps such as shared floor blocks vanish.
+            if (smartDisplay) {
+                revealGroups = filterVisibleGroups(revealGroups, context);
+            }
+            ensureSceneCanShowExtra(scene, minCorner, maxCorner, revealGroups, false);
+        } else {
+            ensureSceneCanShowExtra(scene, minCorner, maxCorner, placedStrips, placeVisible);
+        }
 
         for (ExtraStructurePlanner.PlacedBlock b : placed) {
             scene.world().setBlock(b.pos, b.state, particles);
@@ -1083,33 +1117,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        String linkId = step.linkId == null ? "" : step.linkId.trim();
-        if (linkId.isEmpty()) {
-            linkId = autoLinkId(context);
-        }
-        Direction direction = parseDirection(step.direction);
-        int rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
-        int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
-        boolean smartDisplay = !Boolean.FALSE.equals(step.smartDisplay);
-
-        // Simultaneous → reuse the air-free strips and start every reveal at the same scene tick
-        // (rowInterval=0). Directional → segment along the chosen axis as usual.
-        List<List<BlockPos>> revealGroups;
-        int revealInterval;
-        if (simultaneous) {
-            revealGroups = placedStrips;
-            revealInterval = 0;
-        } else {
-            revealGroups = ExtraStructurePlanner.segmentForAnimation(placed, entranceAnimation);
-            revealInterval = rowInterval;
-        }
-
-        // Filter against PRIOR visibility (e.g. blocks already shown by a previous
-        // show_extra_structure). Mutating visibility before this read would erase the prior
-        // state and animate already-visible overlaps a second time.
-        if (smartDisplay) {
-            revealGroups = filterVisibleGroups(revealGroups, context);
-        }
         if (revealGroups.isEmpty()) {
             applyPlacedVisibility(context, placed, true);
             return;
@@ -1141,31 +1148,20 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     /**
-     * Like {@link #ensureSceneCanShowRange} but operates per real-placed strip rather than over
-     * the entire bounding box, so existing scene blocks at the structure's air positions are
-     * neither erased from nor merged into the base section.
+     * Like {@link #ensureSceneCanShowRange} but operates on exact placed-position selections
+     * rather than the entire bounding box, so existing scene blocks at air positions or
+     * smart-display-filtered overlaps are not accidentally erased from the base section.
      */
     private void ensureSceneCanShowExtra(SceneBuilder scene, BlockPos minPos, BlockPos maxPos,
-                                          List<List<BlockPos>> placedStrips, boolean forceVisibleNow) {
-        final List<int[]> stripBounds = new ArrayList<>(placedStrips.size());
-        for (List<BlockPos> strip : placedStrips) {
-            if (strip.isEmpty()) {
+                                          List<List<BlockPos>> placedGroups, boolean forceVisibleNow) {
+        final List<Selection> groupSelections = new ArrayList<>(placedGroups.size());
+        for (List<BlockPos> group : placedGroups) {
+            if (group.isEmpty()) {
                 continue;
             }
-            BlockPos first = strip.get(0);
-            int sxMin = first.getX(), syMin = first.getY(), szMin = first.getZ();
-            int sxMax = sxMin, syMax = syMin, szMax = szMin;
-            for (int i = 1; i < strip.size(); i++) {
-                BlockPos p = strip.get(i);
-                if (p.getX() < sxMin) sxMin = p.getX();
-                if (p.getX() > sxMax) sxMax = p.getX();
-                if (p.getY() < syMin) syMin = p.getY();
-                if (p.getY() > syMax) syMax = p.getY();
-                if (p.getZ() < szMin) szMin = p.getZ();
-                if (p.getZ() > szMax) szMax = p.getZ();
-            }
-            stripBounds.add(new int[]{sxMin, syMin, szMin, sxMax, syMax, szMax});
+            groupSelections.add(selectionForGroup(scene, group));
         }
+        final List<Selection> capturedSelections = List.copyOf(groupSelections);
         final BlockPos minCornerCaptured = minPos;
         final BlockPos maxCornerCaptured = maxPos;
 
@@ -1174,11 +1170,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             ps.getWorld().getBounds().encapsulate(maxCornerCaptured);
             if (!forceVisibleNow) {
                 if (!ps.getBaseWorldSection().isEmpty()) {
-                    for (int[] bounds : stripBounds) {
-                        Selection sel = ps.getSceneBuildingUtil().select().fromTo(
-                                bounds[0], bounds[1], bounds[2],
-                                bounds[3], bounds[4], bounds[5]);
-                        ps.getBaseWorldSection().erase(sel);
+                    for (Selection selection : capturedSelections) {
+                        ps.getBaseWorldSection().erase(selection);
                     }
                     ps.getBaseWorldSection().queueRedraw();
                 }
@@ -1190,11 +1183,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 ps.getBaseWorldSection().setVisible(true);
                 ps.getBaseWorldSection().setFade(1);
             } else {
-                for (int[] bounds : stripBounds) {
-                    Selection sel = ps.getSceneBuildingUtil().select().fromTo(
-                            bounds[0], bounds[1], bounds[2],
-                            bounds[3], bounds[4], bounds[5]);
-                    ps.getBaseWorldSection().add(sel);
+                for (Selection selection : capturedSelections) {
+                    ps.getBaseWorldSection().add(selection);
                 }
             }
             ps.getBaseWorldSection().queueRedraw();
