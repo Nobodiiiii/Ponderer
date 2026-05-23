@@ -219,7 +219,28 @@ public final class PonderJsEmitters {
 
     private static String emitDestroyBlock(DslScene.DslStep step, EmitContext ctx) {
         if (step.blockPos == null || step.blockPos.size() < 3) return "// destroy_block: missing blockPos";
-        return "scene.world.destroyBlock([" + fmtInts(step.blockPos) + "]);";
+        boolean particles = !Boolean.FALSE.equals(step.destroyParticles);
+        if (step.blockPos2 == null || step.blockPos2.size() < 3 || step.blockPos.equals(step.blockPos2)) {
+            if (particles) {
+                return "scene.world.destroyBlock([" + fmtInts(step.blockPos) + "]);";
+            }
+            return "scene.world.setBlock([" + fmtInts(step.blockPos) + "], \"minecraft:air\", false);";
+        }
+        if (!particles) {
+            // No particles → equivalent to filling the range with air, which the Create JS API
+            // already supports as a single call.
+            String coords = fmtInts(step.blockPos) + ", " + fmtInts(step.blockPos2);
+            return "scene.world.setBlocks(util.select.fromTo(" + coords + "), \"minecraft:air\", false);";
+        }
+        // Particle destroy is single-position only in the Create API; emit a loop.
+        int x1 = step.blockPos.get(0), y1 = step.blockPos.get(1), z1 = step.blockPos.get(2);
+        int x2 = step.blockPos2.get(0), y2 = step.blockPos2.get(1), z2 = step.blockPos2.get(2);
+        int minX = Math.min(x1, x2), minY = Math.min(y1, y2), minZ = Math.min(z1, z2);
+        int maxX = Math.max(x1, x2), maxY = Math.max(y1, y2), maxZ = Math.max(z1, z2);
+        return "for (let dx = " + minX + "; dx <= " + maxX + "; dx++)"
+            + " for (let dy = " + minY + "; dy <= " + maxY + "; dy++)"
+            + " for (let dz = " + minZ + "; dz <= " + maxZ + "; dz++)"
+            + " scene.world.destroyBlock([dx, dy, dz]);";
     }
 
     private static String emitReplaceBlocks(DslScene.DslStep step, EmitContext ctx) {

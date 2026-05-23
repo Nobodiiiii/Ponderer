@@ -1337,6 +1337,7 @@ public final class JavaModuleExportService {
                 .append(stringExpr(step.direction)).append(");\n");
             case "destroy_block" -> sb.append("        GeneratedPonderSupport.destroyBlock(scene, context, ")
                 .append(blockPosExpr(step.blockPos)).append(", ")
+                .append(blockPosExpr(step.blockPos2)).append(", ")
                 .append(boolExpr(step.destroyParticles)).append(");\n");
             case "replace_blocks" -> sb.append("        GeneratedPonderSupport.replaceBlocks(scene, context, ")
                 .append(stringExpr(step.block)).append(", ")

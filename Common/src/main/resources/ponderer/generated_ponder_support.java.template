@@ -315,15 +315,16 @@ public final class GeneratedPonderSupport {
         BlockState state = applyBlockProperties(block.defaultBlockState(), blockProperties);
         BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
         boolean immediate = !Boolean.FALSE.equals(immediateDisplay);
-        boolean particles = immediate && !Boolean.FALSE.equals(spawnParticles);
+        boolean isAir = state.isAir();
+        boolean particles = immediate && !isAir && !Boolean.FALSE.equals(spawnParticles);
         String normalizedAnimation = normalizeEntranceAnimation(entranceAnimation);
-        if (normalizedAnimation != null && !"none".equals(normalizedAnimation)) {
+        if (!isAir && normalizedAnimation != null && !"none".equals(normalizedAnimation)) {
             applyAnimatedSetBlock(scene, context, state, pos1, targetPos2, nbt,
                 normalizedAnimation, entranceDuration, entranceInterval, smartDisplay, linkId, direction);
             return;
         }
-        ensureSceneCanShowRange(scene, pos1, targetPos2, immediate);
-        updateVisibleRange(context, pos1, targetPos2, immediate);
+        ensureSceneCanShowRange(scene, pos1, targetPos2, immediate && !isAir);
+        updateVisibleRange(context, pos1, targetPos2, immediate && !isAir);
         if (!pos1.equals(targetPos2)) {
             Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
             scene.world().setBlocks(selection, state, particles);
@@ -334,17 +335,29 @@ public final class GeneratedPonderSupport {
         }
     }
 
-    public static void destroyBlock(SceneBuilder scene, Context context, BlockPos pos, Boolean destroyParticles) {
-        if (pos == null) {
+    public static void destroyBlock(SceneBuilder scene, Context context, BlockPos pos1, BlockPos pos2, Boolean destroyParticles) {
+        if (pos1 == null) {
             return;
         }
+        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
         boolean particles = !Boolean.FALSE.equals(destroyParticles);
-        if (particles) {
-            scene.world().destroyBlock(pos);
+        if (pos1.equals(targetPos2)) {
+            if (particles) {
+                scene.world().destroyBlock(pos1);
+            } else {
+                scene.world().setBlock(pos1, Blocks.AIR.defaultBlockState(), false);
+            }
         } else {
-            scene.world().setBlock(pos, Blocks.AIR.defaultBlockState(), false);
+            for (BlockPos pos : BlockPos.betweenClosed(pos1, targetPos2)) {
+                BlockPos target = pos.immutable();
+                if (particles) {
+                    scene.world().destroyBlock(target);
+                } else {
+                    scene.world().setBlock(target, Blocks.AIR.defaultBlockState(), false);
+                }
+            }
         }
-        updateVisibleRange(context, pos, pos, false);
+        updateVisibleRange(context, pos1, targetPos2, false);
     }
 
     public static void replaceBlocks(SceneBuilder scene, Context context, String blockId,
@@ -1266,9 +1279,9 @@ public final class GeneratedPonderSupport {
                 scene.world().modifyBlockEntityNBT(sel, BlockEntity.class, nbt -> nbt.merge(patch.copy()), true);
             }
         }
-        applyExtraPlacedVisibility(context, placed, placeVisible);
 
         if (!animatedReveal) {
+            applyExtraPlacedVisibility(context, placed, placeVisible);
             return;
         }
 
@@ -1290,10 +1303,14 @@ public final class GeneratedPonderSupport {
             revealGroups = segmentExtraForAnimation(placed, anim);
             revealInterval = rowInterval;
         }
+        // Filter against prior visibility (e.g. blocks already shown by a previous
+        // show_extra_structure). Mutating visibility before this read would erase the prior
+        // state and animate already-visible overlaps a second time.
         if (smartDisplay) {
             revealGroups = filterVisibleGroups(revealGroups, context);
         }
         if (revealGroups.isEmpty()) {
+            applyExtraPlacedVisibility(context, placed, true);
             return;
         }
         ElementLink<WorldSectionElement> working = context.sectionLinks.get(linkId);
@@ -1376,14 +1393,19 @@ public final class GeneratedPonderSupport {
     private static void applyExtraPlacedVisibility(Context context, List<PlacedBlock> placed, boolean visible) {
         for (PlacedBlock b : placed) {
             long key = b.pos.asLong();
+            // Air placements render nothing, so they must not count as visible — otherwise a
+            // subsequent step that places a real block at the same scene-coord would be filtered
+            // out by smart-display as "already visible". Matters when the source structure was
+            // planned with replaceAir=true.
+            boolean effective = visible && !b.state.isAir();
             if (context.allBlocksVisible) {
-                if (visible) {
+                if (effective) {
                     context.hiddenBlockKeys.remove(key);
                 } else {
                     context.hiddenBlockKeys.add(key);
                 }
             } else {
-                if (visible) {
+                if (effective) {
                     context.visibleBlockKeys.add(key);
                 } else {
                     context.visibleBlockKeys.remove(key);

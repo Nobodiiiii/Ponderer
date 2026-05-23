@@ -66,10 +66,93 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private static class StepContext {
         final Map<String, ElementLink<WorldSectionElement>> sectionLinks = new HashMap<>();
-        final Set<Long> visibleBlockKeys = new java.util.HashSet<>();
-        final Set<Long> hiddenBlockKeys = new java.util.HashSet<>();
-        boolean allBlocksVisible;
+        final VisibilityTracker visibility = new VisibilityTracker();
         boolean uiAnchorMode;
+    }
+
+    /**
+     * Tracks which scene positions currently have a rendered block, for smart-display filtering.
+     * Two modes: when allVisible is set (show_structure everywhere), unknown positions count as
+     * visible and the explicit set tracks exceptions (hidden). Otherwise, the explicit set tracks
+     * what is visible. All visibility-mutating steps funnel through here so a new step type only
+     * needs to call one method.
+     */
+    private static final class VisibilityTracker {
+        private final Set<Long> visibleKeys = new java.util.HashSet<>();
+        private final Set<Long> hiddenKeys = new java.util.HashSet<>();
+        private boolean allVisible;
+
+        void markAllVisible() {
+            allVisible = true;
+            visibleKeys.clear();
+            hiddenKeys.clear();
+        }
+
+        void markRange(BlockPos pos1, BlockPos pos2, boolean visible) {
+            if (pos1 == null) {
+                return;
+            }
+            BlockPos b = pos2 == null ? pos1 : pos2;
+            int minX = Math.min(pos1.getX(), b.getX());
+            int minY = Math.min(pos1.getY(), b.getY());
+            int minZ = Math.min(pos1.getZ(), b.getZ());
+            int maxX = Math.max(pos1.getX(), b.getX());
+            int maxY = Math.max(pos1.getY(), b.getY());
+            int maxZ = Math.max(pos1.getZ(), b.getZ());
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    for (int x = minX; x <= maxX; x++) {
+                        mark(BlockPos.asLong(x, y, z), visible);
+                    }
+                }
+            }
+        }
+
+        void markPlaced(List<ExtraStructurePlanner.PlacedBlock> placed, boolean visible) {
+            for (ExtraStructurePlanner.PlacedBlock b : placed) {
+                // Air placements render nothing, so they must not count as visible — otherwise
+                // a subsequent step that places a real block at the same scene-coord would be
+                // filtered out by smart-display as "already visible". Matters when the source
+                // structure was planned with replaceAir=true.
+                mark(b.pos.asLong(), visible && !b.state.isAir());
+            }
+        }
+
+        boolean isVisible(long key) {
+            return allVisible ? !hiddenKeys.contains(key) : visibleKeys.contains(key);
+        }
+
+        List<List<BlockPos>> filterAlreadyVisible(List<List<BlockPos>> groups) {
+            List<List<BlockPos>> filtered = new ArrayList<>();
+            for (List<BlockPos> group : groups) {
+                List<BlockPos> pending = new ArrayList<>();
+                for (BlockPos pos : group) {
+                    if (!isVisible(pos.asLong())) {
+                        pending.add(pos);
+                    }
+                }
+                if (!pending.isEmpty()) {
+                    filtered.add(pending);
+                }
+            }
+            return filtered;
+        }
+
+        private void mark(long key, boolean visible) {
+            if (allVisible) {
+                if (visible) {
+                    hiddenKeys.remove(key);
+                } else {
+                    hiddenKeys.add(key);
+                }
+            } else {
+                if (visible) {
+                    visibleKeys.add(key);
+                } else {
+                    visibleKeys.remove(key);
+                }
+            }
+        }
     }
 
     @Override
@@ -901,9 +984,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
         scene.world().showSection(selection, Direction.UP);
         if (isEverywhere) {
-            context.allBlocksVisible = true;
-            context.visibleBlockKeys.clear();
-            context.hiddenBlockKeys.clear();
+            context.visibility.markAllVisible();
         } else {
             updateVisibleRange(context, step, true);
         }
@@ -997,9 +1078,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
         }
 
-        applyPlacedVisibility(context, placed, placeVisible);
-
         if (!animatedReveal) {
+            applyPlacedVisibility(context, placed, placeVisible);
             return;
         }
 
@@ -1024,10 +1104,14 @@ public class DynamicPonderPlugin implements PonderPlugin {
             revealInterval = rowInterval;
         }
 
+        // Filter against PRIOR visibility (e.g. blocks already shown by a previous
+        // show_extra_structure). Mutating visibility before this read would erase the prior
+        // state and animate already-visible overlaps a second time.
         if (smartDisplay) {
             revealGroups = filterVisibleGroups(revealGroups, context);
         }
         if (revealGroups.isEmpty()) {
+            applyPlacedVisibility(context, placed, true);
             return;
         }
 
@@ -1118,22 +1202,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyPlacedVisibility(StepContext context, List<ExtraStructurePlanner.PlacedBlock> placed, boolean visible) {
-        for (ExtraStructurePlanner.PlacedBlock b : placed) {
-            long key = b.pos.asLong();
-            if (context.allBlocksVisible) {
-                if (visible) {
-                    context.hiddenBlockKeys.remove(key);
-                } else {
-                    context.hiddenBlockKeys.add(key);
-                }
-            } else {
-                if (visible) {
-                    context.visibleBlockKeys.add(key);
-                } else {
-                    context.visibleBlockKeys.remove(key);
-                }
-            }
-        }
+        context.visibility.markPlaced(placed, visible);
     }
 
     @Nullable
@@ -1254,21 +1323,25 @@ public class DynamicPonderPlugin implements PonderPlugin {
             pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
 
+        // Setting AIR is logically a destroy: there is nothing to animate, and the position must
+        // be tracked as not-visible so subsequent smart-display checks animate replacements rather
+        // than skipping them as "already visible".
+        boolean isAir = state.isAir();
         String entranceAnimation = normalizeEntranceAnimation(step.entranceAnimation);
-        if (entranceAnimation != null && !"none".equals(entranceAnimation)) {
+        if (!isAir && entranceAnimation != null && !"none".equals(entranceAnimation)) {
             applyAnimatedSetBlock(scene, step, context, state, pos, pos2, entranceAnimation);
             return;
         }
 
-        ensureSceneCanShowRange(scene, pos, pos2, immediateDisplay);
-        updateVisibleRange(context, step, immediateDisplay);
+        ensureSceneCanShowRange(scene, pos, pos2, immediateDisplay && !isAir);
+        updateVisibleRange(context, step, immediateDisplay && !isAir);
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
             var selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos, pos2);
-            scene.world().setBlocks(selection, state, particles);
+            scene.world().setBlocks(selection, state, particles && !isAir);
             applySetBlockNbtPatch(scene, step, selection);
             return;
         }
-        scene.world().setBlock(pos, state, particles);
+        scene.world().setBlock(pos, state, particles && !isAir);
         applySetBlockNbtPatch(scene, step, scene.getScene().getSceneBuildingUtil().select().position(pos));
     }
 
@@ -1358,14 +1431,28 @@ public class DynamicPonderPlugin implements PonderPlugin {
             LOGGER.warn("destroy_block missing blockPos");
             return;
         }
-        BlockPos pos = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
-        boolean particles = !Boolean.FALSE.equals(step.destroyParticles);
-        if (particles) {
-            scene.world().destroyBlock(pos);
-            updateVisibleRange(context, step, false);
-            return;
+        BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+        BlockPos pos2 = pos1;
+        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+            pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
-        scene.world().setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), false);
+        boolean particles = !Boolean.FALSE.equals(step.destroyParticles);
+        if (pos1.equals(pos2)) {
+            if (particles) {
+                scene.world().destroyBlock(pos1);
+            } else {
+                scene.world().setBlock(pos1, Blocks.AIR.defaultBlockState(), false);
+            }
+        } else {
+            for (BlockPos pos : BlockPos.betweenClosed(pos1, pos2)) {
+                BlockPos target = pos.immutable();
+                if (particles) {
+                    scene.world().destroyBlock(target);
+                } else {
+                    scene.world().setBlock(target, Blocks.AIR.defaultBlockState(), false);
+                }
+            }
+        }
         updateVisibleRange(context, step, false);
     }
 
@@ -2092,19 +2179,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private List<List<BlockPos>> filterVisibleGroups(List<List<BlockPos>> groups, StepContext context) {
-        List<List<BlockPos>> filtered = new ArrayList<>();
-        for (List<BlockPos> group : groups) {
-            List<BlockPos> pending = new ArrayList<>();
-            for (BlockPos pos : group) {
-                if (!isBlockVisible(context, pos.asLong())) {
-                    pending.add(pos);
-                }
-            }
-            if (!pending.isEmpty()) {
-                filtered.add(pending);
-            }
-        }
-        return filtered;
+        return context.visibility.filterAlreadyVisible(groups);
     }
 
     private void updateVisibleRange(StepContext context, DslScene.DslStep step, boolean visible) {
@@ -2116,41 +2191,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
             pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
-
-        int minX = Math.min(pos1.getX(), pos2.getX());
-        int minY = Math.min(pos1.getY(), pos2.getY());
-        int minZ = Math.min(pos1.getZ(), pos2.getZ());
-        int maxX = Math.max(pos1.getX(), pos2.getX());
-        int maxY = Math.max(pos1.getY(), pos2.getY());
-        int maxZ = Math.max(pos1.getZ(), pos2.getZ());
-
-        for (int y = minY; y <= maxY; y++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                for (int x = minX; x <= maxX; x++) {
-                    long key = BlockPos.asLong(x, y, z);
-                    if (context.allBlocksVisible) {
-                        if (visible) {
-                            context.hiddenBlockKeys.remove(key);
-                        } else {
-                            context.hiddenBlockKeys.add(key);
-                        }
-                    } else {
-                        if (visible) {
-                            context.visibleBlockKeys.add(key);
-                        } else {
-                            context.visibleBlockKeys.remove(key);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private boolean isBlockVisible(StepContext context, long key) {
-        if (context.allBlocksVisible) {
-            return !context.hiddenBlockKeys.contains(key);
-        }
-        return context.visibleBlockKeys.contains(key);
+        context.visibility.markRange(pos1, pos2, visible);
     }
 
     private Direction parseDirection(String raw) {
