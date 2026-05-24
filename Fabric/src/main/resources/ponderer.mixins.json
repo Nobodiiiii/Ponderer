@@ -11,6 +11,7 @@
     "PonderSceneRegistryNbtMixinFabric",
     "MinecraftNbtPickMixin",
     "MinecraftCoordPickScrollMixin",
+    "MinecraftSetScreenCaptureMixin",
     "WorldSectionElementImplMixin",
     "PonderSceneAccessor",
     "PonderKeybindsAccessor",

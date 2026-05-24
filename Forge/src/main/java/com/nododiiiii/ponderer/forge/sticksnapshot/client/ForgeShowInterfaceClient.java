@@ -99,6 +99,20 @@ public final class ForgeShowInterfaceClient {
         }
 
         CompoundTag itemTag = Boolean.FALSE.equals(step.enableNbt) ? null : parseItemTag(step.nbt);
+
+        // First try: invoke Item.use on the CLIENT and intercept any setScreen call.
+        // Items like tetra's holosphere implement their GUI as
+        //   if (level.isClientSide) Minecraft.getInstance().setScreen(...)
+        // with no server-side menu open; the server-side replay path produces zero
+        // packets for them. Capturing the client-side setScreen lets us embed those
+        // pure-client screens into PonderUI just like server-driven menus.
+        if (tryClientSideOpen(mc, itemId, itemTag)) {
+            return;
+        }
+
+        // Fallback: server-side virtual use() — captures ClientboundOpenScreenPacket and
+        // fml:play Forge container-open payload for items that route through
+        // NetworkHooks.openScreen / player.openMenu.
         ItemSnapshot snapshot = new ItemSnapshot(
             itemId,
             itemTag,
@@ -110,6 +124,44 @@ public final class ForgeShowInterfaceClient {
         ClientInputHandler.prepareMirrorReplay(-1, true);
         ModNetworking.CHANNEL.sendToServer(new SaveItemSnapshotPacket(snapshot));
         ModNetworking.CHANNEL.sendToServer(new ReplayItemSnapshotPacket());
+    }
+
+    private static boolean tryClientSideOpen(Minecraft mc, ResourceLocation itemId, @Nullable CompoundTag itemTag) {
+        net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(itemId);
+        if (item == null) {
+            return false;
+        }
+        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item);
+        if (itemTag != null && !itemTag.isEmpty()) {
+            stack.setTag(itemTag.copy());
+        }
+
+        net.minecraft.client.gui.screens.Screen previousScreen = mc.screen;
+        com.nododiiiii.ponderer.ui.ClientScreenCapture.begin(true);
+        try {
+            stack.use(mc.level, mc.player, net.minecraft.world.InteractionHand.MAIN_HAND);
+        } catch (Exception ex) {
+            StickSnapshotFeature.LOGGER.warn("show_interface(held_item) client-side use threw for item={}",
+                    itemId, ex);
+            com.nododiiiii.ponderer.ui.ClientScreenCapture.end();
+            return false;
+        }
+
+        net.minecraft.client.gui.screens.Screen captured = com.nododiiiii.ponderer.ui.ClientScreenCapture.drain();
+        com.nododiiiii.ponderer.ui.ClientScreenCapture.end();
+
+        if (captured == null) {
+            // Nothing tried to open — fall through to server-side replay.
+            return false;
+        }
+
+        ClientInputHandler.prepareMirrorReplay(-1, true);
+        if (previousScreen instanceof net.createmod.ponder.foundation.ui.PonderUI) {
+            ClientInputHandler.attachMirrorToPonder(captured);
+        } else {
+            mc.setScreen(captured);
+        }
+        return true;
     }
 
     private static void showUiIdInterfaceStep(DslScene.DslStep step) {

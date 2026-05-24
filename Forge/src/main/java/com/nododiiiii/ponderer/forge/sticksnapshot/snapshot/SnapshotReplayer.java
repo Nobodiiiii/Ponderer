@@ -174,23 +174,34 @@ public class SnapshotReplayer {
                 fakePlayer.setXRot(snapshot.getPitch());
                 fakePlayer.setShiftKeyDown(snapshot.isSneaking());
 
-                ItemStack oldMainHand = fakePlayer.getItemInHand(InteractionHand.MAIN_HAND);
-                fakePlayer.setItemInHand(InteractionHand.MAIN_HAND, stack.copy());
+                // Park the item in hotbar slot 0 and select it. Many item.use() impls call
+                // player.getInventory().selected / player.getMainHandItem() rather than the
+                // stack passed in — keep both views consistent and re-use the same stack
+                // reference so identity-sensitive mods see the expected object.
+                ItemStack heldStack = stack.copy();
+                int previousSelected = fakePlayer.getInventory().selected;
+                ItemStack oldHotbar0 = fakePlayer.getInventory().getItem(0).copy();
+                fakePlayer.getInventory().selected = 0;
+                fakePlayer.getInventory().setItem(0, heldStack);
                 try {
-                    stack.use(level, fakePlayer, InteractionHand.MAIN_HAND);
+                    heldStack.use(level, fakePlayer, InteractionHand.MAIN_HAND);
                     AbstractContainerMenu fakeMenu = fakePlayer.containerMenu != fakePlayer.inventoryMenu
                             ? fakePlayer.containerMenu
                             : null;
 
                     List<Packet<?>> packets = captureConnection.snapshot();
                     if (fakeMenu == null || packets.isEmpty()) {
+                        StickSnapshotFeature.LOGGER.info(
+                                "runVirtualItemUse: no container opened for item={} (use returned non-success or GUI is client-only)",
+                                snapshot.getItemId());
                         return null;
                     }
 
                     int sourceContainerId = detectContainerId(packets);
                     return new CapturedPackets(packets, sourceContainerId);
                 } finally {
-                    fakePlayer.setItemInHand(InteractionHand.MAIN_HAND, oldMainHand);
+                    fakePlayer.getInventory().setItem(0, oldHotbar0);
+                    fakePlayer.getInventory().selected = previousSelected;
                     if (fakePlayer.containerMenu != fakePlayer.inventoryMenu) {
                         fakePlayer.closeContainer();
                     }
