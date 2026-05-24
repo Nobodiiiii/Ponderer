@@ -822,14 +822,37 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowInterface(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        if (step.block == null || step.block.isBlank()) {
-            LOGGER.warn("show_interface missing block id");
-            return;
-        }
-
-        if (step.blockPos == null || step.blockPos.size() < 3) {
-            LOGGER.warn("show_interface missing block context position");
-            return;
+        String source = step.interfaceSource == null ? "block" : step.interfaceSource.toLowerCase(java.util.Locale.ROOT);
+        switch (source) {
+            case "block" -> {
+                if (step.block == null || step.block.isBlank()) {
+                    LOGGER.warn("show_interface missing block id");
+                    return;
+                }
+                if (step.blockPos == null || step.blockPos.size() < 3) {
+                    LOGGER.warn("show_interface missing block context position");
+                    return;
+                }
+            }
+            case "held_item" -> {
+                if (step.item == null || step.item.isBlank()) {
+                    LOGGER.warn("show_interface missing item id for held_item source");
+                    return;
+                }
+            }
+            case "ui_id" -> {
+                if (step.uiId == null || step.uiId.isBlank()) {
+                    LOGGER.warn("show_interface missing uiId for ui_id source");
+                    return;
+                }
+            }
+            default -> {
+                LOGGER.warn("show_interface unknown interfaceSource '{}', treating as block", step.interfaceSource);
+                if (step.block == null || step.block.isBlank()
+                    || step.blockPos == null || step.blockPos.size() < 3) {
+                    return;
+                }
+            }
         }
 
         PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");

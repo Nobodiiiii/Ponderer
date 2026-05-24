@@ -31,6 +31,7 @@ import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -110,6 +111,198 @@ public class SnapshotReplayer {
             if (!keepSandbox) {
                 ReplaySessionManager.restoreBlock(level, pos, originalState, originalBeTag);
             }
+        }
+    }
+
+    public static void replayItem(ServerPlayer player, ItemSnapshot snapshot) {
+        ServerLevel level = player.serverLevel();
+        BlockPos sandboxPos = ReplaySessionManager.getSandboxPos(player);
+        level.getChunkAt(sandboxPos);
+
+        ReplaySessionManager.restoreSession(player);
+
+        Item item = BuiltInRegistries.ITEM.get(snapshot.getItemId());
+        if (item == null) {
+            StickSnapshotFeature.LOGGER.warn("replayItem unknown item id: {}", snapshot.getItemId());
+            return;
+        }
+
+        ItemStack stack = new ItemStack(item);
+        if (snapshot.getItemTag() != null && !snapshot.getItemTag().isEmpty()) {
+            stack.setTag(snapshot.getItemTag().copy());
+        }
+
+        List<SandboxInjectedBlock> sandboxClearedAirBlocks = clearSandboxNeighborsToAir(level, sandboxPos);
+        try {
+            CapturedPackets capturedPackets = runVirtualItemUse(level, player, stack, sandboxPos, snapshot);
+            if (capturedPackets != null && !capturedPackets.packets.isEmpty()) {
+                mirrorCapturedPacketsToRealPlayer(player, level, capturedPackets, null);
+                StickSnapshotFeature.LOGGER.info("Opened mirrored item interface for player={} item={} packetCount={}",
+                        player.getScoreboardName(), snapshot.getItemId(), capturedPackets.packets.size());
+            } else {
+                StickSnapshotFeature.LOGGER.info(
+                        "replayItem produced no GUI packets for item={} (item.use likely returned PASS or has no GUI)",
+                        snapshot.getItemId());
+            }
+        } finally {
+            if (!sandboxClearedAirBlocks.isEmpty()) {
+                restoreInjectedContextBlocks(level, sandboxClearedAirBlocks);
+            }
+        }
+    }
+
+    @Nullable
+    private static CapturedPackets runVirtualItemUse(ServerLevel level, ServerPlayer realPlayer, ItemStack stack,
+            BlockPos sandboxPos, ItemSnapshot snapshot) {
+        try {
+            UUID fakeId = UUID
+                    .nameUUIDFromBytes(("sticksnapshot:" + realPlayer.getUUID()).getBytes(StandardCharsets.UTF_8));
+            GameProfile profile = new GameProfile(fakeId, "stick_snapshot_virtual");
+            try (ReplayGuard.Scope ignored = ReplayGuard.begin(realPlayer, fakeId, "virtual-item-use")) {
+                FakePlayer fakePlayer = new ReplayGuardedFakePlayer(level, profile);
+                if (fakePlayer.containerMenu != fakePlayer.inventoryMenu) {
+                    fakePlayer.closeContainer();
+                }
+
+                ServerGamePacketListenerImpl oldConnection = fakePlayer.connection;
+                CapturingConnection captureConnection = new CapturingConnection();
+                new ServerGamePacketListenerImpl(level.getServer(), captureConnection, fakePlayer);
+
+                Vec3 center = Vec3.atCenterOf(sandboxPos);
+                fakePlayer.setPos(center.x, center.y, center.z);
+                fakePlayer.setYRot(snapshot.getYaw());
+                fakePlayer.setXRot(snapshot.getPitch());
+                fakePlayer.setShiftKeyDown(snapshot.isSneaking());
+
+                ItemStack oldMainHand = fakePlayer.getItemInHand(InteractionHand.MAIN_HAND);
+                fakePlayer.setItemInHand(InteractionHand.MAIN_HAND, stack.copy());
+                try {
+                    stack.use(level, fakePlayer, InteractionHand.MAIN_HAND);
+                    AbstractContainerMenu fakeMenu = fakePlayer.containerMenu != fakePlayer.inventoryMenu
+                            ? fakePlayer.containerMenu
+                            : null;
+
+                    List<Packet<?>> packets = captureConnection.snapshot();
+                    if (fakeMenu == null || packets.isEmpty()) {
+                        return null;
+                    }
+
+                    int sourceContainerId = detectContainerId(packets);
+                    return new CapturedPackets(packets, sourceContainerId);
+                } finally {
+                    fakePlayer.setItemInHand(InteractionHand.MAIN_HAND, oldMainHand);
+                    if (fakePlayer.containerMenu != fakePlayer.inventoryMenu) {
+                        fakePlayer.closeContainer();
+                    }
+                    fakePlayer.connection = oldConnection;
+                }
+            }
+        } catch (Exception ex) {
+            StickSnapshotFeature.LOGGER.warn("Virtual item use replay failed for player={} item={}",
+                    realPlayer.getScoreboardName(), snapshot.getItemId(), ex);
+            return null;
+        }
+    }
+
+    public static void replayUiId(ServerPlayer player, net.minecraft.resources.ResourceLocation menuTypeId) {
+        ServerLevel level = player.serverLevel();
+        BlockPos sandboxPos = ReplaySessionManager.getSandboxPos(player);
+        level.getChunkAt(sandboxPos);
+
+        ReplaySessionManager.restoreSession(player);
+
+        net.minecraft.world.inventory.MenuType<?> menuType = BuiltInRegistries.MENU.get(menuTypeId);
+        if (menuType == null) {
+            StickSnapshotFeature.LOGGER.warn("replayUiId unknown menu type: {}", menuTypeId);
+            return;
+        }
+
+        List<SandboxInjectedBlock> sandboxClearedAirBlocks = clearSandboxNeighborsToAir(level, sandboxPos);
+        try {
+            CapturedPackets capturedPackets = runVirtualMenuOpen(level, player, menuType, sandboxPos);
+            if (capturedPackets != null && !capturedPackets.packets.isEmpty()) {
+                mirrorCapturedPacketsToRealPlayer(player, level, capturedPackets, null);
+                StickSnapshotFeature.LOGGER.info("Opened mirrored UI by id for player={} menu={} packetCount={}",
+                        player.getScoreboardName(), menuTypeId, capturedPackets.packets.size());
+            } else {
+                StickSnapshotFeature.LOGGER.info(
+                        "replayUiId produced no GUI packets for menu={} (factory likely requires extra context)",
+                        menuTypeId);
+            }
+        } finally {
+            if (!sandboxClearedAirBlocks.isEmpty()) {
+                restoreInjectedContextBlocks(level, sandboxClearedAirBlocks);
+            }
+        }
+    }
+
+    @Nullable
+    private static CapturedPackets runVirtualMenuOpen(ServerLevel level, ServerPlayer realPlayer,
+            net.minecraft.world.inventory.MenuType<?> menuType, BlockPos sandboxPos) {
+        try {
+            UUID fakeId = UUID
+                    .nameUUIDFromBytes(("sticksnapshot:" + realPlayer.getUUID()).getBytes(StandardCharsets.UTF_8));
+            GameProfile profile = new GameProfile(fakeId, "stick_snapshot_virtual");
+            try (ReplayGuard.Scope ignored = ReplayGuard.begin(realPlayer, fakeId, "virtual-ui-open")) {
+                FakePlayer fakePlayer = new ReplayGuardedFakePlayer(level, profile);
+                if (fakePlayer.containerMenu != fakePlayer.inventoryMenu) {
+                    fakePlayer.closeContainer();
+                }
+
+                ServerGamePacketListenerImpl oldConnection = fakePlayer.connection;
+                CapturingConnection captureConnection = new CapturingConnection();
+                new ServerGamePacketListenerImpl(level.getServer(), captureConnection, fakePlayer);
+
+                Vec3 center = Vec3.atCenterOf(sandboxPos);
+                fakePlayer.setPos(center.x, center.y, center.z);
+                fakePlayer.setYRot(realPlayer.getYRot());
+                fakePlayer.setXRot(realPlayer.getXRot());
+
+                final net.minecraft.resources.ResourceLocation menuId = BuiltInRegistries.MENU.getKey(menuType);
+                final Component title = Component.literal(menuId == null ? "" : menuId.toString());
+                fakePlayer.openMenu(new MenuProvider() {
+                    @Override
+                    public Component getDisplayName() {
+                        return title;
+                    }
+
+                    @Nullable
+                    @Override
+                    public AbstractContainerMenu createMenu(int windowId, net.minecraft.world.entity.player.Inventory inv,
+                            net.minecraft.world.entity.player.Player p) {
+                        try {
+                            return menuType.create(windowId, inv);
+                        } catch (Exception ex) {
+                            StickSnapshotFeature.LOGGER.warn(
+                                    "menuType.create failed for {} (likely requires extraData)", menuId, ex);
+                            return null;
+                        }
+                    }
+                });
+
+                AbstractContainerMenu fakeMenu = fakePlayer.containerMenu != fakePlayer.inventoryMenu
+                        ? fakePlayer.containerMenu
+                        : null;
+
+                try {
+                    List<Packet<?>> packets = captureConnection.snapshot();
+                    if (fakeMenu == null || packets.isEmpty()) {
+                        return null;
+                    }
+
+                    int sourceContainerId = detectContainerId(packets);
+                    return new CapturedPackets(packets, sourceContainerId);
+                } finally {
+                    if (fakePlayer.containerMenu != fakePlayer.inventoryMenu) {
+                        fakePlayer.closeContainer();
+                    }
+                    fakePlayer.connection = oldConnection;
+                }
+            }
+        } catch (Exception ex) {
+            StickSnapshotFeature.LOGGER.warn("Virtual menu open failed for player={} menu={}",
+                    realPlayer.getScoreboardName(), BuiltInRegistries.MENU.getKey(menuType), ex);
+            return null;
         }
     }
 
@@ -246,7 +439,7 @@ public class SnapshotReplayer {
     }
 
     private static void mirrorCapturedPacketsToRealPlayer(ServerPlayer realPlayer, ServerLevel level,
-            CapturedPackets captured, BlockSnapshot snapshot) {
+            CapturedPackets captured, @Nullable BlockSnapshot snapshot) {
         List<Packet<?>> packets = captured.packets;
         int sourceContainerId = captured.sourceContainerId;
         boolean hasForgePlayPayload = hasForgePlayPayload(packets);
@@ -348,7 +541,7 @@ public class SnapshotReplayer {
 
     @Nullable
     private static MirrorForgeOpenPacket decodeForgeOpenPacket(ServerLevel level,
-            ClientboundCustomPayloadPacket customPayload, BlockSnapshot snapshot, BlockPos clientVirtualPos) {
+            ClientboundCustomPayloadPacket customPayload, @Nullable BlockSnapshot snapshot, BlockPos clientVirtualPos) {
         if (!"fml:play".equals(customPayload.getIdentifier().toString())) {
             return null;
         }
@@ -370,9 +563,9 @@ public class SnapshotReplayer {
         BlockPos menuSourcePos = readFirstBlockPos(extraData);
         byte[] rewrittenExtraData = rewriteFirstBlockPos(extraData, clientVirtualPos);
 
-        BlockState contextState = Block.stateById(snapshot.getStateId());
-        CompoundTag contextBeTag = snapshot.getBlockEntityTag();
-        BlockPos contextPos = snapshot.getPos();
+        BlockState contextState = snapshot != null ? Block.stateById(snapshot.getStateId()) : Blocks.AIR.defaultBlockState();
+        CompoundTag contextBeTag = snapshot != null ? snapshot.getBlockEntityTag() : null;
+        BlockPos contextPos = snapshot != null ? snapshot.getPos() : clientVirtualPos;
         boolean usingSnapshotContext = contextBeTag != null;
         if (!usingSnapshotContext && menuSourcePos != null && level.hasChunkAt(menuSourcePos)) {
             contextPos = menuSourcePos;
@@ -420,12 +613,13 @@ public class SnapshotReplayer {
     }
 
     private static MirrorForgeOpenPacket createVanillaMirrorOpenPacket(ClientboundOpenScreenPacket openPacket,
-            BlockSnapshot snapshot, BlockPos clientVirtualPos, int mappedWindowId) {
+            @Nullable BlockSnapshot snapshot, BlockPos clientVirtualPos, int mappedWindowId) {
         int menuTypeId = BuiltInRegistries.MENU.getId(openPacket.getType());
         byte[] extraData = encodeVirtualPos(clientVirtualPos);
-        BlockState contextState = Block.stateById(snapshot.getStateId());
-        CompoundTag normalizedSnapshotBeTag = normalizeBlockEntityTagForPos(
-                snapshot.getBlockEntityTag(), snapshot.getPos(), clientVirtualPos);
+        BlockState contextState = snapshot != null ? Block.stateById(snapshot.getStateId()) : Blocks.AIR.defaultBlockState();
+        CompoundTag normalizedSnapshotBeTag = snapshot != null
+                ? normalizeBlockEntityTagForPos(snapshot.getBlockEntityTag(), snapshot.getPos(), clientVirtualPos)
+                : null;
         return new MirrorForgeOpenPacket(menuTypeId, mappedWindowId, openPacket.getTitle(), extraData,
                 Block.getId(contextState), normalizedSnapshotBeTag);
     }

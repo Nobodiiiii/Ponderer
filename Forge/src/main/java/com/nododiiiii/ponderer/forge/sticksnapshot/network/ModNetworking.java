@@ -25,5 +25,11 @@ public class ModNetworking {
         CHANNEL.registerMessage(nextId++, MirrorClosePacket.class, MirrorClosePacket::encode, MirrorClosePacket::decode, MirrorClosePacket::handle);
         CHANNEL.registerMessage(nextId++, MirrorForgeOpenPacket.class, MirrorForgeOpenPacket::encode,
                 MirrorForgeOpenPacket::decode, MirrorForgeOpenPacket::handle);
+        CHANNEL.registerMessage(nextId++, SaveItemSnapshotPacket.class, SaveItemSnapshotPacket::encode,
+                SaveItemSnapshotPacket::decode, SaveItemSnapshotPacket::handle);
+        CHANNEL.registerMessage(nextId++, ReplayItemSnapshotPacket.class, ReplayItemSnapshotPacket::encode,
+                ReplayItemSnapshotPacket::decode, ReplayItemSnapshotPacket::handle);
+        CHANNEL.registerMessage(nextId++, ReplayUiIdPacket.class, ReplayUiIdPacket::encode,
+                ReplayUiIdPacket::decode, ReplayUiIdPacket::handle);
     }
 }
