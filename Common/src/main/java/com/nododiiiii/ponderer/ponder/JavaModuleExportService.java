@@ -115,6 +115,10 @@ public final class JavaModuleExportService {
             return result;
         }
 
+        if (request.supportOnly()) {
+            return result;
+        }
+
         List<DslScene> scenes = collectRequestedScenes(request, result.fatalFindings);
         if (scenes.isEmpty()) {
             addFinding(result.fatalFindings, "fatal", null, null, null, null, "No exportable scenes were found.");
@@ -138,6 +142,10 @@ public final class JavaModuleExportService {
         }
         if (scanResult.targetProject == null) {
             return JavaModuleExportResult.failure("Target project information is unavailable.");
+        }
+
+        if (request.supportOnly()) {
+            return exportSupportOnly(scanResult.targetProject);
         }
 
         JavaModuleExportManifest manifest = readManifest(scanResult.targetProject.targetRoot);
@@ -248,6 +256,30 @@ public final class JavaModuleExportService {
         return result;
     }
 
+    private static JavaModuleExportResult exportSupportOnly(JavaModuleScanResult.TargetProject targetProject) {
+        String relativePath = "src/main/java/" + packageToPath(targetProject.generatedPackage) + "/GeneratedPonderSupport.java";
+        Path targetPath;
+        try {
+            targetPath = resolveTargetPath(targetProject.targetRoot, relativePath);
+            ensureInsideRoot(targetProject.targetRoot, targetPath);
+            Files.createDirectories(targetPath.getParent());
+            boolean replaced = Files.exists(targetPath);
+            Files.writeString(targetPath, buildSupportSource(targetProject), StandardCharsets.UTF_8);
+            JavaModuleExportResult result = new JavaModuleExportResult();
+            result.success = true;
+            result.supportOnly = true;
+            result.supportFilePath = targetPath;
+            if (replaced) {
+                result.replacedCount = 1;
+            } else {
+                result.addedCount = 1;
+            }
+            return result;
+        } catch (Exception e) {
+            return JavaModuleExportResult.failure("Failed to write GeneratedPonderSupport.java: " + e.getMessage());
+        }
+    }
+
     @Nullable
     private static JavaModuleScanResult.TargetProject detectTargetProject(Path targetRoot,
                                                                           List<JavaModuleScanResult.Finding> fatals) {
@@ -330,24 +362,10 @@ public final class JavaModuleExportService {
             return List.of();
         }
 
-        if (request.exportAllLocalScenes()) {
-            return runtimeScenes.stream()
-                .filter(JavaModuleExportService::isLocalEditableScene)
-                .collect(Collectors.toCollection(ArrayList::new));
-        }
-
         Set<String> selectedKeys = request.selectedSceneKeys();
         return runtimeScenes.stream()
             .filter(scene -> scene != null && scene.id != null && selectedKeys.contains(scene.sceneKey()))
             .collect(Collectors.toCollection(ArrayList::new));
-    }
-
-    private static boolean isLocalEditableScene(DslScene scene) {
-        if (scene == null || scene.id == null || scene.id.isBlank()) {
-            return false;
-        }
-        Path path = SceneStore.resolveLocalScenePath(scene);
-        return path != null && Files.exists(path);
     }
 
     private static JavaModuleScanResult.ScenePlan scanScene(JavaModuleScanResult.TargetProject target,

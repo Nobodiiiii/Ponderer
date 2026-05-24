@@ -16,6 +16,9 @@ public class JavaModuleExportResult {
     public int partialCount;
     public int blankCount;
     public int skippedCount;
+    public boolean supportOnly;
+    @Nullable
+    public Path supportFilePath;
     public List<SceneExportOutcome> sceneOutcomes = new ArrayList<>();
 
     public static JavaModuleExportResult failure(String message) {

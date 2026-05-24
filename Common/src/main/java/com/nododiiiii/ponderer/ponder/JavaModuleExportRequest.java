@@ -14,7 +14,7 @@ public record JavaModuleExportRequest(Path targetRoot, Set<String> selectedScene
             : Set.copyOf(new LinkedHashSet<>(selectedSceneKeys));
     }
 
-    public boolean exportAllLocalScenes() {
+    public boolean supportOnly() {
         return selectedSceneKeys.isEmpty();
     }
 

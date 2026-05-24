@@ -148,9 +148,9 @@ public final class GeneratedPonderSupport {
                 }
 
                 Vec3 targetPos = target.startPos.add(totalOffset.scale(progress));
+                entity.setOldPosAndRot();
                 entity.setPos(targetPos.x, targetPos.y, targetPos.z);
                 entity.setDeltaMovement(Vec3.ZERO);
-                entity.setOldPosAndRot();
                 if (walkAnimation && progress < 1.0) {
                     applyWalkAnimation(entity, walkAnimationSpeed);
                 } else {
@@ -191,17 +191,17 @@ public final class GeneratedPonderSupport {
         @Override
         protected void firstTick(PonderScene scene) {
             super.firstTick(scene);
-            positionEntity(scene, targetPos.add(entranceOffset));
+            positionEntity(scene, targetPos.add(entranceOffset), true);
         }
 
         @Override
         public void tick(PonderScene scene) {
             super.tick(scene);
             double fade = totalTicks <= 0 ? 0.0d : remainingTicks / (double) totalTicks;
-            positionEntity(scene, targetPos.add(entranceOffset.scale(fade * fade)));
+            positionEntity(scene, targetPos.add(entranceOffset.scale(fade * fade)), false);
         }
 
-        private void positionEntity(PonderScene scene, Vec3 pos) {
+        private void positionEntity(PonderScene scene, Vec3 pos, boolean snapOld) {
             EntityElement element = scene.resolve(entityLink);
             if (element == null) {
                 return;
@@ -210,9 +210,14 @@ public final class GeneratedPonderSupport {
                 if (entity == null || !entity.isAlive()) {
                     return;
                 }
+                if (!snapOld) {
+                    entity.setOldPosAndRot();
+                }
                 entity.setPos(pos.x, pos.y, pos.z);
                 entity.setDeltaMovement(Vec3.ZERO);
-                entity.setOldPosAndRot();
+                if (snapOld) {
+                    entity.setOldPosAndRot();
+                }
                 stopWalkAnimation(entity);
             });
         }
@@ -273,9 +278,9 @@ public final class GeneratedPonderSupport {
                 }
 
                 Vec3 targetPos = target.startPos.add(exitOffset.scale(progress * progress));
+                entity.setOldPosAndRot();
                 entity.setPos(targetPos.x, targetPos.y, targetPos.z);
                 entity.setDeltaMovement(Vec3.ZERO);
-                entity.setOldPosAndRot();
                 stopWalkAnimation(entity);
                 if (finished) {
                     entity.discard();
