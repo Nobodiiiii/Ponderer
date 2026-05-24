@@ -41,6 +41,8 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -180,6 +182,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         private final ResourceLocation entityFilter;
         private final Vec3 totalOffset;
         private final boolean walkAnimation;
+        private final float walkAnimationSpeed;
         private final List<EntityMoveTarget> targets = new ArrayList<>();
 
         private EntityMoveInstruction(@Nullable List<ElementLink<EntityElement>> linkedTargets,
@@ -194,6 +197,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             this.entityFilter = entityFilter;
             this.totalOffset = totalOffset;
             this.walkAnimation = walkAnimation;
+            this.walkAnimationSpeed = computeWalkAnimationSpeed(totalOffset, duration);
         }
 
         @Override
@@ -222,7 +226,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
             int elapsedTicks = totalTicks - remainingTicks;
             double progress = Math.min(1.0, elapsedTicks / (double) totalTicks);
-            Vec3 perTickOffset = totalOffset.scale(1.0 / totalTicks);
 
             for (EntityMoveTarget target : targets) {
                 Entity entity = target.entity;
@@ -232,10 +235,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
                 Vec3 targetPos = target.startPos.add(totalOffset.scale(progress));
                 entity.setPos(targetPos.x, targetPos.y, targetPos.z);
-                if (walkAnimation) {
-                    entity.setDeltaMovement(remainingTicks == 0 ? Vec3.ZERO : perTickOffset);
+                entity.setDeltaMovement(Vec3.ZERO);
+                if (walkAnimation && progress < 1.0) {
+                    applyWalkAnimation(entity, walkAnimationSpeed);
                 } else {
-                    entity.setDeltaMovement(Vec3.ZERO);
+                    stopWalkAnimation(entity);
                 }
             }
         }
@@ -2336,6 +2340,38 @@ public class DynamicPonderPlugin implements PonderPlugin {
         Vec3 targetPos = entity.position().add(offset);
         entity.setPos(targetPos.x, targetPos.y, targetPos.z);
         entity.setDeltaMovement(Vec3.ZERO);
+        stopWalkAnimation(entity);
+    }
+
+    private static float computeWalkAnimationSpeed(Vec3 totalOffset, int durationTicks) {
+        if (durationTicks <= 0) {
+            return 0.0f;
+        }
+        double seconds = durationTicks / 20.0d;
+        double blocksPerSecond = totalOffset.length() / seconds;
+        return (float) Math.min(1.0d, blocksPerSecond / 5.0d);
+    }
+
+    private static void applyWalkAnimation(Entity entity, float speed) {
+        if (!(entity instanceof LivingEntity livingEntity)) {
+            return;
+        }
+        float clampedSpeed = Math.max(0.0f, Math.min(1.0f, speed));
+        livingEntity.walkAnimation.setSpeed(clampedSpeed);
+        livingEntity.walkAnimation.update(clampedSpeed, 1.0f);
+    }
+
+    private static void stopWalkAnimation(Entity entity) {
+        if (!(entity instanceof LivingEntity livingEntity)) {
+            return;
+        }
+        livingEntity.walkAnimation.setSpeed(0.0f);
+        livingEntity.walkAnimation.update(0.0f, 1.0f);
+        if (livingEntity instanceof Mob mob) {
+            mob.setXxa(0.0f);
+            mob.setYya(0.0f);
+            mob.setZza(0.0f);
+        }
     }
 
     @Nullable
