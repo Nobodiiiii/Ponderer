@@ -236,6 +236,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 Vec3 targetPos = target.startPos.add(totalOffset.scale(progress));
                 entity.setPos(targetPos.x, targetPos.y, targetPos.z);
                 entity.setDeltaMovement(Vec3.ZERO);
+                entity.setOldPosAndRot();
                 if (walkAnimation && progress < 1.0) {
                     applyWalkAnimation(entity, walkAnimationSpeed);
                 } else {
@@ -2340,6 +2341,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         Vec3 targetPos = entity.position().add(offset);
         entity.setPos(targetPos.x, targetPos.y, targetPos.z);
         entity.setDeltaMovement(Vec3.ZERO);
+        entity.setOldPosAndRot();
         stopWalkAnimation(entity);
     }
 
@@ -2357,15 +2359,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
         float clampedSpeed = Math.max(0.0f, Math.min(1.0f, speed));
-        livingEntity.walkAnimation.setSpeed(clampedSpeed);
-        livingEntity.walkAnimation.update(clampedSpeed, 1.0f);
+        livingEntity.walkAnimation.update(clampedSpeed, 0.4f);
     }
 
     private static void stopWalkAnimation(Entity entity) {
         if (!(entity instanceof LivingEntity livingEntity)) {
             return;
         }
-        livingEntity.walkAnimation.setSpeed(0.0f);
         livingEntity.walkAnimation.update(0.0f, 1.0f);
         if (livingEntity instanceof Mob mob) {
             mob.setXxa(0.0f);
