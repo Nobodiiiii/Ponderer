@@ -205,6 +205,7 @@ public class DslScene {
         public Boolean whileCTRL;
         public Boolean enableNbt;
         public Boolean fullScene;
+        public Boolean walkAnimation;
         /**
          * show_extra_structure only: when true, air-family blocks in the structure also
          * overwrite the corresponding scene cells (cleared with air). Default false — air

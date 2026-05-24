@@ -17,6 +17,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
     private final StepXyzFieldHandle posField = new StepXyzFieldHandle("pos");
     private final StepXyzFieldHandle motionField = new StepXyzFieldHandle("motion");
     private final StepTextFieldHandle nbtField = new StepTextFieldHandle("nbt");
+    private final StepTextFieldHandle linkIdField = new StepTextFieldHandle("linkId");
 
     public CreateItemEntityScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.create_item_entity.add"), scene, sceneIndex, parent);
@@ -71,6 +72,12 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             124,
             FieldDecorators.nbtPick("nbt"),
             FieldDecorators.nbtExpand("nbt")));
+        entries.add(FieldSpecs.text(
+            linkIdField,
+            "ponderer.ui.entity_link",
+            "ponderer.ui.create_item_entity.link.tooltip",
+            "",
+            124));
     }
 
     @Override
@@ -85,6 +92,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             motionField.setValue(step.motion.get(0), step.motion.get(1), step.motion.get(2));
         }
         if (step.nbt != null) nbtField.setValue(step.nbt);
+        if (step.linkId != null) linkIdField.setValue(step.linkId);
     }
 
     @Override
@@ -140,6 +148,10 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
                 return null;
             }
             s.nbt = nbt;
+        }
+        String linkId = linkIdField.getValue().trim();
+        if (!linkId.isEmpty()) {
+            s.linkId = linkId;
         }
         return s;
     }

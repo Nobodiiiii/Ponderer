@@ -644,16 +644,24 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             case "indicate_redstone" -> stepTypeName("indicate_redstone");
             case "indicate_success" -> stepTypeName("indicate_success");
             case "clear_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("clear_entities"), step.entity != null && !step.entity.isEmpty() ? step.entity : "*");
+                stepTypeName("clear_entities"), entityTargetSummary(step.entity, step.linkId));
             case "clear_item_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("clear_item_entities"), step.item != null && !step.item.isEmpty() ? step.item : "*");
+                stepTypeName("clear_item_entities"), entityTargetSummary(step.item, step.linkId));
             case "modify_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("modify_entities_nbt"), step.entity != null && !step.entity.isEmpty() ? step.entity : "*");
+                stepTypeName("modify_entities_nbt"), entityTargetSummary(step.entity, step.linkId));
             case "modify_item_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("modify_item_entities_nbt"), step.item != null && !step.item.isEmpty() ? step.item : "*");
+                stepTypeName("modify_item_entities_nbt"), entityTargetSummary(step.item, step.linkId));
             case "next_scene" -> UIText.of("ponderer.ui.step.summary.next_scene");
             default -> step.type;
         };
+    }
+
+    private String entityTargetSummary(@Nullable String id, @Nullable String linkId) {
+        String target = id != null && !id.isEmpty() ? id : "*";
+        if (linkId == null || linkId.isBlank()) {
+            return target;
+        }
+        return target + " #" + linkId;
     }
 
     private String stepTypeName(String type) {

@@ -17,6 +17,7 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
     private final IdFieldMode jeiMode;
 
     private final StepTextFieldHandle idField = new StepTextFieldHandle("id");
+    private final StepTextFieldHandle linkIdField = new StepTextFieldHandle("linkId");
     private final StepXyzFieldHandle posField = new StepXyzFieldHandle("pos");
     private final StepXyzFieldHandle pos2Field = new StepXyzFieldHandle("pos2");
     private boolean fullScene = false;
@@ -58,6 +59,12 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 124,
                 FieldDecorators.jei(jeiMode)));
         }
+        entries.add(FieldSpecs.text(
+            linkIdField,
+            "ponderer.ui.entity_link",
+            "ponderer.ui." + stepType + ".link.tooltip",
+            "",
+            124));
         entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui." + stepType + ".pos_from",
@@ -86,6 +93,7 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
             pos2Field.setValue(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
+        if (step.linkId != null) linkIdField.setValue(step.linkId);
         if (step.fullScene != null) fullScene = step.fullScene;
     }
 
@@ -108,15 +116,25 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
     @Override
     protected DslScene.DslStep buildStep() {
         clearStatusMessages();
+        String linkId = linkIdField.getValue().trim();
 
         Integer px = null, py = null, pz = null;
         Integer px2 = null, py2 = null, pz2 = null;
 
         if (!fullScene) {
-            px = parseInt(posField.x(), "X");
-            py = parseInt(posField.y(), "Y");
-            pz = parseInt(posField.z(), "Z");
-            if (px == null || py == null || pz == null) return null;
+            String posX = posField.x().trim();
+            String posY = posField.y().trim();
+            String posZ = posField.z().trim();
+            boolean hasPos1 = !posX.isEmpty() || !posY.isEmpty() || !posZ.isEmpty();
+            if (hasPos1) {
+                px = parseInt(posX, "X");
+                py = parseInt(posY, "Y");
+                pz = parseInt(posZ, "Z");
+                if (px == null || py == null || pz == null) return null;
+            } else if (linkId.isEmpty()) {
+                setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.target_required"));
+                return null;
+            }
 
             String pos2X = pos2Field.x().trim();
             String pos2Y = pos2Field.y().trim();
@@ -144,9 +162,12 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 s.entity = id;
             }
         }
+        if (!linkId.isEmpty()) {
+            s.linkId = linkId;
+        }
         if (fullScene) {
             s.fullScene = true;
-        } else {
+        } else if (px != null) {
             s.blockPos = List.of(px, py, pz);
             if (px2 != null) s.blockPos2 = List.of(px2, py2, pz2);
         }

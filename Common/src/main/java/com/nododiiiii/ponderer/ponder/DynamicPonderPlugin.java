@@ -11,6 +11,7 @@ import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.ElementLink;
+import net.createmod.ponder.api.element.EntityElement;
 import net.createmod.ponder.api.element.InputElementBuilder;
 import net.createmod.ponder.api.element.TextElementBuilder;
 import net.createmod.ponder.api.element.WorldSectionElement;
@@ -21,8 +22,10 @@ import net.createmod.ponder.api.scene.Selection;
 import net.createmod.ponder.api.scene.PonderStoryBoard;
 import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
+import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstruction;
 import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
+import net.createmod.ponder.foundation.instruction.TickingInstruction;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -60,12 +63,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 public class DynamicPonderPlugin implements PonderPlugin {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static class StepContext {
         final Map<String, ElementLink<WorldSectionElement>> sectionLinks = new HashMap<>();
+        final Map<String, List<ElementLink<EntityElement>>> entityLinks = new HashMap<>();
         final VisibilityTracker visibility = new VisibilityTracker();
         boolean uiAnchorMode;
     }
@@ -152,6 +158,99 @@ public class DynamicPonderPlugin implements PonderPlugin {
                     visibleKeys.remove(key);
                 }
             }
+        }
+    }
+
+    private static final class EntityMoveTarget {
+        final Entity entity;
+        final Vec3 startPos;
+
+        private EntityMoveTarget(Entity entity, Vec3 startPos) {
+            this.entity = entity;
+            this.startPos = startPos;
+        }
+    }
+
+    private static final class EntityMoveInstruction extends TickingInstruction {
+        @Nullable
+        private final List<ElementLink<EntityElement>> linkedTargets;
+        @Nullable
+        private final Selection selection;
+        @Nullable
+        private final ResourceLocation entityFilter;
+        private final Vec3 totalOffset;
+        private final boolean walkAnimation;
+        private final List<EntityMoveTarget> targets = new ArrayList<>();
+
+        private EntityMoveInstruction(@Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                      @Nullable Selection selection,
+                                      @Nullable ResourceLocation entityFilter,
+                                      Vec3 totalOffset,
+                                      int duration,
+                                      boolean walkAnimation) {
+            super(false, duration);
+            this.linkedTargets = linkedTargets == null ? null : List.copyOf(linkedTargets);
+            this.selection = selection;
+            this.entityFilter = entityFilter;
+            this.totalOffset = totalOffset;
+            this.walkAnimation = walkAnimation;
+        }
+
+        @Override
+        protected void firstTick(PonderScene scene) {
+            super.firstTick(scene);
+            if (linkedTargets != null) {
+                for (ElementLink<EntityElement> link : linkedTargets) {
+                    EntityElement element = scene.resolve(link);
+                    if (element == null) {
+                        continue;
+                    }
+                    element.ifPresent(entity -> collectTarget(entity));
+                }
+                return;
+            }
+
+            scene.forEachWorldEntity(Entity.class, this::collectTarget);
+        }
+
+        @Override
+        public void tick(PonderScene scene) {
+            super.tick(scene);
+            if (targets.isEmpty()) {
+                return;
+            }
+
+            int elapsedTicks = totalTicks - remainingTicks;
+            double progress = Math.min(1.0, elapsedTicks / (double) totalTicks);
+            Vec3 perTickOffset = totalOffset.scale(1.0 / totalTicks);
+
+            for (EntityMoveTarget target : targets) {
+                Entity entity = target.entity;
+                if (entity == null || !entity.isAlive()) {
+                    continue;
+                }
+
+                Vec3 targetPos = target.startPos.add(totalOffset.scale(progress));
+                entity.setPos(targetPos.x, targetPos.y, targetPos.z);
+                if (walkAnimation) {
+                    entity.setDeltaMovement(remainingTicks == 0 ? Vec3.ZERO : perTickOffset);
+                } else {
+                    entity.setDeltaMovement(Vec3.ZERO);
+                }
+            }
+        }
+
+        private void collectTarget(Entity entity) {
+            if (entity == null || !entity.isAlive() || entity instanceof ItemEntity) {
+                return;
+            }
+            if (selection != null && !selection.test(entity.blockPosition())) {
+                return;
+            }
+            if (!matchesEntityType(entity, entityFilter)) {
+                return;
+            }
+            targets.add(new EntityMoveTarget(entity, entity.position()));
         }
     }
 
@@ -545,8 +644,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "idle" -> scene.idle(step.durationOrDefault(20));
             case "text" -> applyText(scene, step, context);
             case "shared_text" -> applySharedText(scene, step, context);
-            case "create_entity" -> applyCreateEntity(scene, step);
-            case "create_item_entity" -> applyCreateItemEntity(scene, step);
+            case "create_entity" -> applyCreateEntity(scene, step, context);
+            case "create_item_entity" -> applyCreateItemEntity(scene, step, context);
             case "rotate_camera_y" -> applyRotateCameraY(scene, step);
             case "zoom_scene" -> applyZoomScene(scene, step);
             case "highlight_section" -> applyHighlightSection(scene, step);
@@ -567,10 +666,10 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "modify_block_entity_nbt" -> applyModifyBlockEntityNbt(scene, step);
             case "indicate_redstone" -> applyIndicateRedstone(scene, step);
             case "indicate_success" -> applyIndicateSuccess(scene, step);
-            case "clear_entities" -> applyClearEntities(scene, step);
-            case "clear_item_entities" -> applyClearItemEntities(scene, step);
-            case "modify_entities_nbt" -> applyModifyEntitiesNbt(scene, step);
-            case "modify_item_entities_nbt" -> applyModifyItemEntitiesNbt(scene, step);
+            case "clear_entities" -> applyClearEntities(scene, step, context);
+            case "clear_item_entities" -> applyClearItemEntities(scene, step, context);
+            case "modify_entities_nbt" -> applyModifyEntitiesNbt(scene, step, context);
+            case "modify_item_entities_nbt" -> applyModifyItemEntitiesNbt(scene, step, context);
             case "next_scene" -> {
             }
             default -> LOGGER.warn("Unknown step type '{}' in scene {}", step.type, dsl.id);
@@ -636,7 +735,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         return step.point != null && !step.point.isEmpty();
     }
 
-    private void applyCreateEntity(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyCreateEntity(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         ResourceLocation entityId = step.entity == null ? null : ResourceLocation.tryParse(step.entity);
         if (entityId == null) {
             LOGGER.warn("create_entity missing/invalid entity id");
@@ -644,7 +743,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         Vec3 pos = toPoint(step.pos != null ? step.pos : step.point);
-        scene.world().createEntity((Level level) -> {
+        ElementLink<EntityElement> entityLink = scene.world().createEntity((Level level) -> {
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(entityId).orElse(null);
             if (type == null) {
                 LOGGER.warn("Unknown entity type: {}", entityId);
@@ -690,9 +789,10 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
             return entity;
         });
+        registerEntityLink(context, step.linkId, entityLink);
     }
 
-    private void applyCreateItemEntity(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyCreateItemEntity(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         if (step.item == null || step.item.isBlank()) {
             LOGGER.warn("create_item_entity missing item id");
             return;
@@ -719,7 +819,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         final CompoundTag finalPatch = patch;
-        scene.world().createEntity((Level level) -> {
+        ElementLink<EntityElement> entityLink = scene.world().createEntity((Level level) -> {
             ItemStack stack = new ItemStack(item, count);
             if (finalPatch != null) {
                 stack = applyPatchToItemStack(stack, finalPatch);
@@ -735,6 +835,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
             return entity;
         });
+        registerEntityLink(context, step.linkId, entityLink);
     }
 
     private void applyRotateCameraY(SceneBuilder scene, DslScene.DslStep step) {
@@ -1873,91 +1974,157 @@ public class DynamicPonderPlugin implements PonderPlugin {
         scene.effects().indicateSuccess(pos);
     }
 
-    private void applyClearEntities(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyClearEntities(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
-        String filterId = step.entity;
-        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
+        ResourceLocation filterLoc = tryParseFilter(step.entity);
+        Selection selection = optionalSelectionFromStep(scene, step);
+        String linkId = normalizeEntityLinkId(step.linkId);
+
+        if (linkId != null) {
+            applyToLinkedEntities(scene, linkedEntityTargets(context, linkId), selection,
+                entity -> matchesNonItemEntity(entity, filterLoc), Entity::discard);
+            return;
+        }
 
         if (isFullScene) {
             scene.world().modifyEntities(Entity.class, entity -> {
-                if (entity instanceof ItemEntity) return;
-                if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
+                if (matchesNonItemEntity(entity, filterLoc)) {
                     entity.discard();
-                }
-            });
-        } else {
-            Selection selection = selectionFromStep(scene, step, "clear_entities");
-            if (selection == null) return;
-            scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
-                if (entity instanceof ItemEntity) return;
-                if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
-                    entity.discard();
-                }
-            });
-        }
-    }
-
-    private void applyClearItemEntities(SceneBuilder scene, DslScene.DslStep step) {
-        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
-        String filterId = step.item;
-        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
-
-        if (isFullScene) {
-            scene.world().modifyEntities(ItemEntity.class, entity -> {
-                if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
-                    entity.discard();
-                }
-            });
-        } else {
-            Selection selection = selectionFromStep(scene, step, "clear_item_entities");
-            if (selection == null) return;
-            scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
-                if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
-                    entity.discard();
-                }
-            });
-        }
-    }
-
-    private void applyModifyEntitiesNbt(SceneBuilder scene, DslScene.DslStep step) {
-        CompoundTag patch = parseEntityNbtPatch(step, "modify_entities_nbt");
-        if (patch == null) return;
-
-        String filterId = step.entity;
-        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
-        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
-
-        if (isFullScene) {
-            scene.world().modifyEntities(Entity.class, entity -> {
-                if (entity instanceof ItemEntity) return;
-                if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
-                    mergeEntityNbt(entity, patch);
                 }
             });
             return;
         }
 
-        Selection selection = selectionFromStep(scene, step, "modify_entities_nbt");
-        if (selection == null) return;
+        if (selection == null) {
+            LOGGER.warn("clear_entities missing blockPos/linkId");
+            return;
+        }
         scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
-            if (entity instanceof ItemEntity) return;
-            if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
-                mergeEntityNbt(entity, patch);
+            if (matchesNonItemEntity(entity, filterLoc)) {
+                entity.discard();
             }
         });
     }
 
-    private void applyModifyItemEntitiesNbt(SceneBuilder scene, DslScene.DslStep step) {
-        CompoundTag patch = parseEntityNbtPatch(step, "modify_item_entities_nbt");
-        if (patch == null) return;
-
-        String filterId = step.item;
-        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
+    private void applyClearItemEntities(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
+        ResourceLocation filterLoc = tryParseFilter(step.item);
+        Selection selection = optionalSelectionFromStep(scene, step);
+        String linkId = normalizeEntityLinkId(step.linkId);
+
+        if (linkId != null) {
+            applyToLinkedEntities(scene, linkedEntityTargets(context, linkId), selection,
+                entity -> matchesItemEntity(entity, filterLoc), Entity::discard);
+            return;
+        }
 
         if (isFullScene) {
             scene.world().modifyEntities(ItemEntity.class, entity -> {
-                if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
+                if (matchesItemEntity(entity, filterLoc)) {
+                    entity.discard();
+                }
+            });
+            return;
+        }
+
+        if (selection == null) {
+            LOGGER.warn("clear_item_entities missing blockPos/linkId");
+            return;
+        }
+        scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
+            if (matchesItemEntity(entity, filterLoc)) {
+                entity.discard();
+            }
+        });
+    }
+
+    private void applyModifyEntitiesNbt(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        CompoundTag patch = null;
+        if (step.nbt != null && !step.nbt.isBlank()) {
+            patch = parseEntityNbtPatch(step, "modify_entities_nbt");
+            if (patch == null) {
+                return;
+            }
+        }
+        boolean hasMove = step.offset != null
+            && step.offset.size() >= 3
+            && new Vec3(step.offset.get(0), step.offset.get(1), step.offset.get(2)).lengthSqr() > 0;
+        if (patch == null && !hasMove) {
+            LOGGER.warn("modify_entities_nbt missing nbt/offset");
+            return;
+        }
+
+        ResourceLocation filterLoc = tryParseFilter(step.entity);
+        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
+        Selection selection = optionalSelectionFromStep(scene, step);
+        String linkId = normalizeEntityLinkId(step.linkId);
+
+        if (linkId != null) {
+            List<ElementLink<EntityElement>> links = linkedEntityTargets(context, linkId);
+            if (patch != null) {
+                CompoundTag finalPatch = patch;
+                applyToLinkedEntities(scene, links, selection,
+                    entity -> matchesNonItemEntity(entity, filterLoc),
+                    entity -> mergeEntityNbt(entity, finalPatch));
+            }
+            scheduleEntityMove(scene, links, selection, filterLoc, step);
+            return;
+        }
+
+        if (isFullScene) {
+            if (patch != null) {
+                CompoundTag finalPatch = patch;
+                scene.world().modifyEntities(Entity.class, entity -> {
+                    if (matchesNonItemEntity(entity, filterLoc)) {
+                        mergeEntityNbt(entity, finalPatch);
+                    }
+                });
+            }
+            scheduleEntityMove(scene, null, null, filterLoc, step);
+            return;
+        }
+
+        if (selection == null) {
+            LOGGER.warn("modify_entities_nbt missing blockPos/linkId");
+            return;
+        }
+        if (patch != null) {
+            CompoundTag finalPatch = patch;
+            scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
+                if (matchesNonItemEntity(entity, filterLoc)) {
+                    mergeEntityNbt(entity, finalPatch);
+                }
+            });
+        }
+        scheduleEntityMove(scene, null, selection, filterLoc, step);
+    }
+
+    private void applyModifyItemEntitiesNbt(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        CompoundTag patch = parseEntityNbtPatch(step, "modify_item_entities_nbt");
+        if (patch == null) return;
+
+        ResourceLocation filterLoc = tryParseFilter(step.item);
+        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
+        Selection selection = optionalSelectionFromStep(scene, step);
+        String linkId = normalizeEntityLinkId(step.linkId);
+
+        Consumer<Entity> itemPatchAction = entity -> {
+            ItemEntity itemEntity = (ItemEntity) entity;
+            itemEntity.setItem(applyPatchToItemStack(itemEntity.getItem(), patch));
+            if (isLikelyEntityPatch(patch)) {
+                mergeEntityNbt(itemEntity, patch);
+            }
+        };
+
+        if (linkId != null) {
+            applyToLinkedEntities(scene, linkedEntityTargets(context, linkId), selection,
+                entity -> matchesItemEntity(entity, filterLoc), itemPatchAction);
+            return;
+        }
+
+        if (isFullScene) {
+            scene.world().modifyEntities(ItemEntity.class, entity -> {
+                if (matchesItemEntity(entity, filterLoc)) {
                     entity.setItem(applyPatchToItemStack(entity.getItem(), patch));
                     if (isLikelyEntityPatch(patch)) {
                         mergeEntityNbt(entity, patch);
@@ -1967,10 +2134,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        Selection selection = selectionFromStep(scene, step, "modify_item_entities_nbt");
-        if (selection == null) return;
+        if (selection == null) {
+            LOGGER.warn("modify_item_entities_nbt missing blockPos/linkId");
+            return;
+        }
         scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
-            if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
+            if (matchesItemEntity(entity, filterLoc)) {
                 entity.setItem(applyPatchToItemStack(entity.getItem(), patch));
                 if (isLikelyEntityPatch(patch)) {
                     mergeEntityNbt(entity, patch);
@@ -2036,6 +2205,150 @@ public class DynamicPonderPlugin implements PonderPlugin {
         entity.saveWithoutId(data);
         data.merge(patch.copy());
         entity.load(data);
+    }
+
+    @Nullable
+    private ResourceLocation tryParseFilter(@Nullable String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return ResourceLocation.tryParse(raw);
+    }
+
+    private void registerEntityLink(StepContext context, @Nullable String rawLinkId, ElementLink<EntityElement> link) {
+        String linkId = normalizeEntityLinkId(rawLinkId);
+        if (linkId == null) {
+            return;
+        }
+        context.entityLinks.computeIfAbsent(linkId, key -> new ArrayList<>()).add(link);
+    }
+
+    @Nullable
+    private String normalizeEntityLinkId(@Nullable String rawLinkId) {
+        if (rawLinkId == null) {
+            return null;
+        }
+        String normalized = rawLinkId.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private List<ElementLink<EntityElement>> linkedEntityTargets(StepContext context, String linkId) {
+        List<ElementLink<EntityElement>> targets = context.entityLinks.get(linkId);
+        return targets == null ? List.of() : List.copyOf(targets);
+    }
+
+    private void applyToLinkedEntities(SceneBuilder scene, List<ElementLink<EntityElement>> links,
+                                       @Nullable Selection selection,
+                                       Predicate<Entity> filter,
+                                       Consumer<Entity> action) {
+        if (links.isEmpty()) {
+            return;
+        }
+        List<ElementLink<EntityElement>> captured = List.copyOf(links);
+        scene.addInstruction(ponderScene -> {
+            for (ElementLink<EntityElement> link : captured) {
+                EntityElement element = ponderScene.resolve(link);
+                if (element == null) {
+                    continue;
+                }
+                element.ifPresent(entity -> {
+                    if (entity == null || !entity.isAlive()) {
+                        return;
+                    }
+                    if (selection != null && !selection.test(entity.blockPosition())) {
+                        return;
+                    }
+                    if (!filter.test(entity)) {
+                        return;
+                    }
+                    action.accept(entity);
+                });
+            }
+        });
+    }
+
+    private static boolean matchesNonItemEntity(Entity entity, @Nullable ResourceLocation filterLoc) {
+        return !(entity instanceof ItemEntity) && matchesEntityType(entity, filterLoc);
+    }
+
+    private static boolean matchesEntityType(Entity entity, @Nullable ResourceLocation filterLoc) {
+        return filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc);
+    }
+
+    private static boolean matchesItemEntity(Entity entity, @Nullable ResourceLocation filterLoc) {
+        if (!(entity instanceof ItemEntity itemEntity)) {
+            return false;
+        }
+        return filterLoc == null || BuiltInRegistries.ITEM.getKey(itemEntity.getItem().getItem()).equals(filterLoc);
+    }
+
+    private void scheduleEntityMove(SceneBuilder scene,
+                                    @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                    @Nullable Selection selection,
+                                    @Nullable ResourceLocation filterLoc,
+                                    DslScene.DslStep step) {
+        if (step.offset == null || step.offset.size() < 3) {
+            return;
+        }
+
+        Vec3 offset = new Vec3(step.offset.get(0), step.offset.get(1), step.offset.get(2));
+        if (offset.lengthSqr() == 0) {
+            return;
+        }
+
+        int duration = step.durationOrDefault(20);
+        if (duration <= 0) {
+            applyInstantEntityMove(scene, linkedTargets, selection, filterLoc, offset);
+            return;
+        }
+
+        scene.addInstruction(new EntityMoveInstruction(linkedTargets, selection, filterLoc, offset, duration,
+            Boolean.TRUE.equals(step.walkAnimation)));
+    }
+
+    private void applyInstantEntityMove(SceneBuilder scene,
+                                        @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                        @Nullable Selection selection,
+                                        @Nullable ResourceLocation filterLoc,
+                                        Vec3 offset) {
+        if (linkedTargets != null) {
+            applyToLinkedEntities(scene, linkedTargets, selection,
+                entity -> matchesNonItemEntity(entity, filterLoc),
+                entity -> moveEntityInstant(entity, offset));
+            return;
+        }
+
+        scene.addInstruction(ponderScene -> ponderScene.forEachWorldEntity(Entity.class, entity -> {
+            if (!matchesNonItemEntity(entity, filterLoc)) {
+                return;
+            }
+            if (selection != null && !selection.test(entity.blockPosition())) {
+                return;
+            }
+            moveEntityInstant(entity, offset);
+        }));
+    }
+
+    private void moveEntityInstant(Entity entity, Vec3 offset) {
+        if (entity == null || !entity.isAlive()) {
+            return;
+        }
+        Vec3 targetPos = entity.position().add(offset);
+        entity.setPos(targetPos.x, targetPos.y, targetPos.z);
+        entity.setDeltaMovement(Vec3.ZERO);
+    }
+
+    @Nullable
+    private Selection optionalSelectionFromStep(SceneBuilder scene, DslScene.DslStep step) {
+        if (step.blockPos == null || step.blockPos.size() < 3) {
+            return null;
+        }
+        BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+        BlockPos pos2 = pos1;
+        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+            pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+        }
+        return scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
     }
 
     private Selection selectionFromStep(SceneBuilder scene, DslScene.DslStep step, String stepName) {

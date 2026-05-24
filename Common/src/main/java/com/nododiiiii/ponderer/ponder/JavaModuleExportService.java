@@ -672,7 +672,7 @@ public final class JavaModuleExportService {
             case "replace_blocks", "set_block" -> hasPos(step.blockPos) && isNonBlank(step.block);
             case "rotate_section", "move_section" -> isNonBlank(step.linkId) || hasPos(step.blockPos);
             case "clear_entities", "clear_item_entities", "modify_entities_nbt", "modify_item_entities_nbt" ->
-                Boolean.TRUE.equals(step.fullScene) || hasPos(step.blockPos);
+                Boolean.TRUE.equals(step.fullScene) || hasPos(step.blockPos) || isNonBlank(step.linkId);
             default -> true;
         };
     }
@@ -1283,19 +1283,21 @@ public final class JavaModuleExportService {
                 .append(", ")
                 .append(Boolean.TRUE.equals(step.placeNearTarget))
                 .append(");\n");
-            case "create_entity" -> sb.append("        GeneratedPonderSupport.createEntity(scene, ")
+            case "create_entity" -> sb.append("        GeneratedPonderSupport.createEntity(scene, context, ")
                 .append(stringExpr(step.entity)).append(", ")
                 .append(vecExprOrDefault(step.pos != null ? step.pos : step.point, 2.5, 1.5, 2.5)).append(", ")
                 .append(vecExpr(step.lookAt)).append(", ")
                 .append(floatExpr(step.yaw)).append(", ")
                 .append(floatExpr(step.pitch)).append(", ")
-                .append(stringExpr(step.nbt)).append(");\n");
-            case "create_item_entity" -> sb.append("        GeneratedPonderSupport.createItemEntity(scene, ")
+                .append(stringExpr(step.nbt)).append(", ")
+                .append(stringExpr(step.linkId)).append(");\n");
+            case "create_item_entity" -> sb.append("        GeneratedPonderSupport.createItemEntity(scene, context, ")
                 .append(stringExpr(step.item)).append(", ")
                 .append(step.count == null ? 1 : Math.max(1, step.count)).append(", ")
                 .append(vecExprOrDefault(step.pos != null ? step.pos : step.point, 2.5, 1.5, 2.5)).append(", ")
                 .append(vecExprOrDefault(step.motion, 2.5, 1.5, 2.5)).append(", ")
-                .append(stringExpr(step.nbt)).append(");\n");
+                .append(stringExpr(step.nbt)).append(", ")
+                .append(stringExpr(step.linkId)).append(");\n");
             case "rotate_camera_y" -> sb.append("        GeneratedPonderSupport.rotateCameraY(scene, ")
                 .append(step.degrees == null ? "90f" : floatLiteral(step.degrees)).append(", ")
                 .append(step.degreesX == null ? "0f" : floatLiteral(step.degreesX)).append(", ")
@@ -1390,25 +1392,32 @@ public final class JavaModuleExportService {
                 .append(blockPosExpr(step.blockPos)).append(");\n");
             case "indicate_success" -> sb.append("        GeneratedPonderSupport.indicateSuccess(scene, ")
                 .append(blockPosExpr(step.blockPos)).append(");\n");
-            case "clear_entities" -> sb.append("        GeneratedPonderSupport.clearEntities(scene, ")
+            case "clear_entities" -> sb.append("        GeneratedPonderSupport.clearEntities(scene, context, ")
                 .append(Boolean.TRUE.equals(step.fullScene)).append(", ")
                 .append(stringExpr(step.entity)).append(", ")
+                .append(stringExpr(step.linkId)).append(", ")
                 .append(blockPosExpr(step.blockPos)).append(", ")
                 .append(blockPosExpr(step.blockPos2)).append(");\n");
-            case "clear_item_entities" -> sb.append("        GeneratedPonderSupport.clearItemEntities(scene, ")
+            case "clear_item_entities" -> sb.append("        GeneratedPonderSupport.clearItemEntities(scene, context, ")
                 .append(Boolean.TRUE.equals(step.fullScene)).append(", ")
                 .append(stringExpr(step.item)).append(", ")
+                .append(stringExpr(step.linkId)).append(", ")
                 .append(blockPosExpr(step.blockPos)).append(", ")
                 .append(blockPosExpr(step.blockPos2)).append(");\n");
-            case "modify_entities_nbt" -> sb.append("        GeneratedPonderSupport.modifyEntitiesNbt(scene, ")
+            case "modify_entities_nbt" -> sb.append("        GeneratedPonderSupport.modifyEntitiesNbt(scene, context, ")
                 .append(Boolean.TRUE.equals(step.fullScene)).append(", ")
                 .append(stringExpr(step.entity)).append(", ")
+                .append(stringExpr(step.linkId)).append(", ")
                 .append(stringExpr(step.nbt)).append(", ")
                 .append(blockPosExpr(step.blockPos)).append(", ")
-                .append(blockPosExpr(step.blockPos2)).append(");\n");
-            case "modify_item_entities_nbt" -> sb.append("        GeneratedPonderSupport.modifyItemEntitiesNbt(scene, ")
+                .append(blockPosExpr(step.blockPos2)).append(", ")
+                .append(vecExpr(step.offset)).append(", ")
+                .append(intExpr(step.duration)).append(", ")
+                .append(boolExpr(step.walkAnimation)).append(");\n");
+            case "modify_item_entities_nbt" -> sb.append("        GeneratedPonderSupport.modifyItemEntitiesNbt(scene, context, ")
                 .append(Boolean.TRUE.equals(step.fullScene)).append(", ")
                 .append(stringExpr(step.item)).append(", ")
+                .append(stringExpr(step.linkId)).append(", ")
                 .append(stringExpr(step.nbt)).append(", ")
                 .append(blockPosExpr(step.blockPos)).append(", ")
                 .append(blockPosExpr(step.blockPos2)).append(");\n");
