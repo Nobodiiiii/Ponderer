@@ -230,7 +230,7 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
 
     private String currentSceneSelectionButtonLabel() {
         return selectedSceneKeys.isEmpty()
-            ? UIText.of("ponderer.ui.export_java.support_only.label")
+            ? UIText.of("ponderer.ui.export.select_scenes")
             : UIText.of("ponderer.ui.export.selected_scenes", selectedSceneKeys.size());
     }
 

@@ -1006,7 +1006,6 @@
   "ponderer.ui.export_java.scan.continue": "是否继续，仅导出可支持的内容？",
   "ponderer.ui.export_java.failed": "Java 模块导出失败",
   "ponderer.ui.export_java.success": "Java 模块已导出：新增 %s，替换 %s，部分导出 %s，空白 %s，跳过 %s | 报告：%s",
-  "ponderer.ui.export_java.support_only.label": "仅更新支持文件",
   "ponderer.ui.export_java.support_only.tooltip": "未选择任何场景：保存时只会覆盖 GeneratedPonderSupport.java，不会改动场景、清单或语言文件",
   "ponderer.ui.export_java.success.support_only": "已更新支持文件：%s",
   "ponderer.ui.export.name_empty": "包名不能为空",

@@ -1025,7 +1025,6 @@
   "ponderer.ui.export_java.scan.continue": "Continue and export supported content only?",
   "ponderer.ui.export_java.failed": "Java module export failed",
   "ponderer.ui.export_java.success": "Java module exported: +%s new, %s replaced, %s partial, %s blank, %s skipped | report: %s",
-  "ponderer.ui.export_java.support_only.label": "Support file only",
   "ponderer.ui.export_java.support_only.tooltip": "No scenes selected: saving will only overwrite GeneratedPonderSupport.java; scenes, manifest, and lang files are untouched",
   "ponderer.ui.export_java.success.support_only": "Support file updated: %s",
   "ponderer.ui.export.name_empty": "Package name cannot be empty",
