@@ -304,6 +304,85 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
+    private static final class EntityExitInstruction extends TickingInstruction {
+        @Nullable
+        private final List<ElementLink<EntityElement>> linkedTargets;
+        @Nullable
+        private final Selection selection;
+        @Nullable
+        private final ResourceLocation entityFilter;
+        private final Vec3 exitOffset;
+        private final List<EntityMoveTarget> targets = new ArrayList<>();
+
+        private EntityExitInstruction(@Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                      @Nullable Selection selection,
+                                      @Nullable ResourceLocation entityFilter,
+                                      Vec3 exitOffset,
+                                      int duration) {
+            super(false, duration);
+            this.linkedTargets = linkedTargets == null ? null : List.copyOf(linkedTargets);
+            this.selection = selection;
+            this.entityFilter = entityFilter;
+            this.exitOffset = exitOffset;
+        }
+
+        @Override
+        protected void firstTick(PonderScene scene) {
+            super.firstTick(scene);
+            if (linkedTargets != null) {
+                for (ElementLink<EntityElement> link : linkedTargets) {
+                    EntityElement element = scene.resolve(link);
+                    if (element == null) {
+                        continue;
+                    }
+                    element.ifPresent(this::collectTarget);
+                }
+                return;
+            }
+
+            scene.forEachWorldEntity(Entity.class, this::collectTarget);
+        }
+
+        @Override
+        public void tick(PonderScene scene) {
+            super.tick(scene);
+            if (targets.isEmpty()) {
+                return;
+            }
+
+            double progress = Math.min(1.0d, (totalTicks - remainingTicks) / (double) totalTicks);
+            boolean finished = remainingTicks == 0;
+            for (EntityMoveTarget target : targets) {
+                Entity entity = target.entity;
+                if (entity == null || !entity.isAlive()) {
+                    continue;
+                }
+
+                Vec3 targetPos = target.startPos.add(exitOffset.scale(progress * progress));
+                entity.setPos(targetPos.x, targetPos.y, targetPos.z);
+                entity.setDeltaMovement(Vec3.ZERO);
+                entity.setOldPosAndRot();
+                stopWalkAnimation(entity);
+                if (finished) {
+                    entity.discard();
+                }
+            }
+        }
+
+        private void collectTarget(Entity entity) {
+            if (entity == null || !entity.isAlive() || entity instanceof ItemEntity) {
+                return;
+            }
+            if (selection != null && !selection.test(entity.blockPosition())) {
+                return;
+            }
+            if (!matchesEntityType(entity, entityFilter)) {
+                return;
+            }
+            targets.add(new EntityMoveTarget(entity, entity.position()));
+        }
+    }
+
     @Override
     public String getModId() {
         return "ponderer";
@@ -2039,17 +2118,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
         String linkId = normalizeEntityLinkId(step.linkId);
 
         if (linkId != null) {
-            applyToLinkedEntities(scene, linkedEntityTargets(context, linkId), selection,
-                entity -> matchesNonItemEntity(entity, filterLoc), Entity::discard);
+            scheduleEntityClear(scene, linkedEntityTargets(context, linkId), selection, filterLoc, step);
             return;
         }
 
         if (isFullScene) {
-            scene.world().modifyEntities(Entity.class, entity -> {
-                if (matchesNonItemEntity(entity, filterLoc)) {
-                    entity.discard();
-                }
-            });
+            scheduleEntityClear(scene, null, null, filterLoc, step);
             return;
         }
 
@@ -2057,11 +2131,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             LOGGER.warn("clear_entities missing blockPos/linkId");
             return;
         }
-        scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
-            if (matchesNonItemEntity(entity, filterLoc)) {
-                entity.discard();
-            }
-        });
+        scheduleEntityClear(scene, null, selection, filterLoc, step);
     }
 
     private void applyClearItemEntities(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
@@ -2398,6 +2468,47 @@ public class DynamicPonderPlugin implements PonderPlugin {
         stopWalkAnimation(entity);
     }
 
+    private void scheduleEntityClear(SceneBuilder scene,
+                                     @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                     @Nullable Selection selection,
+                                     @Nullable ResourceLocation filterLoc,
+                                     DslScene.DslStep step) {
+        Vec3 exitOffset = entityExitOffset(step);
+        int duration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+        if (exitOffset == null || duration <= 0) {
+            applyInstantEntityClear(scene, linkedTargets, selection, filterLoc);
+            return;
+        }
+        scene.addInstruction(new EntityExitInstruction(linkedTargets, selection, filterLoc, exitOffset, duration));
+    }
+
+    private void applyInstantEntityClear(SceneBuilder scene,
+                                         @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                         @Nullable Selection selection,
+                                         @Nullable ResourceLocation filterLoc) {
+        if (linkedTargets != null) {
+            applyToLinkedEntities(scene, linkedTargets, selection,
+                entity -> matchesNonItemEntity(entity, filterLoc),
+                Entity::discard);
+            return;
+        }
+
+        if (selection == null) {
+            scene.world().modifyEntities(Entity.class, entity -> {
+                if (matchesNonItemEntity(entity, filterLoc)) {
+                    entity.discard();
+                }
+            });
+            return;
+        }
+
+        scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
+            if (matchesNonItemEntity(entity, filterLoc)) {
+                entity.discard();
+            }
+        });
+    }
+
     @Nullable
     private Vec3 entityEntranceOffset(DslScene.DslStep step) {
         String animation = normalizeEntranceAnimation(step.entranceAnimation);
@@ -2409,6 +2520,19 @@ public class DynamicPonderPlugin implements PonderPlugin {
             ? parseDirection(step.direction)
             : parseDirection(animation);
         return Vec3.atLowerCornerOf(direction.getNormal()).scale(-0.5d);
+    }
+
+    @Nullable
+    private Vec3 entityExitOffset(DslScene.DslStep step) {
+        String animation = normalizeEntranceAnimation(step.entranceAnimation);
+        if (animation == null || "none".equals(animation)) {
+            return null;
+        }
+
+        Direction direction = "simultaneous".equals(animation)
+            ? parseDirection(step.direction)
+            : parseDirection(animation);
+        return Vec3.atLowerCornerOf(direction.getNormal()).scale(0.5d);
     }
 
     private static float computeWalkAnimationSpeed(Vec3 totalOffset, int durationTicks) {

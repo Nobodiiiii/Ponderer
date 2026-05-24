@@ -21,6 +21,8 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
     private final StepXyzFieldHandle posField = new StepXyzFieldHandle("pos");
     private final StepXyzFieldHandle pos2Field = new StepXyzFieldHandle("pos2");
     private boolean fullScene = false;
+    private boolean animatedExit = false;
+    private int exitDirectionIndex = 0;
 
     public ClearEntitiesScreen(String stepType, DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui." + stepType + ".add"), scene, sceneIndex, parent);
@@ -75,6 +77,26 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
             "ponderer.ui." + stepType + ".pos_to",
             "ponderer.ui." + stepType + ".pos_to.tooltip",
             PickState.TargetField.POS2));
+        if ("clear_entities".equals(stepType)) {
+            entries.add(FieldSpecs.toggle(
+                "ponderer.ui.clear_entities.exit",
+                "ponderer.ui.clear_entities.exit.tooltip",
+                () -> animatedExit,
+                () -> {
+                    animatedExit = !animatedExit;
+                    rebuildFormPreservingState();
+                }));
+            if (animatedExit) {
+                entries.add(FieldSpecs.choice(
+                    "ponderer.ui.show_section_and_merge.direction",
+                    "ponderer.ui.show_section_and_merge.direction.tooltip",
+                    100,
+                    () -> exitDirectionIndex = (exitDirectionIndex + 1) % SelectionAnimationOptions.DIRECTIONS.length,
+                    () -> SelectionAnimationOptions.optionLabel(
+                        "ponderer.ui.show_controls.direction",
+                        SelectionAnimationOptions.DIRECTIONS[exitDirectionIndex])));
+            }
+        }
         entries.add(FieldSpecs.toggle(
             "ponderer.ui." + stepType + ".full_scene",
             "ponderer.ui." + stepType + ".full_scene.tooltip",
@@ -95,6 +117,11 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
         }
         if (step.linkId != null) linkIdField.setValue(step.linkId);
         if (step.fullScene != null) fullScene = step.fullScene;
+        if ("clear_entities".equals(stepType)) {
+            String entranceAnimation = SelectionAnimationOptions.normalizeEntranceAnimation(step.entranceAnimation);
+            animatedExit = !"none".equals(entranceAnimation);
+            exitDirectionIndex = directionIndex(resolveExitDirection(entranceAnimation, step.direction));
+        }
     }
 
     @Override
@@ -103,12 +130,21 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
     @Override
     protected void appendCustomSnapshot(Map<String, String> snapshot) {
         snapshot.put("fullScene", String.valueOf(fullScene));
+        snapshot.put("animatedExit", String.valueOf(animatedExit));
+        snapshot.put("exitDirectionIndex", String.valueOf(exitDirectionIndex));
     }
 
     @Override
     protected void restoreCustomSnapshot(Map<String, String> snapshot) {
         if (snapshot.containsKey("fullScene")) {
             fullScene = Boolean.parseBoolean(snapshot.get("fullScene"));
+        }
+        if (snapshot.containsKey("animatedExit")) {
+            animatedExit = Boolean.parseBoolean(snapshot.get("animatedExit"));
+        }
+        if (snapshot.containsKey("exitDirectionIndex")) {
+            exitDirectionIndex = Math.floorMod(parseIntOr(snapshot.get("exitDirectionIndex"), 0),
+                SelectionAnimationOptions.DIRECTIONS.length);
         }
     }
 
@@ -171,6 +207,27 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
             s.blockPos = List.of(px, py, pz);
             if (px2 != null) s.blockPos2 = List.of(px2, py2, pz2);
         }
+        if ("clear_entities".equals(stepType) && animatedExit) {
+            s.entranceAnimation = "simultaneous";
+            s.direction = SelectionAnimationOptions.DIRECTIONS[exitDirectionIndex];
+        }
         return s;
+    }
+
+    private int directionIndex(String direction) {
+        for (int i = 0; i < SelectionAnimationOptions.DIRECTIONS.length; i++) {
+            if (SelectionAnimationOptions.DIRECTIONS[i].equals(direction)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private String resolveExitDirection(String entranceAnimation, @Nullable String direction) {
+        return switch (entranceAnimation) {
+            case "up", "north", "south", "west", "east" -> entranceAnimation;
+            case "simultaneous" -> SelectionAnimationOptions.normalizeDirection(direction);
+            default -> "down";
+        };
     }
 }

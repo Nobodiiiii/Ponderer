@@ -1400,7 +1400,10 @@ public final class JavaModuleExportService {
                 .append(stringExpr(step.entity)).append(", ")
                 .append(stringExpr(step.linkId)).append(", ")
                 .append(blockPosExpr(step.blockPos)).append(", ")
-                .append(blockPosExpr(step.blockPos2)).append(");\n");
+                .append(blockPosExpr(step.blockPos2)).append(", ")
+                .append(stringExpr(step.entranceAnimation)).append(", ")
+                .append(intExpr(step.entranceDuration)).append(", ")
+                .append(stringExpr(step.direction)).append(");\n");
             case "clear_item_entities" -> sb.append("        GeneratedPonderSupport.clearItemEntities(scene, context, ")
                 .append(Boolean.TRUE.equals(step.fullScene)).append(", ")
                 .append(stringExpr(step.item)).append(", ")

@@ -218,6 +218,85 @@ public final class GeneratedPonderSupport {
         }
     }
 
+    private static final class EntityExitInstruction extends TickingInstruction {
+        @Nullable
+        private final List<ElementLink<EntityElement>> linkedTargets;
+        @Nullable
+        private final Selection selection;
+        @Nullable
+        private final ResourceLocation entityFilter;
+        private final Vec3 exitOffset;
+        private final List<EntityMoveTarget> targets = new ArrayList<>();
+
+        private EntityExitInstruction(@Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                      @Nullable Selection selection,
+                                      @Nullable ResourceLocation entityFilter,
+                                      Vec3 exitOffset,
+                                      int duration) {
+            super(false, duration);
+            this.linkedTargets = linkedTargets == null ? null : List.copyOf(linkedTargets);
+            this.selection = selection;
+            this.entityFilter = entityFilter;
+            this.exitOffset = exitOffset;
+        }
+
+        @Override
+        protected void firstTick(PonderScene scene) {
+            super.firstTick(scene);
+            if (linkedTargets != null) {
+                for (ElementLink<EntityElement> link : linkedTargets) {
+                    EntityElement element = scene.resolve(link);
+                    if (element == null) {
+                        continue;
+                    }
+                    element.ifPresent(this::collectTarget);
+                }
+                return;
+            }
+
+            scene.forEachWorldEntity(Entity.class, this::collectTarget);
+        }
+
+        @Override
+        public void tick(PonderScene scene) {
+            super.tick(scene);
+            if (targets.isEmpty()) {
+                return;
+            }
+
+            double progress = Math.min(1.0d, (totalTicks - remainingTicks) / (double) totalTicks);
+            boolean finished = remainingTicks == 0;
+            for (EntityMoveTarget target : targets) {
+                Entity entity = target.entity;
+                if (entity == null || !entity.isAlive()) {
+                    continue;
+                }
+
+                Vec3 targetPos = target.startPos.add(exitOffset.scale(progress * progress));
+                entity.setPos(targetPos.x, targetPos.y, targetPos.z);
+                entity.setDeltaMovement(Vec3.ZERO);
+                entity.setOldPosAndRot();
+                stopWalkAnimation(entity);
+                if (finished) {
+                    entity.discard();
+                }
+            }
+        }
+
+        private void collectTarget(Entity entity) {
+            if (entity == null || !entity.isAlive() || entity instanceof ItemEntity) {
+                return;
+            }
+            if (selection != null && !selection.test(entity.blockPosition())) {
+                return;
+            }
+            if (!matchesEntityType(entity, entityFilter)) {
+                return;
+            }
+            targets.add(new EntityMoveTarget(entity, entity.position()));
+        }
+    }
+
     private GeneratedPonderSupport() {
     }
 
@@ -743,35 +822,33 @@ public final class GeneratedPonderSupport {
 
     public static void clearEntities(SceneBuilder scene, boolean fullScene, String entityId,
                                      BlockPos pos1, BlockPos pos2) {
-        clearEntities(scene, null, fullScene, entityId, null, pos1, pos2);
+        clearEntities(scene, null, fullScene, entityId, null, pos1, pos2, null, null, null);
     }
 
     public static void clearEntities(SceneBuilder scene, Context context, boolean fullScene, String entityId,
                                      String linkId, BlockPos pos1, BlockPos pos2) {
+        clearEntities(scene, context, fullScene, entityId, linkId, pos1, pos2, null, null, null);
+    }
+
+    public static void clearEntities(SceneBuilder scene, Context context, boolean fullScene, String entityId,
+                                     String linkId, BlockPos pos1, BlockPos pos2,
+                                     String exitAnimation, Integer exitDuration, String direction) {
         ResourceLocation filter = tryParseEntityFilter(entityId);
         Selection selection = selectionFromBounds(scene, pos1, pos2);
         String normalizedLinkId = normalizeEntityLinkId(linkId);
         if (normalizedLinkId != null) {
-            applyToLinkedEntities(scene, linkedEntityTargets(context, normalizedLinkId), selection,
-                entity -> matchesNonItemEntity(entity, filter), Entity::discard);
+            scheduleEntityClear(scene, linkedEntityTargets(context, normalizedLinkId), selection,
+                filter, exitAnimation, exitDuration, direction);
             return;
         }
         if (fullScene) {
-            scene.world().modifyEntities(Entity.class, entity -> {
-                if (matchesNonItemEntity(entity, filter)) {
-                    entity.discard();
-                }
-            });
+            scheduleEntityClear(scene, null, null, filter, exitAnimation, exitDuration, direction);
             return;
         }
         if (selection == null) {
             return;
         }
-        scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
-            if (matchesNonItemEntity(entity, filter)) {
-                entity.discard();
-            }
-        });
+        scheduleEntityClear(scene, null, selection, filter, exitAnimation, exitDuration, direction);
     }
 
     public static void clearItemEntities(SceneBuilder scene, boolean fullScene, String itemId,
@@ -1052,6 +1129,47 @@ public final class GeneratedPonderSupport {
         stopWalkAnimation(entity);
     }
 
+    private static void scheduleEntityClear(SceneBuilder scene,
+                                            @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                            @Nullable Selection selection,
+                                            @Nullable ResourceLocation filterLoc,
+                                            String exitAnimation,
+                                            Integer exitDuration,
+                                            String direction) {
+        Vec3 exitOffset = entityExitOffset(exitAnimation, direction);
+        int resolvedDuration = exitDuration == null ? 20 : Math.max(0, exitDuration);
+        if (exitOffset == null || resolvedDuration <= 0) {
+            applyInstantEntityClear(scene, linkedTargets, selection, filterLoc);
+            return;
+        }
+        scene.addInstruction(new EntityExitInstruction(linkedTargets, selection, filterLoc, exitOffset, resolvedDuration));
+    }
+
+    private static void applyInstantEntityClear(SceneBuilder scene,
+                                                @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                                @Nullable Selection selection,
+                                                @Nullable ResourceLocation filterLoc) {
+        if (linkedTargets != null) {
+            applyToLinkedEntities(scene, linkedTargets, selection,
+                entity -> matchesNonItemEntity(entity, filterLoc),
+                Entity::discard);
+            return;
+        }
+        if (selection == null) {
+            scene.world().modifyEntities(Entity.class, entity -> {
+                if (matchesNonItemEntity(entity, filterLoc)) {
+                    entity.discard();
+                }
+            });
+            return;
+        }
+        scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
+            if (matchesNonItemEntity(entity, filterLoc)) {
+                entity.discard();
+            }
+        });
+    }
+
     @Nullable
     private static Vec3 entityEntranceOffset(String entranceAnimationRaw, String directionRaw) {
         String animation = normalizeEntranceAnimation(entranceAnimationRaw);
@@ -1062,6 +1180,18 @@ public final class GeneratedPonderSupport {
             ? parseDirection(directionRaw)
             : parseDirection(animation);
         return Vec3.atLowerCornerOf(direction.getNormal()).scale(-0.5d);
+    }
+
+    @Nullable
+    private static Vec3 entityExitOffset(String exitAnimationRaw, String directionRaw) {
+        String animation = normalizeEntranceAnimation(exitAnimationRaw);
+        if (animation == null || "none".equals(animation)) {
+            return null;
+        }
+        Direction direction = "simultaneous".equals(animation)
+            ? parseDirection(directionRaw)
+            : parseDirection(animation);
+        return Vec3.atLowerCornerOf(direction.getNormal()).scale(0.5d);
     }
 
     private static float computeWalkAnimationSpeed(Vec3 totalOffset, int durationTicks) {

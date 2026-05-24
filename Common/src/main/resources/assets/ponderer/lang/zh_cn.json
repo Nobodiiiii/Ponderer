@@ -552,6 +552,8 @@
   "ponderer.ui.clear_entities.pos_from.tooltip": "选区起始位置 X Y Z",
   "ponderer.ui.clear_entities.pos_to": "终点",
   "ponderer.ui.clear_entities.pos_to.tooltip": "可选选区终止位置 X Y Z",
+  "ponderer.ui.clear_entities.exit": "出场动画",
+  "ponderer.ui.clear_entities.exit.tooltip": "切换实体是否使用与区段淡出相同的平滑出场效果。开启后默认以 20 刻沿所选方向退场并清除。",
   "ponderer.ui.clear_entities.full_scene": "全屏",
   "ponderer.ui.clear_entities.full_scene.tooltip": "清除整个场景中所有匹配的实体，忽略坐标",
   "ponderer.ui.clear_entities.error.partial_to": "终点必须同时填写 X、Y、Z",

@@ -552,6 +552,8 @@
   "ponderer.ui.clear_entities.pos_from.tooltip": "Selection start position X Y Z",
   "ponderer.ui.clear_entities.pos_to": "To",
   "ponderer.ui.clear_entities.pos_to.tooltip": "Optional selection end position X Y Z",
+  "ponderer.ui.clear_entities.exit": "Exit Animation",
+  "ponderer.ui.clear_entities.exit.tooltip": "Toggle the same smooth exit motion used by fading sections. When enabled, entities ease out along the chosen direction over 20 ticks before being removed.",
   "ponderer.ui.clear_entities.full_scene": "Full Scene",
   "ponderer.ui.clear_entities.full_scene.tooltip": "Clear all matching entities in the entire scene, ignoring coordinates",
   "ponderer.ui.clear_entities.error.partial_to": "End position must include X, Y and Z",
