@@ -258,6 +258,8 @@
   "ponderer.ui.create_entity.yaw_pitch": "偏角/仰角",
   "ponderer.ui.create_entity.nbt": "NBT",
   "ponderer.ui.create_entity.nbt.tooltip": "生成时合并到实体上的可选 NBT 补丁",
+  "ponderer.ui.create_entity.entrance": "入场动画",
+  "ponderer.ui.create_entity.entrance.tooltip": "切换实体是否使用与“放置方块”的“同时”相同的渐入效果。开启后默认以 20 刻从上方入场。",
   "ponderer.ui.create_entity.link.tooltip": "为本次放置的实体设置链接标识，供后续删除或修改实体步骤按标识引用。",
   "ponderer.ui.create_entity.error.required": "实体类型不能为空",
   "ponderer.ui.create_entity.error.invalid_id": "无效的实体ID",

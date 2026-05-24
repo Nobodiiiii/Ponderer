@@ -259,6 +259,51 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
+    private static final class EntityEntranceInstruction extends TickingInstruction {
+        private final ElementLink<EntityElement> entityLink;
+        private final Vec3 targetPos;
+        private final Vec3 entranceOffset;
+
+        private EntityEntranceInstruction(ElementLink<EntityElement> entityLink,
+                                          Vec3 targetPos,
+                                          Vec3 entranceOffset,
+                                          int duration) {
+            super(false, duration);
+            this.entityLink = entityLink;
+            this.targetPos = targetPos;
+            this.entranceOffset = entranceOffset;
+        }
+
+        @Override
+        protected void firstTick(PonderScene scene) {
+            super.firstTick(scene);
+            positionEntity(scene, targetPos.add(entranceOffset));
+        }
+
+        @Override
+        public void tick(PonderScene scene) {
+            super.tick(scene);
+            double fade = totalTicks <= 0 ? 0.0d : remainingTicks / (double) totalTicks;
+            positionEntity(scene, targetPos.add(entranceOffset.scale(fade * fade)));
+        }
+
+        private void positionEntity(PonderScene scene, Vec3 pos) {
+            EntityElement element = scene.resolve(entityLink);
+            if (element == null) {
+                return;
+            }
+            element.ifPresent(entity -> {
+                if (entity == null || !entity.isAlive()) {
+                    return;
+                }
+                entity.setPos(pos.x, pos.y, pos.z);
+                entity.setDeltaMovement(Vec3.ZERO);
+                entity.setOldPosAndRot();
+                stopWalkAnimation(entity);
+            });
+        }
+    }
+
     @Override
     public String getModId() {
         return "ponderer";
@@ -747,7 +792,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        Vec3 pos = toPoint(step.pos != null ? step.pos : step.point);
+        Vec3 targetPos = toPoint(step.pos != null ? step.pos : step.point);
+        Vec3 entranceOffset = entityEntranceOffset(step);
+        int entranceDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+        boolean animatedEntrance = entranceOffset != null && entranceDuration > 0;
+        Vec3 spawnPos = animatedEntrance ? targetPos.add(entranceOffset) : targetPos;
         ElementLink<EntityElement> entityLink = scene.world().createEntity((Level level) -> {
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(entityId).orElse(null);
             if (type == null) {
@@ -756,11 +805,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
             Entity entity = type.create(level);
             if (entity != null) {
-                entity.setPosRaw(pos.x, pos.y, pos.z);
+                entity.setPosRaw(spawnPos.x, spawnPos.y, spawnPos.z);
                 entity.setOldPosAndRot();
                 Vec3 lookAt = step.lookAt != null && step.lookAt.size() >= 3
                     ? new Vec3(step.lookAt.get(0), step.lookAt.get(1), step.lookAt.get(2))
-                    : pos.add(0, 0, -1);
+                    : targetPos.add(0, 0, -1);
                 entity.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.FEET, lookAt);
 
                 if (step.yaw != null) {
@@ -779,6 +828,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 entity.setNoGravity(true);
 
                 entity.setDeltaMovement(Vec3.ZERO);
+                stopWalkAnimation(entity);
 
                 if (step.nbt != null && !step.nbt.isBlank()) {
                     try {
@@ -795,6 +845,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return entity;
         });
         registerEntityLink(context, step.linkId, entityLink);
+        if (animatedEntrance) {
+            scene.addInstruction(new EntityEntranceInstruction(entityLink, targetPos, entranceOffset, entranceDuration));
+        }
     }
 
     private void applyCreateItemEntity(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
@@ -2343,6 +2396,19 @@ public class DynamicPonderPlugin implements PonderPlugin {
         entity.setDeltaMovement(Vec3.ZERO);
         entity.setOldPosAndRot();
         stopWalkAnimation(entity);
+    }
+
+    @Nullable
+    private Vec3 entityEntranceOffset(DslScene.DslStep step) {
+        String animation = normalizeEntranceAnimation(step.entranceAnimation);
+        if (animation == null || "none".equals(animation)) {
+            return null;
+        }
+
+        Direction direction = "simultaneous".equals(animation)
+            ? parseDirection(step.direction)
+            : parseDirection(animation);
+        return Vec3.atLowerCornerOf(direction.getNormal()).scale(-0.5d);
     }
 
     private static float computeWalkAnimationSpeed(Vec3 totalOffset, int durationTicks) {

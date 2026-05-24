@@ -1290,7 +1290,10 @@ public final class JavaModuleExportService {
                 .append(floatExpr(step.yaw)).append(", ")
                 .append(floatExpr(step.pitch)).append(", ")
                 .append(stringExpr(step.nbt)).append(", ")
-                .append(stringExpr(step.linkId)).append(");\n");
+                .append(stringExpr(step.linkId)).append(", ")
+                .append(stringExpr(step.entranceAnimation)).append(", ")
+                .append(intExpr(step.entranceDuration)).append(", ")
+                .append(stringExpr(step.direction)).append(");\n");
             case "create_item_entity" -> sb.append("        GeneratedPonderSupport.createItemEntity(scene, context, ")
                 .append(stringExpr(step.item)).append(", ")
                 .append(step.count == null ? 1 : Math.max(1, step.count)).append(", ")

@@ -173,6 +173,51 @@ public final class GeneratedPonderSupport {
         }
     }
 
+    private static final class EntityEntranceInstruction extends TickingInstruction {
+        private final ElementLink<EntityElement> entityLink;
+        private final Vec3 targetPos;
+        private final Vec3 entranceOffset;
+
+        private EntityEntranceInstruction(ElementLink<EntityElement> entityLink,
+                                          Vec3 targetPos,
+                                          Vec3 entranceOffset,
+                                          int duration) {
+            super(false, duration);
+            this.entityLink = entityLink;
+            this.targetPos = targetPos;
+            this.entranceOffset = entranceOffset;
+        }
+
+        @Override
+        protected void firstTick(PonderScene scene) {
+            super.firstTick(scene);
+            positionEntity(scene, targetPos.add(entranceOffset));
+        }
+
+        @Override
+        public void tick(PonderScene scene) {
+            super.tick(scene);
+            double fade = totalTicks <= 0 ? 0.0d : remainingTicks / (double) totalTicks;
+            positionEntity(scene, targetPos.add(entranceOffset.scale(fade * fade)));
+        }
+
+        private void positionEntity(PonderScene scene, Vec3 pos) {
+            EntityElement element = scene.resolve(entityLink);
+            if (element == null) {
+                return;
+            }
+            element.ifPresent(entity -> {
+                if (entity == null || !entity.isAlive()) {
+                    return;
+                }
+                entity.setPos(pos.x, pos.y, pos.z);
+                entity.setDeltaMovement(Vec3.ZERO);
+                entity.setOldPosAndRot();
+                stopWalkAnimation(entity);
+            });
+        }
+    }
+
     private GeneratedPonderSupport() {
     }
 
@@ -229,15 +274,32 @@ public final class GeneratedPonderSupport {
 
     public static void createEntity(SceneBuilder scene, String entityId, Vec3 pos, Vec3 lookAt,
                                     Float yaw, Float pitch, String nbt) {
-        createEntity(scene, null, entityId, pos, lookAt, yaw, pitch, nbt, null);
+        createEntity(scene, null, entityId, pos, lookAt, yaw, pitch, nbt, null, null, null, null);
     }
 
     public static void createEntity(SceneBuilder scene, Context context, String entityId, Vec3 pos, Vec3 lookAt,
                                     Float yaw, Float pitch, String nbt, String linkId) {
+        createEntity(scene, context, entityId, pos, lookAt, yaw, pitch, nbt, linkId, null, null, null);
+    }
+
+    public static void createEntity(SceneBuilder scene, Context context, String entityId, Vec3 pos, Vec3 lookAt,
+                                    Float yaw, Float pitch, String nbt, String linkId,
+                                    String entranceAnimation, Integer entranceDuration) {
+        createEntity(scene, context, entityId, pos, lookAt, yaw, pitch, nbt, linkId,
+            entranceAnimation, entranceDuration, null);
+    }
+
+    public static void createEntity(SceneBuilder scene, Context context, String entityId, Vec3 pos, Vec3 lookAt,
+                                    Float yaw, Float pitch, String nbt, String linkId,
+                                    String entranceAnimation, Integer entranceDuration, String direction) {
         ResourceLocation loc = entityId == null ? null : ResourceLocation.tryParse(entityId);
         if (loc == null) {
             return;
         }
+        Vec3 entranceOffset = entityEntranceOffset(entranceAnimation, direction);
+        int resolvedEntranceDuration = entranceDuration == null ? 20 : Math.max(0, entranceDuration);
+        boolean animatedEntrance = entranceOffset != null && resolvedEntranceDuration > 0;
+        Vec3 spawnPos = animatedEntrance ? pos.add(entranceOffset) : pos;
         ElementLink<EntityElement> entityLink = scene.world().createEntity((Level level) -> {
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(loc).orElse(null);
             if (type == null) {
@@ -247,7 +309,7 @@ public final class GeneratedPonderSupport {
             if (entity == null) {
                 return null;
             }
-            entity.setPosRaw(pos.x, pos.y, pos.z);
+            entity.setPosRaw(spawnPos.x, spawnPos.y, spawnPos.z);
             entity.setOldPosAndRot();
             Vec3 targetLook = lookAt == null ? pos.add(0, 0, -1) : lookAt;
             entity.lookAt(EntityAnchorArgument.Anchor.FEET, targetLook);
@@ -264,6 +326,7 @@ public final class GeneratedPonderSupport {
             }
             entity.setNoGravity(true);
             entity.setDeltaMovement(Vec3.ZERO);
+            stopWalkAnimation(entity);
             if (nbt != null && !nbt.isBlank()) {
                 try {
                     CompoundTag patch = TagParser.parseTag(nbt);
@@ -277,6 +340,9 @@ public final class GeneratedPonderSupport {
             return entity;
         });
         registerEntityLink(context, linkId, entityLink);
+        if (animatedEntrance) {
+            scene.addInstruction(new EntityEntranceInstruction(entityLink, pos, entranceOffset, resolvedEntranceDuration));
+        }
     }
 
     public static void createItemEntity(SceneBuilder scene, String itemId, int count, Vec3 pos,
@@ -984,6 +1050,18 @@ public final class GeneratedPonderSupport {
         entity.setDeltaMovement(Vec3.ZERO);
         entity.setOldPosAndRot();
         stopWalkAnimation(entity);
+    }
+
+    @Nullable
+    private static Vec3 entityEntranceOffset(String entranceAnimationRaw, String directionRaw) {
+        String animation = normalizeEntranceAnimation(entranceAnimationRaw);
+        if (animation == null || "none".equals(animation)) {
+            return null;
+        }
+        Direction direction = "simultaneous".equals(animation)
+            ? parseDirection(directionRaw)
+            : parseDirection(animation);
+        return Vec3.atLowerCornerOf(direction.getNormal()).scale(-0.5d);
     }
 
     private static float computeWalkAnimationSpeed(Vec3 totalOffset, int durationTicks) {

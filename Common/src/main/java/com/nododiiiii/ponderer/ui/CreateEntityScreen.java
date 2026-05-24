@@ -20,6 +20,8 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
     private final StepTextFieldHandle pitchField = new StepTextFieldHandle("pitch");
     private final StepTextFieldHandle nbtField = new StepTextFieldHandle("nbt");
     private final StepTextFieldHandle linkIdField = new StepTextFieldHandle("linkId");
+    private boolean animatedEntrance = false;
+    private int entranceDirectionIndex = 0;
 
     public CreateEntityScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.create_entity.add"), scene, sceneIndex, parent);
@@ -84,6 +86,24 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             124,
             FieldDecorators.nbtPick("nbt"),
             FieldDecorators.nbtExpand("nbt")));
+        entries.add(FieldSpecs.toggle(
+            "ponderer.ui.create_entity.entrance",
+            "ponderer.ui.create_entity.entrance.tooltip",
+            () -> animatedEntrance,
+            () -> {
+                animatedEntrance = !animatedEntrance;
+                rebuildFormPreservingState();
+            }));
+        if (animatedEntrance) {
+            entries.add(FieldSpecs.choice(
+                "ponderer.ui.show_section_and_merge.direction",
+                "ponderer.ui.show_section_and_merge.direction.tooltip",
+                100,
+                () -> entranceDirectionIndex = (entranceDirectionIndex + 1) % SelectionAnimationOptions.DIRECTIONS.length,
+                () -> SelectionAnimationOptions.optionLabel(
+                    "ponderer.ui.show_controls.direction",
+                    SelectionAnimationOptions.DIRECTIONS[entranceDirectionIndex])));
+        }
         entries.add(FieldSpecs.text(
             linkIdField,
             "ponderer.ui.entity_link",
@@ -108,6 +128,9 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
         }
         if (step.nbt != null) nbtField.setValue(step.nbt);
         if (step.linkId != null) linkIdField.setValue(step.linkId);
+        String entranceAnimation = SelectionAnimationOptions.normalizeEntranceAnimation(step.entranceAnimation);
+        animatedEntrance = !"none".equals(entranceAnimation);
+        entranceDirectionIndex = directionIndex(resolveEntranceDirection(entranceAnimation, step.direction));
     }
 
     @Override
@@ -116,6 +139,8 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
     @Override
     protected void appendCustomSnapshot(Map<String, String> snapshot) {
         snapshot.put("useYawPitch", String.valueOf(useYawPitch));
+        snapshot.put("animatedEntrance", String.valueOf(animatedEntrance));
+        snapshot.put("entranceDirectionIndex", String.valueOf(entranceDirectionIndex));
     }
 
     @Override
@@ -124,6 +149,13 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
             entityField.setValue(snapshot.get(NbtPickState.SNAPSHOT_ENTITY_ID_KEY));
         }
         if (snapshot.containsKey("useYawPitch")) useYawPitch = Boolean.parseBoolean(snapshot.get("useYawPitch"));
+        if (snapshot.containsKey("animatedEntrance")) {
+            animatedEntrance = Boolean.parseBoolean(snapshot.get("animatedEntrance"));
+        }
+        if (snapshot.containsKey("entranceDirectionIndex")) {
+            entranceDirectionIndex = Math.floorMod(parseIntOr(snapshot.get("entranceDirectionIndex"), 0),
+                SelectionAnimationOptions.DIRECTIONS.length);
+        }
         restoreNbtPickNotice(snapshot);
     }
 
@@ -170,6 +202,27 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
         if (!linkId.isEmpty()) {
             s.linkId = linkId;
         }
+        if (animatedEntrance) {
+            s.entranceAnimation = "simultaneous";
+            s.direction = SelectionAnimationOptions.DIRECTIONS[entranceDirectionIndex];
+        }
         return s;
+    }
+
+    private int directionIndex(String direction) {
+        for (int i = 0; i < SelectionAnimationOptions.DIRECTIONS.length; i++) {
+            if (SelectionAnimationOptions.DIRECTIONS[i].equals(direction)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private String resolveEntranceDirection(String entranceAnimation, @Nullable String direction) {
+        return switch (entranceAnimation) {
+            case "up", "north", "south", "west", "east" -> entranceAnimation;
+            case "simultaneous" -> SelectionAnimationOptions.normalizeDirection(direction);
+            default -> "down";
+        };
     }
 }

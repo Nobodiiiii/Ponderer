@@ -258,6 +258,8 @@
   "ponderer.ui.create_entity.yaw_pitch": "Yaw/Pitch",
   "ponderer.ui.create_entity.nbt": "NBT",
   "ponderer.ui.create_entity.nbt.tooltip": "Optional entity NBT patch applied on spawn",
+  "ponderer.ui.create_entity.entrance": "Entrance Animation",
+  "ponderer.ui.create_entity.entrance.tooltip": "Toggle the same simultaneous-style fade-in entrance used by placed blocks. When enabled, the entity eases in from above over 20 ticks by default.",
   "ponderer.ui.create_entity.link.tooltip": "Assign a link id to this placed entity so later clear/modify steps can target it by id.",
   "ponderer.ui.create_entity.error.required": "Entity type required",
   "ponderer.ui.create_entity.error.invalid_id": "Invalid entity ID",
