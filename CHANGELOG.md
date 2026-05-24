@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.9.0
+
+### 新增功能 / New Features
+
+- **结构列表、预览与子结构步骤**：新增结构选择器与实时预览组件，`show_structure` / `show_extra_structure` 可直接浏览本地结构文件，并将额外结构作为子结构插入场景。
+  Added a structure picker with live previews, and expanded `show_structure` workflows with `show_extra_structure` so local structure files can be browsed and inserted as sub-structures in scenes.
+
+- **NBT 扩展编辑器**：新增可展开的大型 NBT 文本编辑器，支持路径 / 坐标识别、多行输入增强，以及方块实体、实体、掉落物等步骤的 NBT 编辑与选取流程。
+  Added an expanded NBT editor with path/coordinate detection, improved multi-line editing, and better NBT edit/pick flows for block entities, entities, and item entities.
+
+- **文本轨道与进度条**：新增场景文本列表与文本标记指令，支持在 Ponder 播放过程中展示进度条、同步文本步骤，并改进共享文本的悬浮定位。
+  Added a scene text list and marker instructions for progress bars and synchronized text playback, while also improving floating shared-text positioning.
+
+- **高级动画与界面回放**：扩展 `show_interface` 的客户端截图 / 回放能力，并为区段、实体、掉落物等步骤补充外部动画与更细致的移动动画配置。
+  Expanded `show_interface` with client-side screen capture/replay, and added richer movement/external animation controls for sections, entities, and item entities.
+
+### 改进 / Improvements
+
+- **导出与脚本生成优化**：重构 Java 导出模板与运行时支持代码，改进结构引用、导出结果反馈与清单生成，为复杂场景导出提供更稳定的产物。
+  Reworked Java export templates and runtime support generation, improving structure references, export feedback, and manifest output for more reliable complex-scene exports.
+
+- **编辑器交互与缩放适配**：新增 UI 缩放支持，优化长文本输入框、结构预览、旋转相机和多处步骤表单细节，提升大场景编辑体验。
+  Added dedicated UI scaling support and refined long text inputs, structure previews, rotate-camera controls, and multiple step forms for better large-scene editing.
+
+### 修复 / Fixes
+
+- **场景运行兼容性修复**：修复合并区段后 `hide_section` 清理错误、Ponder 原生界面层级 / 文本索引问题，以及若干 NBT 选取与边界框相关回归。
+  Fixed merged-section `hide_section` cleanup, vanilla Ponder UI layering/text-index issues, and several regressions around NBT picking and scene bounds.
+
+---
+
+## 1.8.3
+
+### 新增功能 / New Features
+
+- **Java 模组导出**：新增 Java 模组导出页面，可扫描目标工程并将选定场景导出为 `GeneratedPonderSupport`、注册代码与语言条目，方便将游戏内编辑的内容直接接入源码模组。
+  Added a Java module export screen that scans a target project and exports selected scenes as `GeneratedPonderSupport`, registration code, and language entries so in-game authored content can move straight into source-controlled mods.
+
+### 改进 / Improvements
+
+- **导出清单与覆盖策略**：导出流程会维护 manifest 并同步受管场景资源，减少重复生成与手动整理成本。
+  Export now maintains a manifest and updates managed scene resources incrementally, reducing duplicate generation and manual cleanup.
+
+---
+
 ## 1.8.2
 
 ### 新增功能 / New Features
