@@ -9,6 +9,7 @@ import java.util.List;
 public class RotateCameraScreen extends AbstractStepEditorScreen {
 
     private final StepTextFieldHandle degreesField = new StepTextFieldHandle("degrees");
+    private final StepTextFieldHandle degreesXField = new StepTextFieldHandle("degreesX");
     private final StepTextFieldHandle durationField = new StepTextFieldHandle("duration");
 
     public RotateCameraScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
@@ -32,6 +33,13 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
             "90",
             60,
             "ponderer.ui.rotate_camera.degrees.unit"));
+        entries.add(FieldSpecs.number(
+            degreesXField,
+            "ponderer.ui.rotate_camera.degrees_x",
+            "ponderer.ui.rotate_camera.degrees_x.tooltip",
+            "0",
+            60,
+            "ponderer.ui.rotate_camera.degrees.unit"));
         entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",
@@ -45,6 +53,9 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
         super.populateFromStep(step);
         if (step.degrees != null) {
             degreesField.setValue(String.valueOf(step.degrees));
+        }
+        if (step.degreesX != null) {
+            degreesXField.setValue(String.valueOf(step.degreesX));
         }
         if (step.duration != null) {
             durationField.setValue(String.valueOf(step.duration));
@@ -69,9 +80,23 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
             return null;
         }
 
+        Float degreesX = null;
+        String rawX = degreesXField.getValue() == null ? "" : degreesXField.getValue().trim();
+        rawX = rawX.replaceAll("[^0-9+\\-\\.]", "").trim();
+        if (!rawX.isEmpty()) {
+            degreesX = parseFloat(rawX, "Degrees X");
+            if (degreesX == null) {
+                return null;
+            }
+            if (degreesX == 0f) {
+                degreesX = null;
+            }
+        }
+
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = "rotate_camera_y";
         s.degrees = degrees;
+        s.degreesX = degreesX;
         s.duration = parseIntOr(durationField.getValue(), 20);
         if (s.duration < 0) {
             setErrorMessage(UIText.of("ponderer.ui.rotate_camera.error.duration"));

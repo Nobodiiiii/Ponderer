@@ -24,7 +24,7 @@ public class TextStepScreen extends AbstractStepEditorScreen {
     private final StepXyzFieldHandle pointField = new StepXyzFieldHandle("point");
     private final StepTextFieldHandle durationField = new StepTextFieldHandle("duration");
     private int colorIndex = 0;
-    private boolean placeNearTarget = false;
+    private boolean placeNearTarget = true;
 
     /** The language currently being edited; defaults to MC's current language. */
     private String editingLang;
@@ -138,11 +138,17 @@ public class TextStepScreen extends AbstractStepEditorScreen {
         // Save current field text into the working copy for the editing language
         workingText.setForLang(editingLang, text);
         s.text = workingText;
-        Double px = parseDouble(pointField.x(), "X");
-        Double py = parseDouble(pointField.y(), "Y");
-        Double pz = parseDouble(pointField.z(), "Z");
-        if (px == null || py == null || pz == null) return null;
-        s.point = List.of(px, py, pz);
+        String rawX = pointField.x();
+        String rawY = pointField.y();
+        String rawZ = pointField.z();
+        boolean allBlank = isBlank(rawX) && isBlank(rawY) && isBlank(rawZ);
+        if (!allBlank) {
+            Double px = parseDouble(rawX, "X");
+            Double py = parseDouble(rawY, "Y");
+            Double pz = parseDouble(rawZ, "Z");
+            if (px == null || py == null || pz == null) return null;
+            s.point = List.of(px, py, pz);
+        }
         s.duration = parseIntOr(durationField.getValue(), 60);
         if (colorIndex > 0) s.color = COLORS[colorIndex];
         if (placeNearTarget) s.placeNearTarget = true;
@@ -176,5 +182,9 @@ public class TextStepScreen extends AbstractStepEditorScreen {
         } catch (Exception e) {
             return "en_us";
         }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 }

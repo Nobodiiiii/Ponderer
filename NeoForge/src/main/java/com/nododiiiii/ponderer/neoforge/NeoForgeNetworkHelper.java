@@ -3,7 +3,10 @@ package com.nododiiiii.ponderer.neoforge;
 import com.nododiiiii.ponderer.network.*;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.MirrorClosePacket;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.MirrorNeoForgeOpenPacket;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.ReplayItemSnapshotPacket;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.ReplaySnapshotPacket;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.ReplayUiIdPacket;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.SaveItemSnapshotPacket;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.SaveSnapshotPacket;
 import com.nododiiiii.ponderer.platform.services.NetworkHelper;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -57,6 +60,15 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
         });
         registrar.playToServer(MirrorClosePacket.TYPE, MirrorClosePacket.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> MirrorClosePacket.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(SaveItemSnapshotPacket.TYPE, SaveItemSnapshotPacket.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> SaveItemSnapshotPacket.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(ReplayItemSnapshotPacket.TYPE, ReplayItemSnapshotPacket.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> ReplayItemSnapshotPacket.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(ReplayUiIdPacket.TYPE, ReplayUiIdPacket.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> ReplayUiIdPacket.handle(payload, (ServerPlayer) ctx.player()));
         });
 
         registrar.playToClient(SyncResponsePayload.TYPE, SyncResponsePayload.CODEC, (payload, ctx) -> {

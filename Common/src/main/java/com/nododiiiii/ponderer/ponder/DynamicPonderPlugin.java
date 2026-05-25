@@ -11,6 +11,7 @@ import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.ElementLink;
+import net.createmod.ponder.api.element.EntityElement;
 import net.createmod.ponder.api.element.InputElementBuilder;
 import net.createmod.ponder.api.element.TextElementBuilder;
 import net.createmod.ponder.api.element.WorldSectionElement;
@@ -21,9 +22,10 @@ import net.createmod.ponder.api.scene.Selection;
 import net.createmod.ponder.api.scene.PonderStoryBoard;
 import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
+import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstruction;
 import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
-import net.minecraft.core.component.DataComponents;
+import net.createmod.ponder.foundation.instruction.TickingInstruction;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -39,17 +41,19 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
@@ -61,16 +65,327 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 public class DynamicPonderPlugin implements PonderPlugin {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static class StepContext {
         final Map<String, ElementLink<WorldSectionElement>> sectionLinks = new HashMap<>();
-        final Set<Long> visibleBlockKeys = new java.util.HashSet<>();
-        final Set<Long> hiddenBlockKeys = new java.util.HashSet<>();
-        boolean allBlocksVisible;
+        final Map<String, List<ElementLink<EntityElement>>> entityLinks = new HashMap<>();
+        final VisibilityTracker visibility = new VisibilityTracker();
         boolean uiAnchorMode;
+    }
+
+    /**
+     * Tracks which scene positions currently have a rendered block, for smart-display filtering.
+     * Two modes: when allVisible is set (show_structure everywhere), unknown positions count as
+     * visible and the explicit set tracks exceptions (hidden). Otherwise, the explicit set tracks
+     * what is visible. All visibility-mutating steps funnel through here so a new step type only
+     * needs to call one method.
+     */
+    private static final class VisibilityTracker {
+        private final Set<Long> visibleKeys = new java.util.HashSet<>();
+        private final Set<Long> hiddenKeys = new java.util.HashSet<>();
+        private boolean allVisible;
+
+        void markAllVisible() {
+            allVisible = true;
+            visibleKeys.clear();
+            hiddenKeys.clear();
+        }
+
+        void markRange(BlockPos pos1, BlockPos pos2, boolean visible) {
+            if (pos1 == null) {
+                return;
+            }
+            BlockPos b = pos2 == null ? pos1 : pos2;
+            int minX = Math.min(pos1.getX(), b.getX());
+            int minY = Math.min(pos1.getY(), b.getY());
+            int minZ = Math.min(pos1.getZ(), b.getZ());
+            int maxX = Math.max(pos1.getX(), b.getX());
+            int maxY = Math.max(pos1.getY(), b.getY());
+            int maxZ = Math.max(pos1.getZ(), b.getZ());
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    for (int x = minX; x <= maxX; x++) {
+                        mark(BlockPos.asLong(x, y, z), visible);
+                    }
+                }
+            }
+        }
+
+        void markPlaced(List<ExtraStructurePlanner.PlacedBlock> placed, boolean visible) {
+            for (ExtraStructurePlanner.PlacedBlock b : placed) {
+                // Air placements render nothing, so they must not count as visible — otherwise
+                // a subsequent step that places a real block at the same scene-coord would be
+                // filtered out by smart-display as "already visible". Matters when the source
+                // structure was planned with replaceAir=true.
+                mark(b.pos.asLong(), visible && !b.state.isAir());
+            }
+        }
+
+        boolean isVisible(long key) {
+            return allVisible ? !hiddenKeys.contains(key) : visibleKeys.contains(key);
+        }
+
+        List<List<BlockPos>> filterAlreadyVisible(List<List<BlockPos>> groups) {
+            List<List<BlockPos>> filtered = new ArrayList<>();
+            for (List<BlockPos> group : groups) {
+                List<BlockPos> pending = new ArrayList<>();
+                for (BlockPos pos : group) {
+                    if (!isVisible(pos.asLong())) {
+                        pending.add(pos);
+                    }
+                }
+                if (!pending.isEmpty()) {
+                    filtered.add(pending);
+                }
+            }
+            return filtered;
+        }
+
+        private void mark(long key, boolean visible) {
+            if (allVisible) {
+                if (visible) {
+                    hiddenKeys.remove(key);
+                } else {
+                    hiddenKeys.add(key);
+                }
+            } else {
+                if (visible) {
+                    visibleKeys.add(key);
+                } else {
+                    visibleKeys.remove(key);
+                }
+            }
+        }
+    }
+
+    private static final class EntityMoveTarget {
+        final Entity entity;
+        final Vec3 startPos;
+
+        private EntityMoveTarget(Entity entity, Vec3 startPos) {
+            this.entity = entity;
+            this.startPos = startPos;
+        }
+    }
+
+    private static final class EntityMoveInstruction extends TickingInstruction {
+        @Nullable
+        private final List<ElementLink<EntityElement>> linkedTargets;
+        @Nullable
+        private final Selection selection;
+        @Nullable
+        private final ResourceLocation entityFilter;
+        private final Vec3 totalOffset;
+        private final boolean walkAnimation;
+        private final float walkAnimationSpeed;
+        private final List<EntityMoveTarget> targets = new ArrayList<>();
+
+        private EntityMoveInstruction(@Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                      @Nullable Selection selection,
+                                      @Nullable ResourceLocation entityFilter,
+                                      Vec3 totalOffset,
+                                      int duration,
+                                      boolean walkAnimation) {
+            super(false, duration);
+            this.linkedTargets = linkedTargets == null ? null : List.copyOf(linkedTargets);
+            this.selection = selection;
+            this.entityFilter = entityFilter;
+            this.totalOffset = totalOffset;
+            this.walkAnimation = walkAnimation;
+            this.walkAnimationSpeed = computeWalkAnimationSpeed(totalOffset, duration);
+        }
+
+        @Override
+        protected void firstTick(PonderScene scene) {
+            super.firstTick(scene);
+            if (linkedTargets != null) {
+                for (ElementLink<EntityElement> link : linkedTargets) {
+                    EntityElement element = scene.resolve(link);
+                    if (element == null) {
+                        continue;
+                    }
+                    element.ifPresent(entity -> collectTarget(entity));
+                }
+                return;
+            }
+
+            scene.forEachWorldEntity(Entity.class, this::collectTarget);
+        }
+
+        @Override
+        public void tick(PonderScene scene) {
+            super.tick(scene);
+            if (targets.isEmpty()) {
+                return;
+            }
+
+            int elapsedTicks = totalTicks - remainingTicks;
+            double progress = Math.min(1.0, elapsedTicks / (double) totalTicks);
+
+            for (EntityMoveTarget target : targets) {
+                Entity entity = target.entity;
+                if (entity == null || !entity.isAlive()) {
+                    continue;
+                }
+
+                Vec3 targetPos = target.startPos.add(totalOffset.scale(progress));
+                entity.setOldPosAndRot();
+                entity.setPos(targetPos.x, targetPos.y, targetPos.z);
+                entity.setDeltaMovement(Vec3.ZERO);
+                if (walkAnimation && progress < 1.0) {
+                    applyWalkAnimation(entity, walkAnimationSpeed);
+                } else {
+                    stopWalkAnimation(entity);
+                }
+            }
+        }
+
+        private void collectTarget(Entity entity) {
+            if (entity == null || !entity.isAlive() || entity instanceof ItemEntity) {
+                return;
+            }
+            if (selection != null && !selection.test(entity.blockPosition())) {
+                return;
+            }
+            if (!matchesEntityType(entity, entityFilter)) {
+                return;
+            }
+            targets.add(new EntityMoveTarget(entity, entity.position()));
+        }
+    }
+
+    private static final class EntityEntranceInstruction extends TickingInstruction {
+        private final ElementLink<EntityElement> entityLink;
+        private final Vec3 targetPos;
+        private final Vec3 entranceOffset;
+
+        private EntityEntranceInstruction(ElementLink<EntityElement> entityLink,
+                                          Vec3 targetPos,
+                                          Vec3 entranceOffset,
+                                          int duration) {
+            super(false, duration);
+            this.entityLink = entityLink;
+            this.targetPos = targetPos;
+            this.entranceOffset = entranceOffset;
+        }
+
+        @Override
+        protected void firstTick(PonderScene scene) {
+            super.firstTick(scene);
+            positionEntity(scene, targetPos.add(entranceOffset), true);
+        }
+
+        @Override
+        public void tick(PonderScene scene) {
+            super.tick(scene);
+            double fade = totalTicks <= 0 ? 0.0d : remainingTicks / (double) totalTicks;
+            positionEntity(scene, targetPos.add(entranceOffset.scale(fade * fade)), false);
+        }
+
+        private void positionEntity(PonderScene scene, Vec3 pos, boolean snapOld) {
+            EntityElement element = scene.resolve(entityLink);
+            if (element == null) {
+                return;
+            }
+            element.ifPresent(entity -> {
+                if (entity == null || !entity.isAlive()) {
+                    return;
+                }
+                if (!snapOld) {
+                    entity.setOldPosAndRot();
+                }
+                entity.setPos(pos.x, pos.y, pos.z);
+                entity.setDeltaMovement(Vec3.ZERO);
+                if (snapOld) {
+                    entity.setOldPosAndRot();
+                }
+                stopWalkAnimation(entity);
+            });
+        }
+    }
+
+    private static final class EntityExitInstruction extends TickingInstruction {
+        @Nullable
+        private final List<ElementLink<EntityElement>> linkedTargets;
+        @Nullable
+        private final Selection selection;
+        @Nullable
+        private final ResourceLocation entityFilter;
+        private final Vec3 exitOffset;
+        private final List<EntityMoveTarget> targets = new ArrayList<>();
+
+        private EntityExitInstruction(@Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                      @Nullable Selection selection,
+                                      @Nullable ResourceLocation entityFilter,
+                                      Vec3 exitOffset,
+                                      int duration) {
+            super(false, duration);
+            this.linkedTargets = linkedTargets == null ? null : List.copyOf(linkedTargets);
+            this.selection = selection;
+            this.entityFilter = entityFilter;
+            this.exitOffset = exitOffset;
+        }
+
+        @Override
+        protected void firstTick(PonderScene scene) {
+            super.firstTick(scene);
+            if (linkedTargets != null) {
+                for (ElementLink<EntityElement> link : linkedTargets) {
+                    EntityElement element = scene.resolve(link);
+                    if (element == null) {
+                        continue;
+                    }
+                    element.ifPresent(this::collectTarget);
+                }
+                return;
+            }
+
+            scene.forEachWorldEntity(Entity.class, this::collectTarget);
+        }
+
+        @Override
+        public void tick(PonderScene scene) {
+            super.tick(scene);
+            if (targets.isEmpty()) {
+                return;
+            }
+
+            double progress = Math.min(1.0d, (totalTicks - remainingTicks) / (double) totalTicks);
+            boolean finished = remainingTicks == 0;
+            for (EntityMoveTarget target : targets) {
+                Entity entity = target.entity;
+                if (entity == null || !entity.isAlive()) {
+                    continue;
+                }
+
+                Vec3 targetPos = target.startPos.add(exitOffset.scale(progress * progress));
+                entity.setOldPosAndRot();
+                entity.setPos(targetPos.x, targetPos.y, targetPos.z);
+                entity.setDeltaMovement(Vec3.ZERO);
+                stopWalkAnimation(entity);
+                if (finished) {
+                    entity.discard();
+                }
+            }
+        }
+
+        private void collectTarget(Entity entity) {
+            if (entity == null || !entity.isAlive() || entity instanceof ItemEntity) {
+                return;
+            }
+            if (selection != null && !selection.test(entity.blockPosition())) {
+                return;
+            }
+            if (!matchesEntityType(entity, entityFilter)) {
+                return;
+            }
+            targets.add(new EntityMoveTarget(entity, entity.position()));
+        }
     }
 
     @Override
@@ -356,8 +671,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private PonderStoryBoard createStoryBoard(DslScene scene, DslScene.SceneSegment sc, int index, int total) {
+        BoundingBox scanBox = preScanSegmentBounds(sc);
         return (builder, util) -> {
             try {
+                if (scanBox != null) {
+                    builder.getScene().getWorld().getBounds().encapsulate(scanBox);
+                }
                 ResourceLocation baseId = ResourceLocation.tryParse(scene.id);
                 String basePath = baseId == null ? "scene" : baseId.getPath();
                 String scenePath = total > 1 ? basePath + "_" + sceneSuffix(sc, index) : basePath;
@@ -402,17 +721,65 @@ public class DynamicPonderPlugin implements PonderPlugin {
         };
     }
 
+    /**
+     * Pre-scan all coordinates referenced by a scene segment's steps to determine the full
+     * extent of the world the storyboard will touch. The result is encapsulated into world.bounds
+     * at storyboard compile time so that PonderSceneBuildingUtil snapshots (e.g. util.select.everywhere())
+     * include blocks placed outside the original schematic footprint — including negative coordinates.
+     * Returns null if no coordinate-bearing step is present.
+     */
+    private BoundingBox preScanSegmentBounds(DslScene.SceneSegment sc) {
+        if (sc == null || sc.steps == null) {
+            return null;
+        }
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        boolean any = false;
+        for (DslScene.DslStep step : sc.steps) {
+            if (step == null) {
+                continue;
+            }
+            if (step.blockPos != null && step.blockPos.size() >= 3) {
+                int x = step.blockPos.get(0), y = step.blockPos.get(1), z = step.blockPos.get(2);
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+                any = true;
+            }
+            if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+                int x = step.blockPos2.get(0), y = step.blockPos2.get(1), z = step.blockPos2.get(2);
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+                any = true;
+            }
+            if ("encapsulate_bounds".equalsIgnoreCase(step.type)
+                    && step.bounds != null && step.bounds.size() >= 3) {
+                int bx = step.bounds.get(0), by = step.bounds.get(1), bz = step.bounds.get(2);
+                if (0 < minX) minX = 0; if (bx > maxX) maxX = bx;
+                if (0 < minY) minY = 0; if (by > maxY) maxY = by;
+                if (0 < minZ) minZ = 0; if (bz > maxZ) maxZ = bz;
+                any = true;
+            }
+        }
+        if (!any) {
+            return null;
+        }
+        return new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
     private void applyStep(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep step, StepContext context) {
         if (Boolean.TRUE.equals(step.attachKeyFrame)) {
             scene.addKeyframe();
         }
         switch (step.type.toLowerCase(Locale.ROOT)) {
             case "show_structure" -> applyShowStructure(scene, step, context);
+            case "show_extra_structure" -> applyShowExtraStructure(scene, dsl, step, context);
             case "idle" -> scene.idle(step.durationOrDefault(20));
             case "text" -> applyText(scene, step, context);
             case "shared_text" -> applySharedText(scene, step, context);
-            case "create_entity" -> applyCreateEntity(scene, step);
-            case "create_item_entity" -> applyCreateItemEntity(scene, step);
+            case "create_entity" -> applyCreateEntity(scene, step, context);
+            case "create_item_entity" -> applyCreateItemEntity(scene, step, context);
             case "rotate_camera_y" -> applyRotateCameraY(scene, step);
             case "zoom_scene" -> applyZoomScene(scene, step);
             case "highlight_section" -> applyHighlightSection(scene, step);
@@ -433,10 +800,10 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "modify_block_entity_nbt" -> applyModifyBlockEntityNbt(scene, step);
             case "indicate_redstone" -> applyIndicateRedstone(scene, step);
             case "indicate_success" -> applyIndicateSuccess(scene, step);
-            case "clear_entities" -> applyClearEntities(scene, step);
-            case "clear_item_entities" -> applyClearItemEntities(scene, step);
-            case "modify_entities_nbt" -> applyModifyEntitiesNbt(scene, step);
-            case "modify_item_entities_nbt" -> applyModifyItemEntitiesNbt(scene, step);
+            case "clear_entities" -> applyClearEntities(scene, step, context);
+            case "clear_item_entities" -> applyClearItemEntities(scene, step, context);
+            case "modify_entities_nbt" -> applyModifyEntitiesNbt(scene, step, context);
+            case "modify_item_entities_nbt" -> applyModifyItemEntitiesNbt(scene, step, context);
             case "next_scene" -> {
             }
             default -> LOGGER.warn("Unknown step type '{}' in scene {}", step.type, dsl.id);
@@ -445,13 +812,17 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private void applyText(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         String text = step.text == null ? "" : step.text.resolve();
-        Vec3 point = resolveOverlayPoint(scene, step, context);
         int duration = step.durationOrDefault(60);
+
+        scene.addInstruction(new TextMarkerInstruction(text, false));
 
         TextElementBuilder builder = scene.overlay()
             .showText(duration)
-            .text(text)
-            .pointAt(point);
+            .text(text);
+
+        if (hasExplicitPoint(step)) {
+            builder.pointAt(resolveOverlayPoint(scene, step, context));
+        }
 
         PonderPalette palette = parsePalette(step.color);
         if (palette != null) {
@@ -477,9 +848,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        Vec3 point = resolveOverlayPoint(scene, step, context);
         int duration = step.durationOrDefault(60);
-        TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc).pointAt(point);
+        scene.addInstruction(new TextMarkerInstruction(key, true));
+        TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc);
+
+        if (hasExplicitPoint(step)) {
+            builder.pointAt(resolveOverlayPoint(scene, step, context));
+        }
 
         PonderPalette palette = parsePalette(step.color);
         if (palette != null) {
@@ -490,15 +865,23 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
-    private void applyCreateEntity(SceneBuilder scene, DslScene.DslStep step) {
+    private static boolean hasExplicitPoint(DslScene.DslStep step) {
+        return step.point != null && !step.point.isEmpty();
+    }
+
+    private void applyCreateEntity(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         ResourceLocation entityId = step.entity == null ? null : ResourceLocation.tryParse(step.entity);
         if (entityId == null) {
             LOGGER.warn("create_entity missing/invalid entity id");
             return;
         }
 
-        Vec3 pos = toPoint(step.pos != null ? step.pos : step.point);
-        scene.world().createEntity((Level level) -> {
+        Vec3 targetPos = toPoint(step.pos != null ? step.pos : step.point);
+        Vec3 entranceOffset = entityEntranceOffset(step);
+        int entranceDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+        boolean animatedEntrance = entranceOffset != null && entranceDuration > 0;
+        Vec3 spawnPos = animatedEntrance ? targetPos.add(entranceOffset) : targetPos;
+        ElementLink<EntityElement> entityLink = scene.world().createEntity((Level level) -> {
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(entityId).orElse(null);
             if (type == null) {
                 LOGGER.warn("Unknown entity type: {}", entityId);
@@ -506,11 +889,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
             Entity entity = type.create(level);
             if (entity != null) {
-                entity.setPosRaw(pos.x, pos.y, pos.z);
+                entity.setPosRaw(spawnPos.x, spawnPos.y, spawnPos.z);
                 entity.setOldPosAndRot();
                 Vec3 lookAt = step.lookAt != null && step.lookAt.size() >= 3
                     ? new Vec3(step.lookAt.get(0), step.lookAt.get(1), step.lookAt.get(2))
-                    : pos.add(0, 0, -1);
+                    : targetPos.add(0, 0, -1);
                 entity.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.FEET, lookAt);
 
                 if (step.yaw != null) {
@@ -529,6 +912,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 entity.setNoGravity(true);
 
                 entity.setDeltaMovement(Vec3.ZERO);
+                stopWalkAnimation(entity);
 
                 if (step.nbt != null && !step.nbt.isBlank()) {
                     try {
@@ -544,9 +928,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
             return entity;
         });
+        registerEntityLink(context, step.linkId, entityLink);
+        if (animatedEntrance) {
+            scene.addInstruction(new EntityEntranceInstruction(entityLink, targetPos, entranceOffset, entranceDuration));
+        }
     }
 
-    private void applyCreateItemEntity(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyCreateItemEntity(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         if (step.item == null || step.item.isBlank()) {
             LOGGER.warn("create_item_entity missing item id");
             return;
@@ -573,7 +961,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         final CompoundTag finalPatch = patch;
-        scene.world().createEntity((Level level) -> {
+        ElementLink<EntityElement> entityLink = scene.world().createEntity((Level level) -> {
             ItemStack stack = new ItemStack(item, count);
             if (finalPatch != null) {
                 stack = applyPatchToItemStack(stack, finalPatch);
@@ -589,18 +977,29 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
             return entity;
         });
+        registerEntityLink(context, step.linkId, entityLink);
     }
 
     private void applyRotateCameraY(SceneBuilder scene, DslScene.DslStep step) {
-        float degrees = step.degrees == null ? 90f : step.degrees;
+        float degreesY = step.degrees == null ? 90f : step.degrees;
+        Float degreesX = step.degreesX;
         int duration = step.durationOrDefault(20);
         scene.addInstruction(ponderScene -> {
             var yRotation = ponderScene.getTransform().yRotation;
-            float target = yRotation.getChaseTarget() + degrees;
+            float targetY = yRotation.getChaseTarget() + degreesY;
             if (duration == 0) {
-                yRotation.startWithValue(target);
+                yRotation.startWithValue(targetY);
             } else {
-                yRotation.chaseTimed(target, duration);
+                yRotation.chaseTimed(targetY, duration);
+            }
+            if (degreesX != null) {
+                var xRotation = ponderScene.getTransform().xRotation;
+                float targetX = xRotation.getChaseTarget() + degreesX;
+                if (duration == 0) {
+                    xRotation.startWithValue(targetX);
+                } else {
+                    xRotation.chaseTimed(targetX, duration);
+                }
             }
         });
         if (duration > 0) {
@@ -666,14 +1065,37 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowInterface(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        if (step.block == null || step.block.isBlank()) {
-            LOGGER.warn("show_interface missing block id");
-            return;
-        }
-
-        if (step.blockPos == null || step.blockPos.size() < 3) {
-            LOGGER.warn("show_interface missing block context position");
-            return;
+        String source = step.interfaceSource == null ? "block" : step.interfaceSource.toLowerCase(java.util.Locale.ROOT);
+        switch (source) {
+            case "block" -> {
+                if (step.block == null || step.block.isBlank()) {
+                    LOGGER.warn("show_interface missing block id");
+                    return;
+                }
+                if (step.blockPos == null || step.blockPos.size() < 3) {
+                    LOGGER.warn("show_interface missing block context position");
+                    return;
+                }
+            }
+            case "held_item" -> {
+                if (step.item == null || step.item.isBlank()) {
+                    LOGGER.warn("show_interface missing item id for held_item source");
+                    return;
+                }
+            }
+            case "ui_id" -> {
+                if (step.uiId == null || step.uiId.isBlank()) {
+                    LOGGER.warn("show_interface missing uiId for ui_id source");
+                    return;
+                }
+            }
+            default -> {
+                LOGGER.warn("show_interface unknown interfaceSource '{}', treating as block", step.interfaceSource);
+                if (step.block == null || step.block.isBlank()
+                    || step.blockPos == null || step.blockPos.size() < 3) {
+                    return;
+                }
+            }
         }
 
         PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
@@ -799,62 +1221,14 @@ public class DynamicPonderPlugin implements PonderPlugin {
             try {
                 CompoundTag tag = TagParser.parseTag(finalNbtPart);
                 if (!tag.isEmpty()) {
-                    ItemStack componentStack = tryBuildComponentStack(itemLoc, 1, tag);
-                    if (componentStack != null && !componentStack.isEmpty()) {
-                        return componentStack;
-                    }
-                    stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag.copy()));
+                    stack.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                            net.minecraft.world.item.component.CustomData.of(tag));
                 }
             } catch (Exception e) {
                 LOGGER.warn("show_controls invalid item nbt: {}", finalNbtPart);
             }
         }
         return stack;
-    }
-
-    @Nullable
-    private ItemStack tryBuildComponentStack(ResourceLocation itemLoc, int count, CompoundTag tag) {
-        var mc = Minecraft.getInstance();
-        if (mc.level == null) {
-            return null;
-        }
-
-        CompoundTag legacy = new CompoundTag();
-        legacy.putString("id", itemLoc.toString());
-        legacy.putInt("count", Math.max(1, count));
-        legacy.put("tag", tag.copy());
-        ItemStack fromLegacy = ItemStack.parseOptional(mc.level.registryAccess(), legacy);
-        if (!fromLegacy.isEmpty() && !fromLegacy.getComponentsPatch().isEmpty()) {
-            return fromLegacy;
-        }
-
-        CompoundTag full = new CompoundTag();
-        full.putString("id", itemLoc.toString());
-        full.putInt("count", Math.max(1, count));
-
-        if (tag.contains("components", Tag.TAG_COMPOUND)) {
-            full.put("components", tag.getCompound("components").copy());
-        } else {
-            CompoundTag components = new CompoundTag();
-            if (tag.contains("patterns", Tag.TAG_LIST)) {
-                components.put("minecraft:banner_patterns", tag.get("patterns").copy());
-            }
-            if (tag.contains("Patterns", Tag.TAG_LIST)) {
-                components.put("minecraft:banner_patterns", tag.get("Patterns").copy());
-            }
-            if (tag.contains("BlockEntityTag", Tag.TAG_COMPOUND)) {
-                components.put("minecraft:block_entity_data", tag.getCompound("BlockEntityTag").copy());
-            }
-
-            if (!components.isEmpty()) {
-                full.put("components", components);
-            } else {
-                return null;
-            }
-        }
-
-        ItemStack parsed = ItemStack.parseOptional(mc.level.registryAccess(), full);
-        return parsed.isEmpty() ? null : parsed;
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
@@ -877,9 +1251,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
         scene.world().showSection(selection, Direction.UP);
         if (isEverywhere) {
-            context.allBlocksVisible = true;
-            context.visibleBlockKeys.clear();
-            context.hiddenBlockKeys.clear();
+            context.visibility.markAllVisible();
         } else {
             updateVisibleRange(context, step, true);
         }
@@ -897,6 +1269,215 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 yRotation.startWithValue(target);
             }
         });
+    }
+
+    private void applyShowExtraStructure(SceneBuilder scene, DslScene dsl, DslScene.DslStep step, StepContext context) {
+        if (step.structure == null || step.structure.isBlank()) {
+            LOGGER.warn("show_extra_structure missing structure");
+            return;
+        }
+        if (step.blockPos == null || step.blockPos.size() < 3) {
+            LOGGER.warn("show_extra_structure missing blockPos");
+            return;
+        }
+
+        java.nio.file.Path file = resolveExtraStructureFile(dsl, step.structure);
+        if (file == null || !java.nio.file.Files.exists(file)) {
+            LOGGER.warn("show_extra_structure structure not found: {}", step.structure);
+            return;
+        }
+
+        BlockPos base = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+        int rotationDegrees = step.rotation == null ? 0 : Math.round(step.rotation);
+        boolean skipAir = !Boolean.TRUE.equals(step.replaceAir);
+
+        List<ExtraStructurePlanner.PlacedBlock> placed;
+        try {
+            placed = ExtraStructurePlanner.plan(file, base, rotationDegrees, skipAir);
+        } catch (Exception e) {
+            LOGGER.error("show_extra_structure failed to read structure '{}': {}", step.structure, e.getMessage());
+            return;
+        }
+        if (placed.isEmpty()) {
+            return;
+        }
+
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        for (ExtraStructurePlanner.PlacedBlock b : placed) {
+            int x = b.pos.getX();
+            int y = b.pos.getY();
+            int z = b.pos.getZ();
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (z < minZ) minZ = z;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+            if (z > maxZ) maxZ = z;
+        }
+        BlockPos minCorner = new BlockPos(minX, minY, minZ);
+        BlockPos maxCorner = new BlockPos(maxX, maxY, maxZ);
+
+        // Three exclusive entrance paths:
+        //   - "none" / null   → no animated reveal; obey step.immediateDisplay.
+        //   - "simultaneous"  → fade-in once, in parallel across strips so air holes are skipped.
+        //   - directional     → strip-by-strip reveal along the chosen axis.
+        String entranceAnimation = normalizeEntranceAnimation(step.entranceAnimation);
+        boolean simultaneous = "simultaneous".equals(entranceAnimation);
+        boolean directional = entranceAnimation != null && !"none".equals(entranceAnimation) && !simultaneous;
+        boolean animatedReveal = simultaneous || directional;
+
+        boolean placeVisible = !animatedReveal && !Boolean.FALSE.equals(step.immediateDisplay);
+        boolean particles = placeVisible && !Boolean.FALSE.equals(step.spawnParticles);
+
+        // An air-free strip decomposition used by the non-animated path and the simultaneous
+        // reveal path. Smart-display may later trim positions out of these groups.
+        List<List<BlockPos>> placedStrips = ExtraStructurePlanner.segmentForAnimation(placed, "up");
+
+        List<List<BlockPos>> revealGroups = placedStrips;
+        int revealInterval = 0;
+        String linkId = null;
+        Direction direction = Direction.DOWN;
+        int rowDuration = 20;
+        if (animatedReveal) {
+            linkId = step.linkId == null ? "" : step.linkId.trim();
+            if (linkId.isEmpty()) {
+                linkId = autoLinkId(context);
+            }
+            direction = parseDirection(step.direction);
+            rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+            int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
+            boolean smartDisplay = !Boolean.FALSE.equals(step.smartDisplay);
+
+            // Simultaneous → reuse the air-free strips and start every reveal at the same scene
+            // tick (rowInterval=0). Directional → segment along the chosen axis as usual.
+            if (simultaneous) {
+                revealGroups = placedStrips;
+                revealInterval = 0;
+            } else {
+                revealGroups = ExtraStructurePlanner.segmentForAnimation(placed, entranceAnimation);
+                revealInterval = rowInterval;
+            }
+
+            // Filter against PRIOR visibility (e.g. blocks already shown by a previous
+            // show_extra_structure). Only the still-hidden positions should be removed from the
+            // base section; otherwise already-visible overlaps such as shared floor blocks vanish.
+            if (smartDisplay) {
+                revealGroups = filterVisibleGroups(revealGroups, context);
+            }
+            ensureSceneCanShowExtra(scene, minCorner, maxCorner, revealGroups, false);
+        } else {
+            ensureSceneCanShowExtra(scene, minCorner, maxCorner, placedStrips, placeVisible);
+        }
+
+        for (ExtraStructurePlanner.PlacedBlock b : placed) {
+            scene.world().setBlock(b.pos, b.state, particles);
+            if (b.nbt != null && !b.nbt.isEmpty()) {
+                CompoundTag patch = b.nbt;
+                Selection sel = scene.getScene().getSceneBuildingUtil().select().position(b.pos);
+                scene.world().modifyBlockEntityNBT(sel, BlockEntity.class, nbt -> nbt.merge(patch.copy()), true);
+            }
+        }
+
+        if (!animatedReveal) {
+            applyPlacedVisibility(context, placed, placeVisible);
+            return;
+        }
+
+        if (revealGroups.isEmpty()) {
+            applyPlacedVisibility(context, placed, true);
+            return;
+        }
+
+        ElementLink<WorldSectionElement> working = context.sectionLinks.get(linkId);
+        for (List<BlockPos> group : revealGroups) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            Selection groupSelection = selectionForGroup(scene, group);
+            if (working == null) {
+                DisplayWorldSectionInstruction inst =
+                        new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection, null);
+                scene.addInstruction(inst);
+                working = inst.createLink(scene.getScene());
+                context.sectionLinks.put(linkId, working);
+            } else {
+                ElementLink<WorldSectionElement> target = working;
+                scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection,
+                        () -> scene.getScene().resolve(target)));
+            }
+            if (revealInterval > 0) {
+                scene.idle(revealInterval);
+            }
+        }
+
+        applyPlacedVisibility(context, placed, true);
+    }
+
+    /**
+     * Like {@link #ensureSceneCanShowRange} but operates on exact placed-position selections
+     * rather than the entire bounding box, so existing scene blocks at air positions or
+     * smart-display-filtered overlaps are not accidentally erased from the base section.
+     */
+    private void ensureSceneCanShowExtra(SceneBuilder scene, BlockPos minPos, BlockPos maxPos,
+                                          List<List<BlockPos>> placedGroups, boolean forceVisibleNow) {
+        final List<Selection> groupSelections = new ArrayList<>(placedGroups.size());
+        for (List<BlockPos> group : placedGroups) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            groupSelections.add(selectionForGroup(scene, group));
+        }
+        final List<Selection> capturedSelections = List.copyOf(groupSelections);
+        final BlockPos minCornerCaptured = minPos;
+        final BlockPos maxCornerCaptured = maxPos;
+
+        scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(minCornerCaptured);
+            ps.getWorld().getBounds().encapsulate(maxCornerCaptured);
+            if (!forceVisibleNow) {
+                if (!ps.getBaseWorldSection().isEmpty()) {
+                    for (Selection selection : capturedSelections) {
+                        ps.getBaseWorldSection().erase(selection);
+                    }
+                    ps.getBaseWorldSection().queueRedraw();
+                }
+                return;
+            }
+            if (ps.getBaseWorldSection().isEmpty()) {
+                Selection all = ps.getSceneBuildingUtil().select().everywhere();
+                ps.getBaseWorldSection().set(all);
+                ps.getBaseWorldSection().setVisible(true);
+                ps.getBaseWorldSection().setFade(1);
+            } else {
+                for (Selection selection : capturedSelections) {
+                    ps.getBaseWorldSection().add(selection);
+                }
+            }
+            ps.getBaseWorldSection().queueRedraw();
+        });
+    }
+
+    private void applyPlacedVisibility(StepContext context, List<ExtraStructurePlanner.PlacedBlock> placed, boolean visible) {
+        context.visibility.markPlaced(placed, visible);
+    }
+
+    @Nullable
+    private java.nio.file.Path resolveExtraStructureFile(DslScene dsl, String reference) {
+        String trimmed = reference.trim();
+        String relativePath;
+        if (trimmed.contains(":")) {
+            ResourceLocation rl = ResourceLocation.tryParse(trimmed);
+            if (rl == null) {
+                return null;
+            }
+            relativePath = "ponderer".equals(rl.getNamespace())
+                    ? rl.getPath()
+                    : rl.getNamespace() + "/" + rl.getPath();
+        } else {
+            relativePath = trimmed;
+        }
+        return SceneStore.resolveStructurePath(relativePath, dsl.pack);
     }
 
     private Vec3 resolveOverlayPoint(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
@@ -999,21 +1580,25 @@ public class DynamicPonderPlugin implements PonderPlugin {
             pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
 
+        // Setting AIR is logically a destroy: there is nothing to animate, and the position must
+        // be tracked as not-visible so subsequent smart-display checks animate replacements rather
+        // than skipping them as "already visible".
+        boolean isAir = state.isAir();
         String entranceAnimation = normalizeEntranceAnimation(step.entranceAnimation);
-        if (entranceAnimation != null && !"none".equals(entranceAnimation)) {
+        if (!isAir && entranceAnimation != null && !"none".equals(entranceAnimation)) {
             applyAnimatedSetBlock(scene, step, context, state, pos, pos2, entranceAnimation);
             return;
         }
 
-        ensureSceneCanShowRange(scene, pos, pos2, immediateDisplay);
-        updateVisibleRange(context, step, immediateDisplay);
+        ensureSceneCanShowRange(scene, pos, pos2, immediateDisplay && !isAir);
+        updateVisibleRange(context, step, immediateDisplay && !isAir);
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
             var selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos, pos2);
-            scene.world().setBlocks(selection, state, particles);
+            scene.world().setBlocks(selection, state, particles && !isAir);
             applySetBlockNbtPatch(scene, step, selection);
             return;
         }
-        scene.world().setBlock(pos, state, particles);
+        scene.world().setBlock(pos, state, particles && !isAir);
         applySetBlockNbtPatch(scene, step, scene.getScene().getSceneBuildingUtil().select().position(pos));
     }
 
@@ -1041,19 +1626,27 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     /**
-     * Ensure scene bounds and the base visible world section cover the target range.
-     * This prevents newly placed blocks from being clipped when initial structure height is too small.
-     * Only Y limit is expanded; XZ bounds are intentionally left unchanged.
+     * Ensure the base visible world section covers the target range, and that world.bounds
+     * encapsulates pos1..pos2 at instruction execution time. preScanSegmentBounds handles bounds
+     * up-front for the common case, but the runtime guard here covers paths where bounds might
+     * have been reassigned (SchematicWorld.setBlock reassigns the BoundingBox reference on every
+     * placement) and ensures ReplaceBlocksInstruction's isInside() check passes for blocks placed
+     * outside the original schematic footprint — including animated-entrance set_block.
      */
     private void ensureSceneCanShowRange(SceneBuilder scene, BlockPos pos1, BlockPos pos2, boolean forceVisibleNow) {
-        int maxY = Math.max(pos1.getY(), pos2.getY());
-
-        // Bounds in ponder are effectively size-based for this use, so +1 keeps the max block included.
-        BlockPos requiredBounds = new BlockPos(0, maxY + 1, 0);
         Selection targetSelection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        final BlockPos minPos = new BlockPos(
+                Math.min(pos1.getX(), pos2.getX()),
+                Math.min(pos1.getY(), pos2.getY()),
+                Math.min(pos1.getZ(), pos2.getZ()));
+        final BlockPos maxPos = new BlockPos(
+                Math.max(pos1.getX(), pos2.getX()),
+                Math.max(pos1.getY(), pos2.getY()),
+                Math.max(pos1.getZ(), pos2.getZ()));
 
         scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(requiredBounds);
+            ps.getWorld().getBounds().encapsulate(minPos);
+            ps.getWorld().getBounds().encapsulate(maxPos);
 
             if (!forceVisibleNow) {
                 if (!ps.getBaseWorldSection().isEmpty()) {
@@ -1095,14 +1688,28 @@ public class DynamicPonderPlugin implements PonderPlugin {
             LOGGER.warn("destroy_block missing blockPos");
             return;
         }
-        BlockPos pos = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
-        boolean particles = !Boolean.FALSE.equals(step.destroyParticles);
-        if (particles) {
-            scene.world().destroyBlock(pos);
-            updateVisibleRange(context, step, false);
-            return;
+        BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+        BlockPos pos2 = pos1;
+        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+            pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
-        scene.world().setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), false);
+        boolean particles = !Boolean.FALSE.equals(step.destroyParticles);
+        if (pos1.equals(pos2)) {
+            if (particles) {
+                scene.world().destroyBlock(pos1);
+            } else {
+                scene.world().setBlock(pos1, Blocks.AIR.defaultBlockState(), false);
+            }
+        } else {
+            for (BlockPos pos : BlockPos.betweenClosed(pos1, pos2)) {
+                BlockPos target = pos.immutable();
+                if (particles) {
+                    scene.world().destroyBlock(target);
+                } else {
+                    scene.world().setBlock(target, Blocks.AIR.defaultBlockState(), false);
+                }
+            }
+        }
         updateVisibleRange(context, step, false);
     }
 
@@ -1168,6 +1775,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
         updateVisibleRange(context, step, false);
         int duration = step.durationOrDefault(20);
+        final Selection hiddenSelection = selection;
+        final List<ElementLink<WorldSectionElement>> existingSectionLinks =
+                new ArrayList<>(context.sectionLinks.values());
         // Safety: ensure the base world section has been initialized before hiding.
         // If show_structure was somehow skipped, the base section's internal Selection is null,
         // and hideSection's erase() would NPE. This pre-instruction prevents that.
@@ -1179,6 +1789,17 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 ps.getBaseWorldSection().setVisible(true);
                 ps.getBaseWorldSection().setFade(1);
                 ps.getBaseWorldSection().queueRedraw();
+            }
+            // Erase the hidden selection from any independent sections that already
+            // contain those blocks (created by prior show_section_and_merge calls).
+            // Otherwise makeSectionIndependent only strips them from the base section,
+            // and the original independent section keeps rendering them while a fade
+            // animation plays on a different (now-empty-looking) ghost section.
+            for (ElementLink<WorldSectionElement> existing : existingSectionLinks) {
+                WorldSectionElement section = ps.resolve(existing);
+                if (section != null) {
+                    section.erase(hiddenSelection);
+                }
             }
         });
         Direction direction = parseDirection(step.direction);
@@ -1229,9 +1850,14 @@ public class DynamicPonderPlugin implements PonderPlugin {
             int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
             applyAnimatedShowSectionAndMerge(scene, context, linkId, existing, pos1, pos2,
                     entranceAnimation, direction, rowDuration, rowInterval, smartDisplay);
-                updateVisibleRange(context, step, true);
+            updateVisibleRange(context, step, true);
             return;
         }
+
+        // Non-animated path: the new section renders all of `selection` immediately, so any
+        // prior independent section that already contains overlapping positions must release
+        // them — otherwise both sections render the same blocks and produce the ghost effect.
+        eraseSelectionFromOtherSections(scene, context, existing, selection);
 
         if (existing == null) {
             ElementLink<WorldSectionElement> created;
@@ -1287,12 +1913,19 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
+        // Without erasing the reveal positions from previously-created independent sections,
+        // a second show_section_and_merge covering the same positions would render them via
+        // both the old section (still visible) and the new animated section, producing the
+        // "instant placement + animation" ghost.
+        List<ElementLink<WorldSectionElement>> otherSectionLinks = snapshotOtherSectionLinks(context, existing);
+
+        List<Selection> groupSelections = prepareAnimatedRevealSelections(scene, existing, groups, otherSectionLinks);
+        if (groupSelections.isEmpty()) {
+            return;
+        }
+
         ElementLink<WorldSectionElement> working = existing;
-        for (List<BlockPos> group : groups) {
-            if (group.isEmpty()) {
-                continue;
-            }
-            Selection groupSelection = selectionForGroup(scene, group);
+        for (Selection groupSelection : groupSelections) {
             if (working == null) {
                 DisplayWorldSectionInstruction instruction = new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection, null);
                 scene.addInstruction(instruction);
@@ -1307,28 +1940,82 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
     }
 
-    private Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
-        BlockPos first = group.get(0);
-        int minX = first.getX();
-        int minY = first.getY();
-        int minZ = first.getZ();
-        int maxX = first.getX();
-        int maxY = first.getY();
-        int maxZ = first.getZ();
+    private List<Selection> prepareAnimatedRevealSelections(SceneBuilder scene,
+                                                            @Nullable ElementLink<WorldSectionElement> existing,
+                                                            List<List<BlockPos>> groups,
+                                                            List<ElementLink<WorldSectionElement>> otherSectionLinks) {
+        List<Selection> selections = new ArrayList<>();
+        int minX = Integer.MAX_VALUE;
+        int minY = Integer.MAX_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        int maxZ = Integer.MIN_VALUE;
 
-        for (int i = 1; i < group.size(); i++) {
-            BlockPos pos = group.get(i);
-            if (pos.getX() < minX) minX = pos.getX();
-            if (pos.getY() < minY) minY = pos.getY();
-            if (pos.getZ() < minZ) minZ = pos.getZ();
-            if (pos.getX() > maxX) maxX = pos.getX();
-            if (pos.getY() > maxY) maxY = pos.getY();
-            if (pos.getZ() > maxZ) maxZ = pos.getZ();
+        for (List<BlockPos> group : groups) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            selections.add(selectionForGroup(scene, group));
+            for (BlockPos pos : group) {
+                if (pos.getX() < minX) minX = pos.getX();
+                if (pos.getY() < minY) minY = pos.getY();
+                if (pos.getZ() < minZ) minZ = pos.getZ();
+                if (pos.getX() > maxX) maxX = pos.getX();
+                if (pos.getY() > maxY) maxY = pos.getY();
+                if (pos.getZ() > maxZ) maxZ = pos.getZ();
+            }
+        }
+        if (selections.isEmpty()) {
+            return selections;
         }
 
-        return scene.getScene().getSceneBuildingUtil().select().fromTo(
-                new BlockPos(minX, minY, minZ),
-                new BlockPos(maxX, maxY, maxZ));
+        final BlockPos minPos = new BlockPos(minX, minY, minZ);
+        final BlockPos maxPos = new BlockPos(maxX, maxY, maxZ);
+        final List<Selection> revealSelections = List.copyOf(selections);
+        final ElementLink<WorldSectionElement> target = existing;
+        final List<ElementLink<WorldSectionElement>> priorSections = List.copyOf(otherSectionLinks);
+        scene.addInstruction(ps -> {
+            ps.getWorld().getBounds().encapsulate(minPos);
+            ps.getWorld().getBounds().encapsulate(maxPos);
+
+            if (!ps.getBaseWorldSection().isEmpty()) {
+                for (Selection revealSelection : revealSelections) {
+                    ps.getBaseWorldSection().erase(revealSelection);
+                }
+                ps.getBaseWorldSection().queueRedraw();
+            }
+
+            if (target != null) {
+                WorldSectionElement element = ps.resolve(target);
+                if (element != null) {
+                    for (Selection revealSelection : revealSelections) {
+                        element.erase(revealSelection);
+                    }
+                    element.queueRedraw();
+                }
+            }
+
+            for (ElementLink<WorldSectionElement> link : priorSections) {
+                WorldSectionElement element = ps.resolve(link);
+                if (element == null) {
+                    continue;
+                }
+                for (Selection revealSelection : revealSelections) {
+                    element.erase(revealSelection);
+                }
+                element.queueRedraw();
+            }
+        });
+        return selections;
+    }
+
+    private Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().position(group.get(0));
+        for (int i = 1; i < group.size(); i++) {
+            selection = selection.add(scene.getScene().getSceneBuildingUtil().select().position(group.get(i)));
+        }
+        return selection;
     }
 
     private void applyRotateSection(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
@@ -1430,91 +2117,148 @@ public class DynamicPonderPlugin implements PonderPlugin {
         scene.effects().indicateSuccess(pos);
     }
 
-    private void applyClearEntities(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyClearEntities(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
-        String filterId = step.entity;
-        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
+        ResourceLocation filterLoc = tryParseFilter(step.entity);
+        Selection selection = optionalSelectionFromStep(scene, step);
+        String linkId = normalizeEntityLinkId(step.linkId);
+
+        if (linkId != null) {
+            scheduleEntityClear(scene, linkedEntityTargets(context, linkId), selection, filterLoc, step);
+            return;
+        }
 
         if (isFullScene) {
-            scene.world().modifyEntities(Entity.class, entity -> {
-                if (entity instanceof ItemEntity) return;
-                if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
-                    entity.discard();
-                }
-            });
-        } else {
-            Selection selection = selectionFromStep(scene, step, "clear_entities");
-            if (selection == null) return;
-            scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
-                if (entity instanceof ItemEntity) return;
-                if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
-                    entity.discard();
-                }
-            });
+            scheduleEntityClear(scene, null, null, filterLoc, step);
+            return;
         }
+
+        if (selection == null) {
+            LOGGER.warn("clear_entities missing blockPos/linkId");
+            return;
+        }
+        scheduleEntityClear(scene, null, selection, filterLoc, step);
     }
 
-    private void applyClearItemEntities(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyClearItemEntities(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
-        String filterId = step.item;
-        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
+        ResourceLocation filterLoc = tryParseFilter(step.item);
+        Selection selection = optionalSelectionFromStep(scene, step);
+        String linkId = normalizeEntityLinkId(step.linkId);
+
+        if (linkId != null) {
+            applyToLinkedEntities(scene, linkedEntityTargets(context, linkId), selection,
+                entity -> matchesItemEntity(entity, filterLoc), Entity::discard);
+            return;
+        }
 
         if (isFullScene) {
             scene.world().modifyEntities(ItemEntity.class, entity -> {
-                if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
+                if (matchesItemEntity(entity, filterLoc)) {
                     entity.discard();
-                }
-            });
-        } else {
-            Selection selection = selectionFromStep(scene, step, "clear_item_entities");
-            if (selection == null) return;
-            scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
-                if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
-                    entity.discard();
-                }
-            });
-        }
-    }
-
-    private void applyModifyEntitiesNbt(SceneBuilder scene, DslScene.DslStep step) {
-        CompoundTag patch = parseEntityNbtPatch(step, "modify_entities_nbt");
-        if (patch == null) return;
-
-        String filterId = step.entity;
-        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
-        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
-
-        if (isFullScene) {
-            scene.world().modifyEntities(Entity.class, entity -> {
-                if (entity instanceof ItemEntity) return;
-                if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
-                    mergeEntityNbt(entity, patch);
                 }
             });
             return;
         }
 
-        Selection selection = selectionFromStep(scene, step, "modify_entities_nbt");
-        if (selection == null) return;
-        scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
-            if (entity instanceof ItemEntity) return;
-            if (filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc)) {
-                mergeEntityNbt(entity, patch);
+        if (selection == null) {
+            LOGGER.warn("clear_item_entities missing blockPos/linkId");
+            return;
+        }
+        scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
+            if (matchesItemEntity(entity, filterLoc)) {
+                entity.discard();
             }
         });
     }
 
-    private void applyModifyItemEntitiesNbt(SceneBuilder scene, DslScene.DslStep step) {
+    private void applyModifyEntitiesNbt(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        CompoundTag patch = null;
+        if (step.nbt != null && !step.nbt.isBlank()) {
+            patch = parseEntityNbtPatch(step, "modify_entities_nbt");
+            if (patch == null) {
+                return;
+            }
+        }
+        boolean hasMove = step.offset != null
+            && step.offset.size() >= 3
+            && new Vec3(step.offset.get(0), step.offset.get(1), step.offset.get(2)).lengthSqr() > 0;
+        if (patch == null && !hasMove) {
+            LOGGER.warn("modify_entities_nbt missing nbt/offset");
+            return;
+        }
+
+        ResourceLocation filterLoc = tryParseFilter(step.entity);
+        boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
+        Selection selection = optionalSelectionFromStep(scene, step);
+        String linkId = normalizeEntityLinkId(step.linkId);
+
+        if (linkId != null) {
+            List<ElementLink<EntityElement>> links = linkedEntityTargets(context, linkId);
+            if (patch != null) {
+                CompoundTag finalPatch = patch;
+                applyToLinkedEntities(scene, links, selection,
+                    entity -> matchesNonItemEntity(entity, filterLoc),
+                    entity -> mergeEntityNbt(entity, finalPatch));
+            }
+            scheduleEntityMove(scene, links, selection, filterLoc, step);
+            return;
+        }
+
+        if (isFullScene) {
+            if (patch != null) {
+                CompoundTag finalPatch = patch;
+                scene.world().modifyEntities(Entity.class, entity -> {
+                    if (matchesNonItemEntity(entity, filterLoc)) {
+                        mergeEntityNbt(entity, finalPatch);
+                    }
+                });
+            }
+            scheduleEntityMove(scene, null, null, filterLoc, step);
+            return;
+        }
+
+        if (selection == null) {
+            LOGGER.warn("modify_entities_nbt missing blockPos/linkId");
+            return;
+        }
+        if (patch != null) {
+            CompoundTag finalPatch = patch;
+            scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
+                if (matchesNonItemEntity(entity, filterLoc)) {
+                    mergeEntityNbt(entity, finalPatch);
+                }
+            });
+        }
+        scheduleEntityMove(scene, null, selection, filterLoc, step);
+    }
+
+    private void applyModifyItemEntitiesNbt(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         CompoundTag patch = parseEntityNbtPatch(step, "modify_item_entities_nbt");
         if (patch == null) return;
 
-        String filterId = step.item;
-        ResourceLocation filterLoc = (filterId != null && !filterId.isBlank()) ? ResourceLocation.tryParse(filterId) : null;
+        ResourceLocation filterLoc = tryParseFilter(step.item);
         boolean isFullScene = Boolean.TRUE.equals(step.fullScene);
+        Selection selection = optionalSelectionFromStep(scene, step);
+        String linkId = normalizeEntityLinkId(step.linkId);
+
+        Consumer<Entity> itemPatchAction = entity -> {
+            ItemEntity itemEntity = (ItemEntity) entity;
+            itemEntity.setItem(applyPatchToItemStack(itemEntity.getItem(), patch));
+            if (isLikelyEntityPatch(patch)) {
+                mergeEntityNbt(itemEntity, patch);
+            }
+        };
+
+        if (linkId != null) {
+            applyToLinkedEntities(scene, linkedEntityTargets(context, linkId), selection,
+                entity -> matchesItemEntity(entity, filterLoc), itemPatchAction);
+            return;
+        }
 
         if (isFullScene) {
             scene.world().modifyEntities(ItemEntity.class, entity -> {
-                if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
+                if (matchesItemEntity(entity, filterLoc)) {
                     entity.setItem(applyPatchToItemStack(entity.getItem(), patch));
                     if (isLikelyEntityPatch(patch)) {
                         mergeEntityNbt(entity, patch);
@@ -1524,10 +2268,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        Selection selection = selectionFromStep(scene, step, "modify_item_entities_nbt");
-        if (selection == null) return;
+        if (selection == null) {
+            LOGGER.warn("modify_item_entities_nbt missing blockPos/linkId");
+            return;
+        }
         scene.world().modifyEntitiesInside(ItemEntity.class, selection, entity -> {
-            if (filterLoc == null || BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).equals(filterLoc)) {
+            if (matchesItemEntity(entity, filterLoc)) {
                 entity.setItem(applyPatchToItemStack(entity.getItem(), patch));
                 if (isLikelyEntityPatch(patch)) {
                     mergeEntityNbt(entity, patch);
@@ -1553,16 +2299,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         if (!itemPatch.isEmpty()) {
-            ResourceLocation itemLoc = BuiltInRegistries.ITEM.getKey(copy.getItem());
-            ItemStack rebuilt = tryBuildComponentStack(itemLoc, copy.getCount(), itemPatch);
-            if (rebuilt != null && !rebuilt.isEmpty()) {
-                rebuilt.setCount(copy.getCount());
-                return rebuilt;
-            }
-
-            CompoundTag stackTag = copy.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+            net.minecraft.world.item.component.CustomData existing = copy.getOrDefault(
+                    net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                    net.minecraft.world.item.component.CustomData.EMPTY);
+            CompoundTag stackTag = existing.copyTag();
             stackTag.merge(itemPatch.copy());
-            copy.set(DataComponents.CUSTOM_DATA, CustomData.of(stackTag));
+            copy.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                    net.minecraft.world.item.component.CustomData.of(stackTag));
         }
         return copy;
     }
@@ -1601,6 +2344,248 @@ public class DynamicPonderPlugin implements PonderPlugin {
         entity.saveWithoutId(data);
         data.merge(patch.copy());
         entity.load(data);
+    }
+
+    @Nullable
+    private ResourceLocation tryParseFilter(@Nullable String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return ResourceLocation.tryParse(raw);
+    }
+
+    private void registerEntityLink(StepContext context, @Nullable String rawLinkId, ElementLink<EntityElement> link) {
+        String linkId = normalizeEntityLinkId(rawLinkId);
+        if (linkId == null) {
+            return;
+        }
+        context.entityLinks.computeIfAbsent(linkId, key -> new ArrayList<>()).add(link);
+    }
+
+    @Nullable
+    private String normalizeEntityLinkId(@Nullable String rawLinkId) {
+        if (rawLinkId == null) {
+            return null;
+        }
+        String normalized = rawLinkId.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private List<ElementLink<EntityElement>> linkedEntityTargets(StepContext context, String linkId) {
+        List<ElementLink<EntityElement>> targets = context.entityLinks.get(linkId);
+        return targets == null ? List.of() : List.copyOf(targets);
+    }
+
+    private void applyToLinkedEntities(SceneBuilder scene, List<ElementLink<EntityElement>> links,
+                                       @Nullable Selection selection,
+                                       Predicate<Entity> filter,
+                                       Consumer<Entity> action) {
+        if (links.isEmpty()) {
+            return;
+        }
+        List<ElementLink<EntityElement>> captured = List.copyOf(links);
+        scene.addInstruction(ponderScene -> {
+            for (ElementLink<EntityElement> link : captured) {
+                EntityElement element = ponderScene.resolve(link);
+                if (element == null) {
+                    continue;
+                }
+                element.ifPresent(entity -> {
+                    if (entity == null || !entity.isAlive()) {
+                        return;
+                    }
+                    if (selection != null && !selection.test(entity.blockPosition())) {
+                        return;
+                    }
+                    if (!filter.test(entity)) {
+                        return;
+                    }
+                    action.accept(entity);
+                });
+            }
+        });
+    }
+
+    private static boolean matchesNonItemEntity(Entity entity, @Nullable ResourceLocation filterLoc) {
+        return !(entity instanceof ItemEntity) && matchesEntityType(entity, filterLoc);
+    }
+
+    private static boolean matchesEntityType(Entity entity, @Nullable ResourceLocation filterLoc) {
+        return filterLoc == null || EntityType.getKey(entity.getType()).equals(filterLoc);
+    }
+
+    private static boolean matchesItemEntity(Entity entity, @Nullable ResourceLocation filterLoc) {
+        if (!(entity instanceof ItemEntity itemEntity)) {
+            return false;
+        }
+        return filterLoc == null || BuiltInRegistries.ITEM.getKey(itemEntity.getItem().getItem()).equals(filterLoc);
+    }
+
+    private void scheduleEntityMove(SceneBuilder scene,
+                                    @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                    @Nullable Selection selection,
+                                    @Nullable ResourceLocation filterLoc,
+                                    DslScene.DslStep step) {
+        if (step.offset == null || step.offset.size() < 3) {
+            return;
+        }
+
+        Vec3 offset = new Vec3(step.offset.get(0), step.offset.get(1), step.offset.get(2));
+        if (offset.lengthSqr() == 0) {
+            return;
+        }
+
+        int duration = step.durationOrDefault(20);
+        if (duration <= 0) {
+            applyInstantEntityMove(scene, linkedTargets, selection, filterLoc, offset);
+            return;
+        }
+
+        scene.addInstruction(new EntityMoveInstruction(linkedTargets, selection, filterLoc, offset, duration,
+            Boolean.TRUE.equals(step.walkAnimation)));
+    }
+
+    private void applyInstantEntityMove(SceneBuilder scene,
+                                        @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                        @Nullable Selection selection,
+                                        @Nullable ResourceLocation filterLoc,
+                                        Vec3 offset) {
+        if (linkedTargets != null) {
+            applyToLinkedEntities(scene, linkedTargets, selection,
+                entity -> matchesNonItemEntity(entity, filterLoc),
+                entity -> moveEntityInstant(entity, offset));
+            return;
+        }
+
+        scene.addInstruction(ponderScene -> ponderScene.forEachWorldEntity(Entity.class, entity -> {
+            if (!matchesNonItemEntity(entity, filterLoc)) {
+                return;
+            }
+            if (selection != null && !selection.test(entity.blockPosition())) {
+                return;
+            }
+            moveEntityInstant(entity, offset);
+        }));
+    }
+
+    private void moveEntityInstant(Entity entity, Vec3 offset) {
+        if (entity == null || !entity.isAlive()) {
+            return;
+        }
+        Vec3 targetPos = entity.position().add(offset);
+        entity.setPos(targetPos.x, targetPos.y, targetPos.z);
+        entity.setDeltaMovement(Vec3.ZERO);
+        entity.setOldPosAndRot();
+        stopWalkAnimation(entity);
+    }
+
+    private void scheduleEntityClear(SceneBuilder scene,
+                                     @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                     @Nullable Selection selection,
+                                     @Nullable ResourceLocation filterLoc,
+                                     DslScene.DslStep step) {
+        Vec3 exitOffset = entityExitOffset(step);
+        int duration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+        if (exitOffset == null || duration <= 0) {
+            applyInstantEntityClear(scene, linkedTargets, selection, filterLoc);
+            return;
+        }
+        scene.addInstruction(new EntityExitInstruction(linkedTargets, selection, filterLoc, exitOffset, duration));
+    }
+
+    private void applyInstantEntityClear(SceneBuilder scene,
+                                         @Nullable List<ElementLink<EntityElement>> linkedTargets,
+                                         @Nullable Selection selection,
+                                         @Nullable ResourceLocation filterLoc) {
+        if (linkedTargets != null) {
+            applyToLinkedEntities(scene, linkedTargets, selection,
+                entity -> matchesNonItemEntity(entity, filterLoc),
+                Entity::discard);
+            return;
+        }
+
+        if (selection == null) {
+            scene.world().modifyEntities(Entity.class, entity -> {
+                if (matchesNonItemEntity(entity, filterLoc)) {
+                    entity.discard();
+                }
+            });
+            return;
+        }
+
+        scene.world().modifyEntitiesInside(Entity.class, selection, entity -> {
+            if (matchesNonItemEntity(entity, filterLoc)) {
+                entity.discard();
+            }
+        });
+    }
+
+    @Nullable
+    private Vec3 entityEntranceOffset(DslScene.DslStep step) {
+        String animation = normalizeEntranceAnimation(step.entranceAnimation);
+        if (animation == null || "none".equals(animation)) {
+            return null;
+        }
+
+        Direction direction = "simultaneous".equals(animation)
+            ? parseDirection(step.direction)
+            : parseDirection(animation);
+        return Vec3.atLowerCornerOf(direction.getNormal()).scale(-0.5d);
+    }
+
+    @Nullable
+    private Vec3 entityExitOffset(DslScene.DslStep step) {
+        String animation = normalizeEntranceAnimation(step.entranceAnimation);
+        if (animation == null || "none".equals(animation)) {
+            return null;
+        }
+
+        Direction direction = "simultaneous".equals(animation)
+            ? parseDirection(step.direction)
+            : parseDirection(animation);
+        return Vec3.atLowerCornerOf(direction.getNormal()).scale(0.5d);
+    }
+
+    private static float computeWalkAnimationSpeed(Vec3 totalOffset, int durationTicks) {
+        if (durationTicks <= 0) {
+            return 0.0f;
+        }
+        double seconds = durationTicks / 20.0d;
+        double blocksPerSecond = totalOffset.length() / seconds;
+        return (float) Math.min(1.0d, blocksPerSecond / 5.0d);
+    }
+
+    private static void applyWalkAnimation(Entity entity, float speed) {
+        if (!(entity instanceof LivingEntity livingEntity)) {
+            return;
+        }
+        float clampedSpeed = Math.max(0.0f, Math.min(1.0f, speed));
+        livingEntity.walkAnimation.update(clampedSpeed, 0.4f);
+    }
+
+    private static void stopWalkAnimation(Entity entity) {
+        if (!(entity instanceof LivingEntity livingEntity)) {
+            return;
+        }
+        livingEntity.walkAnimation.update(0.0f, 1.0f);
+        if (livingEntity instanceof Mob mob) {
+            mob.setXxa(0.0f);
+            mob.setYya(0.0f);
+            mob.setZza(0.0f);
+        }
+    }
+
+    @Nullable
+    private Selection optionalSelectionFromStep(SceneBuilder scene, DslScene.DslStep step) {
+        if (step.blockPos == null || step.blockPos.size() < 3) {
+            return null;
+        }
+        BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+        BlockPos pos2 = pos1;
+        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+            pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+        }
+        return scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
     }
 
     private Selection selectionFromStep(SceneBuilder scene, DslScene.DslStep step, String stepName) {
@@ -1646,6 +2631,39 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private String autoLinkId(StepContext context) {
         return "section_" + (context.sectionLinks.size() + 1);
+    }
+
+    private List<ElementLink<WorldSectionElement>> snapshotOtherSectionLinks(
+            StepContext context, @Nullable ElementLink<WorldSectionElement> exclude) {
+        List<ElementLink<WorldSectionElement>> result = new ArrayList<>();
+        for (ElementLink<WorldSectionElement> link : context.sectionLinks.values()) {
+            if (link == exclude) {
+                continue;
+            }
+            result.add(link);
+        }
+        return result;
+    }
+
+    private void eraseSelectionFromOtherSections(SceneBuilder scene, StepContext context,
+                                                 @Nullable ElementLink<WorldSectionElement> exclude,
+                                                 Selection selection) {
+        List<ElementLink<WorldSectionElement>> others = snapshotOtherSectionLinks(context, exclude);
+        if (others.isEmpty()) {
+            return;
+        }
+        final List<ElementLink<WorldSectionElement>> snap = List.copyOf(others);
+        final Selection target = selection;
+        scene.addInstruction(ps -> {
+            for (ElementLink<WorldSectionElement> link : snap) {
+                WorldSectionElement element = ps.resolve(link);
+                if (element == null) {
+                    continue;
+                }
+                element.erase(target);
+                element.queueRedraw();
+            }
+        });
     }
 
     @Nullable
@@ -1724,19 +2742,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private List<List<BlockPos>> filterVisibleGroups(List<List<BlockPos>> groups, StepContext context) {
-        List<List<BlockPos>> filtered = new ArrayList<>();
-        for (List<BlockPos> group : groups) {
-            List<BlockPos> pending = new ArrayList<>();
-            for (BlockPos pos : group) {
-                if (!isBlockVisible(context, pos.asLong())) {
-                    pending.add(pos);
-                }
-            }
-            if (!pending.isEmpty()) {
-                filtered.add(pending);
-            }
-        }
-        return filtered;
+        return context.visibility.filterAlreadyVisible(groups);
     }
 
     private void updateVisibleRange(StepContext context, DslScene.DslStep step, boolean visible) {
@@ -1748,41 +2754,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
             pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
-
-        int minX = Math.min(pos1.getX(), pos2.getX());
-        int minY = Math.min(pos1.getY(), pos2.getY());
-        int minZ = Math.min(pos1.getZ(), pos2.getZ());
-        int maxX = Math.max(pos1.getX(), pos2.getX());
-        int maxY = Math.max(pos1.getY(), pos2.getY());
-        int maxZ = Math.max(pos1.getZ(), pos2.getZ());
-
-        for (int y = minY; y <= maxY; y++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                for (int x = minX; x <= maxX; x++) {
-                    long key = BlockPos.asLong(x, y, z);
-                    if (context.allBlocksVisible) {
-                        if (visible) {
-                            context.hiddenBlockKeys.remove(key);
-                        } else {
-                            context.hiddenBlockKeys.add(key);
-                        }
-                    } else {
-                        if (visible) {
-                            context.visibleBlockKeys.add(key);
-                        } else {
-                            context.visibleBlockKeys.remove(key);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private boolean isBlockVisible(StepContext context, long key) {
-        if (context.allBlocksVisible) {
-            return !context.hiddenBlockKeys.contains(key);
-        }
-        return context.visibleBlockKeys.contains(key);
+        context.visibility.markRange(pos1, pos2, visible);
     }
 
     private Direction parseDirection(String raw) {

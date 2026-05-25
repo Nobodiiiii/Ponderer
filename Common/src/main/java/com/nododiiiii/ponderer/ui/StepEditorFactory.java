@@ -18,6 +18,7 @@ public final class StepEditorFactory {
                                                            SceneEditorScreen parent) {
         return switch (type.toLowerCase(Locale.ROOT)) {
             case "show_structure" -> new ShowStructureScreen(scene, sceneIndex, parent);
+            case "show_extra_structure" -> new ShowExtraStructureScreen(scene, sceneIndex, parent);
             case "idle" -> new IdleScreen(scene, sceneIndex, parent);
             case "text" -> new TextStepScreen(scene, sceneIndex, parent);
             case "shared_text" -> new SharedTextScreen(scene, sceneIndex, parent);
@@ -59,6 +60,7 @@ public final class StepEditorFactory {
         if (step == null || step.type == null) return null;
         return switch (step.type.toLowerCase(Locale.ROOT)) {
             case "show_structure" -> new ShowStructureScreen(scene, sceneIndex, parent, stepIndex, step);
+            case "show_extra_structure" -> new ShowExtraStructureScreen(scene, sceneIndex, parent, stepIndex, step);
             case "idle" -> new IdleScreen(scene, sceneIndex, parent, stepIndex, step);
             case "text" -> new TextStepScreen(scene, sceneIndex, parent, stepIndex, step);
             case "shared_text" -> new SharedTextScreen(scene, sceneIndex, parent, stepIndex, step);

@@ -1,9 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 
@@ -20,10 +18,14 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
     private final IdFieldMode jeiMode;
 
     private final StepTextFieldHandle idField = new StepTextFieldHandle("id");
+    private final StepTextFieldHandle linkIdField = new StepTextFieldHandle("linkId");
     private final StepXyzFieldHandle posField = new StepXyzFieldHandle("pos");
     private final StepXyzFieldHandle pos2Field = new StepXyzFieldHandle("pos2");
     private final StepTextFieldHandle nbtField = new StepTextFieldHandle("nbt");
+    private final StepXyzFieldHandle moveField = new StepXyzFieldHandle("move");
+    private final StepTextFieldHandle moveDurationField = new StepTextFieldHandle("moveDuration");
     private boolean fullScene = false;
+    private boolean walkAnimation = false;
 
     public ModifyEntitiesNbtScreen(String stepType, DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui." + stepType + ".add"), scene, sceneIndex, parent);
@@ -54,9 +56,9 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
                 FieldDecorators.heldItem(
                 stack -> {
                     idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
-                    CompoundTag tag = PondererClientCommands.extractStackNbtFilter(stack);
-                    if (tag != null && !tag.isEmpty()) {
-                        nbtField.setValue(tag.toString());
+                    net.minecraft.world.item.component.CustomData customData = stack.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+                    if (customData != null && !customData.isEmpty()) {
+                        nbtField.setValue(customData.copyTag().toString());
                     }
                 })));
         } else {
@@ -68,6 +70,12 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
                 124,
                 FieldDecorators.jei(jeiMode)));
         }
+        entries.add(FieldSpecs.text(
+            linkIdField,
+            "ponderer.ui.entity_link",
+            "ponderer.ui." + stepType + ".link.tooltip",
+            "",
+            124));
         entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui." + stepType + ".pos_from",
@@ -84,7 +92,25 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
             "ponderer.ui." + stepType + ".nbt.tooltip",
             "{NoGravity:1b}",
             124,
-            FieldDecorators.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt"),
+            FieldDecorators.nbtExpand("nbt")));
+        if ("modify_entities_nbt".equals(stepType)) {
+            entries.add(FieldSpecs.xyz(
+                moveField,
+                "ponderer.ui.modify_entities_nbt.move",
+                "ponderer.ui.modify_entities_nbt.move.tooltip"));
+            entries.add(FieldSpecs.ticksNumber(
+                moveDurationField,
+                "ponderer.ui.modify_entities_nbt.move_duration",
+                "ponderer.ui.modify_entities_nbt.move_duration.tooltip",
+                "20",
+                60));
+            entries.add(FieldSpecs.toggle(
+                "ponderer.ui.modify_entities_nbt.walk_animation",
+                "ponderer.ui.modify_entities_nbt.walk_animation.tooltip",
+                () -> walkAnimation,
+                () -> walkAnimation = !walkAnimation));
+        }
         entries.add(FieldSpecs.toggle(
             "ponderer.ui." + stepType + ".full_scene",
             "ponderer.ui." + stepType + ".full_scene.tooltip",
@@ -104,7 +130,17 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
             pos2Field.setValue(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
         if (step.nbt != null) nbtField.setValue(step.nbt);
+        if (step.linkId != null) linkIdField.setValue(step.linkId);
         if (step.fullScene != null) fullScene = step.fullScene;
+        if ("modify_entities_nbt".equals(stepType) && step.offset != null && step.offset.size() >= 3) {
+            moveField.setValue(step.offset.get(0), step.offset.get(1), step.offset.get(2));
+            if (step.duration != null) {
+                moveDurationField.setValue(String.valueOf(step.duration));
+            }
+            if (step.walkAnimation != null) {
+                walkAnimation = step.walkAnimation;
+            }
+        }
     }
 
     @Override
@@ -113,12 +149,16 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
     @Override
     protected void appendCustomSnapshot(Map<String, String> snapshot) {
         snapshot.put("fullScene", String.valueOf(fullScene));
+        snapshot.put("walkAnimation", String.valueOf(walkAnimation));
     }
 
     @Override
     protected void restoreCustomSnapshot(Map<String, String> snapshot) {
         if (snapshot.containsKey("fullScene")) {
             fullScene = Boolean.parseBoolean(snapshot.get("fullScene"));
+        }
+        if (snapshot.containsKey("walkAnimation")) {
+            walkAnimation = Boolean.parseBoolean(snapshot.get("walkAnimation"));
         }
         restoreNbtPickNotice(snapshot);
     }
@@ -127,27 +167,45 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
     @Override
     protected DslScene.DslStep buildStep() {
         clearStatusMessages();
+        String linkId = linkIdField.getValue().trim();
+        boolean entityMode = "modify_entities_nbt".equals(stepType);
+        String moveX = moveField.x().trim();
+        String moveY = moveField.y().trim();
+        String moveZ = moveField.z().trim();
+        boolean hasMove = entityMode && (!moveX.isEmpty() || !moveY.isEmpty() || !moveZ.isEmpty());
 
         String nbt = nbtField.getValue().trim();
         if (nbt.isEmpty()) {
-            setErrorMessage(UIText.of("ponderer.ui.modify_block_entity_nbt.error.required"));
-            return null;
-        }
-        try {
-            TagParser.parseTag(nbt);
-        } catch (Exception e) {
-            setErrorMessage(UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid"));
-            return null;
+            if (!hasMove || !entityMode) {
+                setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.required"));
+                return null;
+            }
+        } else {
+            try {
+                TagParser.parseTag(nbt);
+            } catch (Exception e) {
+                setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.invalid"));
+                return null;
+            }
         }
 
         Integer px = null, py = null, pz = null;
         Integer px2 = null, py2 = null, pz2 = null;
 
         if (!fullScene) {
-            px = parseInt(posField.x(), "X");
-            py = parseInt(posField.y(), "Y");
-            pz = parseInt(posField.z(), "Z");
-            if (px == null || py == null || pz == null) return null;
+            String posX = posField.x().trim();
+            String posY = posField.y().trim();
+            String posZ = posField.z().trim();
+            boolean hasPos1 = !posX.isEmpty() || !posY.isEmpty() || !posZ.isEmpty();
+            if (hasPos1) {
+                px = parseInt(posX, "X");
+                py = parseInt(posY, "Y");
+                pz = parseInt(posZ, "Z");
+                if (px == null || py == null || pz == null) return null;
+            } else if (linkId.isEmpty()) {
+                setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.target_required"));
+                return null;
+            }
 
             String pos2X = pos2Field.x().trim();
             String pos2Y = pos2Field.y().trim();
@@ -167,7 +225,9 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
 
         DslScene.DslStep s = new DslScene.DslStep();
         s.type = stepType;
-        s.nbt = nbt;
+        if (!nbt.isEmpty()) {
+            s.nbt = nbt;
+        }
 
         String id = idField.getValue().trim();
         if (!id.isEmpty()) {
@@ -177,12 +237,43 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
                 s.entity = id;
             }
         }
+        if (!linkId.isEmpty()) {
+            s.linkId = linkId;
+        }
 
         if (fullScene) {
             s.fullScene = true;
-        } else {
+        } else if (px != null) {
             s.blockPos = List.of(px, py, pz);
             if (px2 != null) s.blockPos2 = List.of(px2, py2, pz2);
+        }
+
+        if (entityMode) {
+            if (hasMove) {
+                if (moveX.isEmpty() || moveY.isEmpty() || moveZ.isEmpty()) {
+                    setErrorMessage(UIText.of("ponderer.ui.modify_entities_nbt.error.partial_move"));
+                    return null;
+                }
+                Double mx = parseDouble(moveX, UIText.of("ponderer.ui.modify_entities_nbt.move") + " X");
+                Double my = parseDouble(moveY, UIText.of("ponderer.ui.modify_entities_nbt.move") + " Y");
+                Double mz = parseDouble(moveZ, UIText.of("ponderer.ui.modify_entities_nbt.move") + " Z");
+                if (mx == null || my == null || mz == null) {
+                    return null;
+                }
+                boolean nonZeroMove = mx != 0.0 || my != 0.0 || mz != 0.0;
+                if (!nonZeroMove) {
+                    if (nbt.isEmpty()) {
+                        setErrorMessage(UIText.of("ponderer.ui.modify_entities_nbt.error.required"));
+                        return null;
+                    }
+                } else {
+                    s.offset = List.of(mx, my, mz);
+                    s.duration = Math.max(0, parseIntOr(moveDurationField.getValue(), 20));
+                    if (walkAnimation) {
+                        s.walkAnimation = true;
+                    }
+                }
+            }
         }
 
         return s;

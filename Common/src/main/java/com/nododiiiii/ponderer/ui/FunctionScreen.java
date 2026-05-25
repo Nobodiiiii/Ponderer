@@ -67,6 +67,9 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
             new ButtonDef("ponderer.ui.function_page.export",
                 () -> Minecraft.getInstance().setScreen(new ExportPackScreen()),
                 "ponderer.ui.function_page.export.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.export_java",
+                () -> Minecraft.getInstance().setScreen(new JavaModuleExportScreen()),
+                "ponderer.ui.function_page.export_java.tooltip"),
             new ButtonDef("ponderer.ui.function_page.import",
                 () -> Minecraft.getInstance().setScreen(new ImportPackScreen()),
                 "ponderer.ui.function_page.import.tooltip"),
@@ -212,8 +215,9 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                         return;
                     }
                     itemId = BuiltInRegistries.ITEM.getKey(held.getItem());
-                    if (useHeldNbt) {
-                        nbt = PondererClientCommands.extractStackNbtFilter(held);
+                    net.minecraft.world.item.component.CustomData heldCustomData = held.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+                    if (useHeldNbt && heldCustomData != null && !heldCustomData.isEmpty()) {
+                        nbt = heldCustomData.copyTag();
                     }
                 } else {
                     itemId = ResourceLocation.tryParse(values.get("item_id"));
@@ -261,8 +265,11 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
             if (held.isEmpty()) {
                 return "";
             }
-            CompoundTag tag = PondererClientCommands.extractStackNbtFilter(held);
-            return tag == null || tag.isEmpty() ? "" : tag.toString();
+            net.minecraft.world.item.component.CustomData heldCustomData = held.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+            if (heldCustomData == null || heldCustomData.isEmpty()) {
+                return "";
+            }
+            return heldCustomData.copyTag().toString();
         });
 
         var player = Minecraft.getInstance().player;

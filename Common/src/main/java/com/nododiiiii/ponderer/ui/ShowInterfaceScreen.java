@@ -3,6 +3,9 @@ package com.nododiiiii.ponderer.ui;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.TagParser;
@@ -10,14 +13,30 @@ import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     private static final String NBT_SNAPSHOT_KEY = "show_interface_nbt";
+    private static final String ITEM_NBT_SNAPSHOT_KEY = "show_interface_item_nbt";
     private static final BlockPos SANITIZED_CONTEXT_POS = BlockPos.ZERO;
+
+    public static final String SOURCE_BLOCK = "block";
+    public static final String SOURCE_HELD_ITEM = "held_item";
+    public static final String SOURCE_UI_ID = "ui_id";
+    private static final String[] SOURCES = {SOURCE_BLOCK, SOURCE_HELD_ITEM, SOURCE_UI_ID};
+
+    private int sourceIndex = 0;
+    private final FieldBinding<Integer> sourceBinding =
+        FieldBindings.integer("interface_source", () -> sourceIndex, value -> sourceIndex = value);
 
     private final StepTextFieldHandle blockField = new StepTextFieldHandle("block");
     private final KeyValueListState capturedBlockProperties = new KeyValueListState("prop", 0);
+
+    private final StepTextFieldHandle itemField = new StepTextFieldHandle("item");
+    private final StepTextFieldHandle itemNbtField = new StepTextFieldHandle("item_nbt");
+
+    private final StepTextFieldHandle uiIdField = new StepTextFieldHandle("ui_id");
 
     @Nullable
     private List<Integer> contextPos;
@@ -46,6 +65,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     protected void configureFormState(List<SnapshotParticipant> participants) {
         participants.add(capturedBlockProperties);
         participants.add(enableNbtBinding);
+        participants.add(sourceBinding);
     }
 
     @Override
@@ -55,17 +75,65 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(FieldSpecs.text(
-            blockField,
-            "ponderer.ui.show_interface.block",
-            "ponderer.ui.show_interface.block.tooltip",
-            UIText.of("ponderer.ui.show_interface.block.hint"),
-            124,
-            entry -> {
-                entry.field().setEditable(false);
-                entry.field().setCanLoseFocus(true);
-            },
-            FieldDecorators.blockPick(NBT_SNAPSHOT_KEY)));
+        entries.add(FieldSpecs.cycle(
+            sourceBinding,
+            "ponderer.ui.show_interface.source",
+            "ponderer.ui.show_interface.source.tooltip",
+            140,
+            SOURCES.length,
+            this::rebuildFormPreservingState,
+            () -> UIText.of("ponderer.ui.show_interface.source.option." + SOURCES[sourceIndex]),
+            () -> 0xFFFFFF));
+
+        String source = SOURCES[sourceIndex];
+        switch (source) {
+            case SOURCE_BLOCK -> entries.add(FieldSpecs.text(
+                blockField,
+                "ponderer.ui.show_interface.block",
+                "ponderer.ui.show_interface.block.tooltip",
+                UIText.of("ponderer.ui.show_interface.block.hint"),
+                124,
+                entry -> {
+                    entry.field().setEditable(false);
+                    entry.field().setCanLoseFocus(true);
+                },
+                FieldDecorators.blockPick(NBT_SNAPSHOT_KEY)));
+            case SOURCE_HELD_ITEM -> {
+                entries.add(FieldSpecs.text(
+                    itemField,
+                    "ponderer.ui.show_interface.held_item",
+                    "ponderer.ui.show_interface.held_item.tooltip",
+                    UIText.of("ponderer.ui.show_interface.held_item.hint"),
+                    124,
+                    FieldDecorators.jei(IdFieldMode.ITEM),
+                    FieldDecorators.heldItem(stack -> {
+                        itemField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+                        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+                        if (customData != null && !customData.isEmpty()) {
+                            itemNbtField.setValue(customData.copyTag().toString());
+                        } else {
+                            itemNbtField.setValue("");
+                        }
+                    })));
+                entries.add(FieldSpecs.text(
+                    itemNbtField,
+                    "ponderer.ui.show_interface.item_nbt",
+                    "ponderer.ui.show_interface.item_nbt.tooltip",
+                    "{}",
+                    124,
+                    FieldDecorators.nbtPick(ITEM_NBT_SNAPSHOT_KEY),
+                    FieldDecorators.nbtExpand(ITEM_NBT_SNAPSHOT_KEY)));
+            }
+            case SOURCE_UI_ID -> entries.add(FieldSpecs.text(
+                uiIdField,
+                "ponderer.ui.show_interface.ui_id",
+                "ponderer.ui.show_interface.ui_id.tooltip",
+                UIText.of("ponderer.ui.show_interface.ui_id.hint"),
+                124));
+            default -> {
+            }
+        }
+
         entries.add(FieldSpecs.toggle(
             enableNbtBinding,
             "ponderer.ui.show_interface.enable_nbt",
@@ -75,14 +143,35 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     @Override
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
+        String source = step.interfaceSource == null ? SOURCE_BLOCK : step.interfaceSource.toLowerCase(Locale.ROOT);
+        for (int i = 0; i < SOURCES.length; i++) {
+            if (SOURCES[i].equals(source)) {
+                sourceIndex = i;
+                break;
+            }
+        }
         if (step.block != null) {
             blockField.setValue(step.block);
+        }
+        if (step.item != null) {
+            itemField.setValue(step.item);
+        }
+        if (step.uiId != null) {
+            uiIdField.setValue(step.uiId);
         }
         contextPos = step.blockPos;
         contextFace = step.direction;
         contextHit = step.point;
         contextInside = step.whileSneaking;
-        capturedNbt = step.nbt;
+        // For block source, step.nbt holds block-entity NBT.
+        // For held_item source, step.nbt holds item NBT; populate the item NBT field.
+        if (SOURCE_HELD_ITEM.equals(source)) {
+            if (step.nbt != null) {
+                itemNbtField.setValue(step.nbt);
+            }
+        } else {
+            capturedNbt = step.nbt;
+        }
         capturedBlockProperties.replaceFromMap(step.blockProperties);
         enableNbt = !Boolean.FALSE.equals(step.enableNbt);
     }
@@ -150,41 +239,80 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     @Override
     protected DslScene.DslStep buildStep() {
         clearStatusMessages();
-        String blockId = blockField.getValue().trim();
-        if (blockId.isEmpty()) {
-            setErrorMessage(UIText.of("ponderer.ui.error.required_field", UIText.of("ponderer.ui.show_interface.block")));
-            return null;
-        }
-
-        if (contextPos == null || contextPos.size() < 3) {
-            setErrorMessage(UIText.of("ponderer.ui.show_interface.error.no_context"));
-            return null;
-        }
+        String source = SOURCES[sourceIndex];
 
         DslScene.DslStep step = new DslScene.DslStep();
         step.type = "show_interface";
-        step.block = blockId;
         step.duration = null;
-        step.blockPos = List.of(SANITIZED_CONTEXT_POS.getX(), SANITIZED_CONTEXT_POS.getY(), SANITIZED_CONTEXT_POS.getZ());
-        if (contextFace != null && !contextFace.isBlank()) {
-            step.direction = contextFace;
-        }
-        if (contextHit != null && contextHit.size() >= 3) {
-            step.point = List.of(
-                contextHit.get(0) - contextPos.get(0),
-                contextHit.get(1) - contextPos.get(1),
-                contextHit.get(2) - contextPos.get(2));
-        }
-        if (contextInside != null) {
-            step.whileSneaking = contextInside;
+        if (!SOURCE_BLOCK.equals(source)) {
+            step.interfaceSource = source;
         }
         step.enableNbt = enableNbt;
-        if (enableNbt && capturedNbt != null && !capturedNbt.isBlank()) {
-            step.nbt = sanitizeCapturedNbt(capturedNbt, contextPos);
-        }
-        Map<String, String> props = capturedBlockProperties.toFilteredMap();
-        if (props != null && !props.isEmpty()) {
-            step.blockProperties = props;
+
+        switch (source) {
+            case SOURCE_BLOCK -> {
+                String blockId = blockField.getValue().trim();
+                if (blockId.isEmpty()) {
+                    setErrorMessage(UIText.of("ponderer.ui.error.required_field",
+                        UIText.of("ponderer.ui.show_interface.block")));
+                    return null;
+                }
+                if (contextPos == null || contextPos.size() < 3) {
+                    setErrorMessage(UIText.of("ponderer.ui.show_interface.error.no_context"));
+                    return null;
+                }
+                step.block = blockId;
+                step.blockPos = List.of(SANITIZED_CONTEXT_POS.getX(), SANITIZED_CONTEXT_POS.getY(),
+                    SANITIZED_CONTEXT_POS.getZ());
+                if (contextFace != null && !contextFace.isBlank()) {
+                    step.direction = contextFace;
+                }
+                if (contextHit != null && contextHit.size() >= 3) {
+                    step.point = List.of(
+                        contextHit.get(0) - contextPos.get(0),
+                        contextHit.get(1) - contextPos.get(1),
+                        contextHit.get(2) - contextPos.get(2));
+                }
+                if (contextInside != null) {
+                    step.whileSneaking = contextInside;
+                }
+                if (enableNbt && capturedNbt != null && !capturedNbt.isBlank()) {
+                    step.nbt = sanitizeCapturedNbt(capturedNbt, contextPos);
+                }
+                Map<String, String> props = capturedBlockProperties.toFilteredMap();
+                if (props != null && !props.isEmpty()) {
+                    step.blockProperties = props;
+                }
+            }
+            case SOURCE_HELD_ITEM -> {
+                String itemId = itemField.getValue().trim();
+                if (itemId.isEmpty()) {
+                    setErrorMessage(UIText.of("ponderer.ui.show_interface.error.no_item"));
+                    return null;
+                }
+                step.item = itemId;
+                String itemNbt = itemNbtField.getValue().trim();
+                if (!itemNbt.isEmpty()) {
+                    try {
+                        TagParser.parseTag(itemNbt);
+                    } catch (CommandSyntaxException ignored) {
+                        setErrorMessage(UIText.of("ponderer.ui.modify_block_entity_nbt.error.invalid"));
+                        return null;
+                    }
+                    step.nbt = itemNbt;
+                }
+            }
+            case SOURCE_UI_ID -> {
+                String uiId = uiIdField.getValue().trim();
+                if (uiId.isEmpty()) {
+                    setErrorMessage(UIText.of("ponderer.ui.show_interface.error.no_ui_id"));
+                    return null;
+                }
+                step.uiId = uiId;
+            }
+            default -> {
+                return null;
+            }
         }
 
         return step;

@@ -2,12 +2,14 @@ package com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot;
 
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.StickSnapshotFeature;
 import com.mojang.authlib.GameProfile;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.stats.Stat;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.common.util.FriendlyByteBufUtil;
@@ -30,6 +32,16 @@ public class ReplayGuardedFakePlayer extends FakePlayer {
 
     public ReplayGuardedFakePlayer(ServerLevel level, GameProfile profile) {
         super(level, profile);
+    }
+
+    @Override
+    public Vec3 position() {
+        return new Vec3(this.getX(), this.getY(), this.getZ());
+    }
+
+    @Override
+    public BlockPos blockPosition() {
+        return BlockPos.containing(this.getX(), this.getY(), this.getZ());
     }
 
     @Override

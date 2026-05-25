@@ -1,8 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.PondererClientCommands;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -19,6 +17,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
     private final StepXyzFieldHandle posField = new StepXyzFieldHandle("pos");
     private final StepXyzFieldHandle motionField = new StepXyzFieldHandle("motion");
     private final StepTextFieldHandle nbtField = new StepTextFieldHandle("nbt");
+    private final StepTextFieldHandle linkIdField = new StepTextFieldHandle("linkId");
 
     public CreateItemEntityScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(Component.translatable("ponderer.ui.create_item_entity.add"), scene, sceneIndex, parent);
@@ -44,9 +43,9 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             FieldDecorators.heldItem(
             stack -> {
                 itemField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
-                CompoundTag tag = PondererClientCommands.extractStackNbtFilter(stack);
-                if (tag != null && !tag.isEmpty()) {
-                    nbtField.setValue(tag.toString());
+                net.minecraft.world.item.component.CustomData customData = stack.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+                if (customData != null && !customData.isEmpty()) {
+                    nbtField.setValue(customData.copyTag().toString());
                 }
             })));
         entries.add(FieldSpecs.number(
@@ -72,7 +71,14 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             "ponderer.ui.create_item_entity.nbt.tooltip",
             "{PickupDelay:40s}",
             124,
-            FieldDecorators.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt"),
+            FieldDecorators.nbtExpand("nbt")));
+        entries.add(FieldSpecs.text(
+            linkIdField,
+            "ponderer.ui.entity_link",
+            "ponderer.ui.create_item_entity.link.tooltip",
+            "",
+            124));
     }
 
     @Override
@@ -87,6 +93,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             motionField.setValue(step.motion.get(0), step.motion.get(1), step.motion.get(2));
         }
         if (step.nbt != null) nbtField.setValue(step.nbt);
+        if (step.linkId != null) linkIdField.setValue(step.linkId);
     }
 
     @Override
@@ -142,6 +149,10 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
                 return null;
             }
             s.nbt = nbt;
+        }
+        String linkId = linkIdField.getValue().trim();
+        if (!linkId.isEmpty()) {
+            s.linkId = linkId;
         }
         return s;
     }

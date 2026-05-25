@@ -27,6 +27,7 @@ public final class PonderJsEmitters {
 
     static {
         EMITTERS.put("show_structure", PonderJsEmitters::emitShowStructure);
+        EMITTERS.put("show_extra_structure", PonderJsEmitters::emitShowExtraStructure);
         EMITTERS.put("idle", PonderJsEmitters::emitIdle);
         EMITTERS.put("text", PonderJsEmitters::emitText);
         EMITTERS.put("shared_text", PonderJsEmitters::emitSharedText);
@@ -70,6 +71,13 @@ public final class PonderJsEmitters {
             line += "\nscene.scaleSceneView(" + fmtFloat(step.scale) + ");";
         }
         return line;
+    }
+
+    private static String emitShowExtraStructure(DslScene.DslStep step, EmitContext ctx) {
+        // PonderJS has no concept of layered NBT structure overlays + air filtering;
+        // emit an explicit warning comment rather than a misleading approximation.
+        String ref = step.structure == null ? "?" : step.structure;
+        return "// UNSUPPORTED show_extra_structure (structure=" + ref + "): PonderJS cannot reproduce this step";
     }
 
     private static String emitIdle(DslScene.DslStep step, EmitContext ctx) {
@@ -141,10 +149,15 @@ public final class PonderJsEmitters {
     private static String emitRotateCameraY(DslScene.DslStep step, EmitContext ctx) {
         float deg = step.degrees == null ? 90f : step.degrees;
         int duration = step.durationOrDefault(20);
-        if (duration <= 0) {
-            return "scene.rotateCameraY(" + fmtFloat(deg) + ");";
+        String prefix = "";
+        if (step.degreesX != null && step.degreesX != 0f) {
+            prefix = "// note: X-axis camera rotation (" + fmtFloat(step.degreesX)
+                + " deg) is not supported by Ponder's KubeJS API and was skipped\n";
         }
-        return "scene.rotateCameraY(" + fmtFloat(deg) + ");\nscene.idle(" + duration + ");";
+        if (duration <= 0) {
+            return prefix + "scene.rotateCameraY(" + fmtFloat(deg) + ");";
+        }
+        return prefix + "scene.rotateCameraY(" + fmtFloat(deg) + ");\nscene.idle(" + duration + ");";
     }
 
     private static String emitShowControls(DslScene.DslStep step, EmitContext ctx) {
@@ -206,7 +219,28 @@ public final class PonderJsEmitters {
 
     private static String emitDestroyBlock(DslScene.DslStep step, EmitContext ctx) {
         if (step.blockPos == null || step.blockPos.size() < 3) return "// destroy_block: missing blockPos";
-        return "scene.world.destroyBlock([" + fmtInts(step.blockPos) + "]);";
+        boolean particles = !Boolean.FALSE.equals(step.destroyParticles);
+        if (step.blockPos2 == null || step.blockPos2.size() < 3 || step.blockPos.equals(step.blockPos2)) {
+            if (particles) {
+                return "scene.world.destroyBlock([" + fmtInts(step.blockPos) + "]);";
+            }
+            return "scene.world.setBlock([" + fmtInts(step.blockPos) + "], \"minecraft:air\", false);";
+        }
+        if (!particles) {
+            // No particles → equivalent to filling the range with air, which the Create JS API
+            // already supports as a single call.
+            String coords = fmtInts(step.blockPos) + ", " + fmtInts(step.blockPos2);
+            return "scene.world.setBlocks(util.select.fromTo(" + coords + "), \"minecraft:air\", false);";
+        }
+        // Particle destroy is single-position only in the Create API; emit a loop.
+        int x1 = step.blockPos.get(0), y1 = step.blockPos.get(1), z1 = step.blockPos.get(2);
+        int x2 = step.blockPos2.get(0), y2 = step.blockPos2.get(1), z2 = step.blockPos2.get(2);
+        int minX = Math.min(x1, x2), minY = Math.min(y1, y2), minZ = Math.min(z1, z2);
+        int maxX = Math.max(x1, x2), maxY = Math.max(y1, y2), maxZ = Math.max(z1, z2);
+        return "for (let dx = " + minX + "; dx <= " + maxX + "; dx++)"
+            + " for (let dy = " + minY + "; dy <= " + maxY + "; dy++)"
+            + " for (let dz = " + minZ + "; dz <= " + maxZ + "; dz++)"
+            + " scene.world.destroyBlock([dx, dy, dz]);";
     }
 
     private static String emitReplaceBlocks(DslScene.DslStep step, EmitContext ctx) {

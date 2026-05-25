@@ -1,10 +1,10 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.PondererClientCommands;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -76,9 +76,9 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
             stack -> {
                 String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                 itemField.setValue(itemId);
-                CompoundTag tag = PondererClientCommands.extractStackNbtFilter(stack);
-                if (tag != null && !tag.isEmpty()) {
-                    nbtField.setValue(tag.toString());
+                CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+                if (customData != null && !customData.isEmpty()) {
+                    nbtField.setValue(customData.copyTag().toString());
                 } else {
                     nbtField.setValue("");
                 }
@@ -89,7 +89,8 @@ public class ShowControlsScreen extends AbstractStepEditorScreen {
             "ponderer.ui.show_controls.nbt.tooltip",
             "{}",
             124,
-            FieldDecorators.nbtPick("nbt")));
+            FieldDecorators.nbtPick("nbt"),
+            FieldDecorators.nbtExpand("nbt")));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.show_controls.sneaking",
             "ponderer.ui.show_controls.sneaking.tooltip",

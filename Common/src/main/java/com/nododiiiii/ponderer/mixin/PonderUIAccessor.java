@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.mixin;
 
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.ponder.foundation.PonderScene;
+import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.core.BlockPos;
 import org.spongepowered.asm.mixin.Mixin;
@@ -37,4 +38,8 @@ public interface PonderUIAccessor {
 
     @Accessor(value = "lazyIndex", remap = false)
     LerpedFloat ponderer$getLazyIndex();
+
+    @Accessor(value = "slowMode", remap = false)
+    PonderButton ponderer$getSlowMode();
 }
+

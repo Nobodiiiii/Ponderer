@@ -1,9 +1,9 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.nbt.NbtTextCodec;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
@@ -11,8 +11,9 @@ import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -171,7 +172,8 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             null,
             UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
             124,
-            FieldDecorators.nbtPick("itemNbt")));
+            FieldDecorators.nbtPick("itemNbt"),
+            FieldDecorators.nbtExpand("itemNbt")));
         entries.add(FieldSpecs.cycle(
             triggerModeBinding,
             "ponderer.ui.trigger_editor.trigger_mode",
@@ -280,9 +282,9 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
     private void applyHeldItem(ItemStack stack) {
         String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         itemField.setValue(itemId);
-        CompoundTag tag = PondererClientCommands.extractStackNbtFilter(stack);
-        if (tag != null && !tag.isEmpty()) {
-            itemNbtField.setValue(tag.toString());
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+        if (customData != null && !customData.isEmpty()) {
+            itemNbtField.setValue(customData.copyTag().toString());
         } else {
             itemNbtField.setValue("");
         }
@@ -368,6 +370,14 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
         candidate.items = List.of(newItemId);
         String nbt = itemNbtField.getValue().trim();
+        if (!nbt.isEmpty()) {
+            NbtTextCodec.ParseResult parsed = NbtTextCodec.parse(nbt);
+            if (!parsed.success()) {
+                setErrorMessage(UIText.of("ponderer.ui.nbt_editor.error.invalid"));
+                return false;
+            }
+            nbt = NbtTextCodec.compact(parsed.tag());
+        }
         candidate.nbtFilter = nbt.isEmpty() ? null : nbt;
 
         String triggerMode = TRIGGER_MODES[triggerModeIndex];

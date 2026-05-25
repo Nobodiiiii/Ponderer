@@ -225,8 +225,8 @@ public final class NbtPickState {
             List<Map.Entry<String, String>> entries = new ArrayList<>(result.blockProperties.entrySet());
             formSnapshot.put("prop_count", String.valueOf(entries.size()));
             for (int i = 0; i < entries.size(); i++) {
-                formSnapshot.put("prop_key_" + i, entries.get(i).getKey());
-                formSnapshot.put("prop_val_" + i, entries.get(i).getValue());
+                formSnapshot.put("prop_" + i + "_key", entries.get(i).getKey());
+                formSnapshot.put("prop_" + i + "_val", entries.get(i).getValue());
             }
         }
     }

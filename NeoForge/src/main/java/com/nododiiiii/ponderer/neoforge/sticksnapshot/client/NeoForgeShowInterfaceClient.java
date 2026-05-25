@@ -1,9 +1,13 @@
 package com.nododiiiii.ponderer.neoforge.sticksnapshot.client;
 
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.StickSnapshotFeature;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.ReplayItemSnapshotPacket;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.ReplaySnapshotPacket;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.ReplayUiIdPacket;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.SaveItemSnapshotPacket;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.network.SaveSnapshotPacket;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot.BlockSnapshot;
+import com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot.ItemSnapshot;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.minecraft.client.Minecraft;
@@ -32,6 +36,15 @@ public final class NeoForgeShowInterfaceClient {
     }
 
     public static void showInterfaceStep(DslScene.DslStep step) {
+        String source = step.interfaceSource == null ? "block" : step.interfaceSource.toLowerCase(Locale.ROOT);
+        switch (source) {
+            case "held_item" -> showHeldItemInterfaceStep(step);
+            case "ui_id" -> showUiIdInterfaceStep(step);
+            default -> showBlockInterfaceStep(step);
+        }
+    }
+
+    private static void showBlockInterfaceStep(DslScene.DslStep step) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) {
             return;
@@ -68,6 +81,106 @@ public final class NeoForgeShowInterfaceClient {
         ClientInputHandler.prepareMirrorReplay(-1, true);
         PondererServices.NETWORK.sendToServer(new SaveSnapshotPacket(snapshot));
         PondererServices.NETWORK.sendToServer(new ReplaySnapshotPacket());
+    }
+
+    private static void showHeldItemInterfaceStep(DslScene.DslStep step) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null) {
+            return;
+        }
+        if (step.item == null || step.item.isBlank()) {
+            StickSnapshotFeature.LOGGER.warn("show_interface(held_item) skipped: missing item id");
+            return;
+        }
+        ResourceLocation itemId = ResourceLocation.tryParse(step.item);
+        if (itemId == null) {
+            StickSnapshotFeature.LOGGER.warn("show_interface(held_item) skipped: invalid item id={}", step.item);
+            return;
+        }
+
+        CompoundTag itemTag = Boolean.FALSE.equals(step.enableNbt) ? null : parseItemTag(step.nbt);
+
+        if (tryClientSideOpen(mc, itemId, itemTag)) {
+            return;
+        }
+
+        ItemSnapshot snapshot = new ItemSnapshot(
+            itemId,
+            itemTag,
+            mc.level.dimension().location(),
+            Boolean.TRUE.equals(step.whileSneaking),
+            mc.player.getYRot(),
+            mc.player.getXRot());
+
+        ClientInputHandler.prepareMirrorReplay(-1, true);
+        PondererServices.NETWORK.sendToServer(new SaveItemSnapshotPacket(snapshot));
+        PondererServices.NETWORK.sendToServer(new ReplayItemSnapshotPacket());
+    }
+
+    private static boolean tryClientSideOpen(Minecraft mc, ResourceLocation itemId, @Nullable CompoundTag itemTag) {
+        net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(itemId);
+        if (item == null) {
+            return false;
+        }
+        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item);
+
+        net.minecraft.client.gui.screens.Screen previousScreen = mc.screen;
+        com.nododiiiii.ponderer.ui.ClientScreenCapture.begin(true);
+        try {
+            stack.use(mc.level, mc.player, net.minecraft.world.InteractionHand.MAIN_HAND);
+        } catch (Exception ex) {
+            StickSnapshotFeature.LOGGER.warn("show_interface(held_item) client-side use threw for item={}",
+                    itemId, ex);
+            com.nododiiiii.ponderer.ui.ClientScreenCapture.end();
+            return false;
+        }
+
+        net.minecraft.client.gui.screens.Screen captured = com.nododiiiii.ponderer.ui.ClientScreenCapture.drain();
+        com.nododiiiii.ponderer.ui.ClientScreenCapture.end();
+
+        if (captured == null) {
+            return false;
+        }
+
+        ClientInputHandler.prepareMirrorReplay(-1, true);
+        if (previousScreen instanceof net.createmod.ponder.foundation.ui.PonderUI) {
+            ClientInputHandler.attachMirrorToPonder(captured);
+        } else {
+            mc.setScreen(captured);
+        }
+        return true;
+    }
+
+    private static void showUiIdInterfaceStep(DslScene.DslStep step) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null) {
+            return;
+        }
+        if (step.uiId == null || step.uiId.isBlank()) {
+            StickSnapshotFeature.LOGGER.warn("show_interface(ui_id) skipped: missing uiId");
+            return;
+        }
+        ResourceLocation menuTypeId = ResourceLocation.tryParse(step.uiId);
+        if (menuTypeId == null) {
+            StickSnapshotFeature.LOGGER.warn("show_interface(ui_id) skipped: invalid uiId={}", step.uiId);
+            return;
+        }
+
+        ClientInputHandler.prepareMirrorReplay(-1, true);
+        PondererServices.NETWORK.sendToServer(new ReplayUiIdPacket(menuTypeId));
+    }
+
+    @Nullable
+    private static CompoundTag parseItemTag(@Nullable String rawNbt) {
+        if (rawNbt == null || rawNbt.isBlank()) {
+            return null;
+        }
+        try {
+            return TagParser.parseTag(rawNbt);
+        } catch (CommandSyntaxException ex) {
+            StickSnapshotFeature.LOGGER.warn("show_interface(held_item) invalid item NBT ignored: {}", ex.getMessage());
+            return null;
+        }
     }
 
     public static void clickInterfaceStep(DslScene.DslStep step) {

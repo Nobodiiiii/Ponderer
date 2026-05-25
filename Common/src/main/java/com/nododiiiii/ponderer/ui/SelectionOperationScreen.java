@@ -21,7 +21,7 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
 
     private int directionIndex = 0;
     private int entranceAnimationIndex = 0;
-    private boolean smartDisplay = true;
+    private boolean smartDisplay = false;
 
     private final FieldBinding<Integer> directionBinding =
         FieldBindings.integer("direction", () -> directionIndex, value -> directionIndex = value);
@@ -206,7 +206,9 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
             return;
         }
         String mode = SelectionAnimationOptions.ENTRANCE_ANIMATIONS[entranceAnimationIndex];
-        boolean durationEnabled = !"none".equals(mode);
+        // duration controls the fade-in even when no row pattern is selected
+        // ("none" still wants the standard fade-in via step.duration).
+        boolean durationEnabled = true;
         boolean intervalEnabled = !("none".equals(mode) || "simultaneous".equals(mode));
 
         if (durationField.widget() != null) {
@@ -257,14 +259,15 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
         if (supportsEntranceAnimation()) {
             String entranceAnimation = SelectionAnimationOptions.ENTRANCE_ANIMATIONS[entranceAnimationIndex];
             if ("none".equals(entranceAnimation)) {
-                step.entranceAnimation = "none";
-                step.duration = 0;
+                // "(无)" 入场模式：不使用逐排动画，由 step.duration 控制标准淡入时长。
+                // 让外层 `withDuration && step.entranceAnimation == null` 分支负责写入 step.duration。
+                step.entranceAnimation = null;
             } else {
                 step.entranceAnimation = entranceAnimation;
                 step.entranceDuration = Math.max(0, parseIntOr(durationField.getValue(), 20));
                 step.entranceInterval = Math.max(0, parseIntOr(intervalField.getValue(), 1));
+                step.smartDisplay = smartDisplay;
             }
-            step.smartDisplay = smartDisplay;
         }
 
         if (withDuration && step.entranceAnimation == null) {

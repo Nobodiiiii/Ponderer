@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import net.createmod.catnip.gui.ScreenOpener;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 
@@ -205,7 +206,9 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         if (!saveEdits()) {
             return false;
         }
-        returnToParent();
+        // Save always lands back on the scene editor, even when this screen was opened from
+        // the step type selector — that way the editor's remembered list scroll is restored.
+        ScreenOpener.open(parent);
         return true;
     }
 }

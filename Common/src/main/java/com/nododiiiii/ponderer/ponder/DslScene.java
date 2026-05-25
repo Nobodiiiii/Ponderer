@@ -169,6 +169,7 @@ public class DslScene {
         public Float yaw;
         public Float pitch;
         public Float degrees;
+        public Float degreesX;
         public Float scale;
         public Float rotation;
         public Integer count;
@@ -204,7 +205,27 @@ public class DslScene {
         public Boolean whileCTRL;
         public Boolean enableNbt;
         public Boolean fullScene;
+        public Boolean walkAnimation;
+        /**
+         * show_extra_structure only: when true, air-family blocks in the structure also
+         * overwrite the corresponding scene cells (cleared with air). Default false — air
+         * positions leave the existing scene untouched.
+         */
+        public Boolean replaceAir;
         public List<InterfaceSlotBinding> interfaceSlots;
+        /**
+         * show_interface only: which source to open from.
+         * null or "block" (default) = real-world block (legacy behavior).
+         * "held_item" = use the item picked from the player's hand at editing time.
+         * "ui_id" = open a menu by its registry id (resource location).
+         * Older scenes that omit this field continue to behave as "block".
+         */
+        public String interfaceSource;
+        /**
+         * show_interface only: menu type resource location used when interfaceSource = "ui_id".
+         * e.g. "minecraft:crafting" or "tetra:workbench".
+         */
+        public String uiId;
 
         public int durationOrDefault(int fallback) {
             return duration == null ? fallback : Math.max(duration, 0);

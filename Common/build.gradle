@@ -25,8 +25,16 @@ dependencies {
 
     // Resourcify (optional, for Modrinth resource pack browsing)
     compileOnly "maven.modrinth:resourcify:${resourcify_version}"
+
+    testImplementation platform("org.junit:junit-bom:5.10.2")
+    testImplementation "org.junit.jupiter:junit-jupiter"
 }
 
 java {
     withSourcesJar()
+}
+
+tasks.withType(Test).configureEach {
+    enabled = true
+    useJUnitPlatform()
 }

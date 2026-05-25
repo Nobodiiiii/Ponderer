@@ -599,6 +599,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         return switch (step.type.toLowerCase(Locale.ROOT)) {
             case "show_structure" ->
                 UIText.of("ponderer.ui.step.summary.show_structure", stepTypeName("show_structure"));
+            case "show_extra_structure" -> UIText.of("ponderer.ui.step.summary.single_arg",
+                stepTypeName("show_extra_structure"),
+                step.structure != null && !step.structure.isBlank() ? step.structure : "?");
             case "idle" -> UIText.of("ponderer.ui.step.summary.idle", stepTypeName("idle"), step.durationOrDefault(20),
                 UIText.of("ponderer.ui.ticks"));
             case "text" -> UIText.of("ponderer.ui.step.summary.text", stepTypeName("text"),
@@ -641,16 +644,24 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             case "indicate_redstone" -> stepTypeName("indicate_redstone");
             case "indicate_success" -> stepTypeName("indicate_success");
             case "clear_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("clear_entities"), step.entity != null && !step.entity.isEmpty() ? step.entity : "*");
+                stepTypeName("clear_entities"), entityTargetSummary(step.entity, step.linkId));
             case "clear_item_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("clear_item_entities"), step.item != null && !step.item.isEmpty() ? step.item : "*");
+                stepTypeName("clear_item_entities"), entityTargetSummary(step.item, step.linkId));
             case "modify_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("modify_entities_nbt"), step.entity != null && !step.entity.isEmpty() ? step.entity : "*");
+                stepTypeName("modify_entities_nbt"), entityTargetSummary(step.entity, step.linkId));
             case "modify_item_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("modify_item_entities_nbt"), step.item != null && !step.item.isEmpty() ? step.item : "*");
+                stepTypeName("modify_item_entities_nbt"), entityTargetSummary(step.item, step.linkId));
             case "next_scene" -> UIText.of("ponderer.ui.step.summary.next_scene");
             default -> step.type;
         };
+    }
+
+    private String entityTargetSummary(@Nullable String id, @Nullable String linkId) {
+        String target = id != null && !id.isEmpty() ? id : "*";
+        if (linkId == null || linkId.isBlank()) {
+            return target;
+        }
+        return target + " #" + linkId;
     }
 
     private String stepTypeName(String type) {
@@ -968,17 +979,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item);
         try {
             net.minecraft.nbt.CompoundTag filterTag = net.minecraft.nbt.TagParser.parseTag(nbtFilter);
-            net.minecraft.nbt.CompoundTag fullTag = new net.minecraft.nbt.CompoundTag();
-            fullTag.putString("id", itemId.toString());
-            fullTag.putInt("count", 1);
-            fullTag.put("tag", filterTag);
-            var level = net.minecraft.client.Minecraft.getInstance().level;
-            if (level != null) {
-                net.minecraft.world.item.ItemStack parsed =
-                        net.minecraft.world.item.ItemStack.parseOptional(level.registryAccess(), fullTag);
-                if (!parsed.isEmpty()) {
-                    stack = parsed;
-                }
+            if (!filterTag.isEmpty()) {
+                stack.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                        net.minecraft.world.item.component.CustomData.of(filterTag));
             }
         } catch (Exception ignored) {
         }

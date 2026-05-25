@@ -16,7 +16,7 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
 
     private static final String[][] PAGE_TYPES = {
         {"idle", "text", "show_controls", "rotate_camera_y", "zoom_scene"},
-        {"set_block", "destroy_block", "replace_blocks", "modify_block_entity_nbt"},
+        {"set_block", "destroy_block", "replace_blocks", "modify_block_entity_nbt", "show_extra_structure"},
         {"show_section_and_merge", "hide_section", "rotate_section", "move_section"},
         {"create_entity", "create_item_entity", "clear_entities", "clear_item_entities", "modify_entities_nbt",
             "modify_item_entities_nbt"},

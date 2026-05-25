@@ -89,7 +89,7 @@ public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
 
     @Override
     public boolean isPauseScreen() {
-        return false;
+        return true;
     }
 
     private void discardBlueprint() {
