@@ -44,6 +44,16 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
         PondererUiScaling.scheduleRestore(mc);
     }
 
+    @Override
+    protected void renderWindowBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        if (minecraft != null && minecraft.level != null) {
+            graphics.fill(0, 0, width, height, 0xb0_282c34);
+            return;
+        }
+
+        renderMenuBackground(graphics, partialTicks);
+    }
+
     protected final void clearStatusMessages() {
         errorMessage = null;
         infoMessage = null;
