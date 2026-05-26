@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ui.PondererUiScaling;
 import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.config.ui.ConfigScreen;
@@ -46,12 +47,23 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
 
     @Override
     protected void renderWindowBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        if (!shouldUseSafeFabricBackground()) {
+            super.renderWindowBackground(graphics, mouseX, mouseY, partialTicks);
+            return;
+        }
+
         if (minecraft != null && minecraft.level != null) {
             graphics.fill(0, 0, width, height, 0xb0_282c34);
             return;
         }
 
         renderMenuBackground(graphics, partialTicks);
+    }
+
+    private boolean shouldUseSafeFabricBackground() {
+        return "fabric".equals(PondererServices.PLATFORM.getPlatformName())
+            && PondererServices.PLATFORM.isModLoaded("sodium")
+            && !PondererServices.PLATFORM.isModLoaded("indium");
     }
 
     protected final void clearStatusMessages() {
