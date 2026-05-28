@@ -13,6 +13,7 @@
     "MinecraftCoordPickScrollMixin",
     "MinecraftSetScreenCaptureMixin",
     "WorldSectionElementImplMixin",
+    "PonderLevelMixin",
     "PonderSceneAccessor",
     "PonderKeybindsAccessor",
     "PonderSceneViewOffsetMixin",
