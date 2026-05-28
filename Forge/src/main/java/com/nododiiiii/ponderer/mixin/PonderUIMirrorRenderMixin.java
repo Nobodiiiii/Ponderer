@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
+import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import com.nododiiiii.ponderer.ponder.DslScene;
@@ -18,7 +19,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(PonderUI.class)
+// priority > default (1000) so the renderWidgets TAIL inject below is applied AFTER
+// PonderUIMixin's popRenderWidgetsLift — at runtime that means it runs FIRST, while
+// the outer pose-z lift is still on the stack, so we can pop/push it cleanly.
+@Mixin(value = PonderUI.class, priority = 1100)
 public abstract class PonderUIMirrorRenderMixin {
     @Inject(method = "renderScene", at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$skipStructureWhenMirrorAttached(GuiGraphics graphics, int mouseX, int mouseY, int i,
@@ -48,7 +52,17 @@ public abstract class PonderUIMirrorRenderMixin {
             return;
         }
 
+        // PonderUIMixin#ponderer$liftRenderWidgetsAboveScene pushed pose-z by
+        // PONDER_TEXT_BASELINE_LAYER (+6500) at renderWidgets HEAD. The embedded
+        // mirror's own EMBEDDED_GUI_* layers already carry SCENE_LIFT_BIAS (+6000),
+        // so stacking them on top of +6500 lands the mirror past the GUI projection's
+        // near clip (~+10000) and the whole UI disappears (vanilla crafting/chest/etc.).
+        // Drop the outer lift while the mirror renders, then restore it so the rest
+        // of renderWidgets — and ponderer$popRenderWidgetsLift at RETURN — see the
+        // pose stack they expect.
         graphics.flush();
+        graphics.pose().popPose();
+
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableDepthTest();
@@ -68,6 +82,10 @@ public abstract class PonderUIMirrorRenderMixin {
         if (JeiCompat.shouldRenderPonderUiOverlayManually((Screen) (Object) this)) {
             JeiCompat.renderPonderUiOverlay((Screen) (Object) this, graphics, mouseX, mouseY, partialTicks);
         }
+
+        graphics.flush();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_TEXT_BASELINE_LAYER);
     }
 
     @Inject(method = "renderWidgets", at = @At("TAIL"), remap = false)
@@ -78,13 +96,23 @@ public abstract class PonderUIMirrorRenderMixin {
             return;
         }
 
+        // Same lift dance as above — the tooltip layers (TOOLTIP_LAYER = +7000)
+        // would otherwise stack to ~+13500 and get near-clipped. This inject's
+        // priority (1100) ensures it runs before PonderUIMixin#popRenderWidgetsLift,
+        // so the outer lift is still on the stack here.
         graphics.flush();
+        graphics.pose().popPose();
+
         RenderSystem.disableDepthTest();
         if (JeiCompat.shouldRenderPonderUiOverlayManually((Screen) (Object) this)) {
             JeiCompat.renderPonderUiTooltips((Screen) (Object) this, graphics, mouseX, mouseY);
         }
         InterfaceSlotOverlayRenderer.renderTooltip(graphics, mirror, mouseX, mouseY);
         RenderSystem.enableDepthTest();
+
+        graphics.flush();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_TEXT_BASELINE_LAYER);
     }
 
     @Inject(method = "tick", at = @At("HEAD"))
