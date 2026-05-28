@@ -5,9 +5,10 @@ import com.nododiiiii.ponderer.ai.StructureDescriber;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
-import com.nododiiiii.ponderer.ui.catnip.PageTurnListEntry;
 import com.nododiiiii.ponderer.util.SafePaths;
+import net.createmod.catnip.gui.ConfirmationScreen;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -37,6 +38,17 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private static boolean cachedStatusIsError = false;
     private static boolean cachedGenerating = false;
 
+    private static final int PREVIEW_WIDTH = 220;
+    private static final int PREVIEW_GAP = 10;
+    /** Reserved space on the right of the list for the save/discard/back action buttons. */
+    private static final int ACTION_BUTTONS_RESERVE = 40;
+
+    private final StructurePreviewWidget preview = new StructurePreviewWidget(0, 0, 0, 0);
+    private int previewX, previewY, previewW, previewH;
+    private boolean previewVisible;
+    @Nullable
+    private Path loadedPreviewPath;
+
     public AiGenerateScreen() {
         super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.ai_generate.title",
             UILayoutConstants.EDITOR_LIST_W, JeiCompat::setActiveScreen);
@@ -46,21 +58,101 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     protected void init() {
         super.init();
         applyCachedStatus();
+        layoutPreviewPanel();
+        if (!cachedStructurePaths.isEmpty() && previewVisible) {
+            loadPreviewForCurrent();
+        }
+    }
+
+    private void layoutPreviewPanel() {
+        int listLeft = width / 2 - currentListWidthValue() / 2 + listHorizontalOffset();
+        int availableLeft = listLeft - PREVIEW_GAP;
+        if (availableLeft < PREVIEW_WIDTH + PREVIEW_GAP) {
+            previewVisible = false;
+            preview.setBounds(0, 0, 0, 0);
+            return;
+        }
+        previewVisible = true;
+        previewW = PREVIEW_WIDTH;
+        previewX = listLeft - PREVIEW_GAP - previewW;
+        previewY = contentAreaTop();
+        previewH = contentAreaHeight();
+        preview.setBounds(previewX, previewY, previewW, previewH);
+    }
+
+    @Override
+    protected int listHorizontalOffset() {
+        int listW = currentListWidthValue();
+        int composite = PREVIEW_WIDTH + PREVIEW_GAP + listW + ACTION_BUTTONS_RESERVE;
+        if (composite > width - 20) {
+            return 0;
+        }
+        return (PREVIEW_WIDTH + PREVIEW_GAP) / 2;
+    }
+
+    @Override
+    public void resize(Minecraft client, int newWidth, int newHeight) {
+        super.resize(client, newWidth, newHeight);
+        layoutPreviewPanel();
+    }
+
+    @Override
+    public void removed() {
+        super.removed();
+        preview.dispose();
+        loadedPreviewPath = null;
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (previewVisible && preview.onMouseDown(mouseX, mouseY)) {
+            setFocused(null);
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (preview.onMouseDrag(mouseX, mouseY)) {
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        boolean handled = preview.onMouseUp();
+        boolean superHandled = super.mouseReleased(mouseX, mouseY, button);
+        return handled || superHandled;
+    }
+
+    @Override
+    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.renderWindow(graphics, mouseX, mouseY, partialTicks);
+        if (previewVisible) {
+            graphics.enableScissor(previewX, previewY, previewX + previewW, previewY + previewH);
+            preview.render(graphics, partialTicks);
+            graphics.disableScissor();
+        }
     }
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         if (cachedStructurePaths.isEmpty()) {
-            entries.add(FieldSpecs.sectionHeader(this::structureSummaryLine));
+            entries.add(FieldSpecs.sectionHeader(() -> UIText.of("ponderer.ui.ai_generate.no_structure")));
         } else {
-            entries.add(screen -> screen.appendBuiltEntry(new PageTurnListEntry(
-                this::structureSummaryLine,
-                this::prevStructure,
-                this::nextStructure,
-                () -> UIText.of("ponderer.ui.ai_generate.prev.tooltip"),
-                () -> UIText.of("ponderer.ui.ai_generate.next.tooltip"),
-                () -> cachedStructurePaths.size() > 1,
-                () -> cachedStructurePaths.size() > 1)));
+            entries.add(FieldSpecs.sectionHeader(this::structuresHeaderLine));
+            for (int i = 0; i < cachedStructurePaths.size(); i++) {
+                final int index = i;
+                String fileName = cachedStructurePaths.get(i).getFileName().toString();
+                entries.add(FieldSpecs.fullButton(
+                    () -> (index == cachedStructureIndex ? "● " : "  ") + fileName,
+                    null,
+                    () -> selectStructure(index),
+                    () -> index == cachedStructureIndex ? 0xFFE082 : 0xFFFFFF,
+                    () -> true));
+            }
             entries.add(FieldSpecs.sectionHeader(this::structureDetailsLine));
         }
         entries.add(FieldSpecs.fullButton(
@@ -223,6 +315,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 cachedStructureInfos.add(info);
                 cachedStructureIndex = cachedStructurePaths.size() - 1;
                 setCachedStatus(null, false);
+                loadPreviewForCurrent();
                 refreshCurrentScreen();
             } catch (Exception e) {
                 setCachedStatus("Failed to parse NBT: " + e.getMessage(), true);
@@ -240,23 +333,59 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         if (cachedStructureIndex >= cachedStructurePaths.size()) {
             cachedStructureIndex = Math.max(0, cachedStructurePaths.size() - 1);
         }
+        if (cachedStructurePaths.isEmpty()) {
+            preview.clear();
+            loadedPreviewPath = null;
+        } else {
+            loadPreviewForCurrent();
+        }
         rebuildListPreservingScroll();
     }
 
-    private void prevStructure() {
-        if (cachedStructurePaths.size() <= 1) {
+    private void selectStructure(int index) {
+        if (index < 0 || index >= cachedStructurePaths.size()) {
             return;
         }
-        cachedStructureIndex = (cachedStructureIndex - 1 + cachedStructurePaths.size()) % cachedStructurePaths.size();
+        if (index == cachedStructureIndex
+            && previewVisible
+            && cachedStructurePaths.get(index).equals(loadedPreviewPath)) {
+            return;
+        }
+        cachedStructureIndex = index;
+        loadPreviewForCurrent();
         rebuildListPreservingScroll();
     }
 
-    private void nextStructure() {
-        if (cachedStructurePaths.size() <= 1) {
+    private void loadPreviewForCurrent() {
+        if (!previewVisible || cachedStructurePaths.isEmpty()) {
             return;
         }
-        cachedStructureIndex = (cachedStructureIndex + 1) % cachedStructurePaths.size();
-        rebuildListPreservingScroll();
+        Path file = cachedStructurePaths.get(cachedStructureIndex);
+        int count = StructurePreviewWidget.countBlocks(file);
+        if (count <= 0) {
+            preview.setStatus("ponderer.ui.structure_picker.preview.empty");
+            loadedPreviewPath = null;
+            return;
+        }
+        if (count > StructurePreviewWidget.DEFAULT_LARGE_THRESHOLD) {
+            preview.setStatus("ponderer.ui.structure_picker.preview.confirm_pending");
+            loadedPreviewPath = null;
+            new ConfirmationScreen()
+                .centered()
+                .withText(Component.translatable("ponderer.ui.structure_picker.preview.large", count))
+                .withAction(success -> {
+                    if (Boolean.TRUE.equals(success)) {
+                        preview.load(file);
+                        loadedPreviewPath = file;
+                    } else {
+                        preview.setStatus("ponderer.ui.structure_picker.preview.skipped");
+                    }
+                })
+                .open(this);
+            return;
+        }
+        preview.load(file);
+        loadedPreviewPath = file;
     }
 
     private void addUrl() {
@@ -414,12 +543,8 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         }
     }
 
-    private String structureSummaryLine() {
-        if (cachedStructurePaths.isEmpty()) {
-            return UIText.of("ponderer.ui.ai_generate.no_structure");
-        }
-        String fileName = cachedStructurePaths.get(cachedStructureIndex).getFileName().toString();
-        return (cachedStructureIndex + 1) + "/" + cachedStructurePaths.size() + " - " + fileName;
+    private String structuresHeaderLine() {
+        return UIText.of("ponderer.ui.ai_generate.structures_header") + " (" + cachedStructurePaths.size() + ")";
     }
 
     private String structureDetailsLine() {

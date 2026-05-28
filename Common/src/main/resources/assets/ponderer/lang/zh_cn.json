@@ -960,6 +960,7 @@
   "ponderer.ui.ai_generate.delete": "删除",
   "ponderer.ui.ai_generate.select_nbt": "选择 NBT 结构文件",
   "ponderer.ui.ai_generate.no_structure": "点击「添加」选择结构文件",
+  "ponderer.ui.ai_generate.structures_header": "已选择的结构",
   "ponderer.ui.ai_generate.carrier": "载体",
   "ponderer.ui.ai_generate.carrier.hint": "minecraft:物品id",
   "ponderer.ui.ai_generate.prompt": "提示词",

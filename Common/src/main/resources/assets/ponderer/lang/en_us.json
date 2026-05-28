@@ -979,6 +979,7 @@
   "ponderer.ui.ai_generate.delete": "Delete",
   "ponderer.ui.ai_generate.select_nbt": "Select NBT Structure",
   "ponderer.ui.ai_generate.no_structure": "Click 'Add' to select a structure",
+  "ponderer.ui.ai_generate.structures_header": "Selected Structures",
   "ponderer.ui.ai_generate.carrier": "Carrier",
   "ponderer.ui.ai_generate.carrier.hint": "minecraft:item_id",
   "ponderer.ui.ai_generate.prompt": "Prompt",
