@@ -5,23 +5,25 @@ import com.nododiiiii.ponderer.ai.StructureDescriber;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.util.SafePaths;
+import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.ConfirmationScreen;
+import net.createmod.catnip.gui.widget.BoxWidget;
+import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.util.tinyfd.TinyFileDialogs;
+import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
@@ -38,14 +40,35 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private static boolean cachedStatusIsError = false;
     private static boolean cachedGenerating = false;
 
-    private static final int PREVIEW_WIDTH = 220;
-    private static final int PREVIEW_GAP = 10;
-    /** Reserved space on the right of the list for the save/discard/back action buttons. */
-    private static final int ACTION_BUTTONS_RESERVE = 40;
+    private static final int TOP_PANEL_HEADER_ROWS = 4;
+    private static final int TOP_PANEL_GAP = 8;
+    private static final int PREVIEW_HEIGHT = 80;
+    private static final int STRUCTURE_NAME_HEIGHT = 22;
+    private static final int NAV_ROW_HEIGHT = 42;
+    private static final int BUTTON_ROW_HEIGHT = 24;
+    private static final int PANEL_INSET = 4;
+    private static final int PANEL_SPLIT_GAP = 8;
+    private static final int PANEL_BORDER = 0x60FFFFFF;
+    private static final int PANEL_BACKGROUND = 0x40000000;
+    private static final int PANEL_TEXT = 0xFFFFFF;
+    private static final int PANEL_MUTED_TEXT = 0xFFCCCC77;
 
     private final StructurePreviewWidget preview = new StructurePreviewWidget(0, 0, 0, 0);
-    private int previewX, previewY, previewW, previewH;
-    private boolean previewVisible;
+    private final BoxWidget previousStructureButton = createTopPanelButton(this::selectPreviousStructure);
+    private final BoxWidget nextStructureButton = createTopPanelButton(this::selectNextStructure);
+    private final BoxWidget addStructureButton = createTopPanelButton(this::openStructurePicker);
+    private final BoxWidget deleteStructureButton = createTopPanelButton(this::deleteStructure);
+
+    private int panelX;
+    private int panelY;
+    private int panelW;
+    private int panelH;
+    private int previewY;
+    private int nameY;
+    private int navRowY;
+    private int actionRowY;
+    private boolean topPanelVisible;
+
     @Nullable
     private Path loadedPreviewPath;
 
@@ -58,42 +81,18 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     protected void init() {
         super.init();
         applyCachedStatus();
-        layoutPreviewPanel();
-        if (!cachedStructurePaths.isEmpty() && previewVisible) {
+        layoutTopPanel();
+        updateTopPanelButtons();
+        if (!cachedStructurePaths.isEmpty() && topPanelVisible) {
             loadPreviewForCurrent();
         }
-    }
-
-    private void layoutPreviewPanel() {
-        int listLeft = width / 2 - currentListWidthValue() / 2 + listHorizontalOffset();
-        int availableLeft = listLeft - PREVIEW_GAP;
-        if (availableLeft < PREVIEW_WIDTH + PREVIEW_GAP) {
-            previewVisible = false;
-            preview.setBounds(0, 0, 0, 0);
-            return;
-        }
-        previewVisible = true;
-        previewW = PREVIEW_WIDTH;
-        previewX = listLeft - PREVIEW_GAP - previewW;
-        previewY = contentAreaTop();
-        previewH = contentAreaHeight();
-        preview.setBounds(previewX, previewY, previewW, previewH);
-    }
-
-    @Override
-    protected int listHorizontalOffset() {
-        int listW = currentListWidthValue();
-        int composite = PREVIEW_WIDTH + PREVIEW_GAP + listW + ACTION_BUTTONS_RESERVE;
-        if (composite > width - 20) {
-            return 0;
-        }
-        return (PREVIEW_WIDTH + PREVIEW_GAP) / 2;
     }
 
     @Override
     public void resize(Minecraft client, int newWidth, int newHeight) {
         super.resize(client, newWidth, newHeight);
-        layoutPreviewPanel();
+        layoutTopPanel();
+        updateTopPanelButtons();
     }
 
     @Override
@@ -105,16 +104,24 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (previewVisible && preview.onMouseDown(mouseX, mouseY)) {
-            setFocused(null);
-            return true;
+        if (topPanelVisible) {
+            if (previousStructureButton.mouseClicked(mouseX, mouseY, button)
+                || nextStructureButton.mouseClicked(mouseX, mouseY, button)
+                || addStructureButton.mouseClicked(mouseX, mouseY, button)
+                || deleteStructureButton.mouseClicked(mouseX, mouseY, button)) {
+                return true;
+            }
+            if (preview.onMouseDown(mouseX, mouseY)) {
+                setFocused(null);
+                return true;
+            }
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        if (preview.onMouseDrag(mouseX, mouseY)) {
+        if (topPanelVisible && preview.onMouseDrag(mouseX, mouseY)) {
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
@@ -122,51 +129,43 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        boolean handled = preview.onMouseUp();
+        boolean topPanelHandled = previousStructureButton.mouseReleased(mouseX, mouseY, button)
+            || nextStructureButton.mouseReleased(mouseX, mouseY, button)
+            || addStructureButton.mouseReleased(mouseX, mouseY, button)
+            || deleteStructureButton.mouseReleased(mouseX, mouseY, button)
+            || preview.onMouseUp();
         boolean superHandled = super.mouseReleased(mouseX, mouseY, button);
-        return handled || superHandled;
+        return topPanelHandled || superHandled;
+    }
+
+    @Override
+    protected void collectHeaderEntries(List<ConfigScreenList.Entry> entries) {
+        for (int i = 0; i < TOP_PANEL_HEADER_ROWS; i++) {
+            entries.add(new SpacerHeaderEntry());
+        }
+    }
+
+    @Override
+    protected int headerListGap() {
+        return TOP_PANEL_GAP;
     }
 
     @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.renderWindow(graphics, mouseX, mouseY, partialTicks);
-        if (previewVisible) {
-            graphics.enableScissor(previewX, previewY, previewX + previewW, previewY + previewH);
-            preview.render(graphics, partialTicks);
-            graphics.disableScissor();
+    }
+
+    @Override
+    protected void renderWindowForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.renderWindowForeground(graphics, mouseX, mouseY, partialTicks);
+        if (!topPanelVisible) {
+            return;
         }
+        renderTopPanel(graphics, mouseX, mouseY, partialTicks);
     }
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
-        if (cachedStructurePaths.isEmpty()) {
-            entries.add(FieldSpecs.sectionHeader(() -> UIText.of("ponderer.ui.ai_generate.no_structure")));
-        } else {
-            entries.add(FieldSpecs.sectionHeader(this::structuresHeaderLine));
-            for (int i = 0; i < cachedStructurePaths.size(); i++) {
-                final int index = i;
-                String fileName = cachedStructurePaths.get(i).getFileName().toString();
-                entries.add(FieldSpecs.fullButton(
-                    () -> (index == cachedStructureIndex ? "● " : "  ") + fileName,
-                    null,
-                    () -> selectStructure(index),
-                    () -> index == cachedStructureIndex ? 0xFFE082 : 0xFFFFFF,
-                    () -> true));
-            }
-            entries.add(FieldSpecs.sectionHeader(this::structureDetailsLine));
-        }
-        entries.add(FieldSpecs.fullButton(
-            UIText.of("ponderer.ui.ai_generate.add"),
-            UIText.of("ponderer.ui.ai_generate.add.tooltip"),
-            this::addStructure));
-
-        if (!cachedStructurePaths.isEmpty()) {
-            entries.add(FieldSpecs.fullButton(
-                UIText.of("ponderer.ui.ai_generate.delete"),
-                UIText.of("ponderer.ui.ai_generate.delete.tooltip"),
-                this::deleteStructure));
-        }
-
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> cachedCarrier, value -> cachedCarrier = value),
             "ponderer.ui.ai_generate.carrier",
@@ -252,76 +251,223 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         return snapshot;
     }
 
-    private void addStructure() {
-        Path structuresDir = SceneStore.getStructureDir();
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                String defaultPath = Files.exists(structuresDir)
-                    ? structuresDir.toAbsolutePath() + java.io.File.separator
-                    : null;
-                MemoryStack stack = MemoryStack.stackPush();
-                try {
-                    PointerBuffer filters = stack.mallocPointer(1);
-                    filters.put(stack.UTF8("*.nbt"));
-                    filters.flip();
-                    return TinyFileDialogs.tinyfd_openFileDialog(
-                        UIText.of("ponderer.ui.ai_generate.select_nbt"),
-                        defaultPath,
-                        filters,
-                        "NBT files (*.nbt)",
-                        false);
-                } finally {
-                    stack.pop();
-                }
-            } catch (Exception e) {
-                return null;
-            }
-        }).thenAcceptAsync(result -> {
-            if (result == null) {
+    private void layoutTopPanel() {
+        panelW = currentListWidthValue();
+        panelX = width / 2 - panelW / 2 + listHorizontalOffset();
+        panelY = contentAreaTop();
+        panelH = topPanelHeight();
+        topPanelVisible = panelW > 0 && panelH > 0;
+        previewY = panelY + 1;
+        nameY = panelY + PREVIEW_HEIGHT + 8;
+        navRowY = panelY + PREVIEW_HEIGHT + STRUCTURE_NAME_HEIGHT + 2;
+        actionRowY = panelY + panelH - BUTTON_ROW_HEIGHT - PANEL_INSET;
+        preview.setBounds(panelX + 1, previewY, Math.max(0, panelW - 2), PREVIEW_HEIGHT - 1);
+        layoutTopPanelButtons();
+    }
+
+    private void layoutTopPanelButtons() {
+        if (!topPanelVisible) {
+            hideTopPanelButtons();
+            return;
+        }
+
+        int navButtonSize = 18;
+        int navInset = 8;
+        int previewCenterY = navRowY + (NAV_ROW_HEIGHT - navButtonSize) / 2;
+
+        previousStructureButton.setX(panelX + navInset);
+        previousStructureButton.setY(previewCenterY);
+        previousStructureButton.setWidth(navButtonSize);
+        previousStructureButton.setHeight(navButtonSize);
+        previousStructureButton.showingElement(PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_LEFT));
+
+        nextStructureButton.setX(panelX + panelW - navInset - navButtonSize);
+        nextStructureButton.setY(previewCenterY);
+        nextStructureButton.setWidth(navButtonSize);
+        nextStructureButton.setHeight(navButtonSize);
+        nextStructureButton.showingElement(PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_RIGHT));
+
+        int buttonWidth = (panelW - PANEL_INSET * 2 - PANEL_SPLIT_GAP) / 2;
+        addStructureButton.setX(panelX + PANEL_INSET);
+        addStructureButton.setY(actionRowY);
+        addStructureButton.setWidth(buttonWidth);
+        addStructureButton.setHeight(BUTTON_ROW_HEIGHT);
+
+        deleteStructureButton.setX(addStructureButton.getX() + buttonWidth + PANEL_SPLIT_GAP);
+        deleteStructureButton.setY(actionRowY);
+        deleteStructureButton.setWidth(buttonWidth);
+        deleteStructureButton.setHeight(BUTTON_ROW_HEIGHT);
+    }
+
+    private void hideTopPanelButtons() {
+        previousStructureButton.visible = false;
+        nextStructureButton.visible = false;
+        addStructureButton.visible = false;
+        deleteStructureButton.visible = false;
+    }
+
+    private void updateTopPanelButtons() {
+        boolean hasStructures = !cachedStructurePaths.isEmpty();
+        boolean canTurn = cachedStructurePaths.size() > 1;
+
+        previousStructureButton.visible = topPanelVisible;
+        nextStructureButton.visible = topPanelVisible;
+        addStructureButton.visible = topPanelVisible;
+        deleteStructureButton.visible = topPanelVisible;
+
+        previousStructureButton.active = topPanelVisible && canTurn;
+        nextStructureButton.active = topPanelVisible && canTurn;
+        addStructureButton.active = topPanelVisible;
+        deleteStructureButton.active = topPanelVisible && hasStructures;
+
+        previousStructureButton.updateGradientFromState();
+        nextStructureButton.updateGradientFromState();
+        addStructureButton.updateGradientFromState();
+        deleteStructureButton.updateGradientFromState();
+
+        previousStructureButton.getToolTip().clear();
+        previousStructureButton.getToolTip().add(Component.translatable("ponderer.ui.ai_generate.prev.tooltip"));
+        nextStructureButton.getToolTip().clear();
+        nextStructureButton.getToolTip().add(Component.translatable("ponderer.ui.ai_generate.next.tooltip"));
+        addStructureButton.getToolTip().clear();
+        addStructureButton.getToolTip().add(Component.translatable("ponderer.ui.ai_generate.add.tooltip"));
+        deleteStructureButton.getToolTip().clear();
+        deleteStructureButton.getToolTip().add(Component.translatable("ponderer.ui.ai_generate.delete.tooltip"));
+    }
+
+    private void renderTopPanel(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        var font = Minecraft.getInstance().font;
+        int nameSeparatorY = panelY + PREVIEW_HEIGHT;
+        int navSeparatorY = navRowY + NAV_ROW_HEIGHT;
+        int navCenterY = navRowY + (NAV_ROW_HEIGHT - 8) / 2;
+
+        graphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, PANEL_BACKGROUND);
+        graphics.fill(panelX, panelY, panelX + panelW, panelY + 1, PANEL_BORDER);
+        graphics.fill(panelX, panelY + panelH - 1, panelX + panelW, panelY + panelH, PANEL_BORDER);
+        graphics.fill(panelX, panelY, panelX + 1, panelY + panelH, PANEL_BORDER);
+        graphics.fill(panelX + panelW - 1, panelY, panelX + panelW, panelY + panelH, PANEL_BORDER);
+        graphics.fill(panelX, nameSeparatorY, panelX + panelW, nameSeparatorY + 1, PANEL_BORDER);
+        graphics.fill(panelX, navSeparatorY, panelX + panelW, navSeparatorY + 1, PANEL_BORDER);
+
+        graphics.enableScissor(panelX + 1, previewY, panelX + panelW - 1, previewY + PREVIEW_HEIGHT - 1);
+        preview.render(graphics, partialTicks);
+        graphics.disableScissor();
+
+        graphics.drawCenteredString(font,
+            UIText.of("ponderer.ui.ai_generate.preview_title"),
+            panelX + panelW / 2,
+            panelY + 8,
+            PANEL_TEXT);
+
+        String structureName = currentStructureName();
+        graphics.drawCenteredString(font,
+            font.plainSubstrByWidth(structureName, Math.max(20, panelW - 16)),
+            panelX + panelW / 2,
+            nameY,
+            hasStructures() ? PANEL_TEXT : PANEL_MUTED_TEXT);
+
+        graphics.drawCenteredString(font,
+            currentStructureCounter(),
+            panelX + panelW / 2,
+            navCenterY,
+            PANEL_TEXT);
+
+        previousStructureButton.render(graphics, mouseX, mouseY, partialTicks);
+        nextStructureButton.render(graphics, mouseX, mouseY, partialTicks);
+        addStructureButton.render(graphics, mouseX, mouseY, partialTicks);
+        deleteStructureButton.render(graphics, mouseX, mouseY, partialTicks);
+
+        graphics.drawCenteredString(font,
+            UIText.of("ponderer.ui.ai_generate.add"),
+            addStructureButton.getX() + addStructureButton.getWidth() / 2,
+            addStructureButton.getY() + (addStructureButton.getHeight() - 8) / 2,
+            addStructureButton.active ? PANEL_TEXT : 0x777777);
+        graphics.drawCenteredString(font,
+            UIText.of("ponderer.ui.ai_generate.delete"),
+            deleteStructureButton.getX() + deleteStructureButton.getWidth() / 2,
+            deleteStructureButton.getY() + (deleteStructureButton.getHeight() - 8) / 2,
+            deleteStructureButton.active ? PANEL_TEXT : 0x777777);
+    }
+
+    private boolean hasStructures() {
+        return !cachedStructurePaths.isEmpty();
+    }
+
+    private void openStructurePicker() {
+        Minecraft.getInstance().setScreen(new StructurePickerScreen(
+            this::reopenFromStructurePicker,
+            snapshotState(),
+            "ai_generate_structure",
+            currentStructureReference()));
+    }
+
+    private void reopenFromStructurePicker(Map<String, String> snapshot) {
+        String selected = snapshot.get("ai_generate_structure");
+        if (selected != null && !selected.isBlank()) {
+            addStructureFromPicker(selected);
+        }
+        Minecraft.getInstance().setScreen(new AiGenerateScreen());
+    }
+
+    private void addStructureFromPicker(String structureId) {
+        Path path = resolveStructurePath(structureId);
+        if (path == null) {
+            setCachedStatus(UIText.of("ponderer.ui.ai_generate.error.invalid_structure"), true);
+            return;
+        }
+
+        for (int i = 0; i < cachedStructurePaths.size(); i++) {
+            if (cachedStructurePaths.get(i).equals(path)) {
+                cachedStructureIndex = i;
+                loadPreviewForCurrent();
+                setCachedStatus(null, false);
                 return;
             }
-            Path selected = Path.of(result);
+        }
 
-            Path target;
-            if (selected.startsWith(structuresDir)) {
-                target = selected;
-            } else {
-                String fileName = selected.getFileName().toString();
-                if (fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".nbt")) {
-                    fileName = SafePaths.sanitizeWindowsFileName(fileName.substring(0, fileName.length() - 4),
-                        "structure") + ".nbt";
-                } else {
-                    fileName = SafePaths.sanitizeWindowsFileName(fileName, "structure.nbt");
-                }
-                target = SafePaths.resolveFileName(structuresDir, fileName);
-                if (target == null) {
-                    setCachedStatus("Failed to copy: invalid target filename", true);
-                    refreshCurrentScreen();
-                    return;
-                }
-                try {
-                    Files.createDirectories(target.getParent());
-                    Files.copy(selected, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                } catch (Exception e) {
-                    setCachedStatus("Failed to copy: " + e.getMessage(), true);
-                    refreshCurrentScreen();
-                    return;
-                }
-            }
+        try {
+            StructureDescriber.StructureInfo info = StructureDescriber.describe(path);
+            cachedStructurePaths.add(path);
+            cachedStructureInfos.add(info);
+            cachedStructureIndex = cachedStructurePaths.size() - 1;
+            setCachedStatus(null, false);
+            loadPreviewForCurrent();
+        } catch (Exception e) {
+            setCachedStatus("Failed to parse NBT: " + e.getMessage(), true);
+        }
+    }
 
-            try {
-                StructureDescriber.StructureInfo info = StructureDescriber.describe(target);
-                cachedStructurePaths.add(target);
-                cachedStructureInfos.add(info);
-                cachedStructureIndex = cachedStructurePaths.size() - 1;
-                setCachedStatus(null, false);
-                loadPreviewForCurrent();
-                refreshCurrentScreen();
-            } catch (Exception e) {
-                setCachedStatus("Failed to parse NBT: " + e.getMessage(), true);
-                refreshCurrentScreen();
-            }
-        }, Minecraft.getInstance());
+    @Nullable
+    private Path resolveStructurePath(String structureId) {
+        String trimmed = structureId.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        String normalized = trimmed.toLowerCase(Locale.ROOT).startsWith("ponderer:")
+            ? trimmed
+            : "ponderer:" + trimmed;
+        ResourceLocation resourceId = ResourceLocation.tryParse(normalized);
+        if (resourceId == null) {
+            return null;
+        }
+        return SafePaths.resolveNamespacedPath(SceneStore.getStructureDir(), resourceId, "ponderer", ".nbt");
+    }
+
+    @Nullable
+    private String currentStructureReference() {
+        if (cachedStructurePaths.isEmpty()) {
+            return null;
+        }
+        Path structureDir = SceneStore.getStructureDir();
+        Path selected = cachedStructurePaths.get(cachedStructureIndex);
+        if (!selected.startsWith(structureDir)) {
+            return null;
+        }
+        String relative = structureDir.relativize(selected).toString().replace('\\', '/');
+        if (relative.toLowerCase(Locale.ROOT).endsWith(".nbt")) {
+            relative = relative.substring(0, relative.length() - 4);
+        }
+        return "ponderer:" + relative;
     }
 
     private void deleteStructure() {
@@ -339,7 +485,26 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         } else {
             loadPreviewForCurrent();
         }
+        updateTopPanelButtons();
         rebuildListPreservingScroll();
+    }
+
+    private void selectPreviousStructure() {
+        if (cachedStructurePaths.size() <= 1) {
+            return;
+        }
+        int target = cachedStructureIndex - 1;
+        if (target < 0) {
+            target = cachedStructurePaths.size() - 1;
+        }
+        selectStructure(target);
+    }
+
+    private void selectNextStructure() {
+        if (cachedStructurePaths.size() <= 1) {
+            return;
+        }
+        selectStructure((cachedStructureIndex + 1) % cachedStructurePaths.size());
     }
 
     private void selectStructure(int index) {
@@ -347,17 +512,18 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             return;
         }
         if (index == cachedStructureIndex
-            && previewVisible
+            && topPanelVisible
             && cachedStructurePaths.get(index).equals(loadedPreviewPath)) {
             return;
         }
         cachedStructureIndex = index;
         loadPreviewForCurrent();
+        updateTopPanelButtons();
         rebuildListPreservingScroll();
     }
 
     private void loadPreviewForCurrent() {
-        if (!previewVisible || cachedStructurePaths.isEmpty()) {
+        if (!topPanelVisible || cachedStructurePaths.isEmpty()) {
             return;
         }
         Path file = cachedStructurePaths.get(cachedStructureIndex);
@@ -422,7 +588,10 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         if (cachedGenerating) {
             return false;
         }
-
+        if (cachedStructurePaths.isEmpty()) {
+            setErrorMessage(UIText.of("ponderer.ui.ai_generate.error.no_structure"));
+            return false;
+        }
         if (cachedCarrier.trim().isEmpty()) {
             setErrorMessage(UIText.of("ponderer.ui.ai_generate.error.no_carrier"));
             return false;
@@ -489,6 +658,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         Minecraft.getInstance().execute(() -> {
             if (Minecraft.getInstance().screen == this) {
                 applyCachedStatus();
+                updateTopPanelButtons();
                 rebuildListPreservingScroll();
             }
         });
@@ -533,6 +703,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         cachedBuildTutorial = Boolean.parseBoolean(snapshot.getOrDefault("build_tutorial", "false"));
         cachedIncludeImages = Boolean.parseBoolean(snapshot.getOrDefault("include_images", "false"));
         referenceUrlManager.restore(snapshot);
+        updateTopPanelButtons();
     }
 
     private static StructureDescriber.StructureInfo describeStructureSafe(Path path) {
@@ -543,19 +714,37 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         }
     }
 
-    private String structuresHeaderLine() {
-        return UIText.of("ponderer.ui.ai_generate.structures_header") + " (" + cachedStructurePaths.size() + ")";
+    private int topPanelHeight() {
+        return PREVIEW_HEIGHT + STRUCTURE_NAME_HEIGHT + NAV_ROW_HEIGHT + BUTTON_ROW_HEIGHT + 2;
     }
 
-    private String structureDetailsLine() {
+    private String currentStructureName() {
         if (cachedStructurePaths.isEmpty()) {
-            return "";
+            return UIText.of("ponderer.ui.ai_generate.no_structure_name");
         }
-        StructureDescriber.StructureInfo info = cachedStructureInfos.get(cachedStructureIndex);
-        String blockTypes = String.join(", ", info.blockTypes());
-        if (blockTypes.length() > 64) {
-            blockTypes = blockTypes.substring(0, 61) + "...";
+        return cachedStructurePaths.get(cachedStructureIndex).getFileName().toString();
+    }
+
+    private String currentStructureCounter() {
+        if (cachedStructurePaths.isEmpty()) {
+            return "0/0";
         }
-        return info.sizeX() + " x " + info.sizeY() + " x " + info.sizeZ() + " | " + blockTypes;
+        return (cachedStructureIndex + 1) + "/" + cachedStructurePaths.size();
+    }
+
+    private static BoxWidget createTopPanelButton(Runnable callback) {
+        return new BoxWidget(0, 0, 20, 20).withPadding(2, 2).withCallback(callback);
+    }
+
+    private static class SpacerHeaderEntry extends ConfigScreenList.Entry {
+        @Override
+        public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
+                           int mouseX, int mouseY, boolean hovered, float partialTicks) {
+        }
+
+        @Override
+        public Component getNarration() {
+            return CommonComponents.EMPTY;
+        }
     }
 }
