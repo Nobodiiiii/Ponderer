@@ -8,11 +8,9 @@ import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.util.SafePaths;
-import net.createmod.catnip.data.Couple;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -50,15 +48,6 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private static final int HEADER_TITLE_COLOR = 0xFFCCCC77;
     private static final int HEADER_TEXT_COLOR = 0xFFFFFFFF;
     private static final int HEADER_MUTED_TEXT_COLOR = 0xFFAAAAAA;
-    private static final Couple<Color> NAV_BUTTON_BLUE =
-        Couple.create(new Color(0x4E8DFF), new Color(0x4E8DFF));
-    private static final Couple<Color> NAV_BUTTON_BLUE_HOVER =
-        Couple.create(new Color(0x6AA4FF), new Color(0x6AA4FF));
-    private static final Couple<Color> NAV_BUTTON_BLUE_CLICK =
-        Couple.create(new Color(0x3D78E6), new Color(0x3D78E6));
-    private static final Couple<Color> NAV_BUTTON_DISABLED =
-        Couple.create(new Color(0x5B6475), new Color(0x5B6475));
-    private static final Color NAV_BUTTON_BACKGROUND = new Color(0x1A2438);
 
     private final StructurePreviewWidget preview = new StructurePreviewWidget(0, 0, 0, 0);
     private int previewX;
@@ -678,13 +667,10 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     }
 
     private static BoxWidget createNavButton(PonderGuiTextures texture, Runnable callback, String tooltipKey) {
-        BoxWidget button = new BoxWidget(0, 0, NAV_BUTTON_SIZE, NAV_BUTTON_SIZE);
-        button.withPadding(2, 2);
-        button.withCallback(callback);
-        button.withCustomBackground(NAV_BUTTON_BACKGROUND);
-        button.withCustomTheme(NAV_BUTTON_BLUE, NAV_BUTTON_BLUE_HOVER, NAV_BUTTON_BLUE_CLICK, NAV_BUTTON_DISABLED);
+        BoxWidget button = new BoxWidget(0, 0, NAV_BUTTON_SIZE, NAV_BUTTON_SIZE)
+            .withPadding(2, 2)
+            .withCallback(callback);
         button.showingElement(PonderIconStencils.centered(texture));
-        button.getBox().withBackground(NAV_BUTTON_BACKGROUND);
         button.getToolTip().add(Component.translatable(tooltipKey));
         return button;
     }
