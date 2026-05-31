@@ -49,7 +49,7 @@ public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements 
     public static HeaderButton button(String label, Runnable action, @Nullable String tooltip,
                                       BooleanSupplier activeGetter) {
         return new HeaderButton(
-            new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withPadding(2, 2).withCallback(action),
+            new FormBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withPadding(2, 2).withCallback(action),
             () -> label,
             tooltip == null ? null : () -> List.of(Component.literal(tooltip)),
             activeGetter);
@@ -59,7 +59,7 @@ public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements 
                                           Runnable action,
                                           @Nullable Supplier<List<Component>> tooltipGetter,
                                           BooleanSupplier activeGetter) {
-        BoxWidget widget = new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(action);
+        BoxWidget widget = new FormBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(action);
         PonderIconStencils.attach(widget, icon);
         return new HeaderButton(widget, null, tooltipGetter, activeGetter);
     }

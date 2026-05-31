@@ -6,6 +6,7 @@ import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.FormBoxWidget;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.ConfigScreenList;
@@ -152,17 +153,30 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
         entries.add(FieldSpecs.sectionHeader(UIText.of("ponderer.ui.ai_generate.urls")));
         List<String> urlValues = referenceUrlManager.getUrlValues();
+        List<Boolean> urlAutoAdded = referenceUrlManager.getUrlAutoAdded();
         for (int i = 0; i < urlValues.size(); i++) {
             final int index = i;
+            final boolean isAutoAdded = index < urlAutoAdded.size() && urlAutoAdded.get(index);
+            // Auto-added rows (MCMod links resolved from the carrier item) get the [MC百科]
+            // label and are shown read-only, so they read as machine-generated references.
+            String labelKey = isAutoAdded
+                ? "ponderer.ui.ai_generate.url.mcmod"
+                : (i == 0 ? "ponderer.ui.ai_generate.urls" : "");
             entries.add(FieldSpecs.text(
                 FieldBindings.transientString(
                     () -> referenceUrlManager.getUrlValues().get(index),
                     value -> referenceUrlManager.updateUrl(index, value)),
-                i == 0 ? "ponderer.ui.ai_generate.urls" : "",
+                labelKey,
                 null,
                 "ponderer.ui.ai_generate.url.hint",
                 -1,
-                entry -> entry.field().setMaxLength(512),
+                entry -> {
+                    entry.field().setMaxLength(512);
+                    if (isAutoAdded) {
+                        entry.field().setEditable(false);
+                        entry.field().setCanLoseFocus(true);
+                    }
+                },
                 FieldDecorators.textAction("-", 0xFF6666, null, () -> removeUrl(index))));
         }
         entries.add(FieldSpecs.fullButton(
@@ -667,7 +681,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     }
 
     private static BoxWidget createNavButton(PonderGuiTextures texture, Runnable callback, String tooltipKey) {
-        BoxWidget button = new BoxWidget(0, 0, NAV_BUTTON_SIZE, NAV_BUTTON_SIZE)
+        BoxWidget button = new FormBoxWidget(0, 0, NAV_BUTTON_SIZE, NAV_BUTTON_SIZE)
             .withPadding(2, 2)
             .withCallback(callback);
         button.showingElement(PonderIconStencils.centered(texture));

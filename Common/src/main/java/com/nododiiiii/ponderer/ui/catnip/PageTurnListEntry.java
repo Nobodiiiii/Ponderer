@@ -41,8 +41,8 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         this.nextTooltipGetter = nextTooltipGetter;
         this.prevActiveGetter = prevActiveGetter;
         this.nextActiveGetter = nextActiveGetter;
-        this.prevButton = new BoxWidget(0, 0, BUTTON_WIDTH, 18).withCallback(onPrev);
-        this.nextButton = new BoxWidget(0, 0, BUTTON_WIDTH, 18).withCallback(onNext);
+        this.prevButton = new FormBoxWidget(0, 0, BUTTON_WIDTH, 18).withCallback(onPrev);
+        this.nextButton = new FormBoxWidget(0, 0, BUTTON_WIDTH, 18).withCallback(onNext);
         PonderIconStencils.attach(prevButton, PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_LEFT));
         PonderIconStencils.attach(nextButton, PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_RIGHT));
         listeners.add(prevButton);

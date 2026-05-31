@@ -24,7 +24,7 @@ public class LocalizedTextListEntry extends PlainTextListEntry {
         this.langGetter = langGetter;
         this.langText = new TextStencilElement(Minecraft.getInstance().font, "en_us")
             .centered(true, true);
-        this.langButton = new BoxWidget(0, 0, LANG_BUTTON_WIDTH, 16)
+        this.langButton = new FormBoxWidget(0, 0, LANG_BUTTON_WIDTH, 16)
             .showingElement(langText)
             .withCallback(onToggle);
         this.langText.withElementRenderer(BoxWidget.gradientFactory.apply(langButton));

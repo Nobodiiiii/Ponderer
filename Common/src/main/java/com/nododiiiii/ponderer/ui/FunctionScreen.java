@@ -47,10 +47,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 PondererClientCommands::openItemList,
                 "ponderer.ui.function_page.scene_list.tooltip"),
             new ButtonDef("ponderer.ui.function_page.reload",
-                () -> {
-                    Minecraft.getInstance().setScreen(null);
-                    PondererClientCommands.reloadLocal();
-                },
+                () -> runOnPageStatus(PondererClientCommands::reloadLocal),
                 "ponderer.ui.function_page.reload.tooltip")
         )));
 
@@ -83,16 +80,10 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
 
         sections.add(new Section("ponderer.ui.function_page.conversion", List.of(
             new ButtonDef("ponderer.ui.function_page.to_ponderjs",
-                () -> {
-                    Minecraft.getInstance().setScreen(null);
-                    PondererClientCommands.convertAllToPonderJs();
-                },
+                () -> runOnPageStatus(PondererClientCommands::convertAllToPonderJs),
                 "ponderer.ui.function_page.to_ponderjs.tooltip"),
             new ButtonDef("ponderer.ui.function_page.from_ponderjs",
-                () -> {
-                    Minecraft.getInstance().setScreen(null);
-                    PondererClientCommands.convertAllFromPonderJs();
-                },
+                () -> runOnPageStatus(PondererClientCommands::convertAllFromPonderJs),
                 "ponderer.ui.function_page.from_ponderjs.tooltip")
         )));
 
@@ -136,6 +127,14 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
     @Override
     protected int getEntryHeight() {
         return UILayoutConstants.COMPACT_LIST_ENTRY_H;
+    }
+
+    /**
+     * Run a direct-action command (reload / convert) and report its result on this page's
+     * status line instead of closing back to the game and printing to chat.
+     */
+    private void runOnPageStatus(Runnable command) {
+        PondererClientCommands.runReportingTo(this::setInfoMessage, this::setErrorMessage, command);
     }
 
     private static SectionHeaderListEntry compactSectionHeader(String title) {

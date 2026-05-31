@@ -33,7 +33,7 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
         this.valueField.moveCursorToStart();
         this.keyField.setHint("facing");
         this.valueField.setHint("north");
-        this.removeButton = new BoxWidget(0, 0, 20, 16).withCallback(onRemove);
+        this.removeButton = new FormBoxWidget(0, 0, 20, 16).withCallback(onRemove);
         PonderIconStencils.attachFail(removeButton, PonderIconStencils.centered(PonderGuiTextures.ICON_DISABLE));
         listeners.add(keyField);
         listeners.add(valueField);

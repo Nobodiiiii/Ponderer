@@ -15,6 +15,7 @@ import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.LevelResource;
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
@@ -584,7 +586,77 @@ public final class PondererClientCommands {
         return 1;
     }
 
-    private static void notifyClient(Component message) {
+    // ---- client message routing ----
+
+    /**
+     * Optional sink that intercepts {@link #notifyClient} output. When set, command result
+     * messages are routed here (e.g. into an on-screen status line) instead of the chat HUD.
+     * Only used for synchronous command execution; restored to its previous value afterwards.
+     */
+    @Nullable
+    private static Consumer<Component> messageSink = null;
+
+    /** Run {@code action} with command messages routed to {@code sink} instead of chat. Re-entrant safe. */
+    public static void runWithMessageSink(Consumer<Component> sink, Runnable action) {
+        Consumer<Component> previous = messageSink;
+        messageSink = sink;
+        try {
+            action.run();
+        } finally {
+            messageSink = previous;
+        }
+    }
+
+    /**
+     * Execute a (synchronous) command and report its collected messages to a screen: any error-looking
+     * message routes the combined text to {@code errorSink} (red), otherwise to {@code infoSink} (green).
+     * Empty output falls back to a neutral "done" notice.
+     */
+    public static void runReportingTo(Consumer<String> infoSink, Consumer<String> errorSink, Runnable action) {
+        List<Component> messages = new ArrayList<>();
+        runWithMessageSink(messages::add, action);
+
+        if (messages.isEmpty()) {
+            infoSink.accept(Component.translatable("ponderer.ui.command.no_output").getString());
+            return;
+        }
+
+        boolean anyError = false;
+        StringBuilder combined = new StringBuilder();
+        for (Component message : messages) {
+            if (combined.length() > 0) {
+                combined.append("  ");
+            }
+            combined.append(message.getString());
+            anyError |= isErrorResult(message);
+        }
+
+        (anyError ? errorSink : infoSink).accept(combined.toString());
+    }
+
+    /**
+     * Best-effort severity check based on the command result's translation key. Keys for failure
+     * states ({@code .failed}, {@code not_found}, {@code no_item/no_nbt/no_scenes}, {@code .error})
+     * are treated as errors; success/progress keys (created/done/uploading/...) are not.
+     */
+    private static boolean isErrorResult(Component message) {
+        if (message.getContents() instanceof TranslatableContents translatable) {
+            String key = translatable.getKey();
+            return key.contains("failed")
+                || key.contains("not_found")
+                || key.contains("no_item")
+                || key.contains("no_nbt")
+                || key.contains("no_scenes")
+                || key.contains(".error");
+        }
+        return false;
+    }
+
+    static void notifyClient(Component message) {
+        if (messageSink != null) {
+            messageSink.accept(message);
+            return;
+        }
         if (Minecraft.getInstance().player != null) {
             Minecraft.getInstance().player.displayClientMessage(message, false);
         }

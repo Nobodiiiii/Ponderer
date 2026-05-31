@@ -150,6 +150,7 @@
   "ponderer.ui.error.invalid_number": "%s: invalid number",
   "ponderer.ui.error.invalid_integer": "%s: invalid integer",
   "ponderer.ui.error.required_field": "%s is required",
+  "ponderer.ui.command.no_output": "Done.",
   "ponderer.ui.save_error.scene_id_blank": "Cannot save: scene ID is required",
   "ponderer.ui.save_error.scene_id_invalid": "Cannot save: scene ID is invalid",
   "ponderer.ui.save_error.scene_id_invalid_char": "Cannot save: scene ID may only contain a-z, 0-9, ., _, -, /, :",

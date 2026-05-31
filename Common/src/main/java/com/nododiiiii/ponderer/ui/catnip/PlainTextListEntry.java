@@ -56,7 +56,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
     public BoxWidget addTrailingButton(int width, Runnable onClick, Supplier<String> labelGetter,
                                        IntSupplier colorGetter, @Nullable String tooltipText) {
-        BoxWidget button = new BoxWidget(0, 0, width, 16).withCallback(onClick);
+        BoxWidget button = new FormBoxWidget(0, 0, width, 16).withCallback(onClick);
         if (tooltipText != null && !tooltipText.isBlank()) {
             button.getToolTip().add(Component.literal(tooltipText));
         }

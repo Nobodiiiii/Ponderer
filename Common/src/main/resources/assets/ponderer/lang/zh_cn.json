@@ -150,6 +150,7 @@
   "ponderer.ui.error.invalid_number": "%s: 无效数字",
   "ponderer.ui.error.invalid_integer": "%s: 无效整数",
   "ponderer.ui.error.required_field": "%s 不能为空",
+  "ponderer.ui.command.no_output": "已执行",
   "ponderer.ui.save_error.scene_id_blank": "无法保存：场景 ID 不能为空",
   "ponderer.ui.save_error.scene_id_invalid": "无法保存：场景 ID 无效",
   "ponderer.ui.save_error.scene_id_invalid_char": "无法保存：场景 ID 中只能包含 a-z、0-9、.、_、-、/、:",

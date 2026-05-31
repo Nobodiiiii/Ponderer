@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
 import java.lang.reflect.Method;
 import java.util.Set;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 @JeiPlugin
 public class PondererJeiPlugin implements IModPlugin {
@@ -278,19 +279,22 @@ public class PondererJeiPlugin implements IModPlugin {
     }
 
     private static void generateAndAddMcmodUrl(AiGenerateScreen aiScreen, ItemStack stack) {
-        try {
-            ResourceLocation registryName = BuiltInRegistries.ITEM.getKey(stack.getItem());
-            if (registryName != null) {
-                Optional<String> urlOptional = McmodApiClient.getItemUrl(registryName.toString());
-                if (urlOptional.isPresent()) {
-                    aiScreen.updateAutoUrl(urlOptional.get(), registryName.toString());
-                } else {
-                    aiScreen.updateAutoUrl(null, registryName.toString());
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.warn("Failed to generate and add MCMod URL: {}", e.getMessage());
+        ResourceLocation registryName = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (registryName == null) {
+            return;
         }
+        String itemId = registryName.toString();
+        // McmodApiClient.getItemUrl performs a blocking HTTP request (up to 10s). Run it off the
+        // client thread so the click doesn't freeze the game, then apply the result back on the
+        // client thread (updateAutoUrl guards its rebuild against the screen having changed).
+        CompletableFuture
+            .supplyAsync(() -> McmodApiClient.getItemUrl(itemId))
+            .exceptionally(error -> {
+                LOGGER.warn("Failed to generate and add MCMod URL: {}", error.getMessage());
+                return Optional.empty();
+            })
+            .thenAcceptAsync(urlOptional -> aiScreen.updateAutoUrl(urlOptional.orElse(null), itemId),
+                Minecraft.getInstance());
     }
 
     private static void syncOverlayState(Object overlay, Screen screen) throws Exception {

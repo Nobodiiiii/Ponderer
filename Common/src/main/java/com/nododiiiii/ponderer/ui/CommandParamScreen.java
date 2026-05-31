@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
@@ -175,8 +176,12 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         }
 
         deactivateJei();
-        Minecraft.getInstance().setScreen(null);
-        onExecute.accept(values);
+        // Keep the screen open and report the command's result inline at the bottom status line,
+        // instead of closing back to the game and printing to chat.
+        PondererClientCommands.runReportingTo(
+            this::setInfoMessage, this::setErrorMessage, () -> onExecute.accept(values));
+        // Re-baseline so a subsequent "back" doesn't prompt about unsaved changes (which would re-run).
+        markStateSaved();
         return true;
     }
 
