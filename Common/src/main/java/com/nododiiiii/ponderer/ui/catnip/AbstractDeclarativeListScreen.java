@@ -8,7 +8,6 @@ import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.lang.FontHelper;
 import net.createmod.catnip.lang.FontHelper.Palette;
 import net.createmod.ponder.enums.PonderGuiTextures;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -67,7 +66,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         int listLeft = width / 2 - listWidth / 2 + listHorizontalOffset();
         int actionLeft = listLeft + listWidth + 10;
 
-        saveChanges = new BoxWidget(actionLeft, yCenter - 25, 20, 20)
+        saveChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter - 25, 20, 20)
             .withPadding(2, 2)
             .withCallback(this::saveEdits);
         saveChanges.showingElement(PonderGuiTextures.ICON_CONFIG_SAVE.asStencil()
@@ -75,7 +74,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         setActionButtonTooltip(saveChanges, "catnip.ui.save_changes_button", "catnip.ui.save_changes_button_tooltip");
         addRenderableWidget(saveChanges);
 
-        discardChanges = new BoxWidget(actionLeft, yCenter + 5, 20, 20)
+        discardChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter + 5, 20, 20)
             .withPadding(2, 2)
             .withCallback(this::confirmDiscardChanges);
         discardChanges.showingElement(PonderGuiTextures.ICON_CONFIG_DISCARD.asStencil()
@@ -83,7 +82,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         setActionButtonTooltip(discardChanges, "catnip.ui.discard_changes_button", "catnip.ui.discard_changes_button_tooltip");
         addRenderableWidget(discardChanges);
 
-        goBack = new BoxWidget(actionLeft, yCenter + 65, 20, 20)
+        goBack = new ScreenTooltipBoxWidget(actionLeft, yCenter + 65, 20, 20)
             .withPadding(2, 2)
             .withCallback(this::attemptBackToParent);
         goBack.showingElement(PonderGuiTextures.ICON_CONFIG_BACK.asStencil()
@@ -353,7 +352,10 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         }
 
         button.getToolTip().clear();
-        button.getToolTip().add(Component.literal(UIText.of(titleKey)).withStyle(ChatFormatting.WHITE));
+        button.getToolTip().addAll(FontHelper.cutStringTextComponent(
+            UIText.of(titleKey),
+            FontHelper.styleFromColor(net.minecraft.ChatFormatting.WHITE),
+            FontHelper.styleFromColor(net.minecraft.ChatFormatting.WHITE)));
         if (detailKey != null && !detailKey.isBlank()) {
             button.getToolTip().addAll(FontHelper.cutStringTextComponent(UIText.of(detailKey), Palette.ALL_GRAY));
         }
