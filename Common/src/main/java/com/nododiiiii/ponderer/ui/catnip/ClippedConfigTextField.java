@@ -7,9 +7,22 @@ import net.minecraft.client.gui.GuiGraphics;
 public class ClippedConfigTextField extends ConfigTextField {
 
     private static final int HINT_COLOR = 0x90_A0A0A0;
+    private boolean consumeRightClick = false;
 
     public ClippedConfigTextField(Font font, int x, int y, int width, int height) {
         super(font, x, y, width, height);
+    }
+
+    public void setConsumeRightClick(boolean consumeRightClick) {
+        this.consumeRightClick = consumeRightClick;
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (consumeRightClick && button == 1 && isMouseOver(mouseX, mouseY)) {
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override

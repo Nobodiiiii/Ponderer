@@ -159,9 +159,11 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             final boolean isAutoAdded = index < urlAutoAdded.size() && urlAutoAdded.get(index);
             // Auto-added rows (MCMod links resolved from the carrier item) get the [MC百科]
             // label and are shown read-only, so they read as machine-generated references.
+            // Manual rows always keep the "参考网址" label, otherwise later rows can look unlabeled
+            // after dynamic rebuilds when multiple references are added.
             String labelKey = isAutoAdded
                 ? "ponderer.ui.ai_generate.url.mcmod"
-                : (i == 0 ? "ponderer.ui.ai_generate.urls" : "");
+                : "ponderer.ui.ai_generate.urls";
             entries.add(FieldSpecs.text(
                 FieldBindings.transientString(
                     () -> referenceUrlManager.getUrlValues().get(index),
@@ -172,6 +174,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 -1,
                 entry -> {
                     entry.field().setMaxLength(512);
+                    if (entry.field() instanceof com.nododiiiii.ponderer.ui.catnip.ClippedConfigTextField textField) {
+                        textField.setConsumeRightClick(true);
+                    }
                     if (isAutoAdded) {
                         entry.field().setEditable(false);
                         entry.field().setCanLoseFocus(true);
