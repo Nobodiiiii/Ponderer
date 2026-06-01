@@ -245,20 +245,17 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private void configureActionButtons() {
         if (saveChanges != null) {
             saveChanges.withCallback(this::saveEdits);
-            saveChanges.getToolTip().clear();
-            saveChanges.getToolTip().add(net.minecraft.network.chat.Component.translatable("ponderer.ui.save"));
+            setActionButtonTooltip(saveChanges, "ponderer.ui.save");
         }
         if (discardChanges != null) {
             discardChanges.withCallback(this::cancelAndExit);
-            discardChanges.getToolTip().clear();
-            discardChanges.getToolTip().add(net.minecraft.network.chat.Component.translatable("ponderer.ui.cancel"));
+            setActionButtonTooltip(discardChanges, "ponderer.ui.cancel");
         }
         if (goBack != null) {
             goBack.withCallback(this::reloadAndExit);
             goBack.visible = true;
             goBack.active = true;
-            goBack.getToolTip().clear();
-            goBack.getToolTip().add(net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.back"));
+            setActionButtonTooltip(goBack, "ponderer.ui.scene_editor.back");
         }
         relayoutSidebarButtons();
     }

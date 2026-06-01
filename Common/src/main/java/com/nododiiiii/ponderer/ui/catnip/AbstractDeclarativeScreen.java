@@ -12,8 +12,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.function.Consumer;
 
 public abstract class AbstractDeclarativeScreen extends ConfigScreen implements PondererUiScaling.ScaledScreen {
@@ -108,12 +110,16 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
         int color = errorMessage != null && !errorMessage.isBlank()
             ? AbstractSimiWidget.COLOR_FAIL.getFirst().getRGB()
             : AbstractSimiWidget.COLOR_SUCCESS.getFirst().getRGB();
-        graphics.drawString(
-            minecraft.font,
-            minecraft.font.plainSubstrByWidth(message, maxWidth),
-            x,
-            y,
-            color);
+
+        // Wrap long messages across multiple lines instead of truncating to a single line.
+        // The given y is the bottom anchor (just above the screen's bottom controls), so extra
+        // lines stack upward into the empty space above rather than overlapping the controls.
+        int lineHeight = minecraft.font.lineHeight;
+        List<FormattedCharSequence> lines = minecraft.font.split(Component.literal(message), Math.max(1, maxWidth));
+        int topY = y - Math.max(0, lines.size() - 1) * lineHeight;
+        for (int i = 0; i < lines.size(); i++) {
+            graphics.drawString(minecraft.font, lines.get(i), x, topY + i * lineHeight, color);
+        }
     }
 
     protected String getBreadcrumbScopeText() {
