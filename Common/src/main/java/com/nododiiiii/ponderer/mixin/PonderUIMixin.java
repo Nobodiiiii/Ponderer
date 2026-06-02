@@ -201,11 +201,11 @@ public abstract class PonderUIMixin extends Screen {
      * is hovering it so users can page through the list.
      */
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
-    private void ponderer$routeScrollToTextList(double mouseX, double mouseY, double delta,
+    private void ponderer$routeScrollToTextList(double mouseX, double mouseY, double scrollX, double scrollY,
             CallbackInfoReturnable<Boolean> cir) {
         for (GuiEventListener child : this.children()) {
             if (child instanceof PonderTextListWidget panel && panel.isMouseOver(mouseX, mouseY)) {
-                if (panel.mouseScrolled(mouseX, mouseY, 0.0, delta)) {
+                if (panel.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
                     cir.setReturnValue(true);
                 }
                 return;

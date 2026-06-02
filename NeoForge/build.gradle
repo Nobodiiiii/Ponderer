@@ -71,6 +71,39 @@ dependencies {
     compileOnly("maven.modrinth:resourcify:${resourcify_version}")
 }
 
+// Ponder switched NeoForge Maven coordinates from Ponder-NeoForge-<mc> to
+// ponder-neoforge while keeping the same runtime mod id. Normalize our
+// embedded fallback metadata so NeoForge JarJar compares it with newer
+// Create-provided Ponder jars instead of selecting our older fallback first.
+tasks.named("jarJar").configure {
+    outputs.upToDateWhen { false }
+    doLast {
+        def metadataFiles = [
+            layout.buildDirectory.file("tmp/jarJar/metadata.json").get().asFile,
+            layout.buildDirectory.file("generated/jarJar/META-INF/jarjar/metadata.json").get().asFile
+        ]
+
+        metadataFiles.findAll { it.isFile() }.each { metadataFile ->
+            def metadata = new groovy.json.JsonSlurper().parse(metadataFile)
+            def changed = false
+
+            metadata.jars?.each { embedded ->
+                if (embedded.identifier?.group == "net.createmod.ponder"
+                    && embedded.identifier?.artifact == "Ponder-NeoForge-${minecraft_version}") {
+                    embedded.identifier.artifact = "ponder-neoforge"
+                    changed = true
+                }
+            }
+
+            if (changed) {
+                metadataFile.text = groovy.json.JsonOutput.prettyPrint(
+                    groovy.json.JsonOutput.toJson(metadata)
+                )
+            }
+        }
+    }
+}
+
 // Merge Common source into NeoForge compilation
 tasks.named("compileJava", JavaCompile).configure {
     source(commonProject.sourceSets.main.allSource)
