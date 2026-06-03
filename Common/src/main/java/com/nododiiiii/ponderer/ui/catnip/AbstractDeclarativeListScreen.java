@@ -71,7 +71,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             .withCallback(this::saveEdits);
         saveChanges.showingElement(PonderGuiTextures.ICON_CONFIG_SAVE.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
-        setActionButtonTooltip(saveChanges, "catnip.ui.save_changes_button", "catnip.ui.save_changes_button_tooltip");
+        setActionButtonTooltip(saveChanges, "ponderer.ui.save", "ponderer.ui.sidebar.save.tooltip");
         addRenderableWidget(saveChanges);
 
         discardChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter + 5, 20, 20)
@@ -79,7 +79,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             .withCallback(this::confirmDiscardChanges);
         discardChanges.showingElement(PonderGuiTextures.ICON_CONFIG_DISCARD.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(discardChanges)));
-        setActionButtonTooltip(discardChanges, "catnip.ui.discard_changes_button", "catnip.ui.discard_changes_button_tooltip");
+        setActionButtonTooltip(discardChanges, "ponderer.ui.cancel", "ponderer.ui.sidebar.cancel.tooltip");
         addRenderableWidget(discardChanges);
 
         goBack = new ScreenTooltipBoxWidget(actionLeft, yCenter + 65, 20, 20)
@@ -87,7 +87,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             .withCallback(this::attemptBackToParent);
         goBack.showingElement(PonderGuiTextures.ICON_CONFIG_BACK.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(goBack)));
-        setActionButtonTooltip(goBack, "catnip.ui.go_back_button");
+        setActionButtonTooltip(goBack, "ponderer.ui.back", "ponderer.ui.sidebar.back.tooltip");
         addRenderableWidget(goBack);
 
         list = new ConfigScreenList(minecraft, listWidth, contentAreaHeight(), contentAreaTop(), getEntryHeight());
@@ -346,9 +346,9 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         }
 
         button.getToolTip().clear();
-        button.getToolTip().add(Component.translatable(titleKey));
+        button.getToolTip().add(Component.literal(UIText.of(titleKey)));
         if (detailKey != null && !detailKey.isBlank()) {
-            button.getToolTip().addAll(FontHelper.cutTextComponent(Component.translatable(detailKey), Palette.ALL_GRAY));
+            button.getToolTip().addAll(FontHelper.cutTextComponent(Component.literal(UIText.of(detailKey)), Palette.ALL_GRAY));
         }
     }
 
