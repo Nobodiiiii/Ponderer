@@ -55,7 +55,7 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
                                      Runnable action,
                                      IntSupplier colorGetter,
                                      BooleanSupplier activeGetter) {
-        return new ButtonModel(new BoxWidget(0, 0, 60, 18).withPadding(2, 2).withCallback(action),
+        return new ButtonModel(new FormBoxWidget(0, 0, 60, 18).withPadding(2, 2).withCallback(action),
             labelGetter,
             tooltipGetter,
             colorGetter,
@@ -67,7 +67,7 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
                                          Runnable action,
                                          @Nullable Supplier<List<Component>> tooltipGetter,
                                          BooleanSupplier activeGetter) {
-        BoxWidget widget = new BoxWidget(0, 0, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE).withPadding(2, 2).withCallback(action);
+        BoxWidget widget = new FormBoxWidget(0, 0, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE).withPadding(2, 2).withCallback(action);
         DelegatedStencilElement icon = PonderIconStencils.centered(texture);
         PonderIconStencils.attach(widget, icon);
         return new ButtonModel(widget, null, tooltipGetter, () -> 0xFFFFFF, activeGetter, ICON_BUTTON_SIZE);
@@ -77,7 +77,7 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
                                              Runnable action,
                                              @Nullable Supplier<List<Component>> tooltipGetter,
                                              BooleanSupplier activeGetter) {
-        BoxWidget widget = new BoxWidget(0, 0, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE).withPadding(2, 2).withCallback(action);
+        BoxWidget widget = new FormBoxWidget(0, 0, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE).withPadding(2, 2).withCallback(action);
         DelegatedStencilElement icon = PonderIconStencils.centered(texture);
         PonderIconStencils.attachFail(widget, icon);
         return new ButtonModel(widget, null, tooltipGetter, () -> 0xFFFFFF, activeGetter, ICON_BUTTON_SIZE);

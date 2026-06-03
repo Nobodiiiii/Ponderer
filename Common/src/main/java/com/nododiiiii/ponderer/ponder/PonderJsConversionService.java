@@ -456,8 +456,6 @@ public final class PonderJsConversionService {
     }
 
     private static void notifyClient(net.minecraft.network.chat.Component message) {
-        if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(message, false);
-        }
+        PondererClientCommands.notifyClient(message);
     }
 }

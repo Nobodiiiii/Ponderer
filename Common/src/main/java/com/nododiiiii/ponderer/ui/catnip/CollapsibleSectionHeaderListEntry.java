@@ -36,7 +36,7 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
         this.collapsedGetter = collapsedGetter;
         this.collapsedTooltipGetter = collapsedTooltipGetter;
         this.expandedTooltipGetter = expandedTooltipGetter;
-        this.toggleButton = new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withPadding(2, 2).withCallback(onToggle);
+        this.toggleButton = new FormBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withPadding(2, 2).withCallback(onToggle);
         listeners.add(toggleButton);
     }
 

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
+import com.nododiiiii.ponderer.ui.catnip.FormBoxWidget;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.ui.catnip.SearchableListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
@@ -253,9 +254,9 @@ public class PondererKeyBindingsScreen extends AbstractDeclarativeListScreen {
             getLabelTooltip().add(Component.literal(actionText(binding)));
             getLabelTooltip().add(Component.literal(UIText.of("ponderer.ui.keybindings.rebind.tooltip", defaultKeyText(binding))));
 
-            this.bindingButton = new BoxWidget(0, 0, 120, 16)
+            this.bindingButton = new FormBoxWidget(0, 0, 120, 16)
                 .withCallback(() -> beginListening(binding));
-            this.resetButton = new BoxWidget(0, 0, RESET_BUTTON_WIDTH, 16)
+            this.resetButton = new FormBoxWidget(0, 0, RESET_BUTTON_WIDTH, 16)
                 .withPadding(2, 2)
                 .withCallback(() -> resetBinding(binding));
             PonderIconStencils.attach(this.resetButton, PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_RESET));

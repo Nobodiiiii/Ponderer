@@ -399,8 +399,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 saveChanges.visible = true;
                 saveChanges.active = true;
                 saveChanges.withCallback(this::confirmSelection);
-                saveChanges.getToolTip().clear();
-                saveChanges.getToolTip().add(Component.translatable("ponderer.ui.confirm"));
+                setActionButtonTooltip(saveChanges, "ponderer.ui.confirm");
             } else {
                 saveChanges.visible = false;
                 saveChanges.active = false;
@@ -412,8 +411,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 discardChanges.visible = true;
                 discardChanges.active = true;
                 discardChanges.withCallback(this::cancelSelection);
-                discardChanges.getToolTip().clear();
-                discardChanges.getToolTip().add(Component.translatable("ponderer.ui.cancel"));
+                setActionButtonTooltip(discardChanges, "ponderer.ui.cancel");
             } else {
                 discardChanges.visible = false;
                 discardChanges.active = false;

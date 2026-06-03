@@ -100,6 +100,7 @@ public class StructurePreviewWidget {
 
     @Nullable
     private String statusKey;
+    private boolean showDefaultPlaceholder = true;
 
     public StructurePreviewWidget(int x, int y, int w, int h) {
         this.x = x;
@@ -126,6 +127,10 @@ public class StructurePreviewWidget {
     public void setStatus(@Nullable String translationKey) {
         dispose();
         this.statusKey = translationKey;
+    }
+
+    public void setShowDefaultPlaceholder(boolean showDefaultPlaceholder) {
+        this.showDefaultPlaceholder = showDefaultPlaceholder;
     }
 
     /** Load + bake. Returns the number of placed blocks (0 on failure). */
@@ -269,6 +274,9 @@ public class StructurePreviewWidget {
     }
 
     private void renderStatus(GuiGraphics graphics) {
+        if (statusKey == null && !showDefaultPlaceholder) {
+            return;
+        }
         String key = statusKey != null ? statusKey : "ponderer.ui.structure_picker.preview.placeholder";
         Component text = Component.translatable(key);
         Minecraft mc = Minecraft.getInstance();

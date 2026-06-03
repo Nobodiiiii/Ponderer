@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.client.ClientInputHandler;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
+import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import com.nododiiiii.ponderer.ponder.DslScene;
@@ -18,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(PonderUI.class)
+@Mixin(value = PonderUI.class, priority = 1100)
 public abstract class PonderUIMirrorRenderMixin {
     @Inject(method = "renderScene", at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$skipStructureWhenMirrorAttached(GuiGraphics graphics, int mouseX, int mouseY, int i,
@@ -49,6 +50,7 @@ public abstract class PonderUIMirrorRenderMixin {
         }
 
         graphics.flush();
+        graphics.pose().popPose();
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableDepthTest();
@@ -68,6 +70,10 @@ public abstract class PonderUIMirrorRenderMixin {
         if (JeiCompat.shouldRenderPonderUiOverlayManually((Screen) (Object) this)) {
             JeiCompat.renderPonderUiOverlay((Screen) (Object) this, graphics, mouseX, mouseY, partialTicks);
         }
+
+        graphics.flush();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_TEXT_BASELINE_LAYER);
     }
 
     @Inject(method = "renderWidgets", at = @At("TAIL"), remap = false)
@@ -79,12 +85,17 @@ public abstract class PonderUIMirrorRenderMixin {
         }
 
         graphics.flush();
+        graphics.pose().popPose();
         RenderSystem.disableDepthTest();
         if (JeiCompat.shouldRenderPonderUiOverlayManually((Screen) (Object) this)) {
             JeiCompat.renderPonderUiTooltips((Screen) (Object) this, graphics, mouseX, mouseY);
         }
         InterfaceSlotOverlayRenderer.renderTooltip(graphics, mirror, mouseX, mouseY);
         RenderSystem.enableDepthTest();
+
+        graphics.flush();
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_TEXT_BASELINE_LAYER);
     }
 
     @Inject(method = "tick", at = @At("HEAD"))

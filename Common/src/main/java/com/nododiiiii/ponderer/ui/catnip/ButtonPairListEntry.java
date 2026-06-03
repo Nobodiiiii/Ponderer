@@ -86,7 +86,7 @@ public class ButtonPairListEntry extends ConfigScreenList.LabeledEntry implement
 
     private static ButtonModel createButtonModel(String label, @Nullable String tooltip, Runnable action,
                                                  IntSupplier colorGetter, BooleanSupplier activeGetter) {
-        return new ButtonModel(new BoxWidget(0, 0, 120, 18).withCallback(action),
+        return new ButtonModel(new FormBoxWidget(0, 0, 120, 18).withCallback(action),
             () -> label,
             tooltip == null ? null : () -> tooltip,
             colorGetter,

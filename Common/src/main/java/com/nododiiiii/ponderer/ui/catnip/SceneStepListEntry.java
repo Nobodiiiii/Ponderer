@@ -71,7 +71,7 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
                                       IntSupplier colorGetter,
                                       BooleanSupplier activeGetter) {
         return new ActionButton(
-            new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withPadding(2, 2).withCallback(primaryClick),
+            new FormBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withPadding(2, 2).withCallback(primaryClick),
             labelGetter,
             tooltipGetter,
             secondaryClick,
@@ -84,7 +84,7 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
                                           Runnable primaryClick,
                                           @Nullable Runnable secondaryClick,
                                           BooleanSupplier activeGetter) {
-        BoxWidget widget = new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(primaryClick);
+        BoxWidget widget = new FormBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(primaryClick);
         PonderIconStencils.attach(widget, icon);
         return createIconButton(widget, tooltipGetter, secondaryClick, activeGetter);
     }
@@ -94,7 +94,7 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
                                                 Runnable primaryClick,
                                                 @Nullable Runnable secondaryClick,
                                                 BooleanSupplier activeGetter) {
-        BoxWidget widget = new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(primaryClick);
+        BoxWidget widget = new FormBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(primaryClick);
         PonderIconStencils.attachFail(widget, icon);
         return createIconButton(widget, tooltipGetter, secondaryClick, activeGetter);
     }

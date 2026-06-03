@@ -8,6 +8,7 @@ import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
+import com.nododiiiii.ponderer.ui.catnip.ScreenTooltipBoxWidget;
 import com.nododiiiii.ponderer.ui.catnip.SceneStepListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
@@ -245,20 +246,17 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private void configureActionButtons() {
         if (saveChanges != null) {
             saveChanges.withCallback(this::saveEdits);
-            saveChanges.getToolTip().clear();
-            saveChanges.getToolTip().add(net.minecraft.network.chat.Component.translatable("ponderer.ui.save"));
+            setActionButtonTooltip(saveChanges, "ponderer.ui.save");
         }
         if (discardChanges != null) {
             discardChanges.withCallback(this::cancelAndExit);
-            discardChanges.getToolTip().clear();
-            discardChanges.getToolTip().add(net.minecraft.network.chat.Component.translatable("ponderer.ui.cancel"));
+            setActionButtonTooltip(discardChanges, "ponderer.ui.cancel");
         }
         if (goBack != null) {
             goBack.withCallback(this::reloadAndExit);
             goBack.visible = true;
             goBack.active = true;
-            goBack.getToolTip().clear();
-            goBack.getToolTip().add(net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.back"));
+            setActionButtonTooltip(goBack, "ponderer.ui.scene_editor.back");
         }
         relayoutSidebarButtons();
     }
@@ -290,7 +288,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private BoxWidget createHistoryButton(int x, int y, Runnable callback,
                                           net.createmod.catnip.gui.element.DelegatedStencilElement icon,
                                           String tooltipTitleKey, String tooltipBodyKey) {
-        BoxWidget button = new BoxWidget(x, y, SIDEBAR_BUTTON_SIZE, SIDEBAR_BUTTON_SIZE)
+        BoxWidget button = new ScreenTooltipBoxWidget(x, y, SIDEBAR_BUTTON_SIZE, SIDEBAR_BUTTON_SIZE)
             .withPadding(2, 2)
             .withCallback(callback);
         PonderIconStencils.attach(button, icon);

@@ -45,7 +45,7 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
 
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
-        this.button = new BoxWidget(0, 0, buttonWidth, 16).withCallback(onClick);
+        this.button = new FormBoxWidget(0, 0, buttonWidth, 16).withCallback(onClick);
         listeners.add(button);
         refreshButtonTooltip();
     }

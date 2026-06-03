@@ -95,13 +95,11 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
         super.init();
         if (saveChanges != null) {
             saveChanges.withCallback(this::confirmSelection);
-            saveChanges.getToolTip().clear();
-            saveChanges.getToolTip().add(Component.translatable("ponderer.ui.confirm"));
+            setActionButtonTooltip(saveChanges, "ponderer.ui.confirm");
         }
         if (discardChanges != null) {
             discardChanges.withCallback(this::clearSelection);
-            discardChanges.getToolTip().clear();
-            discardChanges.getToolTip().add(Component.translatable("ponderer.ui.structure_picker.clear_selection"));
+            setActionButtonTooltip(discardChanges, "ponderer.ui.structure_picker.clear_selection");
         }
         layoutPreviewPanel();
         if (selectedPath != null && !selectedExternal && previewVisible) {

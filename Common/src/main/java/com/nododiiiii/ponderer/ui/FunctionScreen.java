@@ -47,10 +47,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 PondererClientCommands::openItemList,
                 "ponderer.ui.function_page.scene_list.tooltip"),
             new ButtonDef("ponderer.ui.function_page.reload",
-                () -> {
-                    Minecraft.getInstance().setScreen(null);
-                    PondererClientCommands.reloadLocal();
-                },
+                () -> runOnPageStatus(PondererClientCommands::reloadLocal),
                 "ponderer.ui.function_page.reload.tooltip")
         )));
 
@@ -83,16 +80,10 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
 
         sections.add(new Section("ponderer.ui.function_page.conversion", List.of(
             new ButtonDef("ponderer.ui.function_page.to_ponderjs",
-                () -> {
-                    Minecraft.getInstance().setScreen(null);
-                    PondererClientCommands.convertAllToPonderJs();
-                },
+                () -> runOnPageStatus(PondererClientCommands::convertAllToPonderJs),
                 "ponderer.ui.function_page.to_ponderjs.tooltip"),
             new ButtonDef("ponderer.ui.function_page.from_ponderjs",
-                () -> {
-                    Minecraft.getInstance().setScreen(null);
-                    PondererClientCommands.convertAllFromPonderJs();
-                },
+                () -> runOnPageStatus(PondererClientCommands::convertAllFromPonderJs),
                 "ponderer.ui.function_page.from_ponderjs.tooltip")
         )));
 
@@ -136,6 +127,10 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
     @Override
     protected int getEntryHeight() {
         return UILayoutConstants.COMPACT_LIST_ENTRY_H;
+    }
+
+    private void runOnPageStatus(Runnable command) {
+        PondererClientCommands.runReportingTo(this::setInfoMessage, this::setErrorMessage, command);
     }
 
     private static SectionHeaderListEntry compactSectionHeader(String title) {
@@ -215,9 +210,8 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                         return;
                     }
                     itemId = BuiltInRegistries.ITEM.getKey(held.getItem());
-                    net.minecraft.world.item.component.CustomData heldCustomData = held.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
-                    if (useHeldNbt && heldCustomData != null && !heldCustomData.isEmpty()) {
-                        nbt = heldCustomData.copyTag();
+                    if (useHeldNbt) {
+                        nbt = PondererClientCommands.extractStackNbtFilter(held);
                     }
                 } else {
                     itemId = ResourceLocation.tryParse(values.get("item_id"));
@@ -265,11 +259,11 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
             if (held.isEmpty()) {
                 return "";
             }
-            net.minecraft.world.item.component.CustomData heldCustomData = held.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
-            if (heldCustomData == null || heldCustomData.isEmpty()) {
+            CompoundTag filter = PondererClientCommands.extractStackNbtFilter(held);
+            if (filter == null || filter.isEmpty()) {
                 return "";
             }
-            return heldCustomData.copyTag().toString();
+            return filter.toString();
         });
 
         var player = Minecraft.getInstance().player;

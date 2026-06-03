@@ -9,6 +9,7 @@
     "PonderLocalizationMixin",
     "PonderSceneRegistryMixinFabric",
     "PonderSceneRegistryNbtMixinFabric",
+    "PonderLevelMixin",
     "MinecraftNbtPickMixin",
     "MinecraftCoordPickScrollMixin",
     "MinecraftSetScreenCaptureMixin",

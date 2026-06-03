@@ -34,7 +34,7 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
         this.tooltipGetter = tooltipGetter;
         this.colorGetter = colorGetter;
         this.activeGetter = activeGetter;
-        this.button = new BoxWidget(0, 0, 200, 18).withCallback(onClick);
+        this.button = new FormBoxWidget(0, 0, 200, 18).withCallback(onClick);
         listeners.add(button);
         refreshTooltip();
     }

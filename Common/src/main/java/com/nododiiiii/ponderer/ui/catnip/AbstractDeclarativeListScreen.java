@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.createmod.catnip.gui.ConfirmationScreen;
@@ -65,34 +66,28 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         int listLeft = width / 2 - listWidth / 2 + listHorizontalOffset();
         int actionLeft = listLeft + listWidth + 10;
 
-        saveChanges = new BoxWidget(actionLeft, yCenter - 25, 20, 20)
+        saveChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter - 25, 20, 20)
             .withPadding(2, 2)
             .withCallback(this::saveEdits);
         saveChanges.showingElement(PonderGuiTextures.ICON_CONFIG_SAVE.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
-        saveChanges.getToolTip().add(Component.translatable("catnip.ui.save_changes_button"));
-        saveChanges.getToolTip().addAll(FontHelper.cutTextComponent(
-            Component.translatable("catnip.ui.save_changes_button_tooltip"),
-            Palette.ALL_GRAY));
+        setActionButtonTooltip(saveChanges, "catnip.ui.save_changes_button", "catnip.ui.save_changes_button_tooltip");
         addRenderableWidget(saveChanges);
 
-        discardChanges = new BoxWidget(actionLeft, yCenter + 5, 20, 20)
+        discardChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter + 5, 20, 20)
             .withPadding(2, 2)
             .withCallback(this::confirmDiscardChanges);
         discardChanges.showingElement(PonderGuiTextures.ICON_CONFIG_DISCARD.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(discardChanges)));
-        discardChanges.getToolTip().add(Component.translatable("catnip.ui.discard_changes_button"));
-        discardChanges.getToolTip().addAll(FontHelper.cutTextComponent(
-            Component.translatable("catnip.ui.discard_changes_button_tooltip"),
-            Palette.ALL_GRAY));
+        setActionButtonTooltip(discardChanges, "catnip.ui.discard_changes_button", "catnip.ui.discard_changes_button_tooltip");
         addRenderableWidget(discardChanges);
 
-        goBack = new BoxWidget(actionLeft, yCenter + 65, 20, 20)
+        goBack = new ScreenTooltipBoxWidget(actionLeft, yCenter + 65, 20, 20)
             .withPadding(2, 2)
             .withCallback(this::attemptBackToParent);
         goBack.showingElement(PonderGuiTextures.ICON_CONFIG_BACK.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(goBack)));
-        goBack.getToolTip().add(Component.translatable("catnip.ui.go_back_button"));
+        setActionButtonTooltip(goBack, "catnip.ui.go_back_button");
         addRenderableWidget(goBack);
 
         list = new ConfigScreenList(minecraft, listWidth, contentAreaHeight(), contentAreaTop(), getEntryHeight());
@@ -338,6 +333,23 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     protected boolean isDiscardButtonActive() {
         return hasUnsavedChanges();
+    }
+
+    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey) {
+        setActionButtonTooltip(button, titleKey, null);
+    }
+
+    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey,
+                                                @Nullable String detailKey) {
+        if (button == null) {
+            return;
+        }
+
+        button.getToolTip().clear();
+        button.getToolTip().add(Component.translatable(titleKey));
+        if (detailKey != null && !detailKey.isBlank()) {
+            button.getToolTip().addAll(FontHelper.cutTextComponent(Component.translatable(detailKey), Palette.ALL_GRAY));
+        }
     }
 
     private void relayoutListViewport() {
