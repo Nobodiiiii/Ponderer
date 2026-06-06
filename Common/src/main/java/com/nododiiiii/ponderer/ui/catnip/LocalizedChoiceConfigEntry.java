@@ -11,16 +11,28 @@ public class LocalizedChoiceConfigEntry extends ButtonListEntry {
     public LocalizedChoiceConfigEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                                       ForgeConfigSpec.ConfigValue<String> value, ForgeConfigSpec.ValueSpec spec,
                                       List<String> optionLabelKeys, List<String> optionValues) {
+        this(labelKey, tooltipKey, buttonWidth, value, spec, optionLabelKeys, optionValues, null);
+    }
+
+    public LocalizedChoiceConfigEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                                      ForgeConfigSpec.ConfigValue<String> value, ForgeConfigSpec.ValueSpec spec,
+                                      List<String> optionLabelKeys, List<String> optionValues,
+                                      @Nullable Runnable onChanged) {
         this(labelKey, tooltipKey, buttonWidth, value, optionLabelKeys, optionValues,
-            ConfigEntrySupport.metadataOf(value, spec));
+            ConfigEntrySupport.metadataOf(value, spec), onChanged);
     }
 
     private LocalizedChoiceConfigEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                                        ForgeConfigSpec.ConfigValue<String> value,
                                        List<String> optionLabelKeys, List<String> optionValues,
-                                       ConfigEntrySupport.Metadata metadata) {
+                                       ConfigEntrySupport.Metadata metadata, @Nullable Runnable onChanged) {
         super(labelKey, tooltipKey, buttonWidth,
-            () -> cycleValue(value, optionValues, metadata),
+            () -> {
+                cycleValue(value, optionValues, metadata);
+                if (onChanged != null) {
+                    onChanged.run();
+                }
+            },
             () -> currentLabel(value, optionLabelKeys, optionValues, metadata),
             () -> 0xFFFFFF,
             (String) null);

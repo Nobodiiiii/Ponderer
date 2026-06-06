@@ -21,12 +21,22 @@ import java.util.concurrent.CompletableFuture;
  */
 public class AnthropicProvider implements LlmProvider {
 
+    private final int maxTokens;
+
+    public AnthropicProvider() {
+        this(Config.AI_MAX_TOKENS.get());
+    }
+
+    public AnthropicProvider(int maxTokens) {
+        this.maxTokens = maxTokens;
+    }
+
     @Override
     public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
                                                String baseUrl, String apiKey, String model) {
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
-        body.addProperty("max_tokens", Config.AI_MAX_TOKENS.get());
+        body.addProperty("max_tokens", maxTokens);
         body.addProperty("system", systemPrompt);
 
         JsonArray messages = new JsonArray();
@@ -55,14 +65,18 @@ public class AnthropicProvider implements LlmProvider {
         messages.add(userMsg);
         body.add("messages", messages);
 
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
             .uri(URI.create(baseUrl + "/v1/messages"))
             .header("Content-Type", "application/json")
-            .header("x-api-key", apiKey)
             .header("anthropic-version", "2023-06-01")
             .timeout(Duration.ofSeconds(120))
-            .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
-            .build();
+            .POST(HttpRequest.BodyPublishers.ofString(body.toString()));
+        if (apiKey.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
+            requestBuilder.header("Authorization", apiKey);
+        } else {
+            requestBuilder.header("x-api-key", apiKey);
+        }
+        HttpRequest request = requestBuilder.build();
 
         return HttpClientFactory.get().sendAsync(request, HttpResponse.BodyHandlers.ofString())
             .thenApply(response -> {

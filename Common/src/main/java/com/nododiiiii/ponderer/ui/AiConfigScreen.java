@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeConfigListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ConfigEntries;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import net.createmod.catnip.config.ui.ConfigHelper;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraftforge.fml.config.ModConfig;
 
@@ -27,6 +28,19 @@ public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(ConfigEntries.choiceEntry("ponderer.ui.ai_config.source",
+            "ponderer.ui.ai_config.source.tooltip",
+            Config.AI_CONFIG_SOURCE,
+            120,
+            List.of(
+                "ponderer.ui.ai_config.source.codex",
+                "ponderer.ui.ai_config.source.claude_code",
+                "ponderer.ui.ai_config.source.custom"),
+            List.of("codex", "claude_code", "custom"),
+            this::rebuildListPreservingScroll));
+        if (!usesCustomConfig()) {
+            return;
+        }
         entries.add(ConfigEntries.choiceEntry("ponderer.ui.ai_config.provider",
             "ponderer.ui.ai_config.provider.tooltip",
             Config.AI_PROVIDER,
@@ -61,6 +75,11 @@ public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
         entries.add(ConfigEntries.booleanEntry("ponderer.ui.ai_config.web_use_proxy",
             "ponderer.ui.ai_config.web_use_proxy.tooltip",
             Config.AI_WEB_USE_PROXY));
+    }
+
+    private static boolean usesCustomConfig() {
+        String source = ConfigHelper.getValue("ai.configSource", Config.AI_CONFIG_SOURCE);
+        return source == null || source.isBlank() || "custom".equalsIgnoreCase(source);
     }
 
 }

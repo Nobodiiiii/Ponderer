@@ -1,14 +1,9 @@
 package com.nododiiiii.ponderer.ai;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.UIText;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.platform.PondererServices;
@@ -18,10 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -38,14 +31,6 @@ import java.util.function.Consumer;
 public class AiSceneGenerator {
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final Gson GSON = new GsonBuilder()
-        .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
-        .setLenient()
-        .create();
-    private static final Gson GSON_PRETTY = new GsonBuilder()
-        .setPrettyPrinting()
-        .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
-        .create();
 
     /**
      * Generate a ponder scene from structure + user prompt using two LLM passes.
@@ -64,208 +49,32 @@ public class AiSceneGenerator {
                                  boolean buildTutorial, boolean includeImages,
                                  Consumer<String> onSuccess, Consumer<String> onError,
                                  Consumer<String> onStatus) {
-        String apiKey = Config.AI_API_KEY.get().trim();
-        if (apiKey.isEmpty()) {
-            onError.accept("API key not configured. Set it in Settings > AI Configuration.");
-            return;
-        }
-
         CompletableFuture.supplyAsync(() -> {
             try {
-                // 1. Parse structures (fall back to built-in basic if none specified)
-                List<StructureDescriber.StructureInfo> structures = new ArrayList<>();
-                List<String> structureNames = new ArrayList<>();
-                Set<String> allBlockTypesSet = new LinkedHashSet<>();
-
-                if (structurePaths.isEmpty()) {
-                    try (var is = SceneStore.openBuiltinStructure("basic")) {
-                        if (is != null) {
-                            StructureDescriber.StructureInfo info = StructureDescriber.describe(is);
-                            structures.add(info);
-                            structureNames.add("ponderer:basic");
-                            allBlockTypesSet.addAll(info.blockTypes());
-                        }
-                    }
-                } else {
-                    for (Path nbtPath : structurePaths) {
-                        StructureDescriber.StructureInfo info = StructureDescriber.describe(nbtPath);
-                        structures.add(info);
-                        String name = nbtPath.getFileName().toString();
-                        if (name.endsWith(".nbt")) name = name.substring(0, name.length() - 4);
-                        structureNames.add("ponderer:" + name);
-                        allBlockTypesSet.addAll(info.blockTypes());
-                    }
-                }
-                List<String> allBlockTypes = new ArrayList<>(allBlockTypesSet);
-
-                // 2. Build structure description text (shared between both passes)
-                StringBuilder structDescBuf = new StringBuilder();
-                structDescBuf.append("=== Structure Information ===\n");
-                structDescBuf.append("Structure pool:\n");
-                for (int i = 0; i < structureNames.size(); i++) {
-                    structDescBuf.append("  ").append(i + 1).append(". ").append(structureNames.get(i)).append("\n");
-                }
-                structDescBuf.append("\n");
-                for (int i = 0; i < structures.size(); i++) {
-                    structDescBuf.append("--- Structure: ").append(structureNames.get(i)).append(" ---\n");
-                    structDescBuf.append(structures.get(i).textDescription()).append("\n");
-                }
-                String structDesc = structDescBuf.toString();
-
-                // 3. Fetch web pages (if any)
-                List<LlmProvider.ContentBlock> webContent = new ArrayList<>();
-                StringBuilder webLogBuf = new StringBuilder();
-                if (referenceUrls.stream().anyMatch(u -> u != null && !u.isBlank())) {
-                    notifyStatus(onStatus, UIText.of("ponderer.ui.ai_generate.status.fetching_web"));
-                }
-                for (String url : referenceUrls) {
-                    if (url == null || url.isBlank()) continue;
-                    try {
-                        WebPageFetcher.WebPageContent page = WebPageFetcher.fetch(url);
-                        webContent.add(new LlmProvider.ContentBlock.Text(
-                            "=== Reference web page: " + url + " ===\n" + page.text()));
-                        webLogBuf.append("=== ").append(url).append(" ===\n");
-                        webLogBuf.append("Text length: ").append(page.text().length())
-                            .append(" chars, Images: ").append(page.images().size()).append("\n\n");
-                        webLogBuf.append(page.text()).append("\n\n");
-                        if (includeImages) {
-                            for (WebPageFetcher.ImageData img : page.images()) {
-                                webContent.add(new LlmProvider.ContentBlock.Image(img.base64(), img.mediaType()));
-                                webLogBuf.append("[Image: ").append(img.mediaType())
-                                    .append(", base64 length: ").append(img.base64().length()).append("]\n");
-                            }
-                        } else {
-                            webLogBuf.append("[Images skipped (includeImages=false), count: ")
-                                .append(page.images().size()).append("]\n");
-                        }
-                        webLogBuf.append("\n");
-                    } catch (Exception e) {
-                        LOGGER.warn("Failed to fetch reference URL: {}", url, e);
-                        webContent.add(new LlmProvider.ContentBlock.Text(
-                            "(Failed to fetch " + url + ": " + e.getMessage() + ")"));
-                        webLogBuf.append("=== FAILED: ").append(url).append(" ===\n")
-                            .append(e.getMessage()).append("\n\n");
-                    }
-                }
-                if (webLogBuf.length() > 0) {
-                    writeLog("last_web_content.log", webLogBuf.toString());
+                AiRuntimeConfig config = AiRuntimeConfigResolver.resolve();
+                if (!config.hasApiKey()) {
+                    throw new RuntimeException(
+                        "API key not configured. Fill custom AI settings or choose Codex/Claude Code in Settings > AI Configuration.");
                 }
 
-                // Create LLM provider (reused for both passes)
-                String provider = Config.AI_PROVIDER.get();
-                LlmProvider llm = "anthropic".equals(provider)
-                    ? new AnthropicProvider() : new OpenAiCompatProvider();
-                String baseUrl = Config.getEffectiveBaseUrl();
-                String model = Config.getEffectiveModel();
-                String structuresStr = String.join(", ", structureNames);
+                AiSceneAgentPipeline.Request request = new AiSceneAgentPipeline.Request(
+                    structurePaths == null ? List.of() : List.copyOf(structurePaths),
+                    carrierItemId,
+                    userPrompt,
+                    referenceUrls == null ? List.of() : List.copyOf(referenceUrls),
+                    existingJson,
+                    buildTutorial,
+                    includeImages
+                );
+                AiSceneAgentPipeline.Result result = AiSceneAgentPipeline.run(
+                    request,
+                    AiProviderFactory.create(config),
+                    config,
+                    status -> notifyStatus(onStatus, status),
+                    AiSceneGenerator::writeLog
+                );
 
-                // ---- PASS 1: Generate scene outline ----
-                notifyStatus(onStatus, UIText.of("ponderer.ui.ai_generate.status.outline"));
-
-                List<LlmProvider.ContentBlock> outlineContent = new ArrayList<>();
-                outlineContent.add(new LlmProvider.ContentBlock.Text(structDesc));
-                outlineContent.addAll(webContent);
-                if (existingJson != null && !existingJson.isBlank()) {
-                    outlineContent.add(new LlmProvider.ContentBlock.Text(
-                        "=== Current scene JSON (adjust based on instruction below) ===\n" + existingJson));
-                }
-                outlineContent.add(new LlmProvider.ContentBlock.Text(
-                    "=== User instruction ===\n" + userPrompt +
-                    "\n\nTarget item ID: " + carrierItemId +
-                    "\nStructures: " + structuresStr));
-
-                String outline = llm.generate(buildOutlineSystemPrompt(buildTutorial), outlineContent,
-                    baseUrl, apiKey, model).join();
-                LOGGER.info("Scene outline generated ({} chars)", outline.length());
-                writeLog("last_outline.log", outline);
-
-                // ---- Parse required elements and build targeted registry mapping ----
-                List<String> requiredElements = parseRequiredElements(outline);
-                LOGGER.info("Required elements from outline: {}", requiredElements);
-                String registryMapping = RegistryMapper.buildMappingForDisplayNames(requiredElements, allBlockTypes);
-                writeLog("last_registry_mapping.log", registryMapping);
-
-                // ---- PASS 2: Generate JSON (with retry on parse failure) ----
-                notifyStatus(onStatus, UIText.of("ponderer.ui.ai_generate.status.json"));
-
-                DslScene scene = null;
-                String json = null;
-                int parseAttempt = 0;
-
-                while (parseAttempt < 2 && scene == null) {
-                    parseAttempt++;
-                    if (parseAttempt == 2) {
-                        notifyStatus(onStatus, UIText.of("ponderer.ui.ai_generate.status.retry"));
-                    }
-
-                    List<LlmProvider.ContentBlock> jsonContent = new ArrayList<>();
-                    jsonContent.add(new LlmProvider.ContentBlock.Text(structDesc));
-                    jsonContent.add(new LlmProvider.ContentBlock.Text(registryMapping));
-                    jsonContent.addAll(webContent);
-                    if (existingJson != null && !existingJson.isBlank()) {
-                        jsonContent.add(new LlmProvider.ContentBlock.Text(
-                            "=== Current scene JSON (modify based on instruction below) ===\n" + existingJson));
-                    }
-                    jsonContent.add(new LlmProvider.ContentBlock.Text(
-                        "=== Scene design outline (follow this plan) ===\n" + outline));
-
-                    // On retry, add error context
-                    if (parseAttempt == 2 && json != null) {
-                        jsonContent.add(new LlmProvider.ContentBlock.Text(
-                            "=== PREVIOUS ATTEMPT FAILED ===\n" +
-                            "Your previous JSON response was invalid or incomplete. Please generate a complete, " +
-                            "valid JSON DslScene object that can be parsed correctly.\n" +
-                            "First 500 chars of previous attempt:\n" + json.substring(0, Math.min(500, json.length()))));
-                    }
-
-                    jsonContent.add(new LlmProvider.ContentBlock.Text(
-                        "=== User instruction ===\n" + userPrompt +
-                        "\n\nTarget item ID: " + carrierItemId +
-                        "\nStructures: " + structuresStr));
-
-                    String response = llm.generate(buildSystemPrompt(buildTutorial), jsonContent,
-                        baseUrl, apiKey, model).join();
-
-                    // Extract and clean JSON from response
-                    LOGGER.info("Pass 2 attempt {} - Raw LLM response generated ({} chars)", parseAttempt, response.length());
-                    writeLog("last_json_response_attempt_" + parseAttempt + ".log", response);
-                    json = extractJson(response);
-                    json = cleanJson(json);
-                    writeLog("last_extracted_json_attempt_" + parseAttempt + ".log", json);
-
-                    // Try to parse
-                    try {
-                        scene = GSON.fromJson(json, DslScene.class);
-                        if (scene == null || scene.id == null || scene.id.isBlank()) {
-                            scene = null; // Force retry
-                            LOGGER.warn("Pass 2 attempt {}: Scene parsed but has no ID or is null", parseAttempt);
-                        } else {
-                            LOGGER.info("Pass 2 attempt {}: JSON parsed successfully", parseAttempt);
-                        }
-                    } catch (Exception parseEx) {
-                        LOGGER.warn("Pass 2 attempt {}: JSON parse failed - {}", parseAttempt, parseEx.getMessage());
-                        if (parseAttempt < 2) {
-                            LOGGER.info("Retrying JSON generation...");
-                        } else {
-                            LOGGER.error("Both JSON generation attempts failed. Last error: {}", parseEx.getMessage());
-                            writeLog("last_parse_error.log",
-                                "Both attempts failed.\n\n" +
-                                "Attempt 1 error: (check last_extracted_json_attempt_1.log)\n" +
-                                "Attempt 2 error: " + parseEx.getMessage() + "\n\nFinal extracted JSON:\n" + json);
-                            throw new RuntimeException("JSON generation failed after 2 attempts. Last error: " + parseEx.getMessage(), parseEx);
-                        }
-                    }
-                }
-
-                if (scene == null) {
-                    throw new RuntimeException("Failed to generate valid scene after 2 attempts");
-                }
-
-                // 9a. Post-process: auto-add attachKeyFrame to all non-text/idle steps
-                autoAddKeyFrames(scene);
-
-                // 9. Pretty-print and save
-                SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(scene);
+                SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(result.scene());
                 if (!saveResult.isSuccess() || saveResult.path() == null) {
                     throw new RuntimeException(saveResult.englishMessage());
                 }
@@ -316,7 +125,7 @@ public class AiSceneGenerator {
      * underscores vs spaces, mixed case, trailing punctuation, etc.
      * Returns an empty list if the line is absent.
      */
-    private static List<String> parseRequiredElements(String outline) {
+    static List<String> parseRequiredElements(String outline) {
         String[] lines = outline.split("\n");
         for (int i = 0; i < lines.length; i++) {
             // Strip markdown bold/italic markers and leading/trailing whitespace
@@ -366,7 +175,7 @@ public class AiSceneGenerator {
      * Post-process: auto-add attachKeyFrame to the first non-text/idle step
      * in each consecutive run. Resets when a text or idle step is encountered.
      */
-    private static void autoAddKeyFrames(DslScene scene) {
+    static void autoAddKeyFrames(DslScene scene) {
         if (scene.scenes != null) {
             for (DslScene.SceneSegment seg : scene.scenes) {
                 if (seg.steps != null) addKeyFramesToSteps(seg.steps);
@@ -390,100 +199,6 @@ public class AiSceneGenerator {
         }
     }
 
-    /** Extract JSON object from LLM response, stripping markdown code fences and surrounding text. */
-    private static String extractJson(String response) {
-        String trimmed = response.trim();
-
-        // Strip markdown code fences: ```json ... ```, ```JSON ... ```, ``` ... ```
-        // Use regex to match ```json (case-insensitive) or plain ``` at line start,
-        // avoiding false matches like ```javascript or ```jsonl
-        java.util.regex.Matcher fenceMatcher = java.util.regex.Pattern.compile(
-            "```(?:json|JSON)?\\s*\\n", java.util.regex.Pattern.MULTILINE
-        ).matcher(trimmed);
-        if (fenceMatcher.find()) {
-            int contentStart = fenceMatcher.end();
-            int fenceEnd = trimmed.indexOf("```", contentStart);
-            if (fenceEnd > contentStart) {
-                trimmed = trimmed.substring(contentStart, fenceEnd).trim();
-            }
-        }
-
-        // Find the outermost JSON object by matching braces
-        int braceStart = trimmed.indexOf('{');
-        if (braceStart < 0) return trimmed;
-
-        int depth = 0;
-        boolean inString = false;
-        boolean escape = false;
-        for (int i = braceStart; i < trimmed.length(); i++) {
-            char c = trimmed.charAt(i);
-            if (escape) {
-                escape = false;
-                continue;
-            }
-            if (c == '\\' && inString) {
-                escape = true;
-                continue;
-            }
-            if (c == '"') {
-                inString = !inString;
-                continue;
-            }
-            if (!inString) {
-                if (c == '{') depth++;
-                else if (c == '}') {
-                    depth--;
-                    if (depth == 0) {
-                        return trimmed.substring(braceStart, i + 1);
-                    }
-                }
-            }
-        }
-
-        // Fallback: first { to last }
-        int braceEnd = trimmed.lastIndexOf('}');
-        if (braceEnd > braceStart) {
-            return trimmed.substring(braceStart, braceEnd + 1);
-        }
-        return trimmed;
-    }
-
-    /** Clean common LLM JSON issues: trailing commas before } or ] (string-aware). */
-    private static String cleanJson(String json) {
-        StringBuilder sb = new StringBuilder(json.length());
-        boolean inString = false;
-        boolean escape = false;
-        for (int i = 0; i < json.length(); i++) {
-            char c = json.charAt(i);
-            if (escape) {
-                escape = false;
-                sb.append(c);
-                continue;
-            }
-            if (c == '\\' && inString) {
-                escape = true;
-                sb.append(c);
-                continue;
-            }
-            if (c == '"') {
-                inString = !inString;
-                sb.append(c);
-                continue;
-            }
-            if (!inString && c == ',') {
-                // Look ahead: skip whitespace, check if next non-ws char is } or ]
-                int j = i + 1;
-                while (j < json.length() && Character.isWhitespace(json.charAt(j))) j++;
-                if (j < json.length() && (json.charAt(j) == '}' || json.charAt(j) == ']')) {
-                    // Skip this trailing comma (don't append it)
-                    continue;
-                }
-            }
-            sb.append(c);
-        }
-        return sb.toString();
-    }
-
     // -------------------------------------------------------------------------
     // System prompts — hot-reloadable from config/ponderer/prompts/
     // -------------------------------------------------------------------------
@@ -492,11 +207,19 @@ public class AiSceneGenerator {
     private static final String JSON_PROMPT_FILE = "json_system.txt";
 
     private static Path getPromptsDir() {
-        return PondererServices.PLATFORM.getConfigDir().resolve("ponderer").resolve("prompts");
+        return getConfigDirFallback().resolve("ponderer").resolve("prompts");
     }
 
     private static Path getLogsDir() {
-        return PondererServices.PLATFORM.getConfigDir().resolve("ponderer").resolve("logs");
+        return getConfigDirFallback().resolve("ponderer").resolve("logs");
+    }
+
+    private static Path getConfigDirFallback() {
+        try {
+            return PondererServices.PLATFORM.getConfigDir();
+        } catch (Throwable ignored) {
+            return Path.of(System.getProperty("java.io.tmpdir"), "ponderer-test-config");
+        }
     }
 
     /**
@@ -766,13 +489,13 @@ public class AiSceneGenerator {
             - zh_cn text is natural Chinese, not translated from English
             """;
 
-    private static String buildOutlineSystemPrompt(boolean buildTutorial) {
+    static String buildOutlineSystemPrompt(boolean buildTutorial) {
         String prompt = loadOrCreatePrompt(OUTLINE_PROMPT_FILE, getDefaultOutlineSystemPrompt());
         return prompt.replace(BUILD_TUTORIAL_PLACEHOLDER,
             buildTutorial ? BUILD_TUTORIAL_CONTENT : "");
     }
 
-    private static String buildSystemPrompt(boolean buildTutorial) {
+    static String buildSystemPrompt(boolean buildTutorial) {
         String prompt = loadOrCreatePrompt(JSON_PROMPT_FILE, getDefaultJsonSystemPrompt());
         return prompt.replace(EXAMPLE_PLACEHOLDER,
             buildTutorial ? MULTIBLOCK_EXAMPLE : SINGLE_BLOCK_EXAMPLE);

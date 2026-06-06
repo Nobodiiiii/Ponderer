@@ -32,8 +32,17 @@ public final class ConfigEntries {
                                                    int buttonWidth,
                                                    List<String> optionLabelKeys,
                                                    List<String> optionValues) {
+        return choiceEntry(labelKey, tooltipKey, value, buttonWidth, optionLabelKeys, optionValues, null);
+    }
+
+    public static DeclarativeFormEntry choiceEntry(String labelKey, @Nullable String tooltipKey,
+                                                   ForgeConfigSpec.ConfigValue<String> value,
+                                                   int buttonWidth,
+                                                   List<String> optionLabelKeys,
+                                                   List<String> optionValues,
+                                                   @Nullable Runnable onChanged) {
         return screen -> requireConfigScreen(screen)
-            .addChoiceConfigEntry(labelKey, tooltipKey, buttonWidth, value, optionLabelKeys, optionValues);
+            .addChoiceConfigEntry(labelKey, tooltipKey, buttonWidth, value, optionLabelKeys, optionValues, onChanged);
     }
 
     private static AbstractDeclarativeConfigListScreen requireConfigScreen(AbstractDeclarativeFormScreen screen) {

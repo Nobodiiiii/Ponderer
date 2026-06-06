@@ -22,12 +22,22 @@ import java.util.concurrent.CompletableFuture;
  */
 public class OpenAiCompatProvider implements LlmProvider {
 
+    private final int maxTokens;
+
+    public OpenAiCompatProvider() {
+        this(Config.AI_MAX_TOKENS.get());
+    }
+
+    public OpenAiCompatProvider(int maxTokens) {
+        this.maxTokens = maxTokens;
+    }
+
     @Override
     public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
                                                String baseUrl, String apiKey, String model) {
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
-        body.addProperty("max_tokens", Config.AI_MAX_TOKENS.get());
+        body.addProperty("max_tokens", maxTokens);
 
         JsonArray messages = new JsonArray();
 

@@ -26,6 +26,8 @@ Ponderer 是一个 Minecraft 模组，提供数据驱动的 Ponder 场景编写�
 
 - JSON DSL 场景定义：在 `config/ponderer/scripts/` 中使用 JSON 编写 Ponder 场景
 - 游戏内场景编辑器：新增/编辑/删除/排序步骤，支持复制粘贴、撤销重做、坐标选点（默认 `V`）
+- 文本进度条：支持在思索播放过程中逐步推进文本说明，适合多阶段提示和教学节奏引导
+- 界面思索：支持在思索中演示界面交互流程，适合展示容器、槽位变化和点击操作
 - AI 场景生成（Beta）：支持 Claude / ChatGPT 等 LLM 提供商
 - 蓝图与结构：选区保存结构，从 `config/ponderer/structures/` 加载
 - 多人协作同步：客户端与服务端拉取/推送场景（含冲突处理）
@@ -97,6 +99,8 @@ Ponderer is a Minecraft mod for data-driven Ponder authoring, in-game visual edi
 
 - JSON DSL scene definition under `config/ponderer/scripts/`
 - In-game scene editor (add/edit/delete/reorder steps, copy/paste, undo/redo, coordinate pick)
+- Text progress bars for staged guidance during scene playback
+- Interface-style Ponders for demonstrating GUI interactions, slot changes, and click actions inside scenes
 - AI scene generation (Beta) with multiple LLM providers
 - Blueprint structure capture and custom structure loading
 - Multiplayer pull/push sync with conflict handling

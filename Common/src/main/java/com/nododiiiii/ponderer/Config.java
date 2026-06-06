@@ -33,6 +33,11 @@ public class Config {
 
     // -- AI Scene Generation --
 
+    public static final ForgeConfigSpec.ConfigValue<String> AI_CONFIG_SOURCE = CLIENT_BUILDER
+        .comment("AI configuration source: 'custom', 'codex', or 'claude_code'.",
+                 "Custom uses the fields below. Codex and Claude Code read local tool configuration.")
+        .define("ai.configSource", "custom");
+
     public static final ForgeConfigSpec.ConfigValue<String> AI_PROVIDER = CLIENT_BUILDER
         .comment("LLM provider type: 'anthropic' or 'openai' (OpenAI-compatible).",
                  "Use 'openai' for OpenAI, DeepSeek, Groq, Ollama, LM Studio, etc.")
