@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.projector.client.ProjectorCueMarkerInstruction;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
@@ -815,6 +816,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         String text = step.text == null ? "" : step.text.resolve();
         int duration = step.durationOrDefault(60);
 
+        scene.addInstruction(new ProjectorCueMarkerInstruction(step));
         scene.addInstruction(new TextMarkerInstruction(text, false));
 
         TextElementBuilder builder = scene.overlay()
@@ -850,6 +852,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         int duration = step.durationOrDefault(60);
+        scene.addInstruction(new ProjectorCueMarkerInstruction(step));
         scene.addInstruction(new TextMarkerInstruction(key, true));
         TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc);
 
@@ -1043,6 +1046,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         Pointing pointing = parsePointing(step.direction);
         int duration = step.durationOrDefault(60);
 
+        scene.addInstruction(new ProjectorCueMarkerInstruction(step));
         InputElementBuilder builder = scene.overlay().showControls(point, pointing, duration);
 
         switch (step.action == null ? "" : step.action.toLowerCase(Locale.ROOT)) {
@@ -1108,6 +1112,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         ponderer$resetSceneViewState(scene.getScene());
         // Keep a runtime reset as a safety net for replay/scene lifecycle paths.
         scene.addInstruction(this::ponderer$resetSceneViewState);
+        scene.addInstruction(new ProjectorCueMarkerInstruction(step));
         scene.addInstruction(new ShowInterfaceInstruction(step));
         context.uiAnchorMode = true;
     }

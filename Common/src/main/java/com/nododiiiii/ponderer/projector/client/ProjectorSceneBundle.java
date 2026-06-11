@@ -201,13 +201,21 @@ public final class ProjectorSceneBundle {
 
     public List<OverlayCue> activeCues(int globalTick) {
         Segment segment = segmentAt(globalTick);
-        if (segment == null || segment.cues().isEmpty()) {
+        if (segment == null) {
             return List.of();
         }
 
         int localTick = segment.localTick(globalTick);
+        List<OverlayCue> cues = ProjectorCueIndexStore.get(segment.scene());
+        if (cues.isEmpty()) {
+            cues = segment.cues();
+        }
+        if (cues.isEmpty()) {
+            return List.of();
+        }
+
         List<OverlayCue> result = new ArrayList<>();
-        for (OverlayCue cue : segment.cues()) {
+        for (OverlayCue cue : cues) {
             if (cue.isActiveAt(localTick)) {
                 result.add(cue);
             }
@@ -250,46 +258,64 @@ public final class ProjectorSceneBundle {
                 default -> ProjectorSceneCompiler.estimateStepTicks(step);
             };
 
-            switch (type) {
-                case "text" -> {
-                    if (step.text != null && !step.text.isEmpty()) {
-                        cues.add(new OverlayCue(
-                            timeline,
-                            timeline + Math.max(1, duration),
-                            resolveCuePoint(step),
-                            List.of(Component.literal(step.text.resolve())),
-                            0xE6FCFF));
-                    }
-                }
-                case "shared_text" -> {
-                    Component line = resolveSharedText(step.key);
-                    cues.add(new OverlayCue(
-                        timeline,
-                        timeline + Math.max(1, duration),
-                        resolveCuePoint(step),
-                        List.of(line),
-                        0xD9F4FF));
-                }
-                case "show_controls" -> cues.add(new OverlayCue(
-                    timeline,
-                    timeline + Math.max(1, duration),
-                    resolveCuePoint(step),
-                    buildControlLines(step),
-                    0x9CEBFF));
-                case "show_interface" -> cues.add(new OverlayCue(
-                    timeline,
-                    timeline + Math.max(1, duration),
-                    resolveCuePoint(step),
-                    buildInterfaceLines(step),
-                    0xFFD89B));
-                default -> {
-                }
+            OverlayCue cue = createOverlayCue(timeline, step);
+            if (cue != null) {
+                cues.add(cue);
             }
 
             timeline += Math.max(0, duration);
         }
 
         return List.copyOf(cues);
+    }
+
+    @Nullable
+    public static OverlayCue createOverlayCue(int startTick, @Nullable DslScene.DslStep step) {
+        if (step == null || step.type == null) {
+            return null;
+        }
+
+        String type = step.type.toLowerCase(Locale.ROOT);
+        int duration = switch (type) {
+            case "text", "shared_text", "show_controls", "show_interface" -> step.durationOrDefault(60);
+            default -> 0;
+        };
+        if (duration <= 0) {
+            return null;
+        }
+
+        return switch (type) {
+            case "text" -> {
+                if (step.text == null || step.text.isEmpty()) {
+                    yield null;
+                }
+                yield new OverlayCue(
+                    startTick,
+                    startTick + Math.max(1, duration),
+                    resolveCuePoint(step),
+                    List.of(Component.literal(step.text.resolve())),
+                    0xE6FCFF);
+            }
+            case "shared_text" -> new OverlayCue(
+                startTick,
+                startTick + Math.max(1, duration),
+                resolveCuePoint(step),
+                List.of(resolveSharedText(step.key)),
+                0xD9F4FF);
+            case "show_controls" -> new OverlayCue(
+                startTick,
+                startTick + Math.max(1, duration),
+                resolveCuePoint(step),
+                buildControlLines(step),
+                0x9CEBFF);
+            case "show_interface" -> new OverlayCue(
+                startTick,
+                startTick + Math.max(1, duration),
+                resolveCuePoint(step),
+                buildInterfaceLines(step),
+                0xFFD89B);
+            default -> null;
+        };
     }
 
     private static Component resolveSharedText(@Nullable String rawKey) {

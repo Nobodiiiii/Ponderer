@@ -56,7 +56,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds());
         renderProjectedScene(prepared.activeScene(), layout, poseStack, partialTick);
-        renderOverlayCues(prepared.bundle().activeCues(prepared.globalTick()), layout, blockEntity, poseStack, bufferSource);
+        renderOverlayCues(prepared.bundle().activeCues(prepared.globalTick()), layout, poseStack, bufferSource);
     }
 
     private void renderProjectedScene(PonderScene scene, RenderLayout layout, PoseStack poseStack, float partialTick) {
@@ -85,29 +85,26 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
-    private void renderOverlayCues(List<ProjectorSceneBundle.OverlayCue> cues, RenderLayout layout, ProjectorBlockEntity blockEntity,
+    private void renderOverlayCues(List<ProjectorSceneBundle.OverlayCue> cues, RenderLayout layout,
                                    PoseStack poseStack, MultiBufferSource bufferSource) {
         if (cues.isEmpty()) {
             return;
         }
 
         for (ProjectorSceneBundle.OverlayCue cue : cues) {
-            Vec3 anchor = layout.worldPointFor(cue.point());
+            Vec3 anchor = layout.localPointFor(cue.point());
             Vec3 cardPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
 
-            drawPointerLine(anchor, cardPos, blockEntity.getBlockPos(), poseStack, bufferSource, cue.accentColor());
-            drawBillboardCard(cue.lines(), cardPos, cue.accentColor(), blockEntity.getBlockPos(), poseStack, bufferSource);
+            drawPointerLine(anchor, cardPos, poseStack, bufferSource, cue.accentColor());
+            drawBillboardCard(cue.lines(), cardPos, cue.accentColor(), poseStack, bufferSource);
         }
     }
 
-    private void drawPointerLine(Vec3 anchorWorld, Vec3 cardWorld, BlockPos projectorPos, PoseStack poseStack,
+    private void drawPointerLine(Vec3 anchor, Vec3 card, PoseStack poseStack,
                                  MultiBufferSource bufferSource, int color) {
         float red = ((color >> 16) & 0xFF) / 255.0F;
         float green = ((color >> 8) & 0xFF) / 255.0F;
         float blue = (color & 0xFF) / 255.0F;
-
-        Vec3 anchor = anchorWorld.subtract(projectorPos.getX(), projectorPos.getY(), projectorPos.getZ());
-        Vec3 card = cardWorld.subtract(projectorPos.getX(), projectorPos.getY(), projectorPos.getZ());
 
         VertexConsumer consumer = bufferSource.getBuffer(RenderType.lines());
         Matrix4f matrix = poseStack.last().pose();
@@ -121,7 +118,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .endVertex();
     }
 
-    private void drawBillboardCard(List<Component> lines, Vec3 worldPos, int accentColor, BlockPos projectorPos,
+    private void drawBillboardCard(List<Component> lines, Vec3 localPos, int accentColor,
                                    PoseStack poseStack, MultiBufferSource bufferSource) {
         if (lines.isEmpty()) {
             return;
@@ -139,10 +136,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         int textColor = 0xF2FFFFFF;
 
         poseStack.pushPose();
-        poseStack.translate(
-            worldPos.x - projectorPos.getX(),
-            worldPos.y - projectorPos.getY(),
-            worldPos.z - projectorPos.getZ());
+        poseStack.translate(localPos.x, localPos.y, localPos.z);
         poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
         poseStack.scale(-textScale, -textScale, textScale);
         poseStack.translate(-widest / 2.0F, -(totalHeight + 2) / 2.0F, 0.0F);
@@ -150,16 +144,28 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         for (int i = 0; i < lines.size(); i++) {
             Component line = lines.get(i);
             float y = i * font.lineHeight;
+            int color = i == 0 ? accentColor | 0xFF000000 : textColor;
             font.drawInBatch(
                 line,
                 0.0F,
                 y,
-                i == 0 ? accentColor | 0xFF000000 : textColor,
+                color,
+                false,
+                poseStack.last().pose(),
+                bufferSource,
+                Font.DisplayMode.SEE_THROUGH,
+                backgroundColor,
+                LightTexture.FULL_BRIGHT);
+            font.drawInBatch(
+                line,
+                0.0F,
+                y,
+                color,
                 false,
                 poseStack.last().pose(),
                 bufferSource,
                 Font.DisplayMode.NORMAL,
-                backgroundColor,
+                0,
                 LightTexture.FULL_BRIGHT);
         }
 
@@ -231,7 +237,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 0.72F, 0.88F, 1.00F, 0.56F);
         }
 
-        Vec3 worldPointFor(Vec3 scenePoint) {
+        Vec3 localPointFor(Vec3 scenePoint) {
             Vec3 translated = scenePoint.add(sceneTranslate);
             double scaledX = translated.x * scale;
             double scaledY = translated.y * scale;
