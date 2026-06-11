@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.projector;
 
+import com.nododiiiii.ponderer.projector.client.ProjectorRenderBounds;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -22,6 +23,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -151,6 +153,13 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
 
     public boolean showBlueTint() {
         return showBlueTint;
+    }
+
+    public AABB getRenderBoundingBox() {
+        if (level != null && level.isClientSide) {
+            return ProjectorRenderBounds.estimate(this);
+        }
+        return new AABB(worldPosition).inflate(1.0D);
     }
 
     public boolean hasRenderableScene() {
