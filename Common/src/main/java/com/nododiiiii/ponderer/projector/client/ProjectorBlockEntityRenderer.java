@@ -35,6 +35,8 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
@@ -45,7 +47,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
-import org.lwjgl.opengl.GL11;
 
 import java.util.List;
 import java.util.Set;
@@ -59,8 +60,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
     private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
     private static final float LOCAL_OVERLAY_ICON_Z = 0.04F;
-    private static final float ITEM_DEPTH_OFFSET_FACTOR = -1.0F;
-    private static final float ITEM_DEPTH_OFFSET_UNITS = -1024.0F;
 
     public ProjectorBlockEntityRenderer() {
     }
@@ -340,13 +339,14 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.scale(-uiScaleFor(localPos), -uiScaleFor(localPos), uiScaleFor(localPos));
         poseStack.translate(-boxWidth / 2.0F, -(boxHeight + 6.0F) / 2.0F, 0.0F);
 
-        GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
+        GuiGraphics graphics = ProjectorGuiGraphicsBridge.createIsolated(poseStack);
         new BoxElement()
             .withBackground(PonderUI.BACKGROUND_FLAT)
             .gradientBorder(TextWindowElement.COLOR_WINDOW_BORDER)
             .at(-10, 3, 0)
             .withBounds(boxWidth, Math.max(1, boxHeight - 1))
             .render(graphics);
+        flushOverlayGraphics(graphics);
 
         poseStack.pushPose();
         poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_TEXT_Z);
@@ -420,8 +420,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.scale(-uiScaleFor(localPos), -uiScaleFor(localPos), uiScaleFor(localPos));
         poseStack.translate(xFade, yFade, 0.0F);
 
-        GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
+        GuiGraphics graphics = ProjectorGuiGraphicsBridge.createIsolated(poseStack);
         renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction);
+        flushOverlayGraphics(graphics);
 
         if (hasText) {
             poseStack.pushPose();
@@ -469,7 +470,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             poseStack.popPose();
         }
 
-        graphics.flush();
+        if (hasIcon) {
+            flushOverlayGraphics(graphics);
+        }
         poseStack.popPose();
     }
 
@@ -548,17 +551,20 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private void renderItemOverlay(GuiGraphics graphics, ItemStack item, int x, int y) {
-        RenderSystem.enablePolygonOffset();
-        RenderSystem.polygonOffset(ITEM_DEPTH_OFFSET_FACTOR, ITEM_DEPTH_OFFSET_UNITS);
-        RenderSystem.depthFunc(GL11.GL_LEQUAL);
-        try {
-            graphics.renderItem(item, x, y);
-        } finally {
-            RenderSystem.polygonOffset(0.0F, 0.0F);
-            RenderSystem.disablePolygonOffset();
-            RenderSystem.disableDepthTest();
-            RenderSystem.depthMask(false);
+        Minecraft minecraft = Minecraft.getInstance();
+        BakedModel model = minecraft.getItemRenderer().getModel(item, null, null, 0);
+        TextureAtlasSprite sprite = model.getParticleIcon();
+        if (sprite == null) {
+            return;
         }
+
+        graphics.blit(x, y, 0, 16, 16, sprite);
+    }
+
+    private void flushOverlayGraphics(GuiGraphics graphics) {
+        graphics.flush();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
     }
 
     private String resolveText(TextWindowElementAccessor accessor) {

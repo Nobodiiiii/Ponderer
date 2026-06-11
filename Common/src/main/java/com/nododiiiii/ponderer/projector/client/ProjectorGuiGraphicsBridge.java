@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.projector.client;
 
+import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -18,6 +19,16 @@ final class ProjectorGuiGraphicsBridge {
     static GuiGraphics create(PoseStack poseStack) {
         Minecraft minecraft = Minecraft.getInstance();
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+        return create(minecraft, poseStack, buffers);
+    }
+
+    static GuiGraphics createIsolated(PoseStack poseStack) {
+        Minecraft minecraft = Minecraft.getInstance();
+        MultiBufferSource.BufferSource buffers = MultiBufferSource.immediate(new BufferBuilder(256));
+        return create(minecraft, poseStack, buffers);
+    }
+
+    private static GuiGraphics create(Minecraft minecraft, PoseStack poseStack, MultiBufferSource.BufferSource buffers) {
         try {
             return CONSTRUCTOR.newInstance(minecraft, poseStack, buffers);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
