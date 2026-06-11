@@ -1080,6 +1080,8 @@
   "ponderer.ui.projector.apply": "应用",
   "ponderer.ui.projector.trigger_mode": "播放方式",
   "ponderer.ui.projector.trigger_mode.tooltip": "切换投影开始与循环的方式",
+  "ponderer.ui.projector.blue_tint.on": "蓝色覆层：开",
+  "ponderer.ui.projector.blue_tint.off": "蓝色覆层：关",
   "ponderer.ui.projector.trigger_mode.manual_loop": "手动循环",
   "ponderer.ui.projector.trigger_mode.manual_once": "手动单次",
   "ponderer.ui.projector.trigger_mode.redstone_rising_once": "红石脉冲单次",

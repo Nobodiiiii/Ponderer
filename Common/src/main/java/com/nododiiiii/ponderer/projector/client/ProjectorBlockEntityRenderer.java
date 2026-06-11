@@ -63,7 +63,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                                       int localTick, float partialTick) {
         RenderSystem.enableBlend();
         RenderSystem.enableDepthTest();
-        RenderSystem.setShaderColor(layout.redTint(), layout.greenTint(), layout.blueTint(), layout.alphaTint());
+        RenderSystem.setShaderColor(layout.redTint(), layout.greenTint(), layout.blueTint(), 1.0F);
 
         poseStack.pushPose();
         poseStack.translate(layout.origin().x, layout.origin().y, layout.origin().z);
@@ -77,8 +77,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             sceneBuffer,
             layout.redTint(),
             layout.greenTint(),
-            layout.blueTint(),
-            layout.alphaTint());
+            layout.blueTint());
         ProjectorRenderContext.runWithFrameTime(localTick, partialTick,
             () -> scene.renderScene(projectedBuffer, graphics, partialTick));
         sceneBuffer.draw();
@@ -190,21 +189,17 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     @Override
     public int getViewDistance() {
-        return 256;
+        return Integer.MAX_VALUE;
     }
 
     @Override
     public boolean shouldRender(ProjectorBlockEntity blockEntity, Vec3 cameraPos) {
-        if (blockEntity.getAnchorPos() == null) {
-            return cameraPos.closerThan(Vec3.atCenterOf(blockEntity.getBlockPos()), getViewDistance());
-        }
-        return cameraPos.closerThan(Vec3.atCenterOf(blockEntity.getBlockPos()), getViewDistance())
-            || cameraPos.closerThan(Vec3.atCenterOf(blockEntity.getAnchorPos()), getViewDistance());
+        return true;
     }
 
     private record RenderLayout(ProjectorKind kind, Vec3 origin, Vec3 sceneTranslate, float scale,
                                 float rotationDegrees, BoundingBox bounds,
-                                float redTint, float greenTint, float blueTint, float alphaTint) {
+                                float redTint, float greenTint, float blueTint) {
         static RenderLayout from(ProjectorBlockEntity blockEntity, BoundingBox bounds) {
             Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
             ProjectorKind kind = blockEntity.getProjectorKind();
@@ -230,7 +225,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     scale,
                     rotation,
                     bounds,
-                    0.76F, 0.96F, 1.00F, 0.88F);
+                    tint(blockEntity, 0.76F), tint(blockEntity, 0.96F), tint(blockEntity, 1.00F));
             }
 
             BlockPos anchor = blockEntity.getAnchorPos() == null ? blockEntity.getBlockPos() : blockEntity.getAnchorPos();
@@ -245,7 +240,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 1.0F,
                 rotation,
                 bounds,
-                0.72F, 0.88F, 1.00F, 0.56F);
+                tint(blockEntity, 0.72F), tint(blockEntity, 0.88F), tint(blockEntity, 1.00F));
         }
 
         Vec3 localPointFor(Vec3 scenePoint) {
@@ -282,24 +277,28 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             double z = vec.z * cos - vec.x * sin;
             return new Vec3(x, vec.y, z);
         }
+
+        private static float tint(ProjectorBlockEntity blockEntity, float tintedValue) {
+            return blockEntity.showBlueTint() ? tintedValue : 1.0F;
+        }
     }
 
     private record ProjectedRenderTypeBuffer(DefaultSuperRenderTypeBuffer delegate, float red, float green,
-                                             float blue, float alpha) implements SuperRenderTypeBuffer {
+                                             float blue) implements SuperRenderTypeBuffer {
 
         @Override
         public VertexConsumer getEarlyBuffer(RenderType type) {
-            return tinted(delegate.getEarlyBuffer(projectedLayer(type)));
+            return tinted(delegate.getEarlyBuffer(type));
         }
 
         @Override
         public VertexConsumer getBuffer(RenderType type) {
-            return tinted(delegate.getBuffer(projectedLayer(type)));
+            return tinted(delegate.getBuffer(type));
         }
 
         @Override
         public VertexConsumer getLateBuffer(RenderType type) {
-            return tinted(delegate.getLateBuffer(projectedLayer(type)));
+            return tinted(delegate.getLateBuffer(type));
         }
 
         @Override
@@ -309,15 +308,14 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         @Override
         public void draw(RenderType type) {
-            delegate.draw(projectedLayer(type));
+            delegate.draw(type);
         }
 
         private VertexConsumer tinted(VertexConsumer consumer) {
-            return new ColoringVertexConsumer(consumer, red, green, blue, alpha);
-        }
-
-        private static RenderType projectedLayer(RenderType type) {
-            return RenderType.chunkBufferLayers().contains(type) ? RenderType.translucent() : type;
+            if (red == 1.0F && green == 1.0F && blue == 1.0F) {
+                return consumer;
+            }
+            return new ColoringVertexConsumer(consumer, red, green, blue, 1.0F);
         }
     }
 }

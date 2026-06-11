@@ -4,7 +4,6 @@ import com.nododiiiii.ponderer.network.ProjectorConfigUpdatePayload;
 import com.nododiiiii.ponderer.network.ProjectorManualTriggerPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
-import com.nododiiiii.ponderer.projector.ProjectorKind;
 import com.nododiiiii.ponderer.projector.ProjectorMenu;
 import com.nododiiiii.ponderer.projector.ProjectorTriggerMode;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientSceneResolver;
@@ -33,7 +32,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int INFO = 0xFFA8F3BA;
 
     private Button triggerButton;
-    private Button applyButton;
+    private Button blueTintButton;
     private Button playButton;
     @Nullable
     private Button clearAnchorButton;
@@ -47,6 +46,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private List<String> resolvedSceneKeys = List.of();
     private String sourceFingerprint = "";
     private int triggerModeIndex;
+    private boolean showBlueTint = true;
     private Component statusMessage = Component.empty();
     private int statusColor = INFO;
 
@@ -76,16 +76,16 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             clearAnchorButton = addRenderableWidget(Button.builder(
                 Component.translatable("ponderer.ui.projector.clear_anchor"),
                 button -> clearAnchor()).bounds(x + 15, y + 102, 62, 20).build());
-            applyButton = addRenderableWidget(Button.builder(
-                Component.translatable("ponderer.ui.projector.apply"),
-                button -> applyConfig(true)).bounds(x + 82, y + 102, 62, 20).build());
+            blueTintButton = addRenderableWidget(Button.builder(
+                Component.empty(),
+                button -> toggleBlueTint()).bounds(x + 82, y + 102, 62, 20).build());
             playButton = addRenderableWidget(Button.builder(
                 Component.translatable("ponderer.ui.projector.play_once"),
                 button -> triggerManualOnce()).bounds(x + 149, y + 102, 62, 20).build());
         } else {
-            applyButton = addRenderableWidget(Button.builder(
-                Component.translatable("ponderer.ui.projector.apply"),
-                button -> applyConfig(true)).bounds(x + 15, y + 76, 88, 20).build());
+            blueTintButton = addRenderableWidget(Button.builder(
+                Component.empty(),
+                button -> toggleBlueTint()).bounds(x + 15, y + 76, 88, 20).build());
             playButton = addRenderableWidget(Button.builder(
                 Component.translatable("ponderer.ui.projector.play_once"),
                 button -> triggerManualOnce()).bounds(x + 118, y + 76, 88, 20).build());
@@ -96,7 +96,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             setAnchor(projector.getAnchorPos());
         }
         updateTriggerButton();
-        refreshResolvedScenes(true);
+        updateBlueTintButton();
+        refreshResolvedScenes();
     }
 
     @Override
@@ -108,8 +109,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         String current = fingerprint(menu.sourceItem());
         if (!current.equals(sourceFingerprint)) {
-            refreshResolvedScenes(true);
+            refreshResolvedScenes();
         }
+    }
+
+    @Override
+    public void onClose() {
+        applyConfig(false);
+        super.onClose();
     }
 
     @Override
@@ -159,6 +166,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         triggerModeIndex = projector.getTriggerMode().ordinal();
+        showBlueTint = projector.showBlueTint();
     }
 
     private EditBox anchorBox(int x, int y) {
@@ -195,30 +203,36 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         triggerButton.setMessage(Component.translatable(currentTriggerMode().translationKey()));
     }
 
+    private void toggleBlueTint() {
+        showBlueTint = !showBlueTint;
+        updateBlueTintButton();
+    }
+
+    private void updateBlueTintButton() {
+        blueTintButton.setMessage(Component.translatable(showBlueTint
+            ? "ponderer.ui.projector.blue_tint.on"
+            : "ponderer.ui.projector.blue_tint.off"));
+    }
+
     private ProjectorTriggerMode currentTriggerMode() {
         return ProjectorTriggerMode.values()[Math.max(0, Math.min(triggerModeIndex, ProjectorTriggerMode.values().length - 1))];
     }
 
-    private void refreshResolvedScenes(boolean autoApply) {
+    private void refreshResolvedScenes() {
         sourceFingerprint = fingerprint(menu.sourceItem());
         resolvedSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(menu.sourceItem());
         playButton.active = !resolvedSceneKeys.isEmpty();
 
         if (menu.sourceItem().isEmpty()) {
             status(Component.translatable("ponderer.ui.projector.insert_item"), MUTED);
-            applyConfig(false);
             return;
         }
         if (resolvedSceneKeys.isEmpty()) {
             status(Component.translatable("ponderer.ui.projector.no_scenes_for_item"), ERROR);
-            applyConfig(false);
             return;
         }
 
         status(Component.translatable("ponderer.ui.projector.scenes_detected", resolvedSceneKeys.size()), INFO);
-        if (autoApply && !requiresMissingAnchor()) {
-            applyConfig(false);
-        }
     }
 
     private boolean applyConfig(boolean showStatus) {
@@ -233,7 +247,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             resolvedSceneKeys,
             currentTriggerMode(),
             anchor,
-            estimateDuration(resolvedSceneKeys)));
+            estimateDuration(resolvedSceneKeys),
+            showBlueTint));
         if (showStatus) {
             status(Component.translatable("ponderer.ui.projector.saved"), INFO);
         }

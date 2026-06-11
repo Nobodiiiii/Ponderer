@@ -12,7 +12,7 @@ import java.util.List;
 
 public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> sceneKeys,
                                            ProjectorTriggerMode triggerMode, @Nullable BlockPos anchorPos,
-                                           int playbackDurationTicks) {
+                                           int playbackDurationTicks, boolean showBlueTint) {
 
     private static final int MAX_SCENE_KEYS = 256;
 
@@ -32,6 +32,7 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
             buf.writeBlockPos(anchorPos);
         }
         buf.writeVarInt(playbackDurationTicks);
+        buf.writeBoolean(showBlueTint);
     }
 
     public static ProjectorConfigUpdatePayload decode(FriendlyByteBuf buf) {
@@ -47,7 +48,9 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         ProjectorTriggerMode triggerMode = ProjectorTriggerMode.byName(buf.readUtf());
         BlockPos anchorPos = buf.readBoolean() ? buf.readBlockPos() : null;
         int playbackDurationTicks = buf.readVarInt();
-        return new ProjectorConfigUpdatePayload(projectorPos, sceneKeys, triggerMode, anchorPos, playbackDurationTicks);
+        boolean showBlueTint = buf.readBoolean();
+        return new ProjectorConfigUpdatePayload(projectorPos, sceneKeys, triggerMode, anchorPos, playbackDurationTicks,
+            showBlueTint);
     }
 
     public static void handle(ProjectorConfigUpdatePayload payload, @Nullable ServerPlayer player) {
@@ -57,7 +60,8 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         if (!(player.serverLevel().getBlockEntity(payload.projectorPos()) instanceof ProjectorBlockEntity projector)) {
             return;
         }
-        projector.applyConfig(payload.sceneKeys(), payload.triggerMode(), payload.anchorPos(), payload.playbackDurationTicks());
+        projector.applyConfig(payload.sceneKeys(), payload.triggerMode(), payload.anchorPos(),
+            payload.playbackDurationTicks(), payload.showBlueTint());
     }
 
     private static boolean isAuthorized(ServerPlayer player, BlockPos pos) {

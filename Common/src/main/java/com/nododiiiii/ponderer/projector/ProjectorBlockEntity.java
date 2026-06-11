@@ -41,6 +41,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_START_TIME = "PlaybackStartGameTime";
     private static final String TAG_REVISION = "PlaybackRevision";
     private static final String TAG_DURATION = "PlaybackDurationTicks";
+    private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
     private static final int FALLBACK_ONCE_DURATION_TICKS = 20 * 60;
 
     private ItemStack sourceItem = ItemStack.EMPTY;
@@ -55,6 +56,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private long playbackStartGameTime;
     private int playbackRevision;
     private int playbackDurationTicks;
+    private boolean showBlueTint = true;
 
     public ProjectorBlockEntity(BlockPos pos, BlockState state) {
         this(ModBlockEntities.PROJECTOR.get(), pos, state);
@@ -147,6 +149,10 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return playbackDurationTicks;
     }
 
+    public boolean showBlueTint() {
+        return showBlueTint;
+    }
+
     public boolean hasRenderableScene() {
         if (sourceItem.isEmpty() || sceneKeys.isEmpty()) {
             return false;
@@ -155,11 +161,13 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     }
 
     public void applyConfig(List<String> newSceneKeys, ProjectorTriggerMode newMode,
-                            @Nullable BlockPos newAnchorPos, int newPlaybackDurationTicks) {
+                            @Nullable BlockPos newAnchorPos, int newPlaybackDurationTicks,
+                            boolean newShowBlueTint) {
         this.sceneKeys = sourceItem.isEmpty() ? List.of() : resolveSceneKeys(newSceneKeys);
         this.triggerMode = newMode == null ? ProjectorTriggerMode.MANUAL_LOOP : newMode;
         this.anchorPos = getProjectorKind().requiresAnchor() ? newAnchorPos : null;
         this.playbackDurationTicks = Math.max(0, newPlaybackDurationTicks);
+        this.showBlueTint = newShowBlueTint;
         if (this.playbackDurationTicks <= 0 && !this.sceneKeys.isEmpty()) {
             this.playbackDurationTicks = estimateDurationOrFallback();
         }
@@ -427,6 +435,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         tag.putLong(TAG_START_TIME, playbackStartGameTime);
         tag.putInt(TAG_REVISION, playbackRevision);
         tag.putInt(TAG_DURATION, playbackDurationTicks);
+        tag.putBoolean(TAG_SHOW_BLUE_TINT, showBlueTint);
     }
 
     @Override
@@ -445,6 +454,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         playbackStartGameTime = tag.getLong(TAG_START_TIME);
         playbackRevision = tag.getInt(TAG_REVISION);
         playbackDurationTicks = tag.getInt(TAG_DURATION);
+        showBlueTint = !tag.contains(TAG_SHOW_BLUE_TINT) || tag.getBoolean(TAG_SHOW_BLUE_TINT);
     }
 
     private static List<String> loadSceneKeys(CompoundTag tag) {

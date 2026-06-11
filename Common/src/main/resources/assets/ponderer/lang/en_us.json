@@ -1082,6 +1082,8 @@
   "ponderer.ui.projector.apply": "Apply",
   "ponderer.ui.projector.trigger_mode": "Playback",
   "ponderer.ui.projector.trigger_mode.tooltip": "Change how the projector starts and loops",
+  "ponderer.ui.projector.blue_tint.on": "Tint On",
+  "ponderer.ui.projector.blue_tint.off": "Tint Off",
   "ponderer.ui.projector.trigger_mode.manual_loop": "Manual Loop",
   "ponderer.ui.projector.trigger_mode.manual_once": "Manual Once",
   "ponderer.ui.projector.trigger_mode.redstone_rising_once": "Redstone Pulse",
