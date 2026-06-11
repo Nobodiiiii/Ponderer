@@ -6,6 +6,7 @@ import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.registry.ModBlocks;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
@@ -64,6 +65,8 @@ public class PondererForge {
             if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
                 event.accept(new ItemStack(ModItems.BLUEPRINT.get()));
             }
+            event.accept(new ItemStack(ModBlocks.MINIATURE_PROJECTOR_ITEM.get()));
+            event.accept(new ItemStack(ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get()));
         }
     }
 }

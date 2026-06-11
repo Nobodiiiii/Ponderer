@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ponder;
 
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
 
@@ -15,6 +16,9 @@ public class ClickInterfaceInstruction extends TickingInstruction {
 
     @Override
     protected void firstTick(PonderScene scene) {
+        if (ProjectorRenderContext.isActive()) {
+            return;
+        }
         PondererServices.PLATFORM.clickInterfaceStep(step);
     }
 }

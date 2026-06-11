@@ -10,12 +10,19 @@ import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
-import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.CoordPickState;
+import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.NbtPickState;
+import com.nododiiiii.ponderer.ui.ProjectorAnchorPickState;
+import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.registry.ModBlockEntities;
+import com.nododiiiii.ponderer.registry.ModMenuTypes;
+import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -76,6 +83,8 @@ public class PondererForgeClient {
             // to perform the initial scene registration. Calling reload() here would cause
             // scenes to be registered twice (once by reload, once by registerAll).
             PonderConfig.Client().editingMode.set(false);
+            BlockEntityRenderers.register(ModBlockEntities.PROJECTOR.get(), ctx -> new ProjectorBlockEntityRenderer());
+            MenuScreens.register(ModMenuTypes.PROJECTOR.get(), ProjectorConfigScreen::new);
         });
     }
 
@@ -96,6 +105,9 @@ public class PondererForgeClient {
         if (mc.player == null || mc.screen != null) return;
         if (NbtPickState.isActive()) {
             mc.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
+        }
+        if (ProjectorAnchorPickState.isActive()) {
+            ProjectorAnchorPickState.onClientTick();
         }
         if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
             mc.setScreen(new FunctionScreen());
@@ -119,6 +131,12 @@ public class PondererForgeClient {
     private static void onMouseInput(InputEvent.MouseButton.Pre event) {
         if (NbtPickState.isActive() && event.getButton() == 2 && event.getAction() == 1) {
             NbtPickState.handleUseClick();
+            event.setCanceled(true);
+            return;
+        }
+
+        if (ProjectorAnchorPickState.isActive() && event.getButton() == 2 && event.getAction() == 1) {
+            ProjectorAnchorPickState.handleMiddleClick();
             event.setCanceled(true);
             return;
         }

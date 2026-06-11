@@ -111,6 +111,26 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 })
                 .add();
 
+        CHANNEL.messageBuilder(ProjectorConfigUpdatePayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ProjectorConfigUpdatePayload::encode)
+                .decoder(ProjectorConfigUpdatePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    ProjectorConfigUpdatePayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(ProjectorManualTriggerPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ProjectorManualTriggerPayload::encode)
+                .decoder(ProjectorManualTriggerPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    ProjectorManualTriggerPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
         // Server -> Client
         CHANNEL.messageBuilder(SyncResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SyncResponsePayload::encode)

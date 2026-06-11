@@ -9,20 +9,28 @@ import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
+import com.nododiiiii.ponderer.registry.ModBlocks;
 import com.nododiiiii.ponderer.registry.ModItems;
+import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
+import com.nododiiiii.ponderer.ui.ProjectorAnchorPickState;
+import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
+import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -75,6 +83,9 @@ public class PondererFabricClient implements ClientModInitializer {
         // scenes to be registered twice (once by reload, once by registerAll).
         PonderConfig.Client().editingMode.set(false);
 
+        BlockEntityRendererRegistry.register(ModBlockEntities.PROJECTOR.get(), ctx -> new ProjectorBlockEntityRenderer());
+        MenuScreens.register(ModMenuTypes.PROJECTOR.get(), ProjectorConfigScreen::new);
+
         // Register client commands
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             PondererClientCommands.register(dispatcher);
@@ -85,12 +96,17 @@ public class PondererFabricClient implements ClientModInitializer {
             if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
                 entries.accept(new ItemStack(ModItems.BLUEPRINT.get()));
             }
+            entries.accept(new ItemStack(ModBlocks.MINIATURE_PROJECTOR_ITEM.get()));
+            entries.accept(new ItemStack(ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get()));
         });
 
         // Client tick: key bindings + blueprint handler + player join notifications + JEI interception
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null && client.screen == null && NbtPickState.isActive()) {
                 client.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
+            }
+            if (client.player != null && client.screen == null && ProjectorAnchorPickState.isActive()) {
+                ProjectorAnchorPickState.onClientTick();
             }
 
             // Key binding
@@ -114,6 +130,14 @@ public class PondererFabricClient implements ClientModInitializer {
                 blueprintRightMouseWasDown = rightDown;
             } else {
                 blueprintRightMouseWasDown = false;
+            }
+
+            if (client.player != null && client.screen == null) {
+                long window = client.getWindow().getWindow();
+                boolean middleDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_MIDDLE) == GLFW.GLFW_PRESS;
+                if (middleDown) {
+                    ProjectorAnchorPickState.handleMiddleClick();
+                }
             }
 
             // Trigger manager tick

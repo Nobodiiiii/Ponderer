@@ -6,8 +6,6 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.mojang.logging.LogUtils;
 import net.createmod.ponder.foundation.PonderScene;
-import net.minecraft.client.Minecraft;
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
@@ -339,12 +337,5 @@ public final class NbtSceneFilter {
             LOGGER.warn("Failed to parse NBT filter: {}", snbt, e);
             return null;
         }
-    }
-
-    @Nullable
-    private static RegistryAccess getRegistryAccess() {
-        var mc = Minecraft.getInstance();
-        if (mc.level != null) return mc.level.registryAccess();
-        return null;
     }
 }

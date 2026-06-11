@@ -18,7 +18,9 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 import argparse
+import base64
 import glob
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 import platform
@@ -26,6 +28,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 
 # ─── 配置 ────────────────────────────────────────────────────────────────────
@@ -37,6 +40,7 @@ LIBRARIES_DIR = os.path.join(DOT_MINECRAFT, "libraries")
 ASSETS_DIR = os.path.join(DOT_MINECRAFT, "assets")
 DEFAULT_WIDTH = 1920
 DEFAULT_HEIGHT = 1080
+AUTH_STUB_TTL_SECONDS = 240
 
 # 平台配置: branch -> [(platform_name, gradle_project, jar_pattern, instance_dir, version_json)]
 PLATFORM_CONFIG = {
@@ -77,6 +81,108 @@ FORGE_ALIAS = {"1.20.1": "forge", "1.21.1": "neoforge"}
 
 
 # ─── 工具函数 ─────────────────────────────────────────────────────────────────
+
+
+class SmokeAuthStubHandler(BaseHTTPRequestHandler):
+    """Tiny local auth/services API used by the offline smoke launcher."""
+
+    server_version = "PondererSmokeAuthStub/1.0"
+
+    def do_GET(self):
+        self._send_response()
+
+    def do_POST(self):
+        self._send_response()
+
+    def log_message(self, fmt, *args):
+        return
+
+    def _send_response(self):
+        path = self.path.split("?", 1)[0]
+        if path.endswith("/publickeys"):
+            payload = {"profilePropertyKeys": [], "playerCertificateKeys": []}
+        elif path.endswith("/privacy/blocklist"):
+            payload = {"blockedProfiles": []}
+        else:
+            # Empty objects are valid for /player/attributes and enough for smoke runs.
+            payload = {}
+
+        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def run_auth_stub_server(ttl):
+    server = ThreadingHTTPServer(("127.0.0.1", 0), SmokeAuthStubHandler)
+    server.timeout = 1.0
+    print(json.dumps({"url": f"http://127.0.0.1:{server.server_port}"}), flush=True)
+    deadline = time.time() + ttl
+    while time.time() < deadline:
+        server.handle_request()
+    server.server_close()
+
+
+def start_auth_stub_process(ttl=AUTH_STUB_TTL_SECONDS):
+    cmd = [sys.executable, __file__, "__auth_stub", "--ttl", str(ttl)]
+    process = subprocess.Popen(
+        cmd,
+        cwd=PROJECT_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        encoding="utf-8",
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+        if platform.system() == "Windows"
+        else 0,
+    )
+    line = process.stdout.readline() if process.stdout else ""
+    try:
+        url = json.loads(line)["url"]
+    except Exception:
+        process.terminate()
+        raise RuntimeError("本地认证 stub 启动失败")
+    print(f"[AUTH] 本地认证 stub: {url} (TTL {ttl}s)")
+    return process, url
+
+
+def smoke_access_token():
+    def encode(data):
+        raw = json.dumps(data, separators=(",", ":")).encode("utf-8")
+        return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+    header = {"alg": "HS256", "typ": "JWT"}
+    payload = {
+        "iss": "ponderer-test",
+        "sub": "00000000-0000-0000-0000-000000000000",
+        "xuid": "0",
+        "yggt": "0",
+        "exp": 4102444800,
+    }
+    return f"{encode(header)}.{encode(payload)}.ponderer"
+
+
+def disable_realms_notifications(instance_path):
+    options_path = os.path.join(instance_path, "options.txt")
+    lines = []
+    if os.path.exists(options_path):
+        with open(options_path, encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+
+    updated = False
+    for i, line in enumerate(lines):
+        if line.startswith("realmsNotifications:"):
+            lines[i] = "realmsNotifications:false"
+            updated = True
+            break
+
+    if not updated:
+        lines.append("realmsNotifications:false")
+
+    with open(options_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 def read_gradle_properties():
@@ -237,7 +343,7 @@ def build_classpath(version_data, instance_path):
     return cp_entries
 
 
-def build_jvm_args(version_data, instance_path, classpath_str):
+def build_jvm_args(version_data, instance_path, classpath_str, auth_stub_url=None):
     """从 version JSON 构建 JVM 参数"""
     natives_dir = os.path.join(instance_path, "natives-windows-x86_64")
     log4j_path = os.path.join(instance_path, "log4j2.xml")
@@ -280,6 +386,16 @@ def build_jvm_args(version_data, instance_path, classpath_str):
     if os.path.exists(log4j_path):
         jvm_args.append(f"-Dlog4j.configurationFile={log4j_path}")
 
+    if auth_stub_url:
+        jvm_args.extend(
+            [
+                f"-Dminecraft.api.auth.host={auth_stub_url}",
+                f"-Dminecraft.api.account.host={auth_stub_url}",
+                f"-Dminecraft.api.session.host={auth_stub_url}",
+                f"-Dminecraft.api.services.host={auth_stub_url}",
+            ]
+        )
+
     return jvm_args
 
 
@@ -303,7 +419,7 @@ def build_game_args(version_data, instance_path, width, height):
         "${assets_root}": ASSETS_DIR,
         "${assets_index_name}": str(asset_index),
         "${auth_uuid}": str(uuid.uuid4()).replace("-", ""),
-        "${auth_access_token}": "0",
+        "${auth_access_token}": smoke_access_token(),
         "${clientid}": "0",
         "${auth_xuid}": "0",
         "${user_type}": "legacy",
@@ -341,7 +457,7 @@ def build_game_args(version_data, instance_path, width, height):
     return game_args
 
 
-def build_launch_command(config, mc_version, mod_version, width, height):
+def build_launch_command(config, mc_version, mod_version, width, height, auth_stub_url=None):
     """构建完整的 MC 启动命令"""
     instance_path = resolve_instance_path(config["instance"])
     version_json_path = resolve_version_json_path(config, instance_path)
@@ -356,7 +472,7 @@ def build_launch_command(config, mc_version, mod_version, width, height):
     java = find_java()
     classpath = build_classpath(version_data, instance_path)
     classpath_str = os.pathsep.join(classpath)
-    jvm_args = build_jvm_args(version_data, instance_path, classpath_str)
+    jvm_args = build_jvm_args(version_data, instance_path, classpath_str, auth_stub_url)
     game_args = build_game_args(version_data, instance_path, width, height)
     main_class = version_data.get("mainClass", "")
 
@@ -417,16 +533,17 @@ def run_build(targets):
     print("[BUILD] 完成\n")
 
 
-def launch_instance(config, mc_version, mod_version, width, height):
+def launch_instance(config, mc_version, mod_version, width, height, auth_stub_url=None):
     """启动一个 MC 实例"""
     platform_name = config["instance"]
     print(f"[LAUNCH] {platform_name}")
 
-    result = build_launch_command(config, mc_version, mod_version, width, height)
+    result = build_launch_command(config, mc_version, mod_version, width, height, auth_stub_url)
     if not result:
         return
 
     cmd, instance_path = result
+    disable_realms_notifications(instance_path)
     # 找到主类（在 JVM 参数之后、游戏参数之前的那个）
     main_class = "?"
     for a in cmd[1:]:
@@ -453,6 +570,14 @@ def launch_instance(config, mc_version, mod_version, width, height):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "__auth_stub":
+        parser = argparse.ArgumentParser(description="Ponderer smoke auth stub")
+        parser.add_argument("__auth_stub")
+        parser.add_argument("--ttl", type=int, default=AUTH_STUB_TTL_SECONDS)
+        args = parser.parse_args()
+        run_auth_stub_server(args.ttl)
+        return
+
     parser = argparse.ArgumentParser(description="Ponderer 自动化 Build + 启动 MC 测试")
     parser.add_argument(
         "target",
@@ -463,6 +588,7 @@ def main():
     )
     parser.add_argument("--skip-build", action="store_true", help="跳过 Gradle build")
     parser.add_argument("--no-copy", action="store_true", help="跳过 build 和 jar 复制")
+    parser.add_argument("--no-auth-stub", action="store_true", help="不启动本地认证 stub")
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH, help=f"窗口宽度（默认: {DEFAULT_WIDTH}）")
     parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT, help=f"窗口高度（默认: {DEFAULT_HEIGHT}）")
     args = parser.parse_args()
@@ -510,9 +636,13 @@ def main():
                 sys.exit(1)
         print()
 
+    auth_stub_url = None
+    if not args.no_auth_stub:
+        _auth_stub_process, auth_stub_url = start_auth_stub_process()
+
     # 启动
     for config in targets:
-        launch_instance(config, mc_version, mod_version, args.width, args.height)
+        launch_instance(config, mc_version, mod_version, args.width, args.height, auth_stub_url)
 
     print("═══ 全部启动完成 ═══")
 

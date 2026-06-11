@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/orientable_with_bottom",
+  "textures": {
+    "top": "minecraft:block/cut_copper",
+    "front": "minecraft:block/tinted_glass",
+    "side": "minecraft:block/polished_andesite",
+    "bottom": "minecraft:block/andesite"
+  }
+}

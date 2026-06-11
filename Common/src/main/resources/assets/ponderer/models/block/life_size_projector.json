@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/orientable_with_bottom",
+  "textures": {
+    "top": "minecraft:block/weathered_cut_copper",
+    "front": "minecraft:block/light_blue_stained_glass",
+    "side": "minecraft:block/deepslate_tiles",
+    "bottom": "minecraft:block/polished_deepslate"
+  }
+}

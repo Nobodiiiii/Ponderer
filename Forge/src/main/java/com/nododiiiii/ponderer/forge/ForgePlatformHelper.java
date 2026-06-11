@@ -1,13 +1,16 @@
 package com.nododiiiii.ponderer.forge;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.forge.sticksnapshot.client.ForgeShowInterfaceClient;
 import com.nododiiiii.ponderer.platform.services.PlatformHelper;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.network.NetworkHooks;
 
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -75,5 +78,10 @@ public class ForgePlatformHelper implements PlatformHelper {
     @Override
     public boolean supportsEmbeddedInterfacePreview() {
         return true;
+    }
+
+    @Override
+    public void openProjectorMenu(ServerPlayer player, ProjectorBlockEntity projector) {
+        NetworkHooks.openScreen(player, projector, projector::writeMenuData);
     }
 }

@@ -25,6 +25,8 @@ public class FabricNetworkHelper implements NetworkHelper {
     private static final ResourceLocation PERMISSION_UPDATE = new ResourceLocation(Ponderer.MODID, "permission_update");
     private static final ResourceLocation BLUEPRINT_CONFIG_REQUEST = new ResourceLocation(Ponderer.MODID, "blueprint_config_request");
     private static final ResourceLocation BLUEPRINT_CONFIG_UPDATE = new ResourceLocation(Ponderer.MODID, "blueprint_config_update");
+    private static final ResourceLocation PROJECTOR_CONFIG_UPDATE = new ResourceLocation(Ponderer.MODID, "projector_config_update");
+    private static final ResourceLocation PROJECTOR_MANUAL_TRIGGER = new ResourceLocation(Ponderer.MODID, "projector_manual_trigger");
     private static final ResourceLocation SYNC_RESPONSE = new ResourceLocation(Ponderer.MODID, "sync_response");
     private static final ResourceLocation DOWNLOAD_STRUCTURE_RESULT = new ResourceLocation(Ponderer.MODID, "download_result");
     private static final ResourceLocation UPLOAD_RESPONSE = new ResourceLocation(Ponderer.MODID, "upload_response");
@@ -73,6 +75,16 @@ public class FabricNetworkHelper implements NetworkHelper {
         ServerPlayNetworking.registerGlobalReceiver(BLUEPRINT_CONFIG_UPDATE, (server, player, handler, buf, responseSender) -> {
             BlueprintConfigUpdatePayload msg = BlueprintConfigUpdatePayload.decode(buf);
             server.execute(() -> BlueprintConfigUpdatePayload.handle(msg, player));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PROJECTOR_CONFIG_UPDATE, (server, player, handler, buf, responseSender) -> {
+            ProjectorConfigUpdatePayload msg = ProjectorConfigUpdatePayload.decode(buf);
+            server.execute(() -> ProjectorConfigUpdatePayload.handle(msg, player));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PROJECTOR_MANUAL_TRIGGER, (server, player, handler, buf, responseSender) -> {
+            ProjectorManualTriggerPayload msg = ProjectorManualTriggerPayload.decode(buf);
+            server.execute(() -> ProjectorManualTriggerPayload.handle(msg, player));
         });
 
         // Clientbound handlers
@@ -145,6 +157,8 @@ public class FabricNetworkHelper implements NetworkHelper {
         if (packet instanceof PermissionUpdateRequestPayload) return PERMISSION_UPDATE;
         if (packet instanceof BlueprintConfigRequestPayload) return BLUEPRINT_CONFIG_REQUEST;
         if (packet instanceof BlueprintConfigUpdatePayload) return BLUEPRINT_CONFIG_UPDATE;
+        if (packet instanceof ProjectorConfigUpdatePayload) return PROJECTOR_CONFIG_UPDATE;
+        if (packet instanceof ProjectorManualTriggerPayload) return PROJECTOR_MANUAL_TRIGGER;
         if (packet instanceof SyncResponsePayload) return SYNC_RESPONSE;
         if (packet instanceof DownloadStructureResultPayload) return DOWNLOAD_STRUCTURE_RESULT;
         if (packet instanceof UploadResponsePayload) return UPLOAD_RESPONSE;
@@ -164,6 +178,8 @@ public class FabricNetworkHelper implements NetworkHelper {
         else if (packet instanceof PermissionUpdateRequestPayload p) p.encode(buf);
         else if (packet instanceof BlueprintConfigRequestPayload p) p.encode(buf);
         else if (packet instanceof BlueprintConfigUpdatePayload p) p.encode(buf);
+        else if (packet instanceof ProjectorConfigUpdatePayload p) p.encode(buf);
+        else if (packet instanceof ProjectorManualTriggerPayload p) p.encode(buf);
         else if (packet instanceof SyncResponsePayload p) p.encode(buf);
         else if (packet instanceof DownloadStructureResultPayload p) p.encode(buf);
         else if (packet instanceof UploadResponsePayload p) p.encode(buf);

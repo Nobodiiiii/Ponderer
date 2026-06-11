@@ -1,6 +1,8 @@
 package com.nododiiiii.ponderer.platform.services;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -57,5 +59,11 @@ public interface PlatformHelper {
      */
     default boolean supportsEmbeddedInterfacePreview() {
         return false;
+    }
+
+    /**
+     * Open the projector's server-backed menu.
+     */
+    default void openProjectorMenu(ServerPlayer player, ProjectorBlockEntity projector) {
     }
 }
