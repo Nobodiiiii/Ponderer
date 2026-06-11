@@ -55,11 +55,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds());
-        renderProjectedScene(prepared.activeScene(), layout, poseStack, partialTick);
+        renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
         renderOverlayCues(prepared.bundle().activeCues(prepared.globalTick()), layout, poseStack, bufferSource);
     }
 
-    private void renderProjectedScene(PonderScene scene, RenderLayout layout, PoseStack poseStack, float partialTick) {
+    private void renderProjectedScene(PonderScene scene, RenderLayout layout, PoseStack poseStack,
+                                      int localTick, float partialTick) {
         RenderSystem.enableBlend();
         RenderSystem.enableDepthTest();
         RenderSystem.setShaderColor(layout.redTint(), layout.greenTint(), layout.blueTint(), layout.alphaTint());
@@ -78,7 +79,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             layout.greenTint(),
             layout.blueTint(),
             layout.alphaTint());
-        scene.renderScene(projectedBuffer, graphics, partialTick);
+        ProjectorRenderContext.runWithFrameTime(localTick, partialTick,
+            () -> scene.renderScene(projectedBuffer, graphics, partialTick));
         sceneBuffer.draw();
 
         poseStack.popPose();

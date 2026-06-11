@@ -76,22 +76,77 @@ subprojects {
     }
 }
 
-// ─── 自动化测试启动 tasks ───────────────────────────────────────────────────
-tasks.register('testFabric', Exec) {
-    group = 'test'
-    description = 'Build Fabric and launch test.py for Fabric instance'
-    dependsOn ':Fabric:build'
-    commandLine 'python', 'test.py', 'fabric', '--skip-build'
+// ─── Quickplay client tasks ─────────────────────────────────────────────────
+def configureQuickPlayTask = { Exec task, String targetName, boolean onlineBuild, boolean smokeRun ->
+    task.group = 'mod development'
+    if (smokeRun) {
+        task.description = 'Runs test.py with an offline Gradle build, copies both mod jars, quickplays both clients, and checks world entry logs.'
+    } else {
+        task.description = onlineBuild
+                ? "Runs test.py with an online Gradle build, copies the mod jars, and quickplays ${targetName}."
+                : "Runs test.py with an offline Gradle build, copies the mod jars, and quickplays ${targetName}."
+    }
+    task.workingDir = projectDir
+
+    def command = [project.findProperty('pythonExecutable') ?: 'python', 'test.py', targetName]
+    if (onlineBuild) {
+        command += ['--online-build']
+    }
+    if (smokeRun) {
+        command += ['--smoke']
+    }
+    if (project.hasProperty('world')) {
+        command += ['--world', project.property('world').toString()]
+    }
+    if (project.hasProperty('skipBuild')) {
+        command += ['--skip-build']
+    }
+    if (project.hasProperty('noCopy')) {
+        command += ['--no-copy']
+    }
+    if (project.hasProperty('dryRun')) {
+        command += ['--dry-run']
+    }
+    if (smokeRun && project.hasProperty('smokeTimeout')) {
+        command += ['--smoke-timeout', project.property('smokeTimeout').toString()]
+    }
+    if (smokeRun && project.hasProperty('smokeLogLines')) {
+        command += ['--smoke-log-lines', project.property('smokeLogLines').toString()]
+    }
+    if (project.hasProperty('width')) {
+        command += ['--width', project.property('width').toString()]
+    }
+    if (project.hasProperty('height')) {
+        command += ['--height', project.property('height').toString()]
+    }
+
+    task.commandLine command
 }
-tasks.register('testForge', Exec) {
-    group = 'test'
-    description = 'Build Forge and launch test.py for Forge/NeoForge instance'
-    dependsOn ':Forge:build'
-    commandLine 'python', 'test.py', 'forge', '--skip-build'
+
+tasks.register('quickPlayFabric', Exec) {
+    configureQuickPlayTask(delegate, 'fabric', false, false)
 }
-tasks.register('testBoth', Exec) {
-    group = 'test'
-    description = 'Build Fabric and Forge then launch both instances'
-    dependsOn ':Fabric:build', ':Forge:build'
-    commandLine 'python', 'test.py', 'both', '--skip-build'
+
+tasks.register('quickPlayForge', Exec) {
+    configureQuickPlayTask(delegate, 'forge', false, false)
+}
+
+tasks.register('quickPlayBoth', Exec) {
+    configureQuickPlayTask(delegate, 'both', false, false)
+}
+
+tasks.register('quickPlayFabricOnline', Exec) {
+    configureQuickPlayTask(delegate, 'fabric', true, false)
+}
+
+tasks.register('quickPlayForgeOnline', Exec) {
+    configureQuickPlayTask(delegate, 'forge', true, false)
+}
+
+tasks.register('quickPlayBothOnline', Exec) {
+    configureQuickPlayTask(delegate, 'both', true, false)
+}
+
+tasks.register('quickPlaySmoke', Exec) {
+    configureQuickPlayTask(delegate, 'both', false, true)
 }
