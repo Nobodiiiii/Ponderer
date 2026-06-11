@@ -5,14 +5,9 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.projector.ProjectorSceneKey;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderScene;
-import net.createmod.ponder.foundation.registration.PonderLocalization;
-import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
@@ -358,38 +353,12 @@ public final class ProjectorSceneBundle {
         }
 
         String type = step.type.toLowerCase(Locale.ROOT);
-        int duration = switch (type) {
-            case "text", "shared_text", "show_controls", "show_interface" -> step.durationOrDefault(60);
-            default -> 0;
-        };
+        int duration = "show_interface".equals(type) ? step.durationOrDefault(60) : 0;
         if (duration <= 0) {
             return null;
         }
 
         return switch (type) {
-            case "text" -> {
-                if (step.text == null || step.text.isEmpty()) {
-                    yield null;
-                }
-                yield new OverlayCue(
-                    startTick,
-                    startTick + Math.max(1, duration),
-                    resolveCuePoint(step),
-                    List.of(Component.literal(step.text.resolve())),
-                    0xE6FCFF);
-            }
-            case "shared_text" -> new OverlayCue(
-                startTick,
-                startTick + Math.max(1, duration),
-                resolveCuePoint(step),
-                List.of(resolveSharedText(step.key)),
-                0xD9F4FF);
-            case "show_controls" -> new OverlayCue(
-                startTick,
-                startTick + Math.max(1, duration),
-                resolveCuePoint(step),
-                buildControlLines(step),
-                0x9CEBFF);
             case "show_interface" -> new OverlayCue(
                 startTick,
                 startTick + Math.max(1, duration),
@@ -400,54 +369,6 @@ public final class ProjectorSceneBundle {
         };
     }
 
-    private static Component resolveSharedText(@Nullable String rawKey) {
-        if (rawKey == null || rawKey.isBlank()) {
-            return Component.translatable("ponderer.ui.projector.overlay.missing_shared_text");
-        }
-
-        ResourceLocation loc = rawKey.contains(":")
-            ? ResourceLocation.tryParse(rawKey)
-            : new ResourceLocation("ponderer", rawKey);
-        if (loc == null) {
-            return Component.literal(rawKey);
-        }
-
-        String translationKey = loc.getNamespace() + "." + PonderLocalization.LANG_PREFIX + "shared." + loc.getPath();
-        String translated = I18n.get(translationKey);
-        if (translated == null || translated.equals(translationKey)) {
-            return Component.literal(rawKey);
-        }
-        return Component.literal(translated);
-    }
-
-    private static List<Component> buildControlLines(DslScene.DslStep step) {
-        List<Component> lines = new ArrayList<>();
-        lines.add(Component.translatable(controlActionKey(step.action)));
-
-        String ingredientName = resolveIngredientName(step.item);
-        if (!ingredientName.isBlank()) {
-            lines.add(Component.translatable("ponderer.ui.projector.overlay.control.with_item", ingredientName));
-        }
-
-        List<Component> modifiers = new ArrayList<>();
-        if (Boolean.TRUE.equals(step.whileSneaking)) {
-            modifiers.add(Component.translatable("ponderer.ui.projector.overlay.modifier.sneak"));
-        }
-        if (Boolean.TRUE.equals(step.whileCTRL)) {
-            modifiers.add(Component.translatable("ponderer.ui.projector.overlay.modifier.ctrl"));
-        }
-        if (!modifiers.isEmpty()) {
-            if (modifiers.size() == 1) {
-                lines.add(Component.translatable("ponderer.ui.projector.overlay.control.hold", modifiers.get(0)));
-            } else {
-                lines.add(Component.translatable("ponderer.ui.projector.overlay.control.hold_pair",
-                    modifiers.get(0), modifiers.get(1)));
-            }
-        }
-
-        return List.copyOf(lines);
-    }
-
     private static List<Component> buildInterfaceLines(DslScene.DslStep step) {
         List<Component> lines = new ArrayList<>();
         lines.add(Component.translatable("ponderer.ui.projector.overlay.interface.title"));
@@ -456,41 +377,6 @@ public final class ProjectorSceneBundle {
             lines.add(Component.literal(step.uiId));
         }
         return List.copyOf(lines);
-    }
-
-    private static String controlActionKey(@Nullable String action) {
-        if (action == null || action.isBlank()) {
-            return "ponderer.ui.projector.overlay.control.action";
-        }
-        return switch (action.toLowerCase(Locale.ROOT)) {
-            case "left" -> "ponderer.ui.projector.overlay.control.left_click";
-            case "right" -> "ponderer.ui.projector.overlay.control.right_click";
-            case "scroll" -> "ponderer.ui.projector.overlay.control.scroll";
-            default -> "ponderer.ui.projector.overlay.control.action";
-        };
-    }
-
-    private static String resolveIngredientName(@Nullable String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "";
-        }
-
-        String itemId = raw;
-        int nbtStart = raw.indexOf('{');
-        if (nbtStart >= 0) {
-            itemId = raw.substring(0, nbtStart).trim();
-        }
-
-        ResourceLocation loc = ResourceLocation.tryParse(itemId);
-        if (loc == null) {
-            return raw;
-        }
-
-        Item item = BuiltInRegistries.ITEM.getOptional(loc).orElse(null);
-        if (item == null) {
-            return loc.toString();
-        }
-        return new ItemStack(item).getHoverName().getString();
     }
 
     private static Vec3 resolveCuePoint(DslScene.DslStep step) {

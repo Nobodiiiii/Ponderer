@@ -816,7 +816,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
         String text = step.text == null ? "" : step.text.resolve();
         int duration = step.durationOrDefault(60);
 
-        scene.addInstruction(new ProjectorCueMarkerInstruction(step));
         scene.addInstruction(new TextMarkerInstruction(text, false));
 
         TextElementBuilder builder = scene.overlay()
@@ -852,7 +851,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         int duration = step.durationOrDefault(60);
-        scene.addInstruction(new ProjectorCueMarkerInstruction(step));
         scene.addInstruction(new TextMarkerInstruction(key, true));
         TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc);
 
@@ -1046,7 +1044,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
         Pointing pointing = parsePointing(step.direction);
         int duration = step.durationOrDefault(60);
 
-        scene.addInstruction(new ProjectorCueMarkerInstruction(step));
         InputElementBuilder builder = scene.overlay().showControls(point, pointing, duration);
 
         switch (step.action == null ? "" : step.action.toLowerCase(Locale.ROOT)) {

@@ -4,16 +4,34 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import com.nododiiiii.ponderer.mixin.InputWindowElementAccessor;
+import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
 import com.nododiiiii.ponderer.projector.ProjectorBlock;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorKind;
+import net.createmod.catnip.gui.element.BoxElement;
+import net.createmod.catnip.gui.element.ScreenElement;
 import net.createmod.catnip.impl.client.render.ColoringVertexConsumer;
+import net.createmod.catnip.math.Pointing;
 import net.createmod.catnip.render.DefaultSuperRenderTypeBuffer;
 import net.createmod.catnip.render.SuperRenderTypeBuffer;
+import net.createmod.catnip.theme.Color;
+import net.createmod.ponder.api.PonderPalette;
+import net.createmod.ponder.api.element.AnimatedOverlayElement;
+import net.createmod.ponder.api.element.PonderElement;
+import net.createmod.ponder.api.element.PonderOverlayElement;
+import net.createmod.ponder.enums.PonderGuiTextures;
 import net.createmod.ponder.foundation.PonderScene;
+import net.createmod.ponder.foundation.element.InputWindowElement;
+import net.createmod.ponder.foundation.element.TextWindowElement;
+import net.createmod.ponder.foundation.PonderIndex;
+import net.createmod.ponder.foundation.ui.PonderButton;
+import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.Style;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -22,11 +40,16 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL11;
 
 import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
 
 public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<ProjectorBlockEntity> {
 
@@ -34,6 +57,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float MINIATURE_Y_OFFSET = 1.06F;
     private static final float MINIATURE_CARD_RISE = 0.22F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
+    private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
+    private static final float LOCAL_OVERLAY_ICON_Z = 0.04F;
+    private static final float ITEM_DEPTH_OFFSET_FACTOR = -1.0F;
+    private static final float ITEM_DEPTH_OFFSET_UNITS = -1024.0F;
 
     public ProjectorBlockEntityRenderer() {
     }
@@ -56,7 +83,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds());
         renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
-        renderOverlayCues(prepared.bundle().activeCues(prepared.globalTick()), layout, poseStack, bufferSource);
+        boolean renderedNativeOverlay = renderNativePonderOverlays(prepared.activeScene(), layout, poseStack, bufferSource,
+            partialTick);
+        List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle().activeCues(prepared.globalTick());
+        if (!prepared.segment().extractRuntimeOverlays() || !renderedNativeOverlay) {
+            renderOverlayCues(cues, layout, poseStack, bufferSource);
+        }
     }
 
     private void renderProjectedScene(PonderScene scene, RenderLayout layout, PoseStack poseStack,
@@ -86,6 +118,65 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
+    private boolean renderNativePonderOverlays(PonderScene scene, RenderLayout layout, PoseStack poseStack,
+                                               MultiBufferSource bufferSource, float partialTick) {
+        Set<PonderElement> elements = scene.getElements();
+        if (elements.isEmpty()) {
+            return false;
+        }
+
+        boolean rendered = false;
+        int fallbackLane = 0;
+
+        RenderSystem.enableBlend();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        try {
+            for (PonderElement element : elements) {
+                if (!(element instanceof PonderOverlayElement) || !element.isVisible()) {
+                    continue;
+                }
+
+                float fade = element instanceof AnimatedOverlayElement animated
+                    ? animated.getFade(partialTick)
+                    : 1.0F;
+                if (fade < 1.0F / 16.0F) {
+                    continue;
+                }
+
+                try {
+                    if (element instanceof TextWindowElement textElement) {
+                        TextWindowElementAccessor accessor = (TextWindowElementAccessor) textElement;
+                        int lane = fallbackLane;
+                        if (accessor.ponderer$getVec() == null) {
+                            lane = fallbackLaneForY(accessor.ponderer$getY(), fallbackLane);
+                        }
+                        if (renderTextOverlay(accessor, fade, lane, layout, poseStack, bufferSource)) {
+                            rendered = true;
+                            if (accessor.ponderer$getVec() == null) {
+                                fallbackLane = lane + 1;
+                            }
+                        }
+                        continue;
+                    }
+
+                    if (element instanceof InputWindowElement inputElement) {
+                        if (renderInputOverlay((InputWindowElementAccessor) inputElement, fade, layout, poseStack,
+                            bufferSource)) {
+                            rendered = true;
+                        }
+                    }
+                } catch (RuntimeException ignored) {
+                }
+            }
+        } finally {
+            RenderSystem.depthMask(true);
+            RenderSystem.enableDepthTest();
+        }
+
+        return rendered;
+    }
+
     private void renderOverlayCues(List<ProjectorSceneBundle.OverlayCue> cues, RenderLayout layout,
                                    PoseStack poseStack, MultiBufferSource bufferSource) {
         if (cues.isEmpty()) {
@@ -108,6 +199,47 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             } catch (RuntimeException ignored) {
             }
         }
+    }
+
+    private boolean renderTextOverlay(TextWindowElementAccessor accessor, float fade, int fallbackLane,
+                                      RenderLayout layout, PoseStack poseStack, MultiBufferSource bufferSource) {
+        String text = resolveText(accessor);
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        PonderPalette palette = accessor.ponderer$getPalette();
+        int accentColor = palette == null ? 0xE6FCFF : palette.getColor();
+        Vec3 anchorPoint = accessor.ponderer$getVec();
+        Vec3 localPos;
+        if (anchorPoint != null) {
+            Vec3 anchor = layout.localPointFor(anchorPoint);
+            localPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
+            drawPointerLine(anchor, localPos, poseStack, bufferSource, accentColor);
+        } else {
+            localPos = layout.fallbackCardPosition(fallbackLane);
+        }
+
+        drawTextWindowBillboard(text, localPos, palette, fade, poseStack, bufferSource);
+        return true;
+    }
+
+    private boolean renderInputOverlay(InputWindowElementAccessor accessor, float fade,
+                                       RenderLayout layout, PoseStack poseStack, MultiBufferSource bufferSource) {
+        ScreenElement icon = accessor.ponderer$getIcon();
+        ResourceLocation key = accessor.ponderer$getKey();
+        String text = key == null ? "" : PonderIndex.getLangAccess().getShared(key);
+        if (text == null) {
+            text = "";
+        }
+
+        if (icon == null && text.isBlank() && accessor.ponderer$getItem().isEmpty()) {
+            return false;
+        }
+
+        drawInputBubbleBillboard(accessor.ponderer$getSceneSpace(), accessor.ponderer$getDirection(), icon, text,
+            accessor.ponderer$getItem(), fade, layout, poseStack, bufferSource);
+        return true;
     }
 
     private void drawPointerLine(Vec3 anchor, Vec3 card, PoseStack poseStack,
@@ -180,6 +312,279 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         poseStack.popPose();
+    }
+
+    private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,
+                                         PoseStack poseStack, MultiBufferSource bufferSource) {
+        Font font = Minecraft.getInstance().font;
+        List<FormattedText> lines = font.getSplitter().splitLines(text, 180, Style.EMPTY);
+        if (lines.isEmpty()) {
+            lines = List.of(FormattedText.of(text));
+        }
+
+        int boxWidth = 0;
+        for (FormattedText line : lines) {
+            boxWidth = Math.max(boxWidth, font.width(line));
+        }
+        boxWidth = Math.max(1, boxWidth);
+        int boxHeight = Math.max(font.lineHeight, lines.size() * font.lineHeight);
+
+        Color brighter = (palette == null ? PonderPalette.WHITE : palette)
+            .getColorObject()
+            .mixWith(new Color(0xff_ffffdd, true), 0.5f)
+            .setImmutable();
+
+        poseStack.pushPose();
+        poseStack.translate(localPos.x, localPos.y, localPos.z);
+        poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
+        poseStack.scale(-uiScaleFor(localPos), -uiScaleFor(localPos), uiScaleFor(localPos));
+        poseStack.translate(-boxWidth / 2.0F, -(boxHeight + 6.0F) / 2.0F, 0.0F);
+
+        GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
+        new BoxElement()
+            .withBackground(PonderUI.BACKGROUND_FLAT)
+            .gradientBorder(TextWindowElement.COLOR_WINDOW_BORDER)
+            .at(-10, 3, 0)
+            .withBounds(boxWidth, Math.max(1, boxHeight - 1))
+            .render(graphics);
+
+        poseStack.pushPose();
+        poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_TEXT_Z);
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i).getString();
+            float y = 3 + font.lineHeight * i;
+            int color = brighter.copy().scaleAlphaForText(fade).getRGB();
+            font.drawInBatch(
+                line,
+                -10.0F,
+                y,
+                color,
+                false,
+                poseStack.last().pose(),
+                bufferSource,
+                Font.DisplayMode.SEE_THROUGH,
+                0,
+                LightTexture.FULL_BRIGHT);
+            font.drawInBatch(
+                line,
+                -10.0F,
+                y,
+                color,
+                false,
+                poseStack.last().pose(),
+                bufferSource,
+                Font.DisplayMode.NORMAL,
+                0,
+                LightTexture.FULL_BRIGHT);
+        }
+        poseStack.popPose();
+        poseStack.popPose();
+    }
+
+    private void drawInputBubbleBillboard(Vec3 scenePoint, Pointing direction, ScreenElement icon, String text,
+                                          ItemStack item, float fade,
+                                          RenderLayout layout, PoseStack poseStack, MultiBufferSource bufferSource) {
+        Vec3 localPos = layout.localPointFor(scenePoint);
+        Font font = Minecraft.getInstance().font;
+
+        boolean hasIcon = icon != null;
+        boolean hasText = text != null && !text.isBlank();
+        boolean hasItem = item != null && !item.isEmpty();
+        int keyWidth = hasText ? font.width(text) : 0;
+        int width = 0;
+        int height = 0;
+
+        if (hasIcon) {
+            width += 24;
+            height = 24;
+        }
+        if (hasText) {
+            width += keyWidth;
+        }
+        if (hasItem) {
+            width += 24;
+            height = 24;
+        }
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        float xFade = direction == Pointing.RIGHT ? -1.0F : direction == Pointing.LEFT ? 1.0F : 0.0F;
+        float yFade = direction == Pointing.DOWN ? -1.0F : direction == Pointing.UP ? 1.0F : 0.0F;
+        xFade *= 10.0F * (1.0F - fade);
+        yFade *= 10.0F * (1.0F - fade);
+
+        poseStack.pushPose();
+        poseStack.translate(localPos.x, localPos.y, localPos.z);
+        poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
+        poseStack.scale(-uiScaleFor(localPos), -uiScaleFor(localPos), uiScaleFor(localPos));
+        poseStack.translate(xFade, yFade, 0.0F);
+
+        GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
+        renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction);
+
+        if (hasText) {
+            poseStack.pushPose();
+            poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_TEXT_Z);
+            int color = PonderPalette.WHITE.getColorObject().copy().scaleAlphaForText(fade).getRGB();
+            float y = (height - font.lineHeight) / 2.0F + 2.0F;
+            font.drawInBatch(
+                text,
+                2.0F,
+                y,
+                color,
+                false,
+                poseStack.last().pose(),
+                bufferSource,
+                Font.DisplayMode.SEE_THROUGH,
+                0,
+                LightTexture.FULL_BRIGHT);
+            font.drawInBatch(
+                text,
+                2.0F,
+                y,
+                color,
+                false,
+                poseStack.last().pose(),
+                bufferSource,
+                Font.DisplayMode.NORMAL,
+                0,
+                LightTexture.FULL_BRIGHT);
+            poseStack.popPose();
+        }
+
+        if (hasIcon) {
+            poseStack.pushPose();
+            poseStack.translate(keyWidth, 0.0F, LOCAL_OVERLAY_ICON_Z);
+            poseStack.scale(1.5F, 1.5F, 1.5F);
+            icon.render(graphics, 0, 0);
+            poseStack.popPose();
+        }
+
+        if (hasItem) {
+            poseStack.pushPose();
+            poseStack.translate(keyWidth + (hasIcon ? 24 : 0), 0.0F, LOCAL_OVERLAY_ICON_Z);
+            poseStack.scale(1.5F, 1.5F, 1.5F);
+            renderItemOverlay(graphics, item, 0, 0);
+            poseStack.popPose();
+        }
+
+        graphics.flush();
+        poseStack.popPose();
+    }
+
+    private void renderSpeechBoxLocal(GuiGraphics graphics, int x, int y, int w, int h, boolean highlighted,
+                                      Pointing pointing) {
+        PoseStack poseStack = graphics.pose();
+
+        int boxX = x;
+        int boxY = y;
+        int divotX = x;
+        int divotY = y;
+        int divotRotation = 0;
+        int divotSize = 8;
+        int distance = 1;
+        int divotRadius = divotSize / 2;
+        var borderColors = highlighted ? PonderButton.COLOR_HOVER : PonderUI.COLOR_IDLE;
+        Color arrowColor;
+
+        switch (pointing) {
+            case DOWN -> {
+                boxX -= w / 2;
+                boxY -= h + divotSize + 1 + distance;
+                divotX -= divotRadius;
+                divotY -= divotSize + distance;
+                arrowColor = borderColors.getSecond();
+            }
+            case LEFT -> {
+                divotRotation = 90;
+                boxX += divotSize + 1 + distance;
+                boxY -= h / 2;
+                divotX += distance;
+                divotY -= divotRadius;
+                arrowColor = Color.mixColors(borderColors, 0.5F);
+            }
+            case RIGHT -> {
+                divotRotation = 270;
+                boxX -= w + divotSize + 1 + distance;
+                boxY -= h / 2;
+                divotX -= divotSize + distance;
+                divotY -= divotRadius;
+                arrowColor = Color.mixColors(borderColors, 0.5F);
+            }
+            case UP -> {
+                divotRotation = 180;
+                boxX -= w / 2;
+                boxY += divotSize + 1 + distance;
+                divotX -= divotRadius;
+                divotY += distance;
+                arrowColor = borderColors.getFirst();
+            }
+            default -> {
+                boxX -= w / 2;
+                boxY -= h + divotSize + 1 + distance;
+                divotX -= divotRadius;
+                divotY -= divotSize + distance;
+                arrowColor = borderColors.getSecond();
+            }
+        }
+
+        new BoxElement()
+            .withBackground(PonderUI.BACKGROUND_FLAT)
+            .gradientBorder(borderColors)
+            .at(boxX, boxY, 0)
+            .withBounds(w, h)
+            .render(graphics);
+
+        poseStack.pushPose();
+        poseStack.translate(divotX + divotRadius, divotY + divotRadius, LOCAL_OVERLAY_TEXT_Z);
+        poseStack.mulPose(Axis.ZP.rotationDegrees(divotRotation));
+        poseStack.translate(-divotRadius, -divotRadius, 0);
+        PonderGuiTextures.SPEECH_TOOLTIP_BACKGROUND.render(graphics, 0, 0);
+        PonderGuiTextures.SPEECH_TOOLTIP_COLOR.render(graphics, 0, 0, arrowColor);
+        poseStack.popPose();
+
+        poseStack.translate(boxX, boxY, 0);
+    }
+
+    private void renderItemOverlay(GuiGraphics graphics, ItemStack item, int x, int y) {
+        RenderSystem.enablePolygonOffset();
+        RenderSystem.polygonOffset(ITEM_DEPTH_OFFSET_FACTOR, ITEM_DEPTH_OFFSET_UNITS);
+        RenderSystem.depthFunc(GL11.GL_LEQUAL);
+        try {
+            graphics.renderItem(item, x, y);
+        } finally {
+            RenderSystem.polygonOffset(0.0F, 0.0F);
+            RenderSystem.disablePolygonOffset();
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+        }
+    }
+
+    private String resolveText(TextWindowElementAccessor accessor) {
+        String text = accessor.ponderer$getBakedText();
+        if (text != null && !text.isBlank()) {
+            return text;
+        }
+
+        Supplier<String> getter = accessor.ponderer$getTextGetter();
+        if (getter == null) {
+            return "";
+        }
+
+        String resolved = getter.get();
+        return resolved == null ? "" : resolved;
+    }
+
+    private int fallbackLaneForY(int y, int fallbackLane) {
+        if (y <= 0) {
+            return fallbackLane;
+        }
+        return Math.max(fallbackLane, Math.min(6, y / 32));
+    }
+
+    private float uiScaleFor(Vec3 localPos) {
+        return 0.018F;
     }
 
     @Override
