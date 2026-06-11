@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.projector.client;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.projector.ProjectorSceneKey;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.registration.PonderLocalization;
@@ -29,13 +30,37 @@ public final class ProjectorSceneBundle {
 
     private static final Vec3 DEFAULT_POINT = new Vec3(2.5D, 1.5D, 2.5D);
 
-    public record OverlayCue(int startTick, int endTick, Vec3 point, List<Component> lines, int accentColor) {
+    public record OverlayCue(int startTick, int endTick, Vec3 point, List<Component> lines, int accentColor,
+                             AnchorMode anchorMode, int fallbackLane) {
+        public OverlayCue(int startTick, int endTick, Vec3 point, List<Component> lines, int accentColor) {
+            this(startTick, endTick, point, lines, accentColor, AnchorMode.WORLD, 0);
+        }
+
+        public static OverlayCue runtimeWorld(int localTick, Vec3 point, List<Component> lines, int accentColor) {
+            return new OverlayCue(localTick, localTick + 1, point, lines, accentColor, AnchorMode.WORLD, 0);
+        }
+
+        public static OverlayCue runtimeFallback(int localTick, int fallbackLane, List<Component> lines, int accentColor) {
+            return new OverlayCue(localTick, localTick + 1, DEFAULT_POINT, lines, accentColor,
+                AnchorMode.FALLBACK, Math.max(0, fallbackLane));
+        }
+
         public boolean isActiveAt(int localTick) {
             return localTick >= startTick && localTick < endTick;
         }
+
+        public enum AnchorMode {
+            WORLD,
+            FALLBACK
+        }
     }
 
-    public record Segment(int segmentIndex, PonderScene scene, int startTick, int durationTicks, List<OverlayCue> cues) {
+    public record Segment(int segmentIndex, PonderScene scene, int startTick, int durationTicks,
+                          List<OverlayCue> cues, boolean extractRuntimeOverlays) {
+        public Segment(int segmentIndex, PonderScene scene, int startTick, int durationTicks, List<OverlayCue> cues) {
+            this(segmentIndex, scene, startTick, durationTicks, cues, false);
+        }
+
         public boolean containsGlobalTick(int globalTick) {
             return globalTick >= startTick && globalTick < startTick + durationTicks;
         }
@@ -83,7 +108,12 @@ public final class ProjectorSceneBundle {
         BoundingBox combinedBounds = null;
         int timeline = 0;
         for (String sceneKey : normalizedKeys) {
-            ProjectorSceneBundle compiled = compileRenderOnly(sceneKey);
+            ProjectorSceneBundle compiled;
+            try {
+                compiled = compileRenderOnly(sceneKey);
+            } catch (Throwable ignored) {
+                continue;
+            }
             if (compiled == null || compiled.segments().isEmpty()) {
                 continue;
             }
@@ -94,7 +124,8 @@ public final class ProjectorSceneBundle {
                     segment.scene(),
                     timeline + segment.startTick(),
                     segment.durationTicks(),
-                    segment.cues()));
+                    segment.cues(),
+                    segment.extractRuntimeOverlays()));
             }
             timeline += compiled.totalDurationTicks();
             combinedBounds = combinedBounds == null
@@ -111,6 +142,11 @@ public final class ProjectorSceneBundle {
 
     @Nullable
     private static ProjectorSceneBundle compileRenderOnly(String sceneKey) {
+        ProjectorSceneKey.Native nativeKey = ProjectorSceneKey.parseNative(sceneKey);
+        if (nativeKey != null) {
+            return compileNativeRenderOnly(nativeKey);
+        }
+
         DslScene dsl = SceneRuntime.findByKey(sceneKey);
         if (dsl == null || dsl.items == null || dsl.items.isEmpty()) {
             return null;
@@ -170,6 +206,48 @@ public final class ProjectorSceneBundle {
         return new ProjectorSceneBundle(sceneKey, segments, timeline, combinedBounds);
     }
 
+    @Nullable
+    private static ProjectorSceneBundle compileNativeRenderOnly(ProjectorSceneKey.Native nativeKey) {
+        if (!PonderIndex.getSceneAccess().doScenesExistForId(nativeKey.componentId())) {
+            return null;
+        }
+
+        List<PonderScene> compiledScenes = PonderIndex.getSceneAccess().compile(nativeKey.componentId());
+        if (compiledScenes.isEmpty()) {
+            return null;
+        }
+
+        Map<ResourceLocation, Integer> occurrenceById = new HashMap<>();
+        PonderScene selected = null;
+        for (PonderScene compiledScene : compiledScenes) {
+            if (compiledScene == null || compiledScene.getId() == null) {
+                continue;
+            }
+            ResourceLocation sceneId = compiledScene.getId();
+            int occurrence = occurrenceById.getOrDefault(sceneId, 0);
+            occurrenceById.put(sceneId, occurrence + 1);
+            if (sceneId.equals(nativeKey.sceneId()) && occurrence == nativeKey.occurrence()) {
+                selected = compiledScene;
+                break;
+            }
+        }
+
+        if (selected == null) {
+            return null;
+        }
+
+        int duration = selected.getTotalTime();
+        if (duration <= 0) {
+            duration = 20 * 60;
+        }
+
+        return new ProjectorSceneBundle(
+            ProjectorSceneKey.nativeKey(nativeKey.componentId(), nativeKey.sceneId(), nativeKey.occurrence()),
+            List.of(new Segment(0, selected, 0, duration, List.of(), true)),
+            duration,
+            selected.getBounds());
+    }
+
     public String sceneKey() {
         return sceneKey;
     }
@@ -206,21 +284,25 @@ public final class ProjectorSceneBundle {
         }
 
         int localTick = segment.localTick(globalTick);
+        List<OverlayCue> result = new ArrayList<>();
+        if (segment.extractRuntimeOverlays()) {
+            result.addAll(ProjectorOverlayExtractor.extract(segment.scene(), localTick));
+        }
+
         List<OverlayCue> cues = ProjectorCueIndexStore.get(segment.scene());
         if (cues.isEmpty()) {
             cues = segment.cues();
         }
         if (cues.isEmpty()) {
-            return List.of();
+            return result.isEmpty() ? List.of() : List.copyOf(result);
         }
 
-        List<OverlayCue> result = new ArrayList<>();
         for (OverlayCue cue : cues) {
             if (cue.isActiveAt(localTick)) {
                 result.add(cue);
             }
         }
-        return result;
+        return result.isEmpty() ? List.of() : List.copyOf(result);
     }
 
     private static DslScene.SceneSegment resolveSegmentDefinition(DslScene dsl, int segmentIndex) {

@@ -397,8 +397,11 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     }
 
     private List<String> resolveSceneKeys(List<String> fallbackSceneKeys) {
-        List<String> resolved = ProjectorSceneResolver.sceneKeysFor(sourceItem);
-        return resolved.isEmpty() ? sanitizeSceneKeys(fallbackSceneKeys) : resolved;
+        List<String> fallback = sanitizeSceneKeys(fallbackSceneKeys);
+        if (!fallback.isEmpty()) {
+            return fallback;
+        }
+        return ProjectorSceneResolver.sceneKeysFor(sourceItem);
     }
 
     @Override

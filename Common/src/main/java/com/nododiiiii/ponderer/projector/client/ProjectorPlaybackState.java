@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.projector.client;
 
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
-import com.nododiiiii.ponderer.projector.ProjectorSceneResolver;
 import net.createmod.ponder.foundation.PonderScene;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -46,7 +45,7 @@ final class ProjectorPlaybackState {
 
         List<String> desiredSceneKeys = blockEntity.getSceneKeys();
         if (desiredSceneKeys.isEmpty()) {
-            desiredSceneKeys = ProjectorSceneResolver.sceneKeysFor(blockEntity.getSourceItem());
+            desiredSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(blockEntity.getSourceItem());
         }
         if (desiredSceneKeys.isEmpty()) {
             return null;

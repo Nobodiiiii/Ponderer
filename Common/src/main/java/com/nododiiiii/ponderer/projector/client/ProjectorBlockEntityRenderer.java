@@ -92,11 +92,20 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         for (ProjectorSceneBundle.OverlayCue cue : cues) {
-            Vec3 anchor = layout.localPointFor(cue.point());
-            Vec3 cardPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
+            try {
+                if (cue.anchorMode() == ProjectorSceneBundle.OverlayCue.AnchorMode.FALLBACK) {
+                    drawBillboardCard(cue.lines(), layout.fallbackCardPosition(cue.fallbackLane()),
+                        cue.accentColor(), poseStack, bufferSource);
+                    continue;
+                }
 
-            drawPointerLine(anchor, cardPos, poseStack, bufferSource, cue.accentColor());
-            drawBillboardCard(cue.lines(), cardPos, cue.accentColor(), poseStack, bufferSource);
+                Vec3 anchor = layout.localPointFor(cue.point());
+                Vec3 cardPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
+
+                drawPointerLine(anchor, cardPos, poseStack, bufferSource, cue.accentColor());
+                drawBillboardCard(cue.lines(), cardPos, cue.accentColor(), poseStack, bufferSource);
+            } catch (RuntimeException ignored) {
+            }
         }
     }
 
@@ -248,6 +257,19 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         float cardRise() {
             return kind == ProjectorKind.MINIATURE ? MINIATURE_CARD_RISE : LIFE_SIZE_CARD_RISE;
+        }
+
+        Vec3 fallbackCardPosition(int lane) {
+            int safeLane = Math.max(0, lane);
+            if (kind == ProjectorKind.MINIATURE) {
+                return new Vec3(0.5D, MINIATURE_Y_OFFSET + 0.46D + safeLane * 0.18D, 0.5D);
+            }
+
+            double centerX = (bounds.minX() + bounds.maxX() + 1) * 0.5D;
+            double centerY = bounds.maxY() + 1.0D;
+            double centerZ = (bounds.minZ() + bounds.maxZ() + 1) * 0.5D;
+            return localPointFor(new Vec3(centerX, centerY, centerZ))
+                .add(0.0D, LIFE_SIZE_CARD_RISE + safeLane * 0.28D, 0.0D);
         }
 
         private static Vec3 rotateY(Vec3 vec, float rotationDegrees) {

@@ -6,8 +6,8 @@ import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorKind;
 import com.nododiiiii.ponderer.projector.ProjectorMenu;
-import com.nododiiiii.ponderer.projector.ProjectorSceneResolver;
 import com.nododiiiii.ponderer.projector.ProjectorTriggerMode;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientSceneResolver;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneCompiler;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -201,7 +201,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
     private void refreshResolvedScenes(boolean autoApply) {
         sourceFingerprint = fingerprint(menu.sourceItem());
-        resolvedSceneKeys = ProjectorSceneResolver.sceneKeysFor(menu.sourceItem());
+        resolvedSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(menu.sourceItem());
         playButton.active = !resolvedSceneKeys.isEmpty();
 
         if (menu.sourceItem().isEmpty()) {
