@@ -30,6 +30,11 @@ public final class ProjectorRenderBounds {
     private ProjectorRenderBounds() {
     }
 
+    static void clearCache() {
+        CACHE.clear();
+        cachedLevel = null;
+    }
+
     public static AABB estimate(ProjectorBlockEntity blockEntity) {
         Level level = Minecraft.getInstance().level;
         if (level != cachedLevel) {

@@ -6,8 +6,8 @@ import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.network.DownloadStructurePayload;
 import com.nododiiiii.ponderer.network.UploadScenePayload;
 import com.nododiiiii.ponderer.network.SyncRequestPayload;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.util.SafePaths;
-import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.CompoundTagArgument;
@@ -153,7 +153,7 @@ public final class PondererClientCommands {
     public static int reloadLocal() {
         SceneStore.AutoLoadResult autoLoadResult = SceneStore.autoLoadPonderPacks();
         int count = SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
         for (SceneStore.PackUpdateInfo info : autoLoadResult.updatedPacks) {
             notifyClient(Component.literal("[Ponderer] ")
                 .append(Component.translatable("ponderer.pack.update.readonly_newer_source",
@@ -446,7 +446,7 @@ public final class PondererClientCommands {
 
         if (SceneStore.saveSceneToLocal(scene)) {
             SceneStore.reloadFromDisk();
-            Minecraft.getInstance().execute(PonderIndex::reload);
+            Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
             notifyClient(Component.translatable("ponderer.cmd.new.created", sceneId, itemId.toString()));
             return 1;
         } else {
@@ -502,7 +502,7 @@ public final class PondererClientCommands {
 
         if (SceneStore.saveSceneToLocal(copy)) {
             SceneStore.reloadFromDisk();
-            Minecraft.getInstance().execute(PonderIndex::reload);
+            Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
             notifyClient(
                     Component.translatable("ponderer.cmd.copy.done", original.id, newId, targetItem.toString()));
             return 1;
@@ -526,7 +526,7 @@ public final class PondererClientCommands {
 
         if (SceneStore.deleteSceneLocal(id)) {
             SceneStore.reloadFromDisk();
-            Minecraft.getInstance().execute(PonderIndex::reload);
+            Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
             notifyClient(Component.translatable("ponderer.cmd.delete.done", id));
             return 1;
         } else {
@@ -548,7 +548,7 @@ public final class PondererClientCommands {
 
         if (SceneStore.deleteSceneByKey(sceneKey)) {
             SceneStore.reloadFromDisk();
-            Minecraft.getInstance().execute(PonderIndex::reload);
+            Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
             notifyClient(Component.translatable("ponderer.cmd.delete.done", sceneKey));
             return 1;
         } else {
@@ -573,7 +573,7 @@ public final class PondererClientCommands {
             }
         }
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
         notifyClient(Component.translatable("ponderer.cmd.delete.item_done", count, itemStr));
         return count;
     }
@@ -693,7 +693,7 @@ public final class PondererClientCommands {
 
         SceneStore.autoLoadPonderPacks();
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
 
         player.displayClientMessage(Component.translatable("ponderer.pack.unregister.done", packName), false);
         return 1;

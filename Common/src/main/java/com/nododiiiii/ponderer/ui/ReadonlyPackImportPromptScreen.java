@@ -4,7 +4,7 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PonderPackInfo;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import net.createmod.ponder.foundation.PonderIndex;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -62,7 +62,7 @@ public class ReadonlyPackImportPromptScreen {
 
         SceneStore.autoLoadPonderPacks();
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
 
         DslScene importedScene = SceneRuntime.findByKey(sceneKey);
         notifyUser(Component.literal(UIText.of(result.uiMessageKey(), result.uiMessageArgs())));

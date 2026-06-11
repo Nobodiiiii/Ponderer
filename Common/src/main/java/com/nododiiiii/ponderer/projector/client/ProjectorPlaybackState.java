@@ -37,6 +37,11 @@ final class ProjectorPlaybackState {
         return STATES.computeIfAbsent(blockEntity.getBlockPos().immutable(), ignored -> new ProjectorPlaybackState());
     }
 
+    static void clearAll() {
+        STATES.clear();
+        cachedLevel = null;
+    }
+
     @Nullable
     PreparedFrame prepare(ProjectorBlockEntity blockEntity, float partialTick) {
         if (!blockEntity.isPlaying() || !blockEntity.hasRenderableScene()) {
