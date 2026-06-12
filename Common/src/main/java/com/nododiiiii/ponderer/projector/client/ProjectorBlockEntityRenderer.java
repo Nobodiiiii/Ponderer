@@ -1,16 +1,10 @@
 package com.nododiiiii.ponderer.projector.client;
 
-import com.mojang.blaze3d.pipeline.TextureTarget;
-import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.math.Axis;
 import com.nododiiiii.ponderer.mixin.InputWindowElementAccessor;
 import com.nododiiiii.ponderer.mixin.RenderSystemShaderLightsAccessor;
@@ -18,6 +12,7 @@ import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
 import com.nododiiiii.ponderer.projector.ProjectorBlock;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorKind;
+import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.createmod.catnip.impl.client.render.ColoringVertexConsumer;
@@ -39,23 +34,25 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Style;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.client.renderer.entity.ItemRenderer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL30;
 
 import java.util.List;
 import java.util.Set;
@@ -68,9 +65,20 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float MINIATURE_CARD_RISE = 0.22F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
     private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
-    private static final float PANEL_CONTENT_Z = 50.0F;
+    /** Local z offsets (toward camera) that layer the input panel: box at 0, item just above, text/icon on top.
+     *  Kept tiny so the panel reads as one flat layer (large offsets cause depth parallax when the camera moves). */
+    private static final float PANEL_ITEM_Z = 0F;
+    private static final float PANEL_FG_Z = 2.0F;
+    /** Squash factor applied to the item's depth (toward camera). A full 3D item is as deep as it is tall, which
+     *  parallaxes against the flat box; squashing it emulates the orthographic inventory look (1 = full 3D, 0 = flat). */
+    private static final float PANEL_ITEM_FLATTEN = 0F;
 
-    private final InputPanelSnapshot inputPanelSnapshot = new InputPanelSnapshot();
+    /**
+     * Private, isolated buffer for the show_controls panel. Never the shared world buffer source, so
+     * flushing it mid-frame cannot disturb any other world rendering.
+     */
+    private final MultiBufferSource.BufferSource panelBuffer =
+        MultiBufferSource.immediate(new BufferBuilder(256));
 
     public ProjectorBlockEntityRenderer() {
     }
@@ -417,12 +425,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return;
         }
 
-        InputPanelSnapshot.Render render = inputPanelSnapshot.capture(width, height, keyWidth, direction,
-            hasIcon ? icon : null, hasText ? text : "", hasItem ? item : ItemStack.EMPTY, fade);
-        if (render == null) {
-            return;
-        }
-
         float xFade = direction == Pointing.RIGHT ? -1.0F : direction == Pointing.LEFT ? 1.0F : 0.0F;
         float yFade = direction == Pointing.DOWN ? -1.0F : direction == Pointing.UP ? 1.0F : 0.0F;
         xFade *= 10.0F * (1.0F - fade);
@@ -437,48 +439,98 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.scale(-scale, -scale, scale);
         poseStack.translate(xFade, yFade, 0.0F);
 
-        inputPanelSnapshot.composite(poseStack, render);
+        GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack, panelBuffer);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
 
-        poseStack.popPose();
-    }
-
-    /**
-     * Paints the show_controls panel (speech box + key text + icon + item) using the exact native
-     * {@code InputWindowElement} layout, into whatever GuiGraphics/target is currently bound. The
-     * GUI origin {@code (0, 0)} is the scene anchor the divot points at.
-     */
-    private static void paintInputPanel(GuiGraphics graphics, int width, int height, int keyWidth,
-                                        Pointing direction, ScreenElement icon, String text, ItemStack item,
-                                        float fade) {
-        PoseStack pose = graphics.pose();
+        // Layer 1 — background speech box + divot. renderSpeechBoxLocal leaves the pose translated to
+        // the box's top-left corner, so the content below is positioned relative to it (native layout).
         renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction);
+        panelBuffer.endBatch();
 
-        Font font = Minecraft.getInstance().font;
-        pose.pushPose();
-        pose.translate(0.0F, 0.0F, PANEL_CONTENT_Z);
+        // Layer 2 — the item as a real 3D model, drawn after (on top of) the box.
+        if (hasItem) {
+            drawPanelItem(poseStack, item, keyWidth + (hasIcon ? 24 : 0));
+        }
 
-        if (text != null && !text.isBlank()) {
+        // Layer 3 — key text + icon. They sit beside the item (never overlapping it), so a small lift
+        // above the box is enough to keep them on top.
+        poseStack.pushPose();
+        poseStack.translate(0.0F, 0.0F, PANEL_FG_Z);
+        if (hasText) {
             int color = PonderPalette.WHITE.getColorObject().copy().scaleAlpha(fade).getRGB();
             graphics.drawString(font, text, 2, (int) ((height - font.lineHeight) / 2.0F + 2.0F), color, false);
         }
-
-        if (icon != null) {
-            pose.pushPose();
-            pose.translate(keyWidth, 0.0F, 0.0F);
-            pose.scale(1.5F, 1.5F, 1.5F);
+        if (hasIcon) {
+            poseStack.pushPose();
+            poseStack.translate(keyWidth, 0.0F, 0.0F);
+            poseStack.scale(1.5F, 1.5F, 1.5F);
             icon.render(graphics, 0, 0);
-            pose.popPose();
+            poseStack.popPose();
+        }
+        panelBuffer.endBatch();
+        poseStack.popPose();
+
+        poseStack.popPose();
+        RenderSystem.enableCull();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    /**
+     * Renders the show_controls item as a real 3D model on top of the speech box, using the same recipe
+     * Create's {@link net.createmod.catnip.gui.element.GuiGameElement} uses for in-GUI items (cull on,
+     * {@link UIRenderHelper#flipForGuiRender}, depth test off so it sorts on top). Unlike GuiGameElement
+     * it draws into our private {@link #panelBuffer} — never the shared world buffer, so nothing else is
+     * contaminated — and saves/restores the level diffuse light directions that {@link Lighting} would
+     * otherwise clobber, keeping world entity lighting intact. {@code x} is the item's left edge relative
+     * to the box top-left corner.
+     */
+    private void drawPanelItem(PoseStack poseStack, ItemStack item, int x) {
+        Minecraft minecraft = Minecraft.getInstance();
+        ItemRenderer itemRenderer = minecraft.getItemRenderer();
+        BakedModel model = itemRenderer.getModel(item, null, null, 0);
+
+        Vector3f savedLight0 = null;
+        Vector3f savedLight1 = null;
+        try {
+            Vector3f[] dirs = RenderSystemShaderLightsAccessor.ponderer$getShaderLightDirections();
+            if (dirs != null && dirs.length >= 2 && dirs[0] != null && dirs[1] != null) {
+                savedLight0 = new Vector3f(dirs[0]);
+                savedLight1 = new Vector3f(dirs[1]);
+            }
+        } catch (Throwable ignored) {
         }
 
-        if (item != null && !item.isEmpty()) {
-            pose.pushPose();
-            pose.translate(keyWidth + (icon != null ? 24 : 0), 0.0F, 0.0F);
-            pose.scale(1.5F, 1.5F, 1.5F);
-            graphics.renderItem(item, 0, 0);
-            pose.popPose();
+        if (model.usesBlockLight()) {
+            Lighting.setupFor3DItems();
+        } else {
+            Lighting.setupForFlatItems();
         }
 
-        pose.popPose();
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.enableCull();
+        RenderSystem.disableDepthTest();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        minecraft.getTextureManager().getTexture(InventoryMenu.BLOCK_ATLAS).setFilter(false, false);
+
+        poseStack.pushPose();
+        poseStack.translate(x, 0.0F, PANEL_ITEM_Z);
+        // Squash the item's depth toward the camera so it sits on the box's plane (no parallax) yet keeps
+        // its inventory-style 3D silhouette. Applied first so it compresses the whole model along view-z.
+        poseStack.scale(1.0F, 1.0F, PANEL_ITEM_FLATTEN);
+        poseStack.scale(1.5F, 1.5F, 1.5F);
+        UIRenderHelper.flipForGuiRender(poseStack);
+        poseStack.translate(8.0F, -8.0F, 0.0F);
+        poseStack.scale(16.0F, 16.0F, 16.0F);
+        itemRenderer.render(item, ItemDisplayContext.GUI, false, poseStack, panelBuffer,
+            LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, model);
+        panelBuffer.endBatch();
+        poseStack.popPose();
+
+        if (savedLight0 != null && savedLight1 != null) {
+            RenderSystem.setShaderLights(savedLight0, savedLight1);
+        }
     }
 
     private static void renderSpeechBoxLocal(GuiGraphics graphics, int x, int y, int w, int h, boolean highlighted,
@@ -682,238 +734,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
     }
 
-    /**
-     * Renders the entire show_controls panel (speech box, key text, icon and item) into a small
-     * off-screen framebuffer, flattening the 3D item so it cannot z-fight with the bubble, then
-     * composites the resulting texture into the world as one camera-facing quad — the same way the
-     * text overlays are billboarded.
-     *
-     * <p>The off-screen pass paints into a private buffer source (so it never flushes the world's
-     * pending overlay vertices) and snapshots/restores the full GL state including the level diffuse
-     * light directions, so world entity lighting and culling are left untouched.</p>
-     */
-    private static final class InputPanelSnapshot {
-        private TextureTarget target;
-        private MultiBufferSource.BufferSource buffers;
-
-        /** Result of an off-screen capture: panel pixel bounds relative to the scene anchor + UVs. */
-        record Render(int minX, int minY, int panelW, int panelH, float u1, float v1) {
-        }
-
-        Render capture(int width, int height, int keyWidth, Pointing direction,
-                       ScreenElement icon, String text, ItemStack item, float fade) {
-            int[] bounds = panelBounds(direction, width, height);
-            int minX = bounds[0];
-            int minY = bounds[1];
-            int panelW = bounds[2] - bounds[0];
-            int panelH = bounds[3] - bounds[1];
-            if (panelW <= 0 || panelH <= 0) {
-                return null;
-            }
-
-            ensureTarget(panelW, panelH);
-            if (target == null) {
-                return null;
-            }
-            if (buffers == null) {
-                buffers = MultiBufferSource.immediate(new BufferBuilder(1024));
-            }
-
-            Vector3f savedLight0 = null;
-            Vector3f savedLight1 = null;
-            try {
-                Vector3f[] dirs = RenderSystemShaderLightsAccessor.ponderer$getShaderLightDirections();
-                if (dirs != null && dirs.length >= 2 && dirs[0] != null && dirs[1] != null) {
-                    savedLight0 = new Vector3f(dirs[0]);
-                    savedLight1 = new Vector3f(dirs[1]);
-                }
-            } catch (Throwable ignored) {
-            }
-
-            GlStateSnapshot glState = GlStateSnapshot.capture();
-            target.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-            target.bindWrite(true);
-            target.clear(Minecraft.ON_OSX);
-
-            RenderSystem.backupProjectionMatrix();
-            PoseStack modelView = RenderSystem.getModelViewStack();
-            modelView.pushPose();
-            boolean painted = false;
-            try {
-                RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(
-                    0.0F, panelW, panelH, 0.0F, 1000.0F, 21000.0F),
-                    VertexSorting.ORTHOGRAPHIC_Z);
-                modelView.setIdentity();
-                modelView.translate(0.0F, 0.0F, -11000.0F);
-                RenderSystem.applyModelViewMatrix();
-
-                RenderSystem.enableBlend();
-                RenderSystem.defaultBlendFunc();
-                RenderSystem.enableDepthTest();
-                RenderSystem.depthMask(true);
-
-                PoseStack pose = new PoseStack();
-                pose.translate(-minX, -minY, 0.0F);
-                GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(pose, buffers);
-                paintInputPanel(graphics, width, height, keyWidth, direction, icon, text, item, fade);
-                graphics.flush();
-                painted = true;
-            } catch (RuntimeException ignored) {
-                painted = false;
-            } finally {
-                modelView.popPose();
-                RenderSystem.applyModelViewMatrix();
-                RenderSystem.restoreProjectionMatrix();
-                glState.restore();
-                if (savedLight0 != null && savedLight1 != null) {
-                    RenderSystem.setShaderLights(savedLight0, savedLight1);
-                }
-                RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            }
-
-            if (!painted) {
-                return null;
-            }
-            return new Render(minX, minY, panelW, panelH,
-                panelW / (float) target.width, panelH / (float) target.height);
-        }
-
-        void composite(PoseStack poseStack, Render render) {
-            if (target == null || render == null) {
-                return;
-            }
-
-            GlStateSnapshot glState = GlStateSnapshot.capture();
-            try {
-                RenderSystem.enableBlend();
-                RenderSystem.defaultBlendFunc();
-                RenderSystem.disableDepthTest();
-                RenderSystem.depthMask(false);
-                RenderSystem.disableCull();
-                RenderSystem.setShader(GameRenderer::getPositionTexShader);
-                RenderSystem.setShaderTexture(0, target.getColorTextureId());
-                RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-
-                Matrix4f matrix = poseStack.last().pose();
-                float minX = render.minX();
-                float minY = render.minY();
-                float maxX = render.minX() + render.panelW();
-                float maxY = render.minY() + render.panelH();
-                float u1 = render.u1();
-                float v1 = render.v1();
-
-                BufferBuilder buffer = Tesselator.getInstance().getBuilder();
-                buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-                buffer.vertex(matrix, minX, maxY, 0.0F).uv(0.0F, 0.0F).endVertex();
-                buffer.vertex(matrix, maxX, maxY, 0.0F).uv(u1, 0.0F).endVertex();
-                buffer.vertex(matrix, maxX, minY, 0.0F).uv(u1, v1).endVertex();
-                buffer.vertex(matrix, minX, minY, 0.0F).uv(0.0F, v1).endVertex();
-                BufferUploader.drawWithShader(buffer.end());
-            } finally {
-                glState.restore();
-                RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            }
-        }
-
-        private void ensureTarget(int width, int height) {
-            if (target != null && target.width == width && target.height == height) {
-                return;
-            }
-
-            if (target != null) {
-                target.destroyBuffers();
-            }
-            target = new TextureTarget(width, height, true, Minecraft.ON_OSX);
-            target.setFilterMode(GL11.GL_LINEAR);
-        }
-
-        /**
-         * Pixel bounds (relative to the scene anchor at the origin) that enclose the speech box and
-         * its divot for the given pointing direction. Mirrors {@link #renderSpeechBoxLocal}.
-         */
-        private static int[] panelBounds(Pointing pointing, int w, int h) {
-            int divotSize = 8;
-            int distance = 1;
-            int divotRadius = divotSize / 2;
-            int boxX;
-            int boxY;
-            int divotX;
-            int divotY;
-            switch (pointing) {
-                case LEFT -> {
-                    boxX = divotSize + 1 + distance;
-                    boxY = -h / 2;
-                    divotX = distance;
-                    divotY = -divotRadius;
-                }
-                case RIGHT -> {
-                    boxX = -(w + divotSize + 1 + distance);
-                    boxY = -h / 2;
-                    divotX = -(divotSize + distance);
-                    divotY = -divotRadius;
-                }
-                case UP -> {
-                    boxX = -w / 2;
-                    boxY = divotSize + 1 + distance;
-                    divotX = -divotRadius;
-                    divotY = distance;
-                }
-                default -> {
-                    boxX = -w / 2;
-                    boxY = -(h + divotSize + 1 + distance);
-                    divotX = -divotRadius;
-                    divotY = -(divotSize + distance);
-                }
-            }
-            int pad = 6;
-            int minX = Math.min(boxX, divotX) - pad;
-            int minY = Math.min(boxY, divotY) - pad;
-            int maxX = Math.max(boxX + w, divotX + divotSize) + pad;
-            int maxY = Math.max(boxY + h, divotY + divotSize) + pad;
-            return new int[]{minX, minY, maxX, maxY};
-        }
-
-        private record GlStateSnapshot(int drawFramebuffer, int readFramebuffer, int[] viewport,
-                                       boolean depthTest, boolean depthMask, int depthFunc,
-                                       boolean blend, boolean cull) {
-            static GlStateSnapshot capture() {
-                int[] viewport = new int[4];
-                GL11.glGetIntegerv(GL11.GL_VIEWPORT, viewport);
-                return new GlStateSnapshot(
-                    GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING),
-                    GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING),
-                    viewport,
-                    GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
-                    GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK),
-                    GL11.glGetInteger(GL11.GL_DEPTH_FUNC),
-                    GL11.glIsEnabled(GL11.GL_BLEND),
-                    GL11.glIsEnabled(GL11.GL_CULL_FACE));
-            }
-
-            void restore() {
-                GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer);
-                GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer);
-                RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-                if (depthTest) {
-                    RenderSystem.enableDepthTest();
-                } else {
-                    RenderSystem.disableDepthTest();
-                }
-                RenderSystem.depthMask(depthMask);
-                RenderSystem.depthFunc(depthFunc);
-                if (blend) {
-                    RenderSystem.enableBlend();
-                } else {
-                    RenderSystem.disableBlend();
-                }
-                if (cull) {
-                    RenderSystem.enableCull();
-                } else {
-                    RenderSystem.disableCull();
-                }
-            }
-        }
-    }
 
     private record ProjectedRenderTypeBuffer(DefaultSuperRenderTypeBuffer delegate, float red, float green,
                                              float blue) implements SuperRenderTypeBuffer {
