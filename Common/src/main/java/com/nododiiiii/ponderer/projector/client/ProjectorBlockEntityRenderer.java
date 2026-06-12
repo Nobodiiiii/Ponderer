@@ -51,10 +51,13 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -64,13 +67,15 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float MINIATURE_Y_OFFSET = 1.06F;
     private static final float MINIATURE_CARD_RISE = 0.22F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
+    /** Tiny z lift (toward camera) shared by flat overlay foreground content so it never z-fights the box it
+     *  sits on: the TextWindow body text, the speech-box divot, and the show_controls panel item all use it. */
     private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
-    /** Local z offsets (toward camera) that layer the input panel: box at 0, item just above, text/icon on top.
-     *  Kept tiny so the panel reads as one flat layer (large offsets cause depth parallax when the camera moves). */
-    private static final float PANEL_ITEM_Z = 0F;
+    /** Larger lift for the input panel's key text + icon, which sit beside (not on top of) the item. */
     private static final float PANEL_FG_Z = 2.0F;
     /** Squash factor applied to the item's depth (toward camera). A full 3D item is as deep as it is tall, which
-     *  parallaxes against the flat box; squashing it emulates the orthographic inventory look (1 = full 3D, 0 = flat). */
+     *  parallaxes against the flat box; squashing it emulates the orthographic inventory look (1 = full 3D, 0 = flat).
+     *  Only geometry is squashed; {@link #drawPanelItem} repairs the normal matrix afterward so diffuse lighting
+     *  still matches a real inventory item (a 0 z-scale would make the normal matrix singular and render it dark). */
     private static final float PANEL_ITEM_FLATTEN = 0F;
 
     /**
@@ -79,6 +84,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      */
     private final MultiBufferSource.BufferSource panelBuffer =
         MultiBufferSource.immediate(new BufferBuilder(256));
+    private final Map<RenderType, RenderType> panelNoDepthRenderTypes = new IdentityHashMap<>();
+    private final MultiBufferSource panelNoDepthBuffer =
+        type -> panelBuffer.getBuffer(panelNoDepthRenderType(type));
 
     public ProjectorBlockEntityRenderer() {
     }
@@ -446,7 +454,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         // Layer 1 — background speech box + divot. renderSpeechBoxLocal leaves the pose translated to
         // the box's top-left corner, so the content below is positioned relative to it (native layout).
         renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction);
-        panelBuffer.endBatch();
+        flushPanelBufferNoDepth();
 
         // Layer 2 — the item as a real 3D model, drawn after (on top of) the box.
         if (hasItem) {
@@ -459,16 +467,20 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.translate(0.0F, 0.0F, PANEL_FG_Z);
         if (hasText) {
             int color = PonderPalette.WHITE.getColorObject().copy().scaleAlpha(fade).getRGB();
-            graphics.drawString(font, text, 2, (int) ((height - font.lineHeight) / 2.0F + 2.0F), color, false);
+            font.drawInBatch(text, 2.0F, (height - font.lineHeight) / 2.0F + 2.0F, color, false,
+                poseStack.last().pose(), panelNoDepthBuffer, Font.DisplayMode.NORMAL, 0,
+                LightTexture.FULL_BRIGHT);
         }
         if (hasIcon) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
             poseStack.pushPose();
             poseStack.translate(keyWidth, 0.0F, 0.0F);
             poseStack.scale(1.5F, 1.5F, 1.5F);
             icon.render(graphics, 0, 0);
             poseStack.popPose();
         }
-        panelBuffer.endBatch();
+        flushPanelBufferNoDepth();
         poseStack.popPose();
 
         poseStack.popPose();
@@ -484,11 +496,16 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      * contaminated — and saves/restores the level diffuse light directions that {@link Lighting} would
      * otherwise clobber, keeping world entity lighting intact. {@code x} is the item's left edge relative
      * to the box top-left corner.
+     * <p>
+     * The item still uses vanilla item render types for texture/shader parity, but through
+     * {@link #panelNoDepthBuffer}; otherwise the render type setup re-enables depth during
+     * {@code endBatch()} and lets projected scene blocks cover the foreground model.
      */
     private void drawPanelItem(PoseStack poseStack, ItemStack item, int x) {
         Minecraft minecraft = Minecraft.getInstance();
         ItemRenderer itemRenderer = minecraft.getItemRenderer();
         BakedModel model = itemRenderer.getModel(item, null, null, 0);
+        boolean flatLighting = !model.usesBlockLight();
 
         Vector3f savedLight0 = null;
         Vector3f savedLight1 = null;
@@ -501,10 +518,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         } catch (Throwable ignored) {
         }
 
-        if (model.usesBlockLight()) {
-            Lighting.setupFor3DItems();
-        } else {
+        if (flatLighting) {
             Lighting.setupForFlatItems();
+        } else {
+            Lighting.setupFor3DItems();
         }
 
         RenderSystem.enableBlend();
@@ -515,22 +532,66 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         minecraft.getTextureManager().getTexture(InventoryMenu.BLOCK_ATLAS).setFilter(false, false);
 
         poseStack.pushPose();
-        poseStack.translate(x, 0.0F, PANEL_ITEM_Z);
+        // Lift the item just off the box plane (the same tiny offset the TextWindow text uses) so a flat,
+        // depthless item — a stick, an apple — does not z-fight the box background sitting behind it.
+        poseStack.translate(x, 0.0F, LOCAL_OVERLAY_TEXT_Z);
         // Squash the item's depth toward the camera so it sits on the box's plane (no parallax) yet keeps
         // its inventory-style 3D silhouette. Applied first so it compresses the whole model along view-z.
+        // A 0 z-scale makes the normal matrix singular and the item renders dark, so repair normals after
+        // squashing: block-lit models keep the billboard normal basis, while generated flat items need the
+        // identity GUI normal basis that Lighting.setupForFlatItems() is built around.
+        Matrix3f litNormal = new Matrix3f(poseStack.last().normal());
         poseStack.scale(1.0F, 1.0F, PANEL_ITEM_FLATTEN);
+        if (flatLighting) {
+            poseStack.last().normal().identity();
+        } else {
+            poseStack.last().normal().set(litNormal);
+        }
         poseStack.scale(1.5F, 1.5F, 1.5F);
         UIRenderHelper.flipForGuiRender(poseStack);
         poseStack.translate(8.0F, -8.0F, 0.0F);
         poseStack.scale(16.0F, 16.0F, 16.0F);
-        itemRenderer.render(item, ItemDisplayContext.GUI, false, poseStack, panelBuffer,
+        itemRenderer.render(item, ItemDisplayContext.GUI, false, poseStack, panelNoDepthBuffer,
             LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, model);
-        panelBuffer.endBatch();
+        flushPanelBufferNoDepth();
         poseStack.popPose();
 
         if (savedLight0 != null && savedLight1 != null) {
             RenderSystem.setShaderLights(savedLight0, savedLight1);
         }
+    }
+
+    private RenderType panelNoDepthRenderType(RenderType type) {
+        return panelNoDepthRenderTypes.computeIfAbsent(type, ProjectorBlockEntityRenderer::wrapNoDepthRenderType);
+    }
+
+    private static RenderType wrapNoDepthRenderType(RenderType type) {
+        return new RenderType(
+            "ponderer_panel_no_depth_" + type,
+            type.format(),
+            type.mode(),
+            type.bufferSize(),
+            type.affectsCrumbling(),
+            !type.canConsolidateConsecutiveGeometry(),
+            () -> {
+                type.setupRenderState();
+                RenderSystem.disableDepthTest();
+                RenderSystem.depthMask(false);
+            },
+            () -> {
+                type.clearRenderState();
+                RenderSystem.disableDepthTest();
+                RenderSystem.depthMask(false);
+            }) {
+        };
+    }
+
+    private void flushPanelBufferNoDepth() {
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        panelBuffer.endBatch();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
     }
 
     private static void renderSpeechBoxLocal(GuiGraphics graphics, int x, int y, int w, int h, boolean highlighted,

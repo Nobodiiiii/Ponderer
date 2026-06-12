@@ -695,22 +695,6 @@ public abstract class PonderUIMixin extends Screen {
     }
 
     /**
-     * Force Ponder overlay elements (controls, text pointers, etc.) to render on
-     * top of the scene, even with large structures in front.
-     */
-    @Inject(method = "renderOverlay", at = @At("HEAD"), remap = false)
-    private void ponderer$overlayNoDepthPre(GuiGraphics graphics, int i, float partialTicks, CallbackInfo ci) {
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
-    }
-
-    @Inject(method = "renderOverlay", at = @At("RETURN"), remap = false)
-    private void ponderer$overlayNoDepthPost(GuiGraphics graphics, int i, float partialTicks, CallbackInfo ci) {
-        RenderSystem.depthMask(true);
-        RenderSystem.enableDepthTest();
-    }
-
-    /**
      * Fix the "vertical-line cut through the scene midline" bug that surfaces in PonderUI when
      * scenes are zoomed/translated to extreme values (and in any 3D content rendered over the
      * GUI in general).
