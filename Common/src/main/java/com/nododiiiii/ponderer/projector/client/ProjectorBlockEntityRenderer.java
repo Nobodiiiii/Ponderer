@@ -1,8 +1,16 @@
 package com.nododiiiii.ponderer.projector.client;
 
+import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.math.Axis;
 import com.nododiiiii.ponderer.mixin.InputWindowElementAccessor;
 import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
@@ -20,18 +28,17 @@ import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.AnimatedOverlayElement;
 import net.createmod.ponder.api.element.PonderElement;
 import net.createmod.ponder.api.element.PonderOverlayElement;
-import net.createmod.ponder.enums.PonderGuiTextures;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.element.InputWindowElement;
 import net.createmod.ponder.foundation.element.TextWindowElement;
 import net.createmod.ponder.foundation.PonderIndex;
-import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Style;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -46,6 +53,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 
 import java.util.List;
 import java.util.Set;
@@ -59,8 +67,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
     private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
     private static final float LOCAL_OVERLAY_ICON_Z = 0.04F;
-    private static final float ITEM_DEPTH_OFFSET_FACTOR = -1.0F;
-    private static final float ITEM_DEPTH_OFFSET_UNITS = -1024.0F;
+    private static final float INPUT_SNAPSHOT_Z = LOCAL_OVERLAY_ICON_Z;
+
+    private final InputOverlaySnapshot inputOverlaySnapshot = new InputOverlaySnapshot();
 
     public ProjectorBlockEntityRenderer() {
     }
@@ -161,8 +170,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     }
 
                     if (element instanceof InputWindowElement inputElement) {
-                        if (renderInputOverlay((InputWindowElementAccessor) inputElement, fade, layout, poseStack,
-                            bufferSource)) {
+                        if (renderInputOverlay((InputWindowElementAccessor) inputElement, fade, layout, poseStack)) {
                             rendered = true;
                         }
                     }
@@ -225,7 +233,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private boolean renderInputOverlay(InputWindowElementAccessor accessor, float fade,
-                                       RenderLayout layout, PoseStack poseStack, MultiBufferSource bufferSource) {
+                                       RenderLayout layout, PoseStack poseStack) {
         ScreenElement icon = accessor.ponderer$getIcon();
         ResourceLocation key = accessor.ponderer$getKey();
         String text = key == null ? "" : PonderIndex.getLangAccess().getShared(key);
@@ -238,7 +246,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         drawInputBubbleBillboard(accessor.ponderer$getSceneSpace(), accessor.ponderer$getDirection(), icon, text,
-            accessor.ponderer$getItem(), fade, layout, poseStack, bufferSource);
+            accessor.ponderer$getItem(), fade, layout, poseStack);
         return true;
     }
 
@@ -383,7 +391,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private void drawInputBubbleBillboard(Vec3 scenePoint, Pointing direction, ScreenElement icon, String text,
                                           ItemStack item, float fade,
-                                          RenderLayout layout, PoseStack poseStack, MultiBufferSource bufferSource) {
+                                          RenderLayout layout, PoseStack poseStack) {
         Vec3 localPos = layout.localPointFor(scenePoint);
         Font font = Minecraft.getInstance().font;
 
@@ -422,54 +430,16 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
         renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction);
-
-        if (hasText) {
-            poseStack.pushPose();
-            poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_TEXT_Z);
-            int color = PonderPalette.WHITE.getColorObject().copy().scaleAlphaForText(fade).getRGB();
-            float y = (height - font.lineHeight) / 2.0F + 2.0F;
-            font.drawInBatch(
-                text,
-                2.0F,
-                y,
-                color,
-                false,
-                poseStack.last().pose(),
-                bufferSource,
-                Font.DisplayMode.SEE_THROUGH,
-                0,
-                LightTexture.FULL_BRIGHT);
-            font.drawInBatch(
-                text,
-                2.0F,
-                y,
-                color,
-                false,
-                poseStack.last().pose(),
-                bufferSource,
-                Font.DisplayMode.NORMAL,
-                0,
-                LightTexture.FULL_BRIGHT);
-            poseStack.popPose();
-        }
-
-        if (hasIcon) {
-            poseStack.pushPose();
-            poseStack.translate(keyWidth, 0.0F, LOCAL_OVERLAY_ICON_Z);
-            poseStack.scale(1.5F, 1.5F, 1.5F);
-            icon.render(graphics, 0, 0);
-            poseStack.popPose();
-        }
-
-        if (hasItem) {
-            poseStack.pushPose();
-            poseStack.translate(keyWidth + (hasIcon ? 24 : 0), 0.0F, LOCAL_OVERLAY_ICON_Z);
-            poseStack.scale(1.5F, 1.5F, 1.5F);
-            renderItemOverlay(graphics, item, 0, 0);
-            poseStack.popPose();
-        }
-
         graphics.flush();
+
+        if (inputOverlaySnapshot.render(width, height, text, keyWidth, hasIcon ? icon : null,
+            hasItem ? item : ItemStack.EMPTY, fade)) {
+            poseStack.pushPose();
+            poseStack.translate(0.0F, 0.0F, INPUT_SNAPSHOT_Z);
+            inputOverlaySnapshot.draw(poseStack, width, height);
+            poseStack.popPose();
+        }
+
         poseStack.popPose();
     }
 
@@ -485,7 +455,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         int divotSize = 8;
         int distance = 1;
         int divotRadius = divotSize / 2;
-        var borderColors = highlighted ? PonderButton.COLOR_HOVER : PonderUI.COLOR_IDLE;
+        var borderColors = highlighted ? net.createmod.ponder.foundation.ui.PonderButton.COLOR_HOVER : PonderUI.COLOR_IDLE;
         Color arrowColor;
 
         switch (pointing) {
@@ -540,25 +510,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.translate(divotX + divotRadius, divotY + divotRadius, LOCAL_OVERLAY_TEXT_Z);
         poseStack.mulPose(Axis.ZP.rotationDegrees(divotRotation));
         poseStack.translate(-divotRadius, -divotRadius, 0);
-        PonderGuiTextures.SPEECH_TOOLTIP_BACKGROUND.render(graphics, 0, 0);
-        PonderGuiTextures.SPEECH_TOOLTIP_COLOR.render(graphics, 0, 0, arrowColor);
+        net.createmod.ponder.enums.PonderGuiTextures.SPEECH_TOOLTIP_BACKGROUND.render(graphics, 0, 0);
+        net.createmod.ponder.enums.PonderGuiTextures.SPEECH_TOOLTIP_COLOR.render(graphics, 0, 0, arrowColor);
         poseStack.popPose();
 
         poseStack.translate(boxX, boxY, 0);
-    }
-
-    private void renderItemOverlay(GuiGraphics graphics, ItemStack item, int x, int y) {
-        RenderSystem.enablePolygonOffset();
-        RenderSystem.polygonOffset(ITEM_DEPTH_OFFSET_FACTOR, ITEM_DEPTH_OFFSET_UNITS);
-        RenderSystem.depthFunc(GL11.GL_LEQUAL);
-        try {
-            graphics.renderItem(item, x, y);
-        } finally {
-            RenderSystem.polygonOffset(0.0F, 0.0F);
-            RenderSystem.disablePolygonOffset();
-            RenderSystem.disableDepthTest();
-            RenderSystem.depthMask(false);
-        }
     }
 
     private String resolveText(TextWindowElementAccessor accessor) {
@@ -685,6 +641,176 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         private static float tint(ProjectorBlockEntity blockEntity, float tintedValue) {
             return blockEntity.showBlueTint() ? tintedValue : 1.0F;
+        }
+    }
+
+    /**
+     * Renders the show_controls foreground into a tiny framebuffer, then projects that texture
+     * onto the already-drawn bubble background as one flat quad.
+     */
+    private static final class InputOverlaySnapshot {
+        private TextureTarget target;
+
+        boolean render(int width, int height, String text, int keyWidth,
+                       ScreenElement icon, ItemStack item, float fade) {
+            ensureTarget(width, height);
+            if (target == null) {
+                return false;
+            }
+
+            GlStateSnapshot glState = GlStateSnapshot.capture();
+            target.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+            target.bindWrite(true);
+            target.clear(Minecraft.ON_OSX);
+
+            RenderSystem.backupProjectionMatrix();
+            PoseStack modelView = RenderSystem.getModelViewStack();
+            modelView.pushPose();
+            try {
+                RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(
+                    0.0F, width, height, 0.0F, 1000.0F, 21000.0F),
+                    VertexSorting.ORTHOGRAPHIC_Z);
+                modelView.setIdentity();
+                modelView.translate(0.0F, 0.0F, -11000.0F);
+                RenderSystem.applyModelViewMatrix();
+
+                RenderSystem.enableBlend();
+                RenderSystem.defaultBlendFunc();
+                RenderSystem.enableDepthTest();
+                RenderSystem.depthMask(true);
+
+                PoseStack offscreenPose = new PoseStack();
+                GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(offscreenPose);
+
+                offscreenPose.pushPose();
+                offscreenPose.translate(0.0F, 0.0F, 100.0F);
+
+                if (text != null && !text.isBlank()) {
+                    int color = PonderPalette.WHITE.getColorObject().copy().scaleAlphaForText(fade).getRGB();
+                    Font font = Minecraft.getInstance().font;
+                    graphics.drawString(font, text, 2, (int) ((height - font.lineHeight) / 2.0F + 2.0F),
+                        color, false);
+                }
+
+                if (icon != null) {
+                    offscreenPose.pushPose();
+                    offscreenPose.translate(keyWidth, 0.0F, INPUT_SNAPSHOT_Z);
+                    offscreenPose.scale(1.5F, 1.5F, 1.5F);
+                    icon.render(graphics, 0, 0);
+                    offscreenPose.popPose();
+                }
+
+                if (item != null && !item.isEmpty()) {
+                    offscreenPose.pushPose();
+                    offscreenPose.translate(keyWidth + (icon != null ? 24 : 0), 0.0F, INPUT_SNAPSHOT_Z);
+                    offscreenPose.scale(1.5F, 1.5F, 1.5F);
+                    graphics.renderItem(item, 0, 0);
+                    offscreenPose.popPose();
+                    RenderSystem.disableDepthTest();
+                }
+
+                graphics.flush();
+                offscreenPose.popPose();
+                return true;
+            } catch (RuntimeException ignored) {
+                return false;
+            } finally {
+                modelView.popPose();
+                RenderSystem.applyModelViewMatrix();
+                RenderSystem.restoreProjectionMatrix();
+                glState.restore();
+                RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            }
+        }
+
+        void draw(PoseStack poseStack, int width, int height) {
+            if (target == null) {
+                return;
+            }
+
+            GlStateSnapshot glState = GlStateSnapshot.capture();
+            try {
+                RenderSystem.enableBlend();
+                RenderSystem.defaultBlendFunc();
+                RenderSystem.disableDepthTest();
+                RenderSystem.depthMask(false);
+                RenderSystem.disableCull();
+                RenderSystem.setShader(GameRenderer::getPositionTexShader);
+                RenderSystem.setShaderTexture(0, target.getColorTextureId());
+                RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+
+                Matrix4f matrix = poseStack.last().pose();
+                float x0 = 0.0F;
+                float y0 = 0.0F;
+                float x1 = width;
+                float y1 = height;
+                float u1 = width / (float) target.width;
+                float v1 = height / (float) target.height;
+
+                BufferBuilder buffer = Tesselator.getInstance().getBuilder();
+                buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+                buffer.vertex(matrix, x0, y1, 0.0F).uv(0.0F, 0.0F).endVertex();
+                buffer.vertex(matrix, x1, y1, 0.0F).uv(u1, 0.0F).endVertex();
+                buffer.vertex(matrix, x1, y0, 0.0F).uv(u1, v1).endVertex();
+                buffer.vertex(matrix, x0, y0, 0.0F).uv(0.0F, v1).endVertex();
+                BufferUploader.drawWithShader(buffer.end());
+            } finally {
+                glState.restore();
+                RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            }
+        }
+
+        private void ensureTarget(int width, int height) {
+            if (target != null && target.viewWidth == width && target.viewHeight == height) {
+                return;
+            }
+
+            if (target != null) {
+                target.destroyBuffers();
+            }
+            target = new TextureTarget(width, height, true, Minecraft.ON_OSX);
+            target.setFilterMode(org.lwjgl.opengl.GL11.GL_LINEAR);
+        }
+
+        private record GlStateSnapshot(int drawFramebuffer, int readFramebuffer, int[] viewport,
+                                       boolean depthTest, boolean depthMask, int depthFunc,
+                                       boolean blend, boolean cull) {
+            static GlStateSnapshot capture() {
+                int[] viewport = new int[4];
+                GL11.glGetIntegerv(GL11.GL_VIEWPORT, viewport);
+                return new GlStateSnapshot(
+                    GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING),
+                    GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING),
+                    viewport,
+                    GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
+                    GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK),
+                    GL11.glGetInteger(GL11.GL_DEPTH_FUNC),
+                    GL11.glIsEnabled(GL11.GL_BLEND),
+                    GL11.glIsEnabled(GL11.GL_CULL_FACE));
+            }
+
+            void restore() {
+                GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFramebuffer);
+                GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFramebuffer);
+                RenderSystem.viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+                if (depthTest) {
+                    RenderSystem.enableDepthTest();
+                } else {
+                    RenderSystem.disableDepthTest();
+                }
+                RenderSystem.depthMask(depthMask);
+                RenderSystem.depthFunc(depthFunc);
+                if (blend) {
+                    RenderSystem.enableBlend();
+                } else {
+                    RenderSystem.disableBlend();
+                }
+                if (cull) {
+                    RenderSystem.enableCull();
+                } else {
+                    RenderSystem.disableCull();
+                }
+            }
         }
     }
 

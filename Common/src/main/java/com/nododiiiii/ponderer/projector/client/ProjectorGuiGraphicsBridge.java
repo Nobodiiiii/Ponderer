@@ -18,6 +18,11 @@ final class ProjectorGuiGraphicsBridge {
     static GuiGraphics create(PoseStack poseStack) {
         Minecraft minecraft = Minecraft.getInstance();
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+        return create(poseStack, buffers);
+    }
+
+    static GuiGraphics create(PoseStack poseStack, MultiBufferSource.BufferSource buffers) {
+        Minecraft minecraft = Minecraft.getInstance();
         try {
             return CONSTRUCTOR.newInstance(minecraft, poseStack, buffers);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
