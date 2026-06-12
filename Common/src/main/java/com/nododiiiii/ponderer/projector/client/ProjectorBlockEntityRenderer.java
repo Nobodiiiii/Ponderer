@@ -13,6 +13,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.math.Axis;
 import com.nododiiiii.ponderer.mixin.InputWindowElementAccessor;
+import com.nododiiiii.ponderer.mixin.RenderSystemShaderLightsAccessor;
 import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
 import com.nododiiiii.ponderer.projector.ProjectorBlock;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
@@ -52,6 +53,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
@@ -66,10 +68,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float MINIATURE_CARD_RISE = 0.22F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
     private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
-    private static final float LOCAL_OVERLAY_ICON_Z = 0.04F;
-    private static final float INPUT_SNAPSHOT_Z = LOCAL_OVERLAY_ICON_Z;
+    private static final float PANEL_CONTENT_Z = 50.0F;
 
-    private final InputOverlaySnapshot inputOverlaySnapshot = new InputOverlaySnapshot();
+    private final InputPanelSnapshot inputPanelSnapshot = new InputPanelSnapshot();
 
     public ProjectorBlockEntityRenderer() {
     }
@@ -392,7 +393,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private void drawInputBubbleBillboard(Vec3 scenePoint, Pointing direction, ScreenElement icon, String text,
                                           ItemStack item, float fade,
                                           RenderLayout layout, PoseStack poseStack) {
-        Vec3 localPos = layout.localPointFor(scenePoint);
         Font font = Minecraft.getInstance().font;
 
         boolean hasIcon = icon != null;
@@ -417,34 +417,72 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return;
         }
 
+        InputPanelSnapshot.Render render = inputPanelSnapshot.capture(width, height, keyWidth, direction,
+            hasIcon ? icon : null, hasText ? text : "", hasItem ? item : ItemStack.EMPTY, fade);
+        if (render == null) {
+            return;
+        }
+
         float xFade = direction == Pointing.RIGHT ? -1.0F : direction == Pointing.LEFT ? 1.0F : 0.0F;
         float yFade = direction == Pointing.DOWN ? -1.0F : direction == Pointing.UP ? 1.0F : 0.0F;
         xFade *= 10.0F * (1.0F - fade);
         yFade *= 10.0F * (1.0F - fade);
 
+        Vec3 localPos = layout.localPointFor(scenePoint);
+        float scale = uiScaleFor(localPos);
+
         poseStack.pushPose();
         poseStack.translate(localPos.x, localPos.y, localPos.z);
         poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
-        poseStack.scale(-uiScaleFor(localPos), -uiScaleFor(localPos), uiScaleFor(localPos));
+        poseStack.scale(-scale, -scale, scale);
         poseStack.translate(xFade, yFade, 0.0F);
 
-        GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
-        renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction);
-        graphics.flush();
-
-        if (inputOverlaySnapshot.render(width, height, text, keyWidth, hasIcon ? icon : null,
-            hasItem ? item : ItemStack.EMPTY, fade)) {
-            poseStack.pushPose();
-            poseStack.translate(0.0F, 0.0F, INPUT_SNAPSHOT_Z);
-            inputOverlaySnapshot.draw(poseStack, width, height);
-            poseStack.popPose();
-        }
+        inputPanelSnapshot.composite(poseStack, render);
 
         poseStack.popPose();
     }
 
-    private void renderSpeechBoxLocal(GuiGraphics graphics, int x, int y, int w, int h, boolean highlighted,
-                                      Pointing pointing) {
+    /**
+     * Paints the show_controls panel (speech box + key text + icon + item) using the exact native
+     * {@code InputWindowElement} layout, into whatever GuiGraphics/target is currently bound. The
+     * GUI origin {@code (0, 0)} is the scene anchor the divot points at.
+     */
+    private static void paintInputPanel(GuiGraphics graphics, int width, int height, int keyWidth,
+                                        Pointing direction, ScreenElement icon, String text, ItemStack item,
+                                        float fade) {
+        PoseStack pose = graphics.pose();
+        renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction);
+
+        Font font = Minecraft.getInstance().font;
+        pose.pushPose();
+        pose.translate(0.0F, 0.0F, PANEL_CONTENT_Z);
+
+        if (text != null && !text.isBlank()) {
+            int color = PonderPalette.WHITE.getColorObject().copy().scaleAlpha(fade).getRGB();
+            graphics.drawString(font, text, 2, (int) ((height - font.lineHeight) / 2.0F + 2.0F), color, false);
+        }
+
+        if (icon != null) {
+            pose.pushPose();
+            pose.translate(keyWidth, 0.0F, 0.0F);
+            pose.scale(1.5F, 1.5F, 1.5F);
+            icon.render(graphics, 0, 0);
+            pose.popPose();
+        }
+
+        if (item != null && !item.isEmpty()) {
+            pose.pushPose();
+            pose.translate(keyWidth + (icon != null ? 24 : 0), 0.0F, 0.0F);
+            pose.scale(1.5F, 1.5F, 1.5F);
+            graphics.renderItem(item, 0, 0);
+            pose.popPose();
+        }
+
+        pose.popPose();
+    }
+
+    private static void renderSpeechBoxLocal(GuiGraphics graphics, int x, int y, int w, int h, boolean highlighted,
+                                             Pointing pointing) {
         PoseStack poseStack = graphics.pose();
 
         int boxX = x;
@@ -645,17 +683,51 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     /**
-     * Renders the show_controls foreground into a tiny framebuffer, then projects that texture
-     * onto the already-drawn bubble background as one flat quad.
+     * Renders the entire show_controls panel (speech box, key text, icon and item) into a small
+     * off-screen framebuffer, flattening the 3D item so it cannot z-fight with the bubble, then
+     * composites the resulting texture into the world as one camera-facing quad — the same way the
+     * text overlays are billboarded.
+     *
+     * <p>The off-screen pass paints into a private buffer source (so it never flushes the world's
+     * pending overlay vertices) and snapshots/restores the full GL state including the level diffuse
+     * light directions, so world entity lighting and culling are left untouched.</p>
      */
-    private static final class InputOverlaySnapshot {
+    private static final class InputPanelSnapshot {
         private TextureTarget target;
+        private MultiBufferSource.BufferSource buffers;
 
-        boolean render(int width, int height, String text, int keyWidth,
-                       ScreenElement icon, ItemStack item, float fade) {
-            ensureTarget(width, height);
+        /** Result of an off-screen capture: panel pixel bounds relative to the scene anchor + UVs. */
+        record Render(int minX, int minY, int panelW, int panelH, float u1, float v1) {
+        }
+
+        Render capture(int width, int height, int keyWidth, Pointing direction,
+                       ScreenElement icon, String text, ItemStack item, float fade) {
+            int[] bounds = panelBounds(direction, width, height);
+            int minX = bounds[0];
+            int minY = bounds[1];
+            int panelW = bounds[2] - bounds[0];
+            int panelH = bounds[3] - bounds[1];
+            if (panelW <= 0 || panelH <= 0) {
+                return null;
+            }
+
+            ensureTarget(panelW, panelH);
             if (target == null) {
-                return false;
+                return null;
+            }
+            if (buffers == null) {
+                buffers = MultiBufferSource.immediate(new BufferBuilder(1024));
+            }
+
+            Vector3f savedLight0 = null;
+            Vector3f savedLight1 = null;
+            try {
+                Vector3f[] dirs = RenderSystemShaderLightsAccessor.ponderer$getShaderLightDirections();
+                if (dirs != null && dirs.length >= 2 && dirs[0] != null && dirs[1] != null) {
+                    savedLight0 = new Vector3f(dirs[0]);
+                    savedLight1 = new Vector3f(dirs[1]);
+                }
+            } catch (Throwable ignored) {
             }
 
             GlStateSnapshot glState = GlStateSnapshot.capture();
@@ -666,9 +738,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             RenderSystem.backupProjectionMatrix();
             PoseStack modelView = RenderSystem.getModelViewStack();
             modelView.pushPose();
+            boolean painted = false;
             try {
                 RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(
-                    0.0F, width, height, 0.0F, 1000.0F, 21000.0F),
+                    0.0F, panelW, panelH, 0.0F, 1000.0F, 21000.0F),
                     VertexSorting.ORTHOGRAPHIC_Z);
                 modelView.setIdentity();
                 modelView.translate(0.0F, 0.0F, -11000.0F);
@@ -679,52 +752,34 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 RenderSystem.enableDepthTest();
                 RenderSystem.depthMask(true);
 
-                PoseStack offscreenPose = new PoseStack();
-                GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(offscreenPose);
-
-                offscreenPose.pushPose();
-                offscreenPose.translate(0.0F, 0.0F, 100.0F);
-
-                if (text != null && !text.isBlank()) {
-                    int color = PonderPalette.WHITE.getColorObject().copy().scaleAlphaForText(fade).getRGB();
-                    Font font = Minecraft.getInstance().font;
-                    graphics.drawString(font, text, 2, (int) ((height - font.lineHeight) / 2.0F + 2.0F),
-                        color, false);
-                }
-
-                if (icon != null) {
-                    offscreenPose.pushPose();
-                    offscreenPose.translate(keyWidth, 0.0F, INPUT_SNAPSHOT_Z);
-                    offscreenPose.scale(1.5F, 1.5F, 1.5F);
-                    icon.render(graphics, 0, 0);
-                    offscreenPose.popPose();
-                }
-
-                if (item != null && !item.isEmpty()) {
-                    offscreenPose.pushPose();
-                    offscreenPose.translate(keyWidth + (icon != null ? 24 : 0), 0.0F, INPUT_SNAPSHOT_Z);
-                    offscreenPose.scale(1.5F, 1.5F, 1.5F);
-                    graphics.renderItem(item, 0, 0);
-                    offscreenPose.popPose();
-                    RenderSystem.disableDepthTest();
-                }
-
+                PoseStack pose = new PoseStack();
+                pose.translate(-minX, -minY, 0.0F);
+                GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(pose, buffers);
+                paintInputPanel(graphics, width, height, keyWidth, direction, icon, text, item, fade);
                 graphics.flush();
-                offscreenPose.popPose();
-                return true;
+                painted = true;
             } catch (RuntimeException ignored) {
-                return false;
+                painted = false;
             } finally {
                 modelView.popPose();
                 RenderSystem.applyModelViewMatrix();
                 RenderSystem.restoreProjectionMatrix();
                 glState.restore();
+                if (savedLight0 != null && savedLight1 != null) {
+                    RenderSystem.setShaderLights(savedLight0, savedLight1);
+                }
                 RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             }
+
+            if (!painted) {
+                return null;
+            }
+            return new Render(minX, minY, panelW, panelH,
+                panelW / (float) target.width, panelH / (float) target.height);
         }
 
-        void draw(PoseStack poseStack, int width, int height) {
-            if (target == null) {
+        void composite(PoseStack poseStack, Render render) {
+            if (target == null || render == null) {
                 return;
             }
 
@@ -740,19 +795,19 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
                 Matrix4f matrix = poseStack.last().pose();
-                float x0 = 0.0F;
-                float y0 = 0.0F;
-                float x1 = width;
-                float y1 = height;
-                float u1 = width / (float) target.width;
-                float v1 = height / (float) target.height;
+                float minX = render.minX();
+                float minY = render.minY();
+                float maxX = render.minX() + render.panelW();
+                float maxY = render.minY() + render.panelH();
+                float u1 = render.u1();
+                float v1 = render.v1();
 
                 BufferBuilder buffer = Tesselator.getInstance().getBuilder();
                 buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-                buffer.vertex(matrix, x0, y1, 0.0F).uv(0.0F, 0.0F).endVertex();
-                buffer.vertex(matrix, x1, y1, 0.0F).uv(u1, 0.0F).endVertex();
-                buffer.vertex(matrix, x1, y0, 0.0F).uv(u1, v1).endVertex();
-                buffer.vertex(matrix, x0, y0, 0.0F).uv(0.0F, v1).endVertex();
+                buffer.vertex(matrix, minX, maxY, 0.0F).uv(0.0F, 0.0F).endVertex();
+                buffer.vertex(matrix, maxX, maxY, 0.0F).uv(u1, 0.0F).endVertex();
+                buffer.vertex(matrix, maxX, minY, 0.0F).uv(u1, v1).endVertex();
+                buffer.vertex(matrix, minX, minY, 0.0F).uv(0.0F, v1).endVertex();
                 BufferUploader.drawWithShader(buffer.end());
             } finally {
                 glState.restore();
@@ -761,7 +816,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         private void ensureTarget(int width, int height) {
-            if (target != null && target.viewWidth == width && target.viewHeight == height) {
+            if (target != null && target.width == width && target.height == height) {
                 return;
             }
 
@@ -769,7 +824,53 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 target.destroyBuffers();
             }
             target = new TextureTarget(width, height, true, Minecraft.ON_OSX);
-            target.setFilterMode(org.lwjgl.opengl.GL11.GL_LINEAR);
+            target.setFilterMode(GL11.GL_LINEAR);
+        }
+
+        /**
+         * Pixel bounds (relative to the scene anchor at the origin) that enclose the speech box and
+         * its divot for the given pointing direction. Mirrors {@link #renderSpeechBoxLocal}.
+         */
+        private static int[] panelBounds(Pointing pointing, int w, int h) {
+            int divotSize = 8;
+            int distance = 1;
+            int divotRadius = divotSize / 2;
+            int boxX;
+            int boxY;
+            int divotX;
+            int divotY;
+            switch (pointing) {
+                case LEFT -> {
+                    boxX = divotSize + 1 + distance;
+                    boxY = -h / 2;
+                    divotX = distance;
+                    divotY = -divotRadius;
+                }
+                case RIGHT -> {
+                    boxX = -(w + divotSize + 1 + distance);
+                    boxY = -h / 2;
+                    divotX = -(divotSize + distance);
+                    divotY = -divotRadius;
+                }
+                case UP -> {
+                    boxX = -w / 2;
+                    boxY = divotSize + 1 + distance;
+                    divotX = -divotRadius;
+                    divotY = distance;
+                }
+                default -> {
+                    boxX = -w / 2;
+                    boxY = -(h + divotSize + 1 + distance);
+                    divotX = -divotRadius;
+                    divotY = -(divotSize + distance);
+                }
+            }
+            int pad = 6;
+            int minX = Math.min(boxX, divotX) - pad;
+            int minY = Math.min(boxY, divotY) - pad;
+            int maxX = Math.max(boxX + w, divotX + divotSize) + pad;
+            int maxY = Math.max(boxY + h, divotY + divotSize) + pad;
+            return new int[]{minX, minY, maxX, maxY};
         }
 
         private record GlStateSnapshot(int drawFramebuffer, int readFramebuffer, int[] viewport,
