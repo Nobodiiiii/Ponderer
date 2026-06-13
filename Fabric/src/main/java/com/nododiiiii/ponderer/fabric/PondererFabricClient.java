@@ -18,6 +18,7 @@ import com.nododiiiii.ponderer.ui.NbtPickState;
 import com.nododiiiii.ponderer.ui.ProjectorAnchorPickState;
 import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
@@ -25,6 +26,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -85,6 +87,10 @@ public class PondererFabricClient implements ClientModInitializer {
 
         BlockEntityRendererRegistry.register(ModBlockEntities.PROJECTOR.get(), ctx -> new ProjectorBlockEntityRenderer());
         MenuScreens.register(ModMenuTypes.PROJECTOR.get(), ProjectorConfigScreen::new);
+        WorldRenderEvents.START.register(context -> ProjectorWorldOverlayQueue.beginFrame());
+        WorldRenderEvents.LAST.register(context -> {
+            ProjectorWorldOverlayQueue.render();
+        });
 
         // Register client commands
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {

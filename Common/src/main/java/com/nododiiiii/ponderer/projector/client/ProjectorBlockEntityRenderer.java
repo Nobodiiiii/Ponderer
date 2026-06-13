@@ -56,6 +56,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import java.util.IdentityHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -108,12 +109,18 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds());
+        PoseSnapshot overlayBasePose = PoseSnapshot.capture(poseStack);
         renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
-        boolean renderedNativeOverlay = renderNativePonderOverlays(prepared.activeScene(), layout, poseStack, bufferSource,
-            partialTick);
+        DeferredOverlayBatch deferredNativeOverlay = captureNativePonderOverlays(prepared.activeScene(), layout, partialTick,
+            overlayBasePose);
         List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle().activeCues(prepared.globalTick());
-        if (!prepared.segment().extractRuntimeOverlays() || !renderedNativeOverlay) {
-            renderOverlayCues(cues, layout, poseStack, bufferSource);
+        DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
+        if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
+            deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose);
+        }
+        DeferredOverlayBatch combinedOverlays = DeferredOverlayBatch.combine(deferredNativeOverlay, deferredCueOverlay);
+        if (!combinedOverlays.isEmpty()) {
+            ProjectorWorldOverlayQueue.enqueue(this, combinedOverlays);
         }
     }
 
@@ -144,113 +151,106 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
-    private boolean renderNativePonderOverlays(PonderScene scene, RenderLayout layout, PoseStack poseStack,
-                                               MultiBufferSource bufferSource, float partialTick) {
+    private DeferredOverlayBatch captureNativePonderOverlays(PonderScene scene, RenderLayout layout, float partialTick,
+                                                             PoseSnapshot overlayBasePose) {
         Set<PonderElement> elements = scene.getElements();
         if (elements.isEmpty()) {
-            return false;
+            return DeferredOverlayBatch.empty();
         }
 
-        boolean rendered = false;
+        List<DeferredOverlay> overlays = new ArrayList<>();
         int fallbackLane = 0;
 
-        RenderSystem.enableBlend();
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
-        try {
-            for (PonderElement element : elements) {
-                if (!(element instanceof PonderOverlayElement) || !element.isVisible()) {
-                    continue;
-                }
-
-                float fade = element instanceof AnimatedOverlayElement animated
-                    ? animated.getFade(partialTick)
-                    : 1.0F;
-                if (fade < 1.0F / 16.0F) {
-                    continue;
-                }
-
-                try {
-                    if (element instanceof TextWindowElement textElement) {
-                        TextWindowElementAccessor accessor = (TextWindowElementAccessor) textElement;
-                        int lane = fallbackLane;
-                        if (accessor.ponderer$getVec() == null) {
-                            lane = fallbackLaneForY(accessor.ponderer$getY(), fallbackLane);
-                        }
-                        if (renderTextOverlay(accessor, fade, lane, layout, poseStack, bufferSource)) {
-                            rendered = true;
-                            if (accessor.ponderer$getVec() == null) {
-                                fallbackLane = lane + 1;
-                            }
-                        }
-                        continue;
-                    }
-
-                    if (element instanceof InputWindowElement inputElement) {
-                        if (renderInputOverlay((InputWindowElementAccessor) inputElement, fade, layout, poseStack)) {
-                            rendered = true;
-                        }
-                    }
-                } catch (RuntimeException ignored) {
-                }
+        for (PonderElement element : elements) {
+            if (!(element instanceof PonderOverlayElement) || !element.isVisible()) {
+                continue;
             }
-        } finally {
-            RenderSystem.depthMask(true);
-            RenderSystem.enableDepthTest();
+
+            float fade = element instanceof AnimatedOverlayElement animated
+                ? animated.getFade(partialTick)
+                : 1.0F;
+            if (fade < 1.0F / 16.0F) {
+                continue;
+            }
+
+            try {
+                if (element instanceof TextWindowElement textElement) {
+                    TextWindowElementAccessor accessor = (TextWindowElementAccessor) textElement;
+                    int lane = fallbackLane;
+                    if (accessor.ponderer$getVec() == null) {
+                        lane = fallbackLaneForY(accessor.ponderer$getY(), fallbackLane);
+                    }
+                    DeferredOverlay overlay = captureTextOverlay(accessor, fade, lane, layout);
+                    if (overlay != null) {
+                        overlays.add(overlay);
+                        if (accessor.ponderer$getVec() == null) {
+                            fallbackLane = lane + 1;
+                        }
+                    }
+                    continue;
+                }
+
+                if (element instanceof InputWindowElement inputElement) {
+                    DeferredOverlay overlay = captureInputOverlay((InputWindowElementAccessor) inputElement, fade, layout);
+                    if (overlay != null) {
+                        overlays.add(overlay);
+                    }
+                }
+            } catch (RuntimeException ignored) {
+            }
         }
 
-        return rendered;
+        return DeferredOverlayBatch.of(overlayBasePose, overlays);
     }
 
-    private void renderOverlayCues(List<ProjectorSceneBundle.OverlayCue> cues, RenderLayout layout,
-                                   PoseStack poseStack, MultiBufferSource bufferSource) {
+    private DeferredOverlayBatch captureOverlayCues(List<ProjectorSceneBundle.OverlayCue> cues, RenderLayout layout,
+                                                    PoseSnapshot overlayBasePose) {
         if (cues.isEmpty()) {
-            return;
+            return DeferredOverlayBatch.empty();
         }
 
+        List<DeferredOverlay> overlays = new ArrayList<>(cues.size());
         for (ProjectorSceneBundle.OverlayCue cue : cues) {
             try {
                 if (cue.anchorMode() == ProjectorSceneBundle.OverlayCue.AnchorMode.FALLBACK) {
-                    drawBillboardCard(cue.lines(), layout.fallbackCardPosition(cue.fallbackLane()),
-                        cue.accentColor(), poseStack, bufferSource);
+                    overlays.add(DeferredOverlay.billboardCard(
+                        layout.fallbackCardPosition(cue.fallbackLane()),
+                        cue.lines(),
+                        cue.accentColor()));
                     continue;
                 }
 
                 Vec3 anchor = layout.localPointFor(cue.point());
                 Vec3 cardPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
-
-                drawPointerLine(anchor, cardPos, poseStack, bufferSource, cue.accentColor());
-                drawBillboardCard(cue.lines(), cardPos, cue.accentColor(), poseStack, bufferSource);
+                overlays.add(DeferredOverlay.pointer(anchor, cardPos, cue.accentColor()));
+                overlays.add(DeferredOverlay.billboardCard(cardPos, cue.lines(), cue.accentColor()));
             } catch (RuntimeException ignored) {
             }
         }
+        return DeferredOverlayBatch.of(overlayBasePose, overlays);
     }
 
-    private boolean renderTextOverlay(TextWindowElementAccessor accessor, float fade, int fallbackLane,
-                                      RenderLayout layout, PoseStack poseStack, MultiBufferSource bufferSource) {
+    private DeferredOverlay captureTextOverlay(TextWindowElementAccessor accessor, float fade, int fallbackLane,
+                                               RenderLayout layout) {
         String text = resolveText(accessor);
         if (text == null || text.isBlank()) {
-            return false;
+            return null;
         }
 
         PonderPalette palette = accessor.ponderer$getPalette();
-        int accentColor = palette == null ? 0xE6FCFF : palette.getColor();
         Vec3 anchorPoint = accessor.ponderer$getVec();
-        Vec3 localPos;
         if (anchorPoint != null) {
             Vec3 anchor = layout.localPointFor(anchorPoint);
-            localPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
-            drawPointerLine(anchor, localPos, poseStack, bufferSource, accentColor);
+            Vec3 localPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
+            return DeferredOverlay.textWindow(text, localPos, palette, fade, anchor);
         } else {
-            localPos = layout.fallbackCardPosition(fallbackLane);
+            Vec3 localPos = layout.fallbackCardPosition(fallbackLane);
+            return DeferredOverlay.textWindow(text, localPos, palette, fade, null);
         }
-
-        drawTextWindowBillboard(text, localPos, palette, fade, poseStack, bufferSource);
-        return true;
     }
 
-    private boolean renderInputOverlay(InputWindowElementAccessor accessor, float fade,
-                                       RenderLayout layout, PoseStack poseStack) {
+    private DeferredOverlay captureInputOverlay(InputWindowElementAccessor accessor, float fade,
+                                                RenderLayout layout) {
         ScreenElement icon = accessor.ponderer$getIcon();
         ResourceLocation key = accessor.ponderer$getKey();
         String text = key == null ? "" : PonderIndex.getLangAccess().getShared(key);
@@ -259,12 +259,59 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         if (icon == null && text.isBlank() && accessor.ponderer$getItem().isEmpty()) {
-            return false;
+            return null;
         }
 
-        drawInputBubbleBillboard(accessor.ponderer$getSceneSpace(), accessor.ponderer$getDirection(), icon, text,
-            accessor.ponderer$getItem(), fade, layout, poseStack);
-        return true;
+        return DeferredOverlay.inputBubble(
+            accessor.ponderer$getSceneSpace(),
+            accessor.ponderer$getDirection(),
+            icon,
+            text,
+            accessor.ponderer$getItem(),
+            fade,
+            layout);
+    }
+
+    void renderDeferredOverlayBatch(DeferredOverlayBatch batch) {
+        if (batch == null || batch.isEmpty()) {
+            return;
+        }
+
+        MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        try {
+            PoseStack poseStack = batch.poseSnapshot().createPoseStack();
+            for (DeferredOverlay overlay : batch.overlays()) {
+                renderDeferredOverlay(overlay, poseStack, bufferSource);
+            }
+            bufferSource.endBatch();
+        } finally {
+            RenderSystem.depthMask(true);
+            RenderSystem.enableDepthTest();
+        }
+    }
+
+    private void renderDeferredOverlay(DeferredOverlay overlay, PoseStack poseStack,
+                                       MultiBufferSource bufferSource) {
+        switch (overlay.kind()) {
+            case POINTER -> drawPointerLine(overlay.anchor(), overlay.localPos(), poseStack, bufferSource,
+                overlay.accentColor());
+            case BILLBOARD_CARD -> drawBillboardCard(overlay.lines(), overlay.localPos(), overlay.accentColor(),
+                poseStack, bufferSource);
+            case TEXT_WINDOW -> {
+                if (overlay.anchor() != null) {
+                    int accentColor = overlay.palette() == null ? 0xE6FCFF : overlay.palette().getColor();
+                    drawPointerLine(overlay.anchor(), overlay.localPos(), poseStack, bufferSource, accentColor);
+                }
+                drawTextWindowBillboard(overlay.text(), overlay.localPos(), overlay.palette(), overlay.fade(),
+                    poseStack, bufferSource);
+            }
+            case INPUT_BUBBLE -> drawInputBubbleBillboard(overlay.scenePoint(), overlay.direction(), overlay.icon(),
+                overlay.text(), overlay.item(), overlay.fade(), overlay.layout(), poseStack);
+        }
     }
 
     private void drawPointerLine(Vec3 anchor, Vec3 card, PoseStack poseStack,
@@ -792,6 +839,92 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         private static float tint(ProjectorBlockEntity blockEntity, float tintedValue) {
             return blockEntity.showBlueTint() ? tintedValue : 1.0F;
+        }
+    }
+
+    record DeferredOverlayBatch(PoseSnapshot poseSnapshot, List<DeferredOverlay> overlays) {
+        static DeferredOverlayBatch empty() {
+            return new DeferredOverlayBatch(PoseSnapshot.identity(), List.of());
+        }
+
+        static DeferredOverlayBatch of(PoseSnapshot poseSnapshot, List<DeferredOverlay> overlays) {
+            if (overlays == null || overlays.isEmpty()) {
+                return empty();
+            }
+            return new DeferredOverlayBatch(poseSnapshot, List.copyOf(overlays));
+        }
+
+        static DeferredOverlayBatch combine(DeferredOverlayBatch first, DeferredOverlayBatch second) {
+            boolean firstEmpty = first == null || first.isEmpty();
+            boolean secondEmpty = second == null || second.isEmpty();
+            if (firstEmpty && secondEmpty) {
+                return empty();
+            }
+            if (firstEmpty) {
+                return second;
+            }
+            if (secondEmpty) {
+                return first;
+            }
+
+            List<DeferredOverlay> combined = new ArrayList<>(first.overlays().size() + second.overlays().size());
+            combined.addAll(first.overlays());
+            combined.addAll(second.overlays());
+            return new DeferredOverlayBatch(first.poseSnapshot(), List.copyOf(combined));
+        }
+
+        boolean isEmpty() {
+            return overlays.isEmpty();
+        }
+    }
+
+    private record PoseSnapshot(Matrix4f pose, Matrix3f normal) {
+        static PoseSnapshot capture(PoseStack poseStack) {
+            return new PoseSnapshot(new Matrix4f(poseStack.last().pose()), new Matrix3f(poseStack.last().normal()));
+        }
+
+        static PoseSnapshot identity() {
+            return new PoseSnapshot(new Matrix4f(), new Matrix3f());
+        }
+
+        PoseStack createPoseStack() {
+            PoseStack poseStack = new PoseStack();
+            poseStack.last().pose().set(pose);
+            poseStack.last().normal().set(normal);
+            return poseStack;
+        }
+    }
+
+    private record DeferredOverlay(Kind kind, Vec3 localPos, Vec3 anchor, List<Component> lines, int accentColor,
+                                   String text, PonderPalette palette, float fade, Vec3 scenePoint,
+                                   Pointing direction, ScreenElement icon, ItemStack item, RenderLayout layout) {
+        static DeferredOverlay pointer(Vec3 anchor, Vec3 localPos, int accentColor) {
+            return new DeferredOverlay(Kind.POINTER, localPos, anchor, List.of(), accentColor, "",
+                null, 1.0F, null, null, null, ItemStack.EMPTY, null);
+        }
+
+        static DeferredOverlay billboardCard(Vec3 localPos, List<Component> lines, int accentColor) {
+            return new DeferredOverlay(Kind.BILLBOARD_CARD, localPos, null, List.copyOf(lines), accentColor, "",
+                null, 1.0F, null, null, null, ItemStack.EMPTY, null);
+        }
+
+        static DeferredOverlay textWindow(String text, Vec3 localPos, PonderPalette palette, float fade,
+                                          Vec3 anchor) {
+            return new DeferredOverlay(Kind.TEXT_WINDOW, localPos, anchor, List.of(), 0, text,
+                palette, fade, null, null, null, ItemStack.EMPTY, null);
+        }
+
+        static DeferredOverlay inputBubble(Vec3 scenePoint, Pointing direction, ScreenElement icon,
+                                           String text, ItemStack item, float fade, RenderLayout layout) {
+            return new DeferredOverlay(Kind.INPUT_BUBBLE, null, null, List.of(), 0, text,
+                null, fade, scenePoint, direction, icon, item.copy(), layout);
+        }
+
+        enum Kind {
+            POINTER,
+            BILLBOARD_CARD,
+            TEXT_WINDOW,
+            INPUT_BUBBLE
         }
     }
 

@@ -15,6 +15,7 @@ import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.NbtPickState;
 import com.nododiiiii.ponderer.ui.ProjectorAnchorPickState;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
@@ -29,6 +30,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -62,6 +64,7 @@ public class PondererForgeClient {
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onBlueprintClientTick);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onMouseScrolled);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onMouseInput);
+        MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onRenderLevelStage);
         // JEI click interception
         MinecraftForge.EVENT_BUS.addListener(EventPriority.HIGH, PondererForgeClient::onScreenMouseClick);
     }
@@ -144,6 +147,17 @@ public class PondererForgeClient {
         if (blueprintHandler.onMouseInput(event.getButton(), event.getAction() == 1)) {
             event.setCanceled(true);
         }
+    }
+
+    private static void onRenderLevelStage(RenderLevelStageEvent event) {
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_SKY) {
+            ProjectorWorldOverlayQueue.beginFrame();
+            return;
+        }
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+            return;
+        }
+        ProjectorWorldOverlayQueue.render();
     }
 
     // --- JEI click interception ---
