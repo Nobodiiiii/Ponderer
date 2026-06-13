@@ -523,6 +523,16 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             RenderSystem.depthMask(false);
             poseStack.pushPose();
             poseStack.translate(keyWidth, 0.0F, 0.0F);
+            // Squash the icon onto the box plane the same way drawPanelItem squashes the item. The icon may be
+            // a JEI ingredient (fluid, Mekanism chemical, ...) whose renderer bakes a GUI z-level straight into
+            // its geometry through the pose matrix — e.g. Mekanism's chemical renderer emits its sprite at z=100.
+            // The billboard scale then magnifies that z (~1.5 * 0.018 per unit), so the sprite floats well in
+            // front of the panel. A 0 z-scale here collapses every such internal z-level onto the plane. Repair
+            // the (now singular) normal matrix afterward so a lit 3D model routed through here would not render
+            // dark; flat 2D ingredient sprites ignore normals, so this is harmless for them.
+            Matrix3f iconNormal = new Matrix3f(poseStack.last().normal());
+            poseStack.scale(1.0F, 1.0F, PANEL_ITEM_FLATTEN);
+            poseStack.last().normal().set(iconNormal);
             poseStack.scale(1.5F, 1.5F, 1.5F);
             icon.render(graphics, 0, 0);
             poseStack.popPose();
