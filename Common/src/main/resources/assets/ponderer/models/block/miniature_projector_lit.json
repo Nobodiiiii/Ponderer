@@ -1,9 +1,3 @@
 {
-  "parent": "minecraft:block/orientable_with_bottom",
-  "textures": {
-    "top": "minecraft:block/cut_copper",
-    "front": "minecraft:block/beacon",
-    "side": "minecraft:block/polished_andesite",
-    "bottom": "minecraft:block/andesite"
-  }
+	"parent": "ponderer:block/projector_lit"
 }
