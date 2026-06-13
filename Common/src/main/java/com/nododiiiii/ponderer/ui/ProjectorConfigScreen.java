@@ -100,7 +100,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             setOffset(projector.getProjectionOffset());
         } else if (projector != null && menu.projectorKind().requiresAnchor()) {
             // 显示默认偏移值
-            setOffset(new BlockPos(0, 0, 2));
+            setOffset(new BlockPos(-1, 0, 0));
         }
         updateTriggerButton();
         updateBlueTintButton();
@@ -311,7 +311,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void resetOffset() {
-        setOffset(new BlockPos(0, 0, 2));
+        setOffset(new BlockPos(-1, 0, 0));
     }
 
     private float parseScale() {

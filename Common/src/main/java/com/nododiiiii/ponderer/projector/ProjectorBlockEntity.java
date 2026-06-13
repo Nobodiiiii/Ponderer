@@ -47,7 +47,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
     private static final String TAG_MINIATURE_SCALE = "MiniatureScale";
     private static final int FALLBACK_ONCE_DURATION_TICKS = 20 * 60;
-    private static final BlockPos DEFAULT_LIFE_SIZE_OFFSET = new BlockPos(0, 0, 2);
+    private static final BlockPos DEFAULT_LIFE_SIZE_OFFSET = new BlockPos(-1, 0, 0);
 
     private ItemStack sourceItem = ItemStack.EMPTY;
     private List<String> sceneKeys = List.of();
@@ -141,11 +141,16 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     }
 
     private static BlockPos rotateOffsetByFacing(BlockPos offset, Direction facing) {
+        // 场景坐标系（SOUTH 朝向，0° 旋转）：
+        // 场景 X 轴 → 世界 +Z（投影仪前方）
+        // 场景 Y 轴 → 世界 +Y
+        // 场景 Z 轴 → 世界 +X（投影仪右侧）
+        // 偏移量从场景局部坐标转换到世界坐标
         return switch (facing) {
-            case NORTH -> offset; // 默认朝向，无需旋转
-            case SOUTH -> new BlockPos(-offset.getX(), offset.getY(), -offset.getZ());
-            case EAST -> new BlockPos(-offset.getZ(), offset.getY(), offset.getX());
-            case WEST -> new BlockPos(offset.getZ(), offset.getY(), -offset.getX());
+            case SOUTH -> new BlockPos(offset.getZ(), offset.getY(), offset.getX()); // 0°: X→Z, Z→X
+            case NORTH -> new BlockPos(-offset.getZ(), offset.getY(), -offset.getX()); // 180°
+            case EAST -> new BlockPos(offset.getX(), offset.getY(), -offset.getZ()); // 90°: X→X, Z→-Z
+            case WEST -> new BlockPos(-offset.getX(), offset.getY(), offset.getZ()); // -90°: X→-X, Z→Z
             default -> offset;
         };
     }

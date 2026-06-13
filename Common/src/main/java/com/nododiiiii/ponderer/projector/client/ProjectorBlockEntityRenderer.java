@@ -69,15 +69,21 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float MINIATURE_CARD_RISE = 0.22F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
     /** Tiny z lift (toward camera) shared by flat overlay foreground content so it never z-fights the box it
-     *  sits on: the TextWindow body text, the speech-box divot, and the show_controls panel item all use it. */
+     *  sits on: the TextWindow body text, the speech-box divot, and the show_controls panel item all use it.
+     *  叠加层前景内容的微小 z 提升（朝向相机），避免与背景框发生 z-fighting：TextWindow 正文、气泡框尖角和
+     *  show_controls 面板物品都使用此值。*/
     private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
-    /** Larger lift for the input panel's key text + icon, which sit beside (not on top of) the item. */
+    /** Larger lift for the input panel's key text + icon, which sit beside (not on top of) the item.
+     *  输入面板按键文本和图标的较大提升值，它们位于物品旁边（而非其上方）。*/
     private static final float PANEL_FG_Z = 2.0F;
     /** Negative z offset (away from camera) for leader lines so they render behind text boxes but still
-     *  use no-depth rendering to avoid block occlusion. */
+     *  use no-depth rendering to avoid block occlusion.
+     *  引导线的负 z 偏移（远离相机），使其渲染在文本框下方，但仍使用无深度测试以避免被方块遮挡。*/
     private static final float LEADER_LINE_Z_OFFSET = -0.01F;
     /** Global scale multiplier for all projected overlay UI (text windows, panels, cards).
-     *  Base scale is 1.0; default 2.0 doubles the size of text, boxes, and line width. */
+     *  Base scale is 1.0; default 2.0 doubles the size of text, boxes, and line width.
+     *  所有投影叠加层 UI（文本窗口、面板、卡片）的全局缩放倍数。
+     *  基础缩放为 1.0；默认 2.0 将文本、框体和线宽的大小翻倍。*/
     private static final float OVERLAY_UI_SCALE = 1.8F;
     /** Horizontal leader length (in billboard-local font pixels) between the anchor point and the left edge of an
      *  anchored text card. The card text and box are drawn to the screen-right of the anchor by this much, with a
@@ -339,6 +345,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         float green = ((color >> 8) & 0xFF) / 255.0F;
         float blue = (color & 0xFF) / 255.0F;
 
+        poseStack.pushPose();
+        poseStack.translate(0.0F, 0.0F, LEADER_LINE_Z_OFFSET);
+
         RenderSystem.lineWidth(OVERLAY_UI_SCALE);
 
         VertexConsumer consumer = bufferSource.getBuffer(getLinesNoDepth());
@@ -354,6 +363,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .endVertex();
 
         RenderSystem.lineWidth(1.0F);
+
+        poseStack.popPose();
     }
 
     private void drawBillboardCard(List<Component> lines, Vec3 localPos, int accentColor, boolean withLeader,
@@ -378,7 +389,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.translate(0.0F, -(totalHeight + 2) / 2.0F, 0.0F);
 
         if (withLeader) {
-            drawLocalLeaderLine(poseStack, bufferSource, leader, (totalHeight + 2) / 2.0F, accentColor);
+            drawLocalLeaderLine(poseStack, bufferSource, leader, (totalHeight + 2) / 2.0F, accentColor, textScale);
         }
 
         for (int i = 0; i < lines.size(); i++) {
@@ -413,10 +424,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     /** Draws the thin horizontal guide line inside the current billboard-local space, from the anchor (x=0,
-     *  vertically centred on the card) rightward to the card's left edge. Uses no-depth rendering so the
-     *  line is never occluded by blocks. */
+     *  vertically centred on the card) rightward to the card's left edge. Uses no-depth rendering with a
+     *  negative z offset so the line renders behind text boxes. Line width scales with UI scale. */
     private void drawLocalLeaderLine(PoseStack poseStack, MultiBufferSource bufferSource, float leader,
-                                     float centerY, int color) {
+                                     float centerY, int color, float uiScale) {
         if (leader <= 0.0F) {
             return;
         }
@@ -424,7 +435,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         float green = ((color >> 8) & 0xFF) / 255.0F;
         float blue = (color & 0xFF) / 255.0F;
 
-        RenderSystem.lineWidth(OVERLAY_UI_SCALE);
+        poseStack.pushPose();
+        poseStack.translate(0.0F, 0.0F, LEADER_LINE_Z_OFFSET);
+
+        // Scale line width with UI scale (which increases as player gets closer)
+        float lineWidth = OVERLAY_UI_SCALE * (uiScale / (0.018F * OVERLAY_UI_SCALE));
+        RenderSystem.lineWidth(lineWidth);
 
         VertexConsumer consumer = bufferSource.getBuffer(getLinesNoDepth());
         Matrix4f matrix = poseStack.last().pose();
@@ -438,6 +454,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .endVertex();
 
         RenderSystem.lineWidth(1.0F);
+
+        poseStack.popPose();
     }
 
     private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,
@@ -472,7 +490,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         if (withLeader) {
             int leaderColor = palette == null ? 0xE6FCFF : palette.getColor();
-            drawLocalLeaderLine(poseStack, bufferSource, leader, (boxHeight + 6.0F) / 2.0F, leaderColor);
+            drawLocalLeaderLine(poseStack, bufferSource, leader, (boxHeight + 6.0F) / 2.0F, leaderColor, uiScale);
         }
 
         GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
