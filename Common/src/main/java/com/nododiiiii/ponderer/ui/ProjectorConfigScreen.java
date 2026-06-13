@@ -35,13 +35,13 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private Button blueTintButton;
     private Button playButton;
     @Nullable
-    private Button clearAnchorButton;
+    private Button resetOffsetButton;
     @Nullable
-    private EditBox anchorX;
+    private EditBox offsetX;
     @Nullable
-    private EditBox anchorY;
+    private EditBox offsetY;
     @Nullable
-    private EditBox anchorZ;
+    private EditBox offsetZ;
     @Nullable
     private EditBox scaleBox;
 
@@ -73,12 +73,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             button -> cycleTriggerMode()).bounds(x + 104, y + 55, 102, 20).build());
 
         if (menu.projectorKind().requiresAnchor()) {
-            anchorX = addRenderableWidget(anchorBox(x + 74, y + 80));
-            anchorY = addRenderableWidget(anchorBox(x + 119, y + 80));
-            anchorZ = addRenderableWidget(anchorBox(x + 164, y + 80));
-            clearAnchorButton = addRenderableWidget(Button.builder(
-                Component.translatable("ponderer.ui.projector.clear_anchor"),
-                button -> clearAnchor()).bounds(x + 15, y + 102, 62, 20).build());
+            offsetX = addRenderableWidget(offsetBox(x + 74, y + 80));
+            offsetY = addRenderableWidget(offsetBox(x + 119, y + 80));
+            offsetZ = addRenderableWidget(offsetBox(x + 164, y + 80));
+            resetOffsetButton = addRenderableWidget(Button.builder(
+                Component.translatable("ponderer.ui.projector.reset_offset"),
+                button -> resetOffset()).bounds(x + 15, y + 102, 62, 20).build());
             blueTintButton = addRenderableWidget(Button.builder(
                 Component.empty(),
                 button -> toggleBlueTint()).bounds(x + 82, y + 102, 62, 20).build());
@@ -96,8 +96,11 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         ProjectorBlockEntity projector = menu.projector();
-        if (projector != null && projector.getAnchorPos() != null) {
-            setAnchor(projector.getAnchorPos());
+        if (projector != null && projector.getProjectionOffset() != null) {
+            setOffset(projector.getProjectionOffset());
+        } else if (projector != null && menu.projectorKind().requiresAnchor()) {
+            // 显示默认偏移值
+            setOffset(new BlockPos(0, 0, 2));
         }
         updateTriggerButton();
         updateBlueTintButton();
@@ -107,9 +110,9 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     @Override
     public void containerTick() {
         super.containerTick();
-        tickBox(anchorX);
-        tickBox(anchorY);
-        tickBox(anchorZ);
+        tickBox(offsetX);
+        tickBox(offsetY);
+        tickBox(offsetZ);
         tickBox(scaleBox);
 
         String current = fingerprint(menu.sourceItem());
@@ -155,7 +158,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         graphics.drawString(font, Component.translatable("ponderer.ui.projector.trigger_mode"), 10, 61, TEXT, false);
         if (menu.projectorKind().requiresAnchor()) {
-            graphics.drawString(font, Component.translatable("ponderer.ui.projector.anchor"), 10, 85, TEXT, false);
+            graphics.drawString(font, Component.translatable("ponderer.ui.projector.offset"), 10, 85, TEXT, false);
         } else {
             graphics.drawString(font, Component.translatable("ponderer.ui.projector.scale"), 10, 107, TEXT, false);
         }
@@ -177,8 +180,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         miniatureScale = projector.getMiniatureScale();
     }
 
-    private EditBox anchorBox(int x, int y) {
-        EditBox box = new EditBox(font, x, y, 39, 18, Component.translatable("ponderer.ui.projector.anchor"));
+    private EditBox offsetBox(int x, int y) {
+        EditBox box = new EditBox(font, x, y, 39, 18, Component.translatable("ponderer.ui.projector.offset"));
         box.setMaxLength(10);
         box.setTextColor(0xFFFFFF);
         return box;
@@ -192,15 +195,15 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return box;
     }
 
-    private void setAnchor(BlockPos pos) {
-        if (anchorX != null) {
-            anchorX.setValue(String.valueOf(pos.getX()));
+    private void setOffset(BlockPos offset) {
+        if (offsetX != null) {
+            offsetX.setValue(String.valueOf(offset.getX()));
         }
-        if (anchorY != null) {
-            anchorY.setValue(String.valueOf(pos.getY()));
+        if (offsetY != null) {
+            offsetY.setValue(String.valueOf(offset.getY()));
         }
-        if (anchorZ != null) {
-            anchorZ.setValue(String.valueOf(pos.getZ()));
+        if (offsetZ != null) {
+            offsetZ.setValue(String.valueOf(offset.getZ()));
         }
     }
 
@@ -252,9 +255,9 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private boolean applyConfig(boolean showStatus) {
-        BlockPos anchor = parseAnchorPos();
-        if (requiresMissingAnchor()) {
-            status(Component.translatable("ponderer.ui.projector.anchor.required"), ERROR);
+        BlockPos offset = parseProjectionOffset();
+        if (requiresMissingOffset()) {
+            status(Component.translatable("ponderer.ui.projector.offset.required"), ERROR);
             return false;
         }
 
@@ -263,7 +266,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             menu.projectorPos(),
             resolvedSceneKeys,
             currentTriggerMode(),
-            anchor,
+            offset,
             estimateDuration(resolvedSceneKeys),
             showBlueTint,
             scale));
@@ -285,18 +288,18 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         status(Component.translatable("ponderer.ui.projector.play_once.sent"), INFO);
     }
 
-    private boolean requiresMissingAnchor() {
-        return menu.projectorKind().requiresAnchor() && !resolvedSceneKeys.isEmpty() && parseAnchorPos() == null;
+    private boolean requiresMissingOffset() {
+        return menu.projectorKind().requiresAnchor() && !resolvedSceneKeys.isEmpty() && parseProjectionOffset() == null;
     }
 
     @Nullable
-    private BlockPos parseAnchorPos() {
-        if (anchorX == null || anchorY == null || anchorZ == null) {
+    private BlockPos parseProjectionOffset() {
+        if (offsetX == null || offsetY == null || offsetZ == null) {
             return null;
         }
-        String rawX = anchorX.getValue().trim();
-        String rawY = anchorY.getValue().trim();
-        String rawZ = anchorZ.getValue().trim();
+        String rawX = offsetX.getValue().trim();
+        String rawY = offsetY.getValue().trim();
+        String rawZ = offsetZ.getValue().trim();
         if (rawX.isBlank() && rawY.isBlank() && rawZ.isBlank()) {
             return null;
         }
@@ -307,16 +310,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
     }
 
-    private void clearAnchor() {
-        if (anchorX != null) {
-            anchorX.setValue("");
-        }
-        if (anchorY != null) {
-            anchorY.setValue("");
-        }
-        if (anchorZ != null) {
-            anchorZ.setValue("");
-        }
+    private void resetOffset() {
+        setOffset(new BlockPos(0, 0, 2));
     }
 
     private float parseScale() {

@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.projector;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderBounds;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -35,7 +36,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_SCENE_KEYS = "SceneKeys";
     private static final String TAG_SOURCE_ITEM = "SourceItem";
     private static final String TAG_TRIGGER_MODE = "TriggerMode";
-    private static final String TAG_ANCHOR = "AnchorPos";
+    private static final String TAG_OFFSET = "ProjectionOffset";
     private static final String TAG_REDSTONE = "RedstonePowered";
     private static final String TAG_PLAYING = "Playing";
     private static final String TAG_PLAYBACK_LOOPING = "PlaybackLooping";
@@ -46,11 +47,12 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
     private static final String TAG_MINIATURE_SCALE = "MiniatureScale";
     private static final int FALLBACK_ONCE_DURATION_TICKS = 20 * 60;
+    private static final BlockPos DEFAULT_LIFE_SIZE_OFFSET = new BlockPos(0, 0, 2);
 
     private ItemStack sourceItem = ItemStack.EMPTY;
     private List<String> sceneKeys = List.of();
     @Nullable
-    private BlockPos anchorPos;
+    private BlockPos projectionOffset;
     private ProjectorTriggerMode triggerMode = ProjectorTriggerMode.MANUAL_LOOP;
     private boolean redstonePowered;
     private boolean playing;
@@ -121,8 +123,31 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     }
 
     @Nullable
-    public BlockPos getAnchorPos() {
-        return anchorPos;
+    public BlockPos getProjectionOffset() {
+        return projectionOffset;
+    }
+
+    /**
+     * 获取场景在世界中的实际投影位置（投影仪位置 + 根据朝向旋转的偏移）。
+     * 仅对 1:1 投影仪有效。
+     */
+    public BlockPos getProjectionAnchor() {
+        if (projectionOffset == null) {
+            return getBlockPos();
+        }
+        Direction facing = getBlockState().getValue(ProjectorBlock.FACING);
+        BlockPos rotatedOffset = rotateOffsetByFacing(projectionOffset, facing);
+        return getBlockPos().offset(rotatedOffset);
+    }
+
+    private static BlockPos rotateOffsetByFacing(BlockPos offset, Direction facing) {
+        return switch (facing) {
+            case NORTH -> offset; // 默认朝向，无需旋转
+            case SOUTH -> new BlockPos(-offset.getX(), offset.getY(), -offset.getZ());
+            case EAST -> new BlockPos(-offset.getZ(), offset.getY(), offset.getX());
+            case WEST -> new BlockPos(offset.getZ(), offset.getY(), -offset.getX());
+            default -> offset;
+        };
     }
 
     public ProjectorTriggerMode getTriggerMode() {
@@ -172,15 +197,22 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         if (sourceItem.isEmpty() || sceneKeys.isEmpty()) {
             return false;
         }
-        return !getProjectorKind().requiresAnchor() || anchorPos != null;
+        return !getProjectorKind().requiresAnchor() || projectionOffset != null;
     }
 
     public void applyConfig(List<String> newSceneKeys, ProjectorTriggerMode newMode,
-                            @Nullable BlockPos newAnchorPos, int newPlaybackDurationTicks,
+                            @Nullable BlockPos newProjectionOffset, int newPlaybackDurationTicks,
                             boolean newShowBlueTint, float newMiniatureScale) {
         this.sceneKeys = sourceItem.isEmpty() ? List.of() : resolveSceneKeys(newSceneKeys);
         this.triggerMode = newMode == null ? ProjectorTriggerMode.MANUAL_LOOP : newMode;
-        this.anchorPos = getProjectorKind().requiresAnchor() ? newAnchorPos : null;
+
+        // 1:1 投影仪：如果传入 null 则使用默认偏移（正前方 2 格）；微缩版不使用偏移
+        if (getProjectorKind().requiresAnchor()) {
+            this.projectionOffset = newProjectionOffset != null ? newProjectionOffset : DEFAULT_LIFE_SIZE_OFFSET;
+        } else {
+            this.projectionOffset = null;
+        }
+
         this.playbackDurationTicks = Math.max(0, newPlaybackDurationTicks);
         this.showBlueTint = newShowBlueTint;
         this.miniatureScale = Math.max(0.1F, Math.min(5.0F, newMiniatureScale));
@@ -441,8 +473,8 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         }
         tag.put(TAG_SCENE_KEYS, keyList);
         tag.putString(TAG_TRIGGER_MODE, triggerMode.serializedName());
-        if (anchorPos != null) {
-            tag.putLong(TAG_ANCHOR, anchorPos.asLong());
+        if (projectionOffset != null) {
+            tag.putLong(TAG_OFFSET, projectionOffset.asLong());
         }
         tag.putBoolean(TAG_REDSTONE, redstonePowered);
         tag.putBoolean(TAG_PLAYING, playing);
@@ -463,7 +495,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
             : ItemStack.EMPTY;
         sceneKeys = loadSceneKeys(tag);
         triggerMode = ProjectorTriggerMode.byName(tag.getString(TAG_TRIGGER_MODE));
-        anchorPos = tag.contains(TAG_ANCHOR) ? BlockPos.of(tag.getLong(TAG_ANCHOR)) : null;
+        projectionOffset = tag.contains(TAG_OFFSET) ? BlockPos.of(tag.getLong(TAG_OFFSET)) : null;
         redstonePowered = tag.getBoolean(TAG_REDSTONE);
         playing = tag.getBoolean(TAG_PLAYING);
         playbackLooping = tag.contains(TAG_PLAYBACK_LOOPING) ? tag.getBoolean(TAG_PLAYBACK_LOOPING) : triggerMode.loops();

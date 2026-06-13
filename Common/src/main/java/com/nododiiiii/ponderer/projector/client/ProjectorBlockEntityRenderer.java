@@ -73,6 +73,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
     /** Larger lift for the input panel's key text + icon, which sit beside (not on top of) the item. */
     private static final float PANEL_FG_Z = 2.0F;
+    /** Negative z offset (away from camera) for leader lines so they render behind text boxes but still
+     *  use no-depth rendering to avoid block occlusion. */
+    private static final float LEADER_LINE_Z_OFFSET = -0.01F;
+    /** Global scale multiplier for all projected overlay UI (text windows, panels, cards).
+     *  Base scale is 1.0; default 2.0 doubles the size of text, boxes, and line width. */
+    private static final float OVERLAY_UI_SCALE = 1.8F;
     /** Horizontal leader length (in billboard-local font pixels) between the anchor point and the left edge of an
      *  anchored text card. The card text and box are drawn to the screen-right of the anchor by this much, with a
      *  thin horizontal guide line bridging the gap — mirroring Ponder's {@code TextWindowElement} layout. */
@@ -333,6 +339,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         float green = ((color >> 8) & 0xFF) / 255.0F;
         float blue = (color & 0xFF) / 255.0F;
 
+        RenderSystem.lineWidth(OVERLAY_UI_SCALE);
+
         VertexConsumer consumer = bufferSource.getBuffer(getLinesNoDepth());
         Matrix4f matrix = poseStack.last().pose();
         // 水平引导线：从附着点水平延伸到文本框左边缘
@@ -344,6 +352,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .color(red, green, blue, 0.75F)
             .normal(0.0F, 1.0F, 0.0F)
             .endVertex();
+
+        RenderSystem.lineWidth(1.0F);
     }
 
     private void drawBillboardCard(List<Component> lines, Vec3 localPos, int accentColor, boolean withLeader,
@@ -353,7 +363,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         Font font = Minecraft.getInstance().font;
-        float textScale = 0.018F;
+        float textScale = 0.018F * OVERLAY_UI_SCALE;
 
         int totalHeight = lines.size() * font.lineHeight;
         int backgroundColor = 0x66000000;
@@ -404,7 +414,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     /** Draws the thin horizontal guide line inside the current billboard-local space, from the anchor (x=0,
      *  vertically centred on the card) rightward to the card's left edge. Uses no-depth rendering so the
-     *  line is never occluded by blocks but can still be occluded by subsequent no-depth content (panels). */
+     *  line is never occluded by blocks. */
     private void drawLocalLeaderLine(PoseStack poseStack, MultiBufferSource bufferSource, float leader,
                                      float centerY, int color) {
         if (leader <= 0.0F) {
@@ -413,6 +423,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         float red = ((color >> 16) & 0xFF) / 255.0F;
         float green = ((color >> 8) & 0xFF) / 255.0F;
         float blue = (color & 0xFF) / 255.0F;
+
+        RenderSystem.lineWidth(OVERLAY_UI_SCALE);
 
         VertexConsumer consumer = bufferSource.getBuffer(getLinesNoDepth());
         Matrix4f matrix = poseStack.last().pose();
@@ -424,6 +436,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .color(red, green, blue, 0.75F)
             .normal(1.0F, 0.0F, 0.0F)
             .endVertex();
+
+        RenderSystem.lineWidth(1.0F);
     }
 
     private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,
@@ -825,11 +839,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private float uiScaleFor(Vec3 localPos, RenderLayout layout) {
-        return 0.018F * layout.uiScale();
+        return 0.018F * layout.uiScale() * OVERLAY_UI_SCALE;
     }
 
     private float uiScaleFor(Vec3 localPos) {
-        return 0.018F;
+        return 0.018F * OVERLAY_UI_SCALE;
     }
 
     @Override
@@ -879,7 +893,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     scale);
             }
 
-            BlockPos anchor = blockEntity.getAnchorPos() == null ? blockEntity.getBlockPos() : blockEntity.getAnchorPos();
+            BlockPos anchor = blockEntity.getProjectionAnchor();
             Vec3 offset = new Vec3(
                 anchor.getX() - blockEntity.getBlockPos().getX(),
                 anchor.getY() - blockEntity.getBlockPos().getY(),

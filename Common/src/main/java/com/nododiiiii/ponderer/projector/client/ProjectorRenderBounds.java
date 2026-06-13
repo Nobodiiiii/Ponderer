@@ -59,30 +59,30 @@ public final class ProjectorRenderBounds {
         String sceneKey = String.join("\n", sceneKeys);
         Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
         ProjectorKind kind = blockEntity.getProjectorKind();
-        BlockPos anchor = blockEntity.getAnchorPos();
+        BlockPos offset = blockEntity.getProjectionOffset();
         float miniatureScale = blockEntity.getMiniatureScale();
 
         CachedBounds cached = CACHE.get(blockPos);
         if (cached != null
-            && cached.matches(sceneKey, kind, facing, anchor, miniatureScale)) {
+            && cached.matches(sceneKey, kind, facing, offset, miniatureScale)) {
             return cached.bounds();
         }
 
         ProjectorSceneBundle bundle = ProjectorSceneBundle.compile(sceneKeys);
         if (bundle != null) {
             AABB estimated = toWorldBounds(blockEntity, bundle.combinedBounds()).inflate(CULL_PADDING);
-            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, miniatureScale, estimated));
+            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, estimated));
             return estimated;
         }
 
         BoundingBox fallbackBounds = ProjectorSceneBounds.estimate(sceneKeys);
         if (fallbackBounds == null) {
-            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, miniatureScale, fallback));
+            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, fallback));
             return fallback;
         }
 
         AABB estimated = toWorldBounds(blockEntity, fallbackBounds).inflate(CULL_PADDING);
-        CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, miniatureScale, estimated));
+        CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, estimated));
         return estimated;
     }
 
@@ -116,8 +116,7 @@ public final class ProjectorRenderBounds {
                 blockPos.getZ() + 0.5D);
             sceneTranslate = new Vec3(-centerX, -centerY, -centerZ);
         } else {
-            BlockPos projectorPos = blockEntity.getBlockPos();
-            BlockPos anchor = blockEntity.getAnchorPos() == null ? projectorPos : blockEntity.getAnchorPos();
+            BlockPos anchor = blockEntity.getProjectionAnchor();
             worldOrigin = new Vec3(anchor.getX(), anchor.getY(), anchor.getZ());
             sceneTranslate = Vec3.ZERO;
             scale = 1.0F;
@@ -165,13 +164,13 @@ public final class ProjectorRenderBounds {
     }
 
     private record CachedBounds(String sceneKey, ProjectorKind kind, Direction facing,
-                                @Nullable BlockPos anchor, float miniatureScale, AABB bounds) {
+                                @Nullable BlockPos offset, float miniatureScale, AABB bounds) {
         boolean matches(String otherSceneKey, ProjectorKind otherKind, Direction otherFacing,
-                        @Nullable BlockPos otherAnchor, float otherMiniatureScale) {
+                        @Nullable BlockPos otherOffset, float otherMiniatureScale) {
             return sceneKey.equals(otherSceneKey)
                 && kind == otherKind
                 && facing == otherFacing
-                && Objects.equals(anchor, otherAnchor)
+                && Objects.equals(offset, otherOffset)
                 && Math.abs(miniatureScale - otherMiniatureScale) < 0.001F;
         }
     }
