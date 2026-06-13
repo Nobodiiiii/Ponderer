@@ -3,8 +3,12 @@ package com.nododiiiii.ponderer.projector.client;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;import com.mojang.math.Axis;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.math.Axis;
 import com.nododiiiii.ponderer.mixin.InputWindowElementAccessor;
 import com.nododiiiii.ponderer.mixin.RenderSystemShaderLightsAccessor;
 import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
@@ -31,6 +35,7 @@ import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Style;
 import net.minecraft.client.renderer.LightTexture;
@@ -89,6 +94,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      *  anchored text card. The card text and box are drawn to the screen-right of the anchor by this much, with a
      *  thin horizontal guide line bridging the gap — mirroring Ponder's {@code TextWindowElement} layout. */
     private static final float OVERLAY_LEADER_LENGTH = 18.0F;
+    /** Leader line thickness in billboard-local font pixels, so it scales with the same perspective and overlay
+     *  size changes as the text box instead of staying a fixed screen-space line width. */
+    private static final float OVERLAY_LEADER_THICKNESS = 1.0F;
     /** Squash factor applied to the item's depth (toward camera). A full 3D item is as deep as it is tall, which
      *  parallaxes against the flat box; squashing it emulates the orthographic inventory look (1 = full 3D, 0 = flat).
      *  Only geometry is squashed; {@link #drawPanelItem} repairs the normal matrix afterward so diffuse lighting
@@ -390,7 +398,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.translate(0.0F, -(totalHeight + 2) / 2.0F, 0.0F);
 
         if (withLeader) {
-            drawLocalLeaderLine(poseStack, bufferSource, leader, (totalHeight + 2) / 2.0F, accentColor, textScale);
+            drawLocalLeaderLine(poseStack, leader, (totalHeight + 2) / 2.0F, accentColor);
         }
 
         for (int i = 0; i < lines.size(); i++) {
@@ -425,38 +433,62 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     /** Draws the thin horizontal guide line inside the current billboard-local space, from the anchor (x=0,
-     *  vertically centred on the card) rightward to the card's left edge. Uses no-depth rendering with a
-     *  negative z offset so the line renders behind text boxes. Line width scales with UI scale. */
-    private void drawLocalLeaderLine(PoseStack poseStack, MultiBufferSource bufferSource, float leader,
-                                     float centerY, int color, float uiScale) {
+     *  vertically centred on the card) rightward to the card's left edge. The line is rendered as a tiny quad in
+     *  the same local coordinate system as the text box, so it inherits the same perspective scaling. */
+    private void drawLocalLeaderLine(PoseStack poseStack, float leader, float centerY, int color) {
         if (leader <= 0.0F) {
             return;
         }
-        float red = ((color >> 16) & 0xFF) / 255.0F;
-        float green = ((color >> 8) & 0xFF) / 255.0F;
-        float blue = (color & 0xFF) / 255.0F;
 
         poseStack.pushPose();
         poseStack.translate(0.0F, 0.0F, LEADER_LINE_Z_OFFSET);
 
-        // Scale line width with UI scale (which increases as player gets closer)
-        float lineWidth = OVERLAY_UI_SCALE * (uiScale / (0.018F * OVERLAY_UI_SCALE));
-        RenderSystem.lineWidth(lineWidth);
-
-        VertexConsumer consumer = bufferSource.getBuffer(getLinesNoDepth());
-        Matrix4f matrix = poseStack.last().pose();
-        consumer.vertex(matrix, 0.0F, centerY, 0.0F)
-            .color(red, green, blue, 0.95F)
-            .normal(1.0F, 0.0F, 0.0F)
-            .endVertex();
-        consumer.vertex(matrix, leader, centerY, 0.0F)
-            .color(red, green, blue, 0.75F)
-            .normal(1.0F, 0.0F, 0.0F)
-            .endVertex();
-
-        RenderSystem.lineWidth(1.0F);
+        float halfThickness = OVERLAY_LEADER_THICKNESS * 0.5F;
+        drawImmediateGradientRect(
+            poseStack.last().pose(),
+            0.0F,
+            centerY - halfThickness,
+            leader,
+            centerY + halfThickness,
+            withAlpha(color, 0.95F),
+            withAlpha(color, 0.75F));
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
 
         poseStack.popPose();
+    }
+
+    private void drawImmediateGradientRect(Matrix4f matrix, float left, float top, float right, float bottom,
+                                           int leftColor, int rightColor) {
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder buffer = tesselator.getBuilder();
+        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        colorVertex(buffer, matrix, left, bottom, leftColor);
+        colorVertex(buffer, matrix, right, bottom, rightColor);
+        colorVertex(buffer, matrix, right, top, rightColor);
+        colorVertex(buffer, matrix, left, top, leftColor);
+        tesselator.end();
+    }
+
+    private static void colorVertex(BufferBuilder buffer, Matrix4f matrix, float x, float y, int color) {
+        buffer.vertex(matrix, x, y, 0.0F)
+            .color((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, (color >> 24) & 0xFF)
+            .endVertex();
+    }
+
+    private static int withAlpha(int color, float alphaMultiplier) {
+        int baseAlpha = (color >>> 24) & 0xFF;
+        if (baseAlpha == 0) {
+            baseAlpha = 0xFF;
+        }
+        int alpha = Math.max(0, Math.min(255, Math.round(baseAlpha * alphaMultiplier)));
+        return (alpha << 24) | (color & 0x00FFFFFF);
     }
 
     private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,
@@ -491,7 +523,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         if (withLeader) {
             int leaderColor = palette == null ? 0xE6FCFF : palette.getColor();
-            drawLocalLeaderLine(poseStack, bufferSource, leader, (boxHeight + 6.0F) / 2.0F, leaderColor, uiScale);
+            drawLocalLeaderLine(poseStack, leader, (boxHeight + 6.0F) / 2.0F, leaderColor);
         }
 
         GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
