@@ -161,6 +161,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         poseStack.pushPose();
         poseStack.translate(layout.origin().x, layout.origin().y, layout.origin().z);
+        poseStack.translate(layout.rotationPivot().x, layout.rotationPivot().y, layout.rotationPivot().z);
         poseStack.mulPose(Axis.YP.rotationDegrees(layout.rotationDegrees()));
         poseStack.scale(layout.scale(), layout.scale(), layout.scale());
         poseStack.translate(layout.sceneTranslate().x, layout.sceneTranslate().y, layout.sceneTranslate().z);
@@ -879,18 +880,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         return true;
     }
 
-    private record RenderLayout(ProjectorKind kind, Vec3 origin, Vec3 sceneTranslate, float scale,
+    private record RenderLayout(ProjectorKind kind, Vec3 origin, Vec3 rotationPivot, Vec3 sceneTranslate, float scale,
                                 float rotationDegrees, BoundingBox bounds,
                                 float redTint, float greenTint, float blueTint, float uiScale) {
         static RenderLayout from(ProjectorBlockEntity blockEntity, BoundingBox bounds) {
-            Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
             ProjectorKind kind = blockEntity.getProjectorKind();
-            float rotation = switch (facing) {
-                case SOUTH -> 180.0F;
-                case EAST -> -90.0F;
-                case WEST -> 90.0F;
-                default -> 0.0F;
-            };
+            float rotation = blockEntity.getSceneRotationDegrees();
 
             if (kind == ProjectorKind.MINIATURE) {
                 int spanX = Math.max(1, bounds.getXSpan());
@@ -903,6 +898,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 return new RenderLayout(
                     kind,
                     new Vec3(0.5D, MINIATURE_Y_OFFSET, 0.5D),
+                    Vec3.ZERO,
                     new Vec3(-centerX, -centerY, -centerZ),
                     scale,
                     rotation,
@@ -919,7 +915,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return new RenderLayout(
                 kind,
                 offset,
-                Vec3.ZERO,
+                new Vec3(0.5D, 0.0D, 0.5D),
+                new Vec3(-0.5D, 0.0D, -0.5D),
                 1.0F,
                 rotation,
                 bounds,
@@ -933,7 +930,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             double scaledY = translated.y * scale;
             double scaledZ = translated.z * scale;
             Vec3 rotated = rotateY(new Vec3(scaledX, scaledY, scaledZ), rotationDegrees);
-            return origin.add(rotated);
+            return origin.add(rotationPivot).add(rotated);
         }
 
         float cardRise() {

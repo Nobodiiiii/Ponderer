@@ -4,15 +4,18 @@ import com.nododiiiii.ponderer.network.ProjectorConfigUpdatePayload;
 import com.nododiiiii.ponderer.network.ProjectorManualTriggerPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
+import com.nododiiiii.ponderer.projector.ProjectorBlock;
 import com.nododiiiii.ponderer.projector.ProjectorMenu;
 import com.nododiiiii.ponderer.projector.ProjectorTriggerMode;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientSceneResolver;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneCompiler;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
@@ -96,11 +99,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         ProjectorBlockEntity projector = menu.projector();
-        if (projector != null && projector.getProjectionOffset() != null) {
-            setOffset(projector.getProjectionOffset());
-        } else if (projector != null && menu.projectorKind().requiresAnchor()) {
-            // 显示默认偏移值
-            setOffset(new BlockPos(-1, 0, 0));
+        if (menu.projectorKind().requiresAnchor()) {
+            setOffset(projector != null
+                ? projector.getEffectiveProjectionOffset()
+                : ProjectorBlockEntity.defaultProjectionOffset(projectorFacing()));
         }
         updateTriggerButton();
         updateBlueTintButton();
@@ -184,6 +186,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         EditBox box = new EditBox(font, x, y, 39, 18, Component.translatable("ponderer.ui.projector.offset"));
         box.setMaxLength(10);
         box.setTextColor(0xFFFFFF);
+        box.setFilter(value -> value.isEmpty() || "-".equals(value) || value.matches("-?\\d+"));
         return box;
     }
 
@@ -311,7 +314,22 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void resetOffset() {
-        setOffset(new BlockPos(-1, 0, 0));
+        setOffset(ProjectorBlockEntity.defaultProjectionOffset(projectorFacing()));
+    }
+
+    private Direction projectorFacing() {
+        ProjectorBlockEntity projector = menu.projector();
+        if (projector != null) {
+            return projector.getBlockState().getValue(ProjectorBlock.FACING);
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level != null) {
+            var state = minecraft.level.getBlockState(menu.projectorPos());
+            if (state.hasProperty(ProjectorBlock.FACING)) {
+                return state.getValue(ProjectorBlock.FACING);
+            }
+        }
+        return Direction.NORTH;
     }
 
     private float parseScale() {

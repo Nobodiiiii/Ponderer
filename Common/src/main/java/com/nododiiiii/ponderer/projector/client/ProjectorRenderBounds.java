@@ -87,15 +87,10 @@ public final class ProjectorRenderBounds {
     }
 
     private static AABB toWorldBounds(ProjectorBlockEntity blockEntity, BoundingBox bounds) {
-        Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
-        float rotationDegrees = switch (facing) {
-            case SOUTH -> 180.0F;
-            case EAST -> -90.0F;
-            case WEST -> 90.0F;
-            default -> 0.0F;
-        };
+        float rotationDegrees = blockEntity.getSceneRotationDegrees();
 
         Vec3 worldOrigin;
+        Vec3 rotationPivot;
         Vec3 sceneTranslate;
         float scale;
 
@@ -114,11 +109,13 @@ public final class ProjectorRenderBounds {
                 blockPos.getX() + 0.5D,
                 blockPos.getY() + MINIATURE_Y_OFFSET,
                 blockPos.getZ() + 0.5D);
+            rotationPivot = Vec3.ZERO;
             sceneTranslate = new Vec3(-centerX, -centerY, -centerZ);
         } else {
             BlockPos anchor = blockEntity.getProjectionAnchor();
             worldOrigin = new Vec3(anchor.getX(), anchor.getY(), anchor.getZ());
-            sceneTranslate = Vec3.ZERO;
+            rotationPivot = new Vec3(0.5D, 0.0D, 0.5D);
+            sceneTranslate = new Vec3(-0.5D, 0.0D, -0.5D);
             scale = 1.0F;
         }
 
@@ -139,7 +136,7 @@ public final class ProjectorRenderBounds {
                     Vec3 translated = new Vec3(x, y, z).add(sceneTranslate);
                     Vec3 scaled = new Vec3(translated.x * scale, translated.y * scale, translated.z * scale);
                     Vec3 rotated = rotateY(scaled, rotationDegrees);
-                    Vec3 world = worldOrigin.add(rotated);
+                    Vec3 world = worldOrigin.add(rotationPivot).add(rotated);
 
                     minX = Math.min(minX, world.x);
                     minY = Math.min(minY, world.y);

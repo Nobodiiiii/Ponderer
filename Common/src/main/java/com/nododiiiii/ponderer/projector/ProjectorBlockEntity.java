@@ -37,6 +37,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_SOURCE_ITEM = "SourceItem";
     private static final String TAG_TRIGGER_MODE = "TriggerMode";
     private static final String TAG_OFFSET = "ProjectionOffset";
+    private static final String TAG_OFFSET_WORLD_SPACE = "ProjectionOffsetWorldSpace";
     private static final String TAG_REDSTONE = "RedstonePowered";
     private static final String TAG_PLAYING = "Playing";
     private static final String TAG_PLAYBACK_LOOPING = "PlaybackLooping";
@@ -47,7 +48,6 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
     private static final String TAG_MINIATURE_SCALE = "MiniatureScale";
     private static final int FALLBACK_ONCE_DURATION_TICKS = 20 * 60;
-    private static final BlockPos DEFAULT_LIFE_SIZE_OFFSET = new BlockPos(-1, 0, 0);
 
     private ItemStack sourceItem = ItemStack.EMPTY;
     private List<String> sceneKeys = List.of();
@@ -128,29 +128,55 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     }
 
     /**
-     * 获取场景在世界中的实际投影位置（投影仪位置 + 根据朝向旋转的偏移）。
+     * Returns the world-space offset from the projector block to the scene origin.
+     * If no explicit offset is stored yet, 1:1 projectors default to one block in front
+     * of their current facing direction.
+     */
+    public BlockPos getEffectiveProjectionOffset() {
+        if (projectionOffset != null) {
+            return projectionOffset;
+        }
+        if (!getProjectorKind().requiresAnchor()) {
+            return BlockPos.ZERO;
+        }
+        return defaultProjectionOffset(getBlockState().getValue(ProjectorBlock.FACING));
+    }
+
+    public static BlockPos defaultProjectionOffset(Direction facing) {
+        return new BlockPos(facing.getStepX(), 0, facing.getStepZ());
+    }
+
+    /**
+     * Rotates the scene so the projector facing points toward scene +X.
+     */
+    public float getSceneRotationDegrees() {
+        return sceneRotationDegrees(getBlockState().getValue(ProjectorBlock.FACING));
+    }
+
+    public static float sceneRotationDegrees(Direction facing) {
+        return switch (facing) {
+            case NORTH -> 90.0F;
+            case SOUTH -> -90.0F;
+            case WEST -> 180.0F;
+            case EAST -> 0.0F;
+            default -> 0.0F;
+        };
+    }
+
+    /**
+     * 获取场景在世界中的实际投影原点（投影仪位置 + 世界坐标偏移）。
      * 仅对 1:1 投影仪有效。
      */
     public BlockPos getProjectionAnchor() {
-        if (projectionOffset == null) {
-            return getBlockPos();
-        }
-        Direction facing = getBlockState().getValue(ProjectorBlock.FACING);
-        BlockPos rotatedOffset = rotateOffsetByFacing(projectionOffset, facing);
-        return getBlockPos().offset(rotatedOffset);
+        return getBlockPos().offset(getEffectiveProjectionOffset());
     }
 
-    private static BlockPos rotateOffsetByFacing(BlockPos offset, Direction facing) {
-        // 场景坐标系（SOUTH 朝向，0° 旋转）：
-        // 场景 X 轴 → 世界 +Z（投影仪前方）
-        // 场景 Y 轴 → 世界 +Y
-        // 场景 Z 轴 → 世界 +X（投影仪右侧）
-        // 偏移量从场景局部坐标转换到世界坐标
+    private static BlockPos rotateLegacyOffsetByFacing(BlockPos offset, Direction facing) {
         return switch (facing) {
-            case SOUTH -> new BlockPos(offset.getZ(), offset.getY(), offset.getX()); // 0°: X→Z, Z→X
-            case NORTH -> new BlockPos(-offset.getZ(), offset.getY(), -offset.getX()); // 180°
-            case EAST -> new BlockPos(offset.getX(), offset.getY(), -offset.getZ()); // 90°: X→X, Z→-Z
-            case WEST -> new BlockPos(-offset.getX(), offset.getY(), offset.getZ()); // -90°: X→-X, Z→Z
+            case SOUTH -> new BlockPos(offset.getZ(), offset.getY(), offset.getX());
+            case NORTH -> new BlockPos(-offset.getZ(), offset.getY(), -offset.getX());
+            case EAST -> new BlockPos(offset.getX(), offset.getY(), -offset.getZ());
+            case WEST -> new BlockPos(-offset.getX(), offset.getY(), offset.getZ());
             default -> offset;
         };
     }
@@ -202,7 +228,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         if (sourceItem.isEmpty() || sceneKeys.isEmpty()) {
             return false;
         }
-        return !getProjectorKind().requiresAnchor() || projectionOffset != null;
+        return true;
     }
 
     public void applyConfig(List<String> newSceneKeys, ProjectorTriggerMode newMode,
@@ -211,9 +237,9 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         this.sceneKeys = sourceItem.isEmpty() ? List.of() : resolveSceneKeys(newSceneKeys);
         this.triggerMode = newMode == null ? ProjectorTriggerMode.MANUAL_LOOP : newMode;
 
-        // 1:1 投影仪：如果传入 null 则使用默认偏移（正前方 2 格）；微缩版不使用偏移
+        // 1:1 投影仪保存世界坐标偏移；null 表示继续使用“前方一格”的默认锚点。
         if (getProjectorKind().requiresAnchor()) {
-            this.projectionOffset = newProjectionOffset != null ? newProjectionOffset : DEFAULT_LIFE_SIZE_OFFSET;
+            this.projectionOffset = newProjectionOffset;
         } else {
             this.projectionOffset = null;
         }
@@ -480,6 +506,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         tag.putString(TAG_TRIGGER_MODE, triggerMode.serializedName());
         if (projectionOffset != null) {
             tag.putLong(TAG_OFFSET, projectionOffset.asLong());
+            tag.putBoolean(TAG_OFFSET_WORLD_SPACE, true);
         }
         tag.putBoolean(TAG_REDSTONE, redstonePowered);
         tag.putBoolean(TAG_PLAYING, playing);
@@ -500,7 +527,15 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
             : ItemStack.EMPTY;
         sceneKeys = loadSceneKeys(tag);
         triggerMode = ProjectorTriggerMode.byName(tag.getString(TAG_TRIGGER_MODE));
-        projectionOffset = tag.contains(TAG_OFFSET) ? BlockPos.of(tag.getLong(TAG_OFFSET)) : null;
+        if (tag.contains(TAG_OFFSET)) {
+            BlockPos loadedOffset = BlockPos.of(tag.getLong(TAG_OFFSET));
+            if (getProjectorKind().requiresAnchor() && !tag.getBoolean(TAG_OFFSET_WORLD_SPACE)) {
+                loadedOffset = rotateLegacyOffsetByFacing(loadedOffset, getBlockState().getValue(ProjectorBlock.FACING));
+            }
+            projectionOffset = loadedOffset;
+        } else {
+            projectionOffset = null;
+        }
         redstonePowered = tag.getBoolean(TAG_REDSTONE);
         playing = tag.getBoolean(TAG_PLAYING);
         playbackLooping = tag.contains(TAG_PLAYBACK_LOOPING) ? tag.getBoolean(TAG_PLAYBACK_LOOPING) : triggerMode.loops();
