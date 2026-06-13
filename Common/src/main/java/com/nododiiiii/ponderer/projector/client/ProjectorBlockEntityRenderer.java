@@ -4,8 +4,7 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.math.Axis;
+import com.mojang.blaze3d.vertex.VertexConsumer;import com.mojang.math.Axis;
 import com.nododiiiii.ponderer.mixin.InputWindowElementAccessor;
 import com.nododiiiii.ponderer.mixin.RenderSystemShaderLightsAccessor;
 import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
@@ -54,6 +53,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.lwjgl.opengl.GL11;
 
 import java.util.IdentityHashMap;
 import java.util.ArrayList;
@@ -73,6 +73,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
     /** Larger lift for the input panel's key text + icon, which sit beside (not on top of) the item. */
     private static final float PANEL_FG_Z = 2.0F;
+    /** Horizontal leader length (in billboard-local font pixels) between the anchor point and the left edge of an
+     *  anchored text card. The card text and box are drawn to the screen-right of the anchor by this much, with a
+     *  thin horizontal guide line bridging the gap — mirroring Ponder's {@code TextWindowElement} layout. */
+    private static final float OVERLAY_LEADER_LENGTH = 18.0F;
     /** Squash factor applied to the item's depth (toward camera). A full 3D item is as deep as it is tall, which
      *  parallaxes against the flat box; squashing it emulates the orthographic inventory look (1 = full 3D, 0 = flat).
      *  Only geometry is squashed; {@link #drawPanelItem} repairs the normal matrix afterward so diffuse lighting
@@ -81,6 +85,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      *  layer ordering without visible parallax, and flip the z-axis so Minecraft's back-to-front model geometry
      *  renders front-to-back on screen (chest lid on top). */
     private static final float PANEL_ITEM_FLATTEN = -0.05F;
+    /** Far edge of the compressed depth-range window the panel item renders into. The item's geometry is
+     *  remapped into [0, this] at the front of the depth buffer so it always wins the depth test against the
+     *  projected ponder scene (never occluded), while its own layers still sort among each other inside the
+     *  window. Small enough to stay ahead of the scene, wide enough to avoid layer z-fighting. */
+    private static final double PANEL_ITEM_DEPTH_FRONT = 0.05D;
 
     /**
      * Private, isolated buffer for the show_controls panel. Never the shared world buffer source, so
@@ -91,6 +100,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private final Map<RenderType, RenderType> panelNoDepthRenderTypes = new IdentityHashMap<>();
     private final MultiBufferSource panelNoDepthBuffer =
         type -> panelBuffer.getBuffer(panelNoDepthRenderType(type));
+
+    /**
+     * No-depth lines RenderType for leader lines. Cached lazily on first use.
+     */
+    private RenderType linesNoDepth;
 
     public ProjectorBlockEntityRenderer() {
     }
@@ -224,9 +238,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 }
 
                 Vec3 anchor = layout.localPointFor(cue.point());
-                Vec3 cardPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
-                overlays.add(DeferredOverlay.pointer(anchor, cardPos, cue.accentColor()));
-                overlays.add(DeferredOverlay.billboardCard(cardPos, cue.lines(), cue.accentColor()));
+                // 卡片锚定在附着点本身，文本框与引导线在 billboard 局部空间内向屏幕右侧偏移。
+                // 不能用世界空间 X 偏移：billboard 始终朝向相机，世界 X 不对应"屏幕右侧"，
+                // 会随相机角度和投影仪朝向翻转（这正是文本框跑到左边的原因）。
+                overlays.add(DeferredOverlay.billboardCardAnchored(anchor, cue.lines(), cue.accentColor()));
             } catch (RuntimeException ignored) {
             }
         }
@@ -244,8 +259,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         Vec3 anchorPoint = accessor.ponderer$getVec();
         if (anchorPoint != null) {
             Vec3 anchor = layout.localPointFor(anchorPoint);
-            Vec3 localPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
-            return DeferredOverlay.textWindow(text, localPos, palette, fade, anchor, layout);
+            // 卡片锚定在附着点本身；文本框与引导线在 billboard 局部空间内向屏幕右侧偏移。
+            // anchor 同时作为标记，表示需要绘制水平引导线。
+            return DeferredOverlay.textWindow(text, anchor, palette, fade, anchor, layout);
         } else {
             Vec3 localPos = layout.fallbackCardPosition(fallbackLane);
             return DeferredOverlay.textWindow(text, localPos, palette, fade, null, layout);
@@ -303,39 +319,34 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             case POINTER -> drawPointerLine(overlay.anchor(), overlay.localPos(), poseStack, bufferSource,
                 overlay.accentColor());
             case BILLBOARD_CARD -> drawBillboardCard(overlay.lines(), overlay.localPos(), overlay.accentColor(),
-                poseStack, bufferSource);
-            case TEXT_WINDOW -> {
-                if (overlay.anchor() != null) {
-                    int accentColor = overlay.palette() == null ? 0xE6FCFF : overlay.palette().getColor();
-                    drawPointerLine(overlay.anchor(), overlay.localPos(), poseStack, bufferSource, accentColor);
-                }
-                drawTextWindowBillboard(overlay.text(), overlay.localPos(), overlay.palette(), overlay.fade(),
-                    overlay.layout(), poseStack, bufferSource);
-            }
+                overlay.anchor() != null, poseStack, bufferSource);
+            case TEXT_WINDOW -> drawTextWindowBillboard(overlay.text(), overlay.localPos(), overlay.palette(),
+                overlay.fade(), overlay.anchor() != null, overlay.layout(), poseStack, bufferSource);
             case INPUT_BUBBLE -> drawInputBubbleBillboard(overlay.scenePoint(), overlay.direction(), overlay.icon(),
                 overlay.text(), overlay.item(), overlay.fade(), overlay.layout(), poseStack);
         }
     }
 
-    private void drawPointerLine(Vec3 anchor, Vec3 card, PoseStack poseStack,
+    private void drawPointerLine(Vec3 anchor, Vec3 textBoxLeft, PoseStack poseStack,
                                  MultiBufferSource bufferSource, int color) {
         float red = ((color >> 16) & 0xFF) / 255.0F;
         float green = ((color >> 8) & 0xFF) / 255.0F;
         float blue = (color & 0xFF) / 255.0F;
 
-        VertexConsumer consumer = bufferSource.getBuffer(RenderType.lines());
+        VertexConsumer consumer = bufferSource.getBuffer(getLinesNoDepth());
         Matrix4f matrix = poseStack.last().pose();
+        // 水平引导线：从附着点水平延伸到文本框左边缘
         consumer.vertex(matrix, (float) anchor.x, (float) anchor.y, (float) anchor.z)
             .color(red, green, blue, 0.95F)
             .normal(0.0F, 1.0F, 0.0F)
             .endVertex();
-        consumer.vertex(matrix, (float) card.x, (float) card.y - 0.08F, (float) card.z)
+        consumer.vertex(matrix, (float) textBoxLeft.x, (float) textBoxLeft.y, (float) textBoxLeft.z)
             .color(red, green, blue, 0.75F)
             .normal(0.0F, 1.0F, 0.0F)
             .endVertex();
     }
 
-    private void drawBillboardCard(List<Component> lines, Vec3 localPos, int accentColor,
+    private void drawBillboardCard(List<Component> lines, Vec3 localPos, int accentColor, boolean withLeader,
                                    PoseStack poseStack, MultiBufferSource bufferSource) {
         if (lines.isEmpty()) {
             return;
@@ -343,20 +354,22 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         Font font = Minecraft.getInstance().font;
         float textScale = 0.018F;
-        int widest = 0;
-        for (Component line : lines) {
-            widest = Math.max(widest, font.width(line));
-        }
 
         int totalHeight = lines.size() * font.lineHeight;
         int backgroundColor = 0x66000000;
         int textColor = 0xF2FFFFFF;
+        float leader = withLeader ? OVERLAY_LEADER_LENGTH : 0.0F;
 
         poseStack.pushPose();
         poseStack.translate(localPos.x, localPos.y, localPos.z);
         poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
         poseStack.scale(-textScale, -textScale, textScale);
-        poseStack.translate(-widest / 2.0F, -(totalHeight + 2) / 2.0F, 0.0F);
+        // billboard 局部空间：+x = 屏幕右侧。文本框/文本从 leader 处开始向右，垂直居中。
+        poseStack.translate(0.0F, -(totalHeight + 2) / 2.0F, 0.0F);
+
+        if (withLeader) {
+            drawLocalLeaderLine(poseStack, bufferSource, leader, (totalHeight + 2) / 2.0F, accentColor);
+        }
 
         for (int i = 0; i < lines.size(); i++) {
             Component line = lines.get(i);
@@ -364,7 +377,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             int color = i == 0 ? accentColor | 0xFF000000 : textColor;
             font.drawInBatch(
                 line,
-                0.0F,
+                leader,
                 y,
                 color,
                 false,
@@ -375,7 +388,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 LightTexture.FULL_BRIGHT);
             font.drawInBatch(
                 line,
-                0.0F,
+                leader,
                 y,
                 color,
                 false,
@@ -389,8 +402,33 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.popPose();
     }
 
+    /** Draws the thin horizontal guide line inside the current billboard-local space, from the anchor (x=0,
+     *  vertically centred on the card) rightward to the card's left edge. Uses no-depth rendering so the
+     *  line is never occluded by blocks but can still be occluded by subsequent no-depth content (panels). */
+    private void drawLocalLeaderLine(PoseStack poseStack, MultiBufferSource bufferSource, float leader,
+                                     float centerY, int color) {
+        if (leader <= 0.0F) {
+            return;
+        }
+        float red = ((color >> 16) & 0xFF) / 255.0F;
+        float green = ((color >> 8) & 0xFF) / 255.0F;
+        float blue = (color & 0xFF) / 255.0F;
+
+        VertexConsumer consumer = bufferSource.getBuffer(getLinesNoDepth());
+        Matrix4f matrix = poseStack.last().pose();
+        consumer.vertex(matrix, 0.0F, centerY, 0.0F)
+            .color(red, green, blue, 0.95F)
+            .normal(1.0F, 0.0F, 0.0F)
+            .endVertex();
+        consumer.vertex(matrix, leader, centerY, 0.0F)
+            .color(red, green, blue, 0.75F)
+            .normal(1.0F, 0.0F, 0.0F)
+            .endVertex();
+    }
+
     private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,
-                                         RenderLayout layout, PoseStack poseStack, MultiBufferSource bufferSource) {
+                                         boolean withLeader, RenderLayout layout, PoseStack poseStack,
+                                         MultiBufferSource bufferSource) {
         Font font = Minecraft.getInstance().font;
         List<FormattedText> lines = font.getSplitter().splitLines(text, 180, Style.EMPTY);
         if (lines.isEmpty()) {
@@ -409,18 +447,25 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .mixWith(new Color(0xff_ffffdd, true), 0.5f)
             .setImmutable();
 
+        float leader = withLeader ? OVERLAY_LEADER_LENGTH : 0.0F;
         float uiScale = uiScaleFor(localPos, layout);
         poseStack.pushPose();
         poseStack.translate(localPos.x, localPos.y, localPos.z);
         poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
         poseStack.scale(-uiScale, -uiScale, uiScale);
-        poseStack.translate(-boxWidth / 2.0F, -(boxHeight + 6.0F) / 2.0F, 0.0F);
+        // billboard 局部空间：+x = 屏幕右侧。文本框从 leader 处开始向右，垂直居中。
+        poseStack.translate(0.0F, -(boxHeight + 6.0F) / 2.0F, 0.0F);
+
+        if (withLeader) {
+            int leaderColor = palette == null ? 0xE6FCFF : palette.getColor();
+            drawLocalLeaderLine(poseStack, bufferSource, leader, (boxHeight + 6.0F) / 2.0F, leaderColor);
+        }
 
         GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
         new BoxElement()
             .withBackground(PonderUI.BACKGROUND_FLAT)
             .gradientBorder(TextWindowElement.COLOR_WINDOW_BORDER)
-            .at(-10, 3, 0)
+            .at(leader, 3, 0)
             .withBounds(boxWidth, Math.max(1, boxHeight - 1))
             .render(graphics);
 
@@ -432,7 +477,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             int color = brighter.copy().scaleAlphaForText(fade).getRGB();
             font.drawInBatch(
                 line,
-                -10.0F,
+                leader,
                 y,
                 color,
                 false,
@@ -443,7 +488,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 LightTexture.FULL_BRIGHT);
             font.drawInBatch(
                 line,
-                -10.0F,
+                leader,
                 y,
                 color,
                 false,
@@ -512,10 +557,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             drawPanelItem(poseStack, item, keyWidth + (hasIcon ? 24 : 0));
         }
 
-        // Layer 3 — key text + icon. They sit beside the item (never overlapping it), so a small lift
-        // above the box is enough to keep them on top.
+        // Layer 3 — key text + icon. They sit beside the item (never overlapping it), so a tiny lift
+        // above the box is enough to keep them on top without floating away from the panel.
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, PANEL_FG_Z);
+        poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_TEXT_Z);
         if (hasText) {
             int color = PonderPalette.WHITE.getColorObject().copy().scaleAlpha(fade).getRGB();
             font.drawInBatch(text, 2.0F, (height - font.lineHeight) / 2.0F + 2.0F, color, false,
@@ -527,15 +572,15 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             RenderSystem.depthMask(false);
             poseStack.pushPose();
             poseStack.translate(keyWidth, 0.0F, 0.0F);
-            // Squash the icon onto the box plane the same way drawPanelItem squashes the item. The icon may be
-            // a JEI ingredient (fluid, Mekanism chemical, ...) whose renderer bakes a GUI z-level straight into
-            // its geometry through the pose matrix — e.g. Mekanism's chemical renderer emits its sprite at z=100.
-            // The billboard scale then magnifies that z (~1.5 * 0.018 per unit), so the sprite floats well in
-            // front of the panel. A 0 z-scale here collapses every such internal z-level onto the plane. Repair
-            // the (now singular) normal matrix afterward so a lit 3D model routed through here would not render
-            // dark; flat 2D ingredient sprites ignore normals, so this is harmless for them.
+            // Squash the icon completely flat onto the box plane (z-scale = 0). The icon may be a JEI ingredient
+            // (fluid, Mekanism chemical, ...) whose renderer bakes a GUI z-level straight into its geometry through
+            // the pose matrix — e.g. Mekanism's chemical renderer emits its sprite at z=100. The billboard scale
+            // then magnifies that z (~1.5 * 0.018 per unit), so the sprite floats well in front of the panel.
+            // A 0 z-scale here collapses every such internal z-level onto the plane. Repair the (now singular)
+            // normal matrix afterward so a lit 3D model routed through here would not render dark; flat 2D
+            // ingredient sprites ignore normals, so this is harmless for them.
             Matrix3f iconNormal = new Matrix3f(poseStack.last().normal());
-            poseStack.scale(1.0F, 1.0F, PANEL_ITEM_FLATTEN);
+            poseStack.scale(1.0F, 1.0F, 0.0F);
             poseStack.last().normal().set(iconNormal);
             poseStack.scale(1.5F, 1.5F, 1.5F);
             icon.render(graphics, 0, 0);
@@ -613,14 +658,19 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.scale(16.0F, 16.0F, 16.0F);
 
         // Enable depth testing for the item render so multi-layer block entities (chests, shulker boxes)
-        // render with correct internal layer ordering. The item has a small z-scale (0.05) to provide
-        // just enough depth separation between layers while remaining visually flat at billboard scale.
+        // render with correct internal layer ordering. But the projected ponder scene has already written
+        // its depth, so a plain depth test would let scene blocks closer than the panel occlude the item.
+        // Compress the item's depth range into the very front of the buffer ([0, FRONT]) so it always passes
+        // the depth test against the scene (which spans the full [0, 1]) yet still sorts its own layers among
+        // each other within that thin window — the same trick vanilla uses to float GUI items above the world.
         RenderSystem.enableDepthTest();
         RenderSystem.depthMask(true);
         RenderSystem.depthFunc(515); // GL_LEQUAL - normal depth test
+        GL11.glDepthRange(0.0D, PANEL_ITEM_DEPTH_FRONT);
         itemRenderer.render(item, ItemDisplayContext.GUI, false, poseStack, panelBuffer,
             LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, model);
         panelBuffer.endBatch();
+        GL11.glDepthRange(0.0D, 1.0D); // restore default depth range
         // Restore no-depth state for subsequent layers (text, icon)
         RenderSystem.disableDepthTest();
         RenderSystem.depthMask(false);
@@ -655,6 +705,19 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 RenderSystem.depthMask(false);
             }) {
         };
+    }
+
+    /**
+     * Returns a no-depth lines RenderType for leader lines, lazily creating it on first use.
+     * Lines drawn with this type ignore depth testing (never occluded by blocks) but can still
+     * be occluded by subsequent no-depth content like panels.
+     */
+    private RenderType getLinesNoDepth() {
+        if (linesNoDepth == null) {
+            RenderType base = RenderType.lines();
+            linesNoDepth = wrapNoDepthRenderType(base);
+        }
+        return linesNoDepth;
     }
 
     private void flushPanelBufferNoDepth() {
@@ -935,6 +998,13 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         static DeferredOverlay billboardCard(Vec3 localPos, List<Component> lines, int accentColor) {
             return new DeferredOverlay(Kind.BILLBOARD_CARD, localPos, null, List.copyOf(lines), accentColor, "",
+                null, 1.0F, null, null, null, ItemStack.EMPTY, null);
+        }
+
+        /** A billboard card anchored at a scene point: the box+text sit to the screen-right of {@code localPos}
+         *  with a horizontal guide line bridging the gap (anchor is non-null to flag the leader). */
+        static DeferredOverlay billboardCardAnchored(Vec3 anchor, List<Component> lines, int accentColor) {
+            return new DeferredOverlay(Kind.BILLBOARD_CARD, anchor, anchor, List.copyOf(lines), accentColor, "",
                 null, 1.0F, null, null, null, ItemStack.EMPTY, null);
         }
 
