@@ -76,8 +76,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     /** Squash factor applied to the item's depth (toward camera). A full 3D item is as deep as it is tall, which
      *  parallaxes against the flat box; squashing it emulates the orthographic inventory look (1 = full 3D, 0 = flat).
      *  Only geometry is squashed; {@link #drawPanelItem} repairs the normal matrix afterward so diffuse lighting
-     *  still matches a real inventory item (a 0 z-scale would make the normal matrix singular and render it dark). */
-    private static final float PANEL_ITEM_FLATTEN = 0F;
+     *  still matches a real inventory item (a 0 z-scale would make the normal matrix singular and render it dark).
+     *  Set to a small NEGATIVE value to give multi-layer block entities (chests) enough depth separation for correct
+     *  layer ordering without visible parallax, and flip the z-axis so Minecraft's back-to-front model geometry
+     *  renders front-to-back on screen (chest lid on top). */
+    private static final float PANEL_ITEM_FLATTEN = -0.05F;
 
     /**
      * Private, isolated buffer for the show_controls panel. Never the shared world buffer source, so
@@ -548,15 +551,15 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     /**
      * Renders the show_controls item as a real 3D model on top of the speech box, using the same recipe
      * Create's {@link net.createmod.catnip.gui.element.GuiGameElement} uses for in-GUI items (cull on,
-     * {@link UIRenderHelper#flipForGuiRender}, depth test off so it sorts on top). Unlike GuiGameElement
-     * it draws into our private {@link #panelBuffer} — never the shared world buffer, so nothing else is
-     * contaminated — and saves/restores the level diffuse light directions that {@link Lighting} would
-     * otherwise clobber, keeping world entity lighting intact. {@code x} is the item's left edge relative
-     * to the box top-left corner.
+     * {@link UIRenderHelper#flipForGuiRender}). Unlike GuiGameElement it draws into our private
+     * {@link #panelBuffer} — never the shared world buffer, so nothing else is contaminated — and
+     * saves/restores the level diffuse light directions that {@link Lighting} would otherwise clobber,
+     * keeping world entity lighting intact. {@code x} is the item's left edge relative to the box
+     * top-left corner.
      * <p>
-     * The item still uses vanilla item render types for texture/shader parity, but through
-     * {@link #panelNoDepthBuffer}; otherwise the render type setup re-enables depth during
-     * {@code endBatch()} and lets projected scene blocks cover the foreground model.
+     * For block entities (chests, shulker boxes, etc.) with multiple render layers, depth testing is
+     * enabled during the item render to preserve correct layer ordering, then cleared afterward to keep
+     * the overall item on top of the background box.
      */
     private void drawPanelItem(PoseStack poseStack, ItemStack item, int x) {
         Minecraft minecraft = Minecraft.getInstance();
@@ -584,7 +587,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.enableCull();
-        RenderSystem.disableDepthTest();
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         minecraft.getTextureManager().getTexture(InventoryMenu.BLOCK_ATLAS).setFilter(false, false);
 
@@ -608,9 +610,20 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         UIRenderHelper.flipForGuiRender(poseStack);
         poseStack.translate(8.0F, -8.0F, 0.0F);
         poseStack.scale(16.0F, 16.0F, 16.0F);
-        itemRenderer.render(item, ItemDisplayContext.GUI, false, poseStack, panelNoDepthBuffer,
+
+        // Enable depth testing for the item render so multi-layer block entities (chests, shulker boxes)
+        // render with correct internal layer ordering. The item has a small z-scale (0.05) to provide
+        // just enough depth separation between layers while remaining visually flat at billboard scale.
+        RenderSystem.enableDepthTest();
+        RenderSystem.depthMask(true);
+        RenderSystem.depthFunc(515); // GL_LEQUAL - normal depth test
+        itemRenderer.render(item, ItemDisplayContext.GUI, false, poseStack, panelBuffer,
             LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, model);
-        flushPanelBufferNoDepth();
+        panelBuffer.endBatch();
+        // Restore no-depth state for subsequent layers (text, icon)
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+
         poseStack.popPose();
 
         if (savedLight0 != null && savedLight1 != null) {
