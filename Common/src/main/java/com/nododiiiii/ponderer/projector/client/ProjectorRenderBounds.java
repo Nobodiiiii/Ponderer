@@ -60,28 +60,29 @@ public final class ProjectorRenderBounds {
         Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
         ProjectorKind kind = blockEntity.getProjectorKind();
         BlockPos anchor = blockEntity.getAnchorPos();
+        float miniatureScale = blockEntity.getMiniatureScale();
 
         CachedBounds cached = CACHE.get(blockPos);
         if (cached != null
-            && cached.matches(sceneKey, kind, facing, anchor)) {
+            && cached.matches(sceneKey, kind, facing, anchor, miniatureScale)) {
             return cached.bounds();
         }
 
         ProjectorSceneBundle bundle = ProjectorSceneBundle.compile(sceneKeys);
         if (bundle != null) {
             AABB estimated = toWorldBounds(blockEntity, bundle.combinedBounds()).inflate(CULL_PADDING);
-            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, estimated));
+            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, miniatureScale, estimated));
             return estimated;
         }
 
         BoundingBox fallbackBounds = ProjectorSceneBounds.estimate(sceneKeys);
         if (fallbackBounds == null) {
-            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, fallback));
+            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, miniatureScale, fallback));
             return fallback;
         }
 
         AABB estimated = toWorldBounds(blockEntity, fallbackBounds).inflate(CULL_PADDING);
-        CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, estimated));
+        CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, miniatureScale, estimated));
         return estimated;
     }
 
@@ -100,9 +101,9 @@ public final class ProjectorRenderBounds {
 
         if (blockEntity.getProjectorKind() == ProjectorKind.MINIATURE) {
             int spanX = Math.max(1, bounds.getXSpan());
-            int spanY = Math.max(1, bounds.getYSpan());
             int spanZ = Math.max(1, bounds.getZSpan());
-            scale = MINIATURE_FILL / Math.max(spanX, Math.max(spanY, spanZ));
+            float miniatureScale = blockEntity.getMiniatureScale();
+            scale = MINIATURE_FILL / Math.max(spanX, spanZ) * miniatureScale;
 
             double centerX = (bounds.minX() + bounds.maxX() + 1) * 0.5D;
             double centerY = bounds.minY();
@@ -164,13 +165,14 @@ public final class ProjectorRenderBounds {
     }
 
     private record CachedBounds(String sceneKey, ProjectorKind kind, Direction facing,
-                                @Nullable BlockPos anchor, AABB bounds) {
+                                @Nullable BlockPos anchor, float miniatureScale, AABB bounds) {
         boolean matches(String otherSceneKey, ProjectorKind otherKind, Direction otherFacing,
-                        @Nullable BlockPos otherAnchor) {
+                        @Nullable BlockPos otherAnchor, float otherMiniatureScale) {
             return sceneKey.equals(otherSceneKey)
                 && kind == otherKind
                 && facing == otherFacing
-                && Objects.equals(anchor, otherAnchor);
+                && Objects.equals(anchor, otherAnchor)
+                && Math.abs(miniatureScale - otherMiniatureScale) < 0.001F;
         }
     }
 }

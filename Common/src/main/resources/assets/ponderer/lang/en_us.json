@@ -1090,6 +1090,8 @@
   "ponderer.ui.projector.trigger_mode.redstone_powered_loop": "Redstone Hold",
   "ponderer.ui.projector.anchor": "Anchor",
   "ponderer.ui.projector.anchor.tooltip": "The scene origin for life-size projection",
+  "ponderer.ui.projector.scale": "Scale",
+  "ponderer.ui.projector.scale.tooltip": "Display size for miniature projection (0.1-5.0)",
   "ponderer.ui.projector.pick_anchor": "Pick Anchor",
   "ponderer.ui.projector.pick_anchor.tooltip": "Close the screen and middle-click a block in the world",
   "ponderer.ui.projector.pick_anchor.prompt": "Middle-click a block to place the projection anchor",

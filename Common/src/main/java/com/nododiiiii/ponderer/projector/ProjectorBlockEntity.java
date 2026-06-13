@@ -44,6 +44,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_REVISION = "PlaybackRevision";
     private static final String TAG_DURATION = "PlaybackDurationTicks";
     private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
+    private static final String TAG_MINIATURE_SCALE = "MiniatureScale";
     private static final int FALLBACK_ONCE_DURATION_TICKS = 20 * 60;
 
     private ItemStack sourceItem = ItemStack.EMPTY;
@@ -59,6 +60,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private int playbackRevision;
     private int playbackDurationTicks;
     private boolean showBlueTint = true;
+    private float miniatureScale = 1.0F;
 
     public ProjectorBlockEntity(BlockPos pos, BlockState state) {
         this(ModBlockEntities.PROJECTOR.get(), pos, state);
@@ -155,6 +157,10 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return showBlueTint;
     }
 
+    public float getMiniatureScale() {
+        return miniatureScale;
+    }
+
     public AABB getRenderBoundingBox() {
         if (level != null && level.isClientSide) {
             return ProjectorRenderBounds.estimate(this);
@@ -171,12 +177,13 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
 
     public void applyConfig(List<String> newSceneKeys, ProjectorTriggerMode newMode,
                             @Nullable BlockPos newAnchorPos, int newPlaybackDurationTicks,
-                            boolean newShowBlueTint) {
+                            boolean newShowBlueTint, float newMiniatureScale) {
         this.sceneKeys = sourceItem.isEmpty() ? List.of() : resolveSceneKeys(newSceneKeys);
         this.triggerMode = newMode == null ? ProjectorTriggerMode.MANUAL_LOOP : newMode;
         this.anchorPos = getProjectorKind().requiresAnchor() ? newAnchorPos : null;
         this.playbackDurationTicks = Math.max(0, newPlaybackDurationTicks);
         this.showBlueTint = newShowBlueTint;
+        this.miniatureScale = Math.max(0.1F, Math.min(5.0F, newMiniatureScale));
         if (this.playbackDurationTicks <= 0 && !this.sceneKeys.isEmpty()) {
             this.playbackDurationTicks = estimateDurationOrFallback();
         }
@@ -445,6 +452,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         tag.putInt(TAG_REVISION, playbackRevision);
         tag.putInt(TAG_DURATION, playbackDurationTicks);
         tag.putBoolean(TAG_SHOW_BLUE_TINT, showBlueTint);
+        tag.putFloat(TAG_MINIATURE_SCALE, miniatureScale);
     }
 
     @Override
@@ -464,6 +472,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         playbackRevision = tag.getInt(TAG_REVISION);
         playbackDurationTicks = tag.getInt(TAG_DURATION);
         showBlueTint = !tag.contains(TAG_SHOW_BLUE_TINT) || tag.getBoolean(TAG_SHOW_BLUE_TINT);
+        miniatureScale = tag.contains(TAG_MINIATURE_SCALE) ? tag.getFloat(TAG_MINIATURE_SCALE) : 1.0F;
     }
 
     private static List<String> loadSceneKeys(CompoundTag tag) {

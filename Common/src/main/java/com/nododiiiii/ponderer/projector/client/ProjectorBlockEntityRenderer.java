@@ -245,10 +245,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         if (anchorPoint != null) {
             Vec3 anchor = layout.localPointFor(anchorPoint);
             Vec3 localPos = anchor.add(0.0D, layout.cardRise(), 0.0D);
-            return DeferredOverlay.textWindow(text, localPos, palette, fade, anchor);
+            return DeferredOverlay.textWindow(text, localPos, palette, fade, anchor, layout);
         } else {
             Vec3 localPos = layout.fallbackCardPosition(fallbackLane);
-            return DeferredOverlay.textWindow(text, localPos, palette, fade, null);
+            return DeferredOverlay.textWindow(text, localPos, palette, fade, null, layout);
         }
     }
 
@@ -310,7 +310,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     drawPointerLine(overlay.anchor(), overlay.localPos(), poseStack, bufferSource, accentColor);
                 }
                 drawTextWindowBillboard(overlay.text(), overlay.localPos(), overlay.palette(), overlay.fade(),
-                    poseStack, bufferSource);
+                    overlay.layout(), poseStack, bufferSource);
             }
             case INPUT_BUBBLE -> drawInputBubbleBillboard(overlay.scenePoint(), overlay.direction(), overlay.icon(),
                 overlay.text(), overlay.item(), overlay.fade(), overlay.layout(), poseStack);
@@ -390,7 +390,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,
-                                         PoseStack poseStack, MultiBufferSource bufferSource) {
+                                         RenderLayout layout, PoseStack poseStack, MultiBufferSource bufferSource) {
         Font font = Minecraft.getInstance().font;
         List<FormattedText> lines = font.getSplitter().splitLines(text, 180, Style.EMPTY);
         if (lines.isEmpty()) {
@@ -409,10 +409,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .mixWith(new Color(0xff_ffffdd, true), 0.5f)
             .setImmutable();
 
+        float uiScale = uiScaleFor(localPos, layout);
         poseStack.pushPose();
         poseStack.translate(localPos.x, localPos.y, localPos.z);
         poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
-        poseStack.scale(-uiScaleFor(localPos), -uiScaleFor(localPos), uiScaleFor(localPos));
+        poseStack.scale(-uiScale, -uiScale, uiScale);
         poseStack.translate(-boxWidth / 2.0F, -(boxHeight + 6.0F) / 2.0F, 0.0F);
 
         GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
@@ -489,7 +490,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         yFade *= 10.0F * (1.0F - fade);
 
         Vec3 localPos = layout.localPointFor(scenePoint);
-        float scale = uiScaleFor(localPos);
+        float scale = uiScaleFor(localPos, layout);
 
         poseStack.pushPose();
         poseStack.translate(localPos.x, localPos.y, localPos.z);
@@ -760,6 +761,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         return Math.max(fallbackLane, Math.min(6, y / 32));
     }
 
+    private float uiScaleFor(Vec3 localPos, RenderLayout layout) {
+        return 0.018F * layout.uiScale();
+    }
+
     private float uiScaleFor(Vec3 localPos) {
         return 0.018F;
     }
@@ -781,7 +786,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private record RenderLayout(ProjectorKind kind, Vec3 origin, Vec3 sceneTranslate, float scale,
                                 float rotationDegrees, BoundingBox bounds,
-                                float redTint, float greenTint, float blueTint) {
+                                float redTint, float greenTint, float blueTint, float uiScale) {
         static RenderLayout from(ProjectorBlockEntity blockEntity, BoundingBox bounds) {
             Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
             ProjectorKind kind = blockEntity.getProjectorKind();
@@ -794,9 +799,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
             if (kind == ProjectorKind.MINIATURE) {
                 int spanX = Math.max(1, bounds.getXSpan());
-                int spanY = Math.max(1, bounds.getYSpan());
                 int spanZ = Math.max(1, bounds.getZSpan());
-                float scale = MINIATURE_FILL / Math.max(spanX, Math.max(spanY, spanZ));
+                float miniatureScale = blockEntity.getMiniatureScale();
+                float scale = MINIATURE_FILL / Math.max(spanX, spanZ) * miniatureScale;
                 double centerX = (bounds.minX() + bounds.maxX() + 1) * 0.5D;
                 double centerY = bounds.minY();
                 double centerZ = (bounds.minZ() + bounds.maxZ() + 1) * 0.5D;
@@ -807,7 +812,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     scale,
                     rotation,
                     bounds,
-                    tint(blockEntity, 0.76F), tint(blockEntity, 0.96F), tint(blockEntity, 1.00F));
+                    tint(blockEntity, 0.76F), tint(blockEntity, 0.96F), tint(blockEntity, 1.00F),
+                    scale);
             }
 
             BlockPos anchor = blockEntity.getAnchorPos() == null ? blockEntity.getBlockPos() : blockEntity.getAnchorPos();
@@ -822,7 +828,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 1.0F,
                 rotation,
                 bounds,
-                tint(blockEntity, 0.72F), tint(blockEntity, 0.88F), tint(blockEntity, 1.00F));
+                tint(blockEntity, 0.72F), tint(blockEntity, 0.88F), tint(blockEntity, 1.00F),
+                1.0F);
         }
 
         Vec3 localPointFor(Vec3 scenePoint) {
@@ -932,9 +939,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         static DeferredOverlay textWindow(String text, Vec3 localPos, PonderPalette palette, float fade,
-                                          Vec3 anchor) {
+                                          Vec3 anchor, RenderLayout layout) {
             return new DeferredOverlay(Kind.TEXT_WINDOW, localPos, anchor, List.of(), 0, text,
-                palette, fade, null, null, null, ItemStack.EMPTY, null);
+                palette, fade, null, null, null, ItemStack.EMPTY, layout);
         }
 
         static DeferredOverlay inputBubble(Vec3 scenePoint, Pointing direction, ScreenElement icon,
