@@ -1,0 +1,37 @@
+{
+  "conditions": [
+    {
+      "type": "forge:item_exists",
+      "item": "create:andesite_casing"
+    }
+  ],
+  "fabric:load_conditions": [
+    {
+      "condition": "fabric:registry_contains",
+      "values": [
+        "create:andesite_casing"
+      ]
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "G",
+    "E",
+    "A"
+  ],
+  "key": {
+    "G": {
+      "item": "minecraft:glass"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "A": {
+      "item": "create:andesite_casing"
+    }
+  },
+  "result": {
+    "item": "ponderer:miniature_projector"
+  }
+}

@@ -17,7 +17,6 @@ import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
-import com.nododiiiii.ponderer.ui.ProjectorAnchorPickState;
 import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
 import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
@@ -113,9 +112,6 @@ public class PondererFabricClient implements ClientModInitializer {
             if (client.player != null && client.screen == null && NbtPickState.isActive()) {
                 client.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
             }
-            if (client.player != null && client.screen == null && ProjectorAnchorPickState.isActive()) {
-                ProjectorAnchorPickState.onClientTick();
-            }
 
             // Key binding
             if (client.player != null && client.screen == null) {
@@ -138,14 +134,6 @@ public class PondererFabricClient implements ClientModInitializer {
                 blueprintRightMouseWasDown = rightDown;
             } else {
                 blueprintRightMouseWasDown = false;
-            }
-
-            if (client.player != null && client.screen == null) {
-                long window = client.getWindow().getWindow();
-                boolean middleDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_MIDDLE) == GLFW.GLFW_PRESS;
-                if (middleDown) {
-                    ProjectorAnchorPickState.handleMiddleClick();
-                }
             }
 
             // Trigger manager tick

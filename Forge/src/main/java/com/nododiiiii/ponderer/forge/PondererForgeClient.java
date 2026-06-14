@@ -14,7 +14,6 @@ import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.NbtPickState;
-import com.nododiiiii.ponderer.ui.ProjectorAnchorPickState;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
 import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
@@ -128,9 +127,6 @@ public class PondererForgeClient {
         if (NbtPickState.isActive()) {
             mc.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
         }
-        if (ProjectorAnchorPickState.isActive()) {
-            ProjectorAnchorPickState.onClientTick();
-        }
         if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
             mc.setScreen(new FunctionScreen());
         }
@@ -153,12 +149,6 @@ public class PondererForgeClient {
     private static void onMouseInput(InputEvent.MouseButton.Pre event) {
         if (NbtPickState.isActive() && event.getButton() == 2 && event.getAction() == 1) {
             NbtPickState.handleUseClick();
-            event.setCanceled(true);
-            return;
-        }
-
-        if (ProjectorAnchorPickState.isActive() && event.getButton() == 2 && event.getAction() == 1) {
-            ProjectorAnchorPickState.handleMiddleClick();
             event.setCanceled(true);
             return;
         }

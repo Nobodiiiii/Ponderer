@@ -72,7 +72,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private static final float MINIATURE_FILL = 0.85F;
     private static final float MINIATURE_Y_OFFSET = 1.06F;
-    private static final float MINIATURE_CARD_RISE = 0.22F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
     /** Tiny z lift (toward camera) shared by flat overlay foreground content so it never z-fights the box it
      *  sits on: the TextWindow body text, the speech-box divot, and the show_controls panel item all use it.
@@ -125,11 +124,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private final Map<RenderType, RenderType> panelNoDepthRenderTypes = new IdentityHashMap<>();
     private final MultiBufferSource panelNoDepthBuffer =
         type -> panelBuffer.getBuffer(panelNoDepthRenderType(type));
-
-    /**
-     * No-depth lines RenderType for leader lines. Cached lazily on first use.
-     */
-    private RenderType linesNoDepth;
 
     public ProjectorBlockEntityRenderer() {
     }
@@ -354,8 +348,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private void renderDeferredOverlay(DeferredOverlay overlay, PoseStack poseStack,
                                        MultiBufferSource bufferSource) {
         switch (overlay.kind()) {
-            case POINTER -> drawPointerLine(overlay.anchor(), overlay.localPos(), poseStack, bufferSource,
-                overlay.accentColor());
             case BILLBOARD_CARD -> drawBillboardCard(overlay.lines(), overlay.localPos(), overlay.accentColor(),
                 overlay.anchor() != null, poseStack, bufferSource);
             case TEXT_WINDOW -> drawTextWindowBillboard(overlay.text(), overlay.localPos(), overlay.palette(),
@@ -363,34 +355,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             case INPUT_BUBBLE -> drawInputBubbleBillboard(overlay.scenePoint(), overlay.direction(), overlay.icon(),
                 overlay.text(), overlay.item(), overlay.fade(), overlay.layout(), poseStack);
         }
-    }
-
-    private void drawPointerLine(Vec3 anchor, Vec3 textBoxLeft, PoseStack poseStack,
-                                 MultiBufferSource bufferSource, int color) {
-        float red = ((color >> 16) & 0xFF) / 255.0F;
-        float green = ((color >> 8) & 0xFF) / 255.0F;
-        float blue = (color & 0xFF) / 255.0F;
-
-        poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, LEADER_LINE_Z_OFFSET);
-
-        RenderSystem.lineWidth(OVERLAY_UI_SCALE);
-
-        VertexConsumer consumer = bufferSource.getBuffer(getLinesNoDepth());
-        Matrix4f matrix = poseStack.last().pose();
-        // 水平引导线：从附着点水平延伸到文本框左边缘
-        consumer.vertex(matrix, (float) anchor.x, (float) anchor.y, (float) anchor.z)
-            .color(red, green, blue, 0.95F)
-            .normal(0.0F, 1.0F, 0.0F)
-            .endVertex();
-        consumer.vertex(matrix, (float) textBoxLeft.x, (float) textBoxLeft.y, (float) textBoxLeft.z)
-            .color(red, green, blue, 0.75F)
-            .normal(0.0F, 1.0F, 0.0F)
-            .endVertex();
-
-        RenderSystem.lineWidth(1.0F);
-
-        poseStack.popPose();
     }
 
     private void drawBillboardCard(List<Component> lines, Vec3 localPos, int accentColor, boolean withLeader,
@@ -789,19 +753,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         };
     }
 
-    /**
-     * Returns a no-depth lines RenderType for leader lines, lazily creating it on first use.
-     * Lines drawn with this type ignore depth testing (never occluded by blocks) but can still
-     * be occluded by subsequent no-depth content like panels.
-     */
-    private RenderType getLinesNoDepth() {
-        if (linesNoDepth == null) {
-            RenderType base = RenderType.lines();
-            linesNoDepth = wrapNoDepthRenderType(base);
-        }
-        return linesNoDepth;
-    }
-
     private void flushPanelBufferNoDepth() {
         RenderSystem.disableDepthTest();
         RenderSystem.depthMask(false);
@@ -910,10 +861,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         return 0.018F * layout.uiScale() * OVERLAY_UI_SCALE;
     }
 
-    private float uiScaleFor(Vec3 localPos) {
-        return 0.018F * OVERLAY_UI_SCALE;
-    }
-
     @Override
     public boolean shouldRenderOffScreen(ProjectorBlockEntity blockEntity) {
         return false;
@@ -998,10 +945,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return origin.add(rotationPivot).add(rotated);
         }
 
-        float cardRise() {
-            return kind == ProjectorKind.MINIATURE ? MINIATURE_CARD_RISE : LIFE_SIZE_CARD_RISE;
-        }
-
         Vec3 fallbackCardPosition(int lane) {
             int safeLane = Math.max(0, lane);
             if (kind == ProjectorKind.MINIATURE) {
@@ -1076,11 +1019,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private record DeferredOverlay(Kind kind, Vec3 localPos, Vec3 anchor, List<Component> lines, int accentColor,
                                    String text, PonderPalette palette, float fade, Vec3 scenePoint,
                                    Pointing direction, ScreenElement icon, ItemStack item, RenderLayout layout) {
-        static DeferredOverlay pointer(Vec3 anchor, Vec3 localPos, int accentColor) {
-            return new DeferredOverlay(Kind.POINTER, localPos, anchor, List.of(), accentColor, "",
-                null, 1.0F, null, null, null, ItemStack.EMPTY, null);
-        }
-
         static DeferredOverlay billboardCard(Vec3 localPos, List<Component> lines, int accentColor) {
             return new DeferredOverlay(Kind.BILLBOARD_CARD, localPos, null, List.copyOf(lines), accentColor, "",
                 null, 1.0F, null, null, null, ItemStack.EMPTY, null);
@@ -1106,7 +1044,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         enum Kind {
-            POINTER,
             BILLBOARD_CARD,
             TEXT_WINDOW,
             INPUT_BUBBLE
