@@ -18,8 +18,18 @@ import org.jetbrains.annotations.Nullable;
 public class ProjectorMenu extends AbstractContainerMenu {
 
     public static final int SOURCE_SLOT = 0;
+    public static final int SCREEN_WIDTH = 320;
+    public static final int INVENTORY_PANEL_X = 72;
+    public static final int INVENTORY_PANEL_Y = 184;
+    public static final int INVENTORY_PANEL_WIDTH = 176;
+    public static final int INVENTORY_PANEL_HEIGHT = 96;
+    public static final int SOURCE_SLOT_X = 75;
+    public static final int SOURCE_SLOT_Y = 32;
     private static final int PLAYER_INV_START = 1;
     private static final int PLAYER_INV_SIZE = 36;
+    private static final int PLAYER_INV_X = INVENTORY_PANEL_X + 8;
+    private static final int PLAYER_INV_Y = INVENTORY_PANEL_Y + 14;
+    private static final int HOTBAR_Y = INVENTORY_PANEL_Y + 72;
 
     private final BlockPos projectorPos;
     private final ProjectorKind projectorKind;
@@ -42,7 +52,7 @@ public class ProjectorMenu extends AbstractContainerMenu {
         this.projectorKind = projector == null ? ProjectorKind.MINIATURE : projector.getProjectorKind();
         this.sourceContainer = projector == null ? new SimpleContainer(1) : projector;
 
-        addSlot(new Slot(sourceContainer, SOURCE_SLOT, 104, 31) {
+        addSlot(new Slot(sourceContainer, SOURCE_SLOT, SOURCE_SLOT_X, SOURCE_SLOT_Y) {
             @Override
             public int getMaxStackSize() {
                 return 1;
@@ -107,12 +117,12 @@ public class ProjectorMenu extends AbstractContainerMenu {
     private void addPlayerSlots(Inventory inventory) {
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(inventory, col + row * 9 + 9, 32 + col * 18, 140 + row * 18));
+                addSlot(new Slot(inventory, col + row * 9 + 9, PLAYER_INV_X + col * 18, PLAYER_INV_Y + row * 18));
             }
         }
 
         for (int hotbar = 0; hotbar < 9; hotbar++) {
-            addSlot(new Slot(inventory, hotbar, 32 + hotbar * 18, 198));
+            addSlot(new Slot(inventory, hotbar, PLAYER_INV_X + hotbar * 18, HOTBAR_Y));
         }
     }
 

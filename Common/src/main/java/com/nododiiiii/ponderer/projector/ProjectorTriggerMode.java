@@ -16,6 +16,10 @@ public enum ProjectorTriggerMode {
         return this == MANUAL_LOOP || this == MANUAL_ONCE;
     }
 
+    public boolean usesRedstone() {
+        return this == REDSTONE_RISING_ONCE || this == REDSTONE_POWERED_LOOP;
+    }
+
     public boolean startsOnRedstoneRisingEdge() {
         return this == REDSTONE_RISING_ONCE;
     }
@@ -30,6 +34,13 @@ public enum ProjectorTriggerMode {
 
     public String translationKey() {
         return "ponderer.ui.projector.trigger_mode." + serializedName();
+    }
+
+    public static ProjectorTriggerMode fromFields(boolean redstoneMode, boolean loopMode) {
+        if (redstoneMode) {
+            return loopMode ? REDSTONE_POWERED_LOOP : REDSTONE_RISING_ONCE;
+        }
+        return loopMode ? MANUAL_LOOP : MANUAL_ONCE;
     }
 
     public static ProjectorTriggerMode byName(String raw) {
