@@ -42,6 +42,12 @@ final class ProjectorPlaybackState {
         cachedLevel = null;
     }
 
+    static void clear(BlockPos pos) {
+        if (pos != null) {
+            STATES.remove(pos.immutable());
+        }
+    }
+
     @Nullable
     PreparedFrame prepare(ProjectorBlockEntity blockEntity, float partialTick) {
         if (!blockEntity.isPlaying() || !blockEntity.hasRenderableScene()) {
@@ -52,25 +58,14 @@ final class ProjectorPlaybackState {
         if (desiredSceneKeys.isEmpty()) {
             desiredSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(blockEntity.getSourceItem());
         }
-        if (desiredSceneKeys.isEmpty()) {
-            return null;
-        }
-        String desiredBundleKey = String.join("\n", desiredSceneKeys);
+        ProjectorSceneBundle preparedBundle = bundleFor(desiredSceneKeys);
 
-        if (!desiredBundleKey.equals(bundleKey) || bundle == null) {
-            bundleKey = desiredBundleKey;
-            bundle = ProjectorSceneBundle.compile(desiredSceneKeys);
-            lastRevision = Integer.MIN_VALUE;
-            activeSegmentStartTick = -1;
-            activeLocalTick = -1;
-        }
-
-        if (bundle == null || bundle.totalDurationTicks() <= 0 || blockEntity.getLevel() == null) {
+        if (preparedBundle == null || preparedBundle.totalDurationTicks() <= 0 || blockEntity.getLevel() == null) {
             return null;
         }
 
         long elapsed = Math.max(0L, blockEntity.getLevel().getGameTime() - blockEntity.getPlaybackStartGameTime());
-        int totalDuration = bundle.totalDurationTicks();
+        int totalDuration = preparedBundle.totalDurationTicks();
         int globalTick;
         if (blockEntity.isPlaybackLooping()) {
             globalTick = totalDuration <= 0 ? 0 : (int) (elapsed % totalDuration);
@@ -78,7 +73,7 @@ final class ProjectorPlaybackState {
             globalTick = (int) Math.min(elapsed, Math.max(0, totalDuration - 1));
         }
 
-        ProjectorSceneBundle.Segment segment = bundle.segmentAt(globalTick);
+        ProjectorSceneBundle.Segment segment = preparedBundle.segmentAt(globalTick);
         if (segment == null) {
             return null;
         }
@@ -100,6 +95,23 @@ final class ProjectorPlaybackState {
         }
 
         lastRevision = blockEntity.getPlaybackRevision();
-        return new PreparedFrame(bundle, segment, activeScene, globalTick, localTick);
+        return new PreparedFrame(preparedBundle, segment, activeScene, globalTick, localTick);
+    }
+
+    @Nullable
+    ProjectorSceneBundle bundleFor(List<String> desiredSceneKeys) {
+        if (desiredSceneKeys == null || desiredSceneKeys.isEmpty()) {
+            return null;
+        }
+
+        String desiredBundleKey = String.join("\n", desiredSceneKeys);
+        if (!desiredBundleKey.equals(bundleKey) || bundle == null) {
+            bundleKey = desiredBundleKey;
+            bundle = ProjectorSceneBundle.compile(desiredSceneKeys);
+            lastRevision = Integer.MIN_VALUE;
+            activeSegmentStartTick = -1;
+            activeLocalTick = -1;
+        }
+        return bundle;
     }
 }

@@ -16,6 +16,8 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
                                            float textScale) {
 
     private static final int MAX_SCENE_KEYS = 256;
+    private static final int MAX_SCENE_KEY_LENGTH = 1024;
+    private static final int MAX_TRIGGER_MODE_LENGTH = 64;
 
     public ProjectorConfigUpdatePayload {
         sceneKeys = sceneKeys == null ? List.of() : List.copyOf(sceneKeys);
@@ -25,9 +27,9 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         buf.writeBlockPos(projectorPos);
         buf.writeVarInt(Math.min(sceneKeys.size(), MAX_SCENE_KEYS));
         for (int i = 0; i < sceneKeys.size() && i < MAX_SCENE_KEYS; i++) {
-            buf.writeUtf(sceneKeys.get(i));
+            buf.writeUtf(sceneKeys.get(i), MAX_SCENE_KEY_LENGTH);
         }
-        buf.writeUtf(triggerMode.serializedName());
+        buf.writeUtf(triggerMode.serializedName(), MAX_TRIGGER_MODE_LENGTH);
         buf.writeBoolean(anchorPos != null);
         if (anchorPos != null) {
             buf.writeBlockPos(anchorPos);
@@ -41,14 +43,15 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
     public static ProjectorConfigUpdatePayload decode(FriendlyByteBuf buf) {
         BlockPos projectorPos = buf.readBlockPos();
         int keyCount = buf.readVarInt();
-        List<String> sceneKeys = new ArrayList<>(Math.min(keyCount, MAX_SCENE_KEYS));
-        for (int i = 0; i < keyCount; i++) {
-            String key = buf.readUtf();
-            if (i < MAX_SCENE_KEYS) {
-                sceneKeys.add(key);
-            }
+        if (keyCount < 0 || keyCount > MAX_SCENE_KEYS) {
+            throw new IllegalArgumentException("Invalid projector scene key count: " + keyCount);
         }
-        ProjectorTriggerMode triggerMode = ProjectorTriggerMode.byName(buf.readUtf());
+
+        List<String> sceneKeys = new ArrayList<>(keyCount);
+        for (int i = 0; i < keyCount; i++) {
+            sceneKeys.add(buf.readUtf(MAX_SCENE_KEY_LENGTH));
+        }
+        ProjectorTriggerMode triggerMode = ProjectorTriggerMode.byName(buf.readUtf(MAX_TRIGGER_MODE_LENGTH));
         BlockPos anchorPos = buf.readBoolean() ? buf.readBlockPos() : null;
         int playbackDurationTicks = buf.readVarInt();
         boolean showBlueTint = buf.readBoolean();
@@ -66,8 +69,7 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
             return;
         }
         projector.applyConfig(payload.sceneKeys(), payload.triggerMode(), payload.anchorPos(),
-            payload.playbackDurationTicks(), payload.showBlueTint(), payload.miniatureScale());
-        projector.setTextScale(payload.textScale());
+            payload.playbackDurationTicks(), payload.showBlueTint(), payload.miniatureScale(), payload.textScale());
     }
 
     private static boolean isAuthorized(ServerPlayer player, BlockPos pos) {

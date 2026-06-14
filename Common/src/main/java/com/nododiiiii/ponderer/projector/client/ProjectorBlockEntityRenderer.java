@@ -111,6 +111,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      *  projected ponder scene (never occluded), while its own layers still sort among each other inside the
      *  window. Small enough to stay ahead of the scene, wide enough to avoid layer z-fighting. */
     private static final double PANEL_ITEM_DEPTH_FRONT = 0.05D;
+    private static final double OVERLAY_RENDER_DISTANCE = 32.0D;
+    private static final double PROJECTION_RENDER_DISTANCE = 64.0D;
+    private static final double OVERLAY_RENDER_DISTANCE_SQR = OVERLAY_RENDER_DISTANCE * OVERLAY_RENDER_DISTANCE;
+    private static final double PROJECTION_RENDER_DISTANCE_SQR = PROJECTION_RENDER_DISTANCE * PROJECTION_RENDER_DISTANCE;
 
     /**
      * Private, isolated buffer for the show_controls panel. Never the shared world buffer source, so
@@ -141,19 +145,29 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return;
         }
 
+        double distanceSqr = distanceToProjectorSqr(blockEntity);
+        if (distanceSqr > PROJECTION_RENDER_DISTANCE_SQR) {
+            return;
+        }
+
         ProjectorPlaybackState.PreparedFrame prepared = ProjectorPlaybackState.forBlock(blockEntity).prepare(blockEntity, partialTick);
         if (prepared == null) {
             return;
         }
 
         RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds());
-        PoseSnapshot overlayBasePose = PoseSnapshot.capture(poseStack);
         renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
+
+        if (distanceSqr > OVERLAY_RENDER_DISTANCE_SQR) {
+            return;
+        }
+
+        PoseSnapshot overlayBasePose = PoseSnapshot.capture(poseStack);
         DeferredOverlayBatch deferredNativeOverlay = captureNativePonderOverlays(prepared.activeScene(), layout, partialTick,
             overlayBasePose);
-        List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle().activeCues(prepared.globalTick(), partialTick);
         DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
         if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
+            List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle().activeCues(prepared.globalTick(), partialTick);
             deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose);
         }
         DeferredOverlayBatch combinedOverlays = DeferredOverlayBatch.combine(deferredNativeOverlay, deferredCueOverlay);
@@ -900,17 +914,22 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     @Override
     public boolean shouldRenderOffScreen(ProjectorBlockEntity blockEntity) {
-        return true;
+        return false;
     }
 
     @Override
     public int getViewDistance() {
-        return Integer.MAX_VALUE;
+        return (int) PROJECTION_RENDER_DISTANCE;
     }
 
     @Override
     public boolean shouldRender(ProjectorBlockEntity blockEntity, Vec3 cameraPos) {
-        return true;
+        return cameraPos.distanceToSqr(Vec3.atCenterOf(blockEntity.getBlockPos())) <= PROJECTION_RENDER_DISTANCE_SQR;
+    }
+
+    private static double distanceToProjectorSqr(ProjectorBlockEntity blockEntity) {
+        Vec3 cameraPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+        return cameraPos.distanceToSqr(Vec3.atCenterOf(blockEntity.getBlockPos()));
     }
 
     private record RenderLayout(ProjectorKind kind, Vec3 origin, Vec3 rotationPivot, Vec3 sceneTranslate, float scale,

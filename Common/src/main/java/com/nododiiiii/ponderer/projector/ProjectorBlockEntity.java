@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.projector;
 
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderBounds;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
@@ -236,6 +237,14 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return new AABB(worldPosition).inflate(1.0D);
     }
 
+    @Override
+    public void setRemoved() {
+        if (level != null && level.isClientSide) {
+            ProjectorClientCaches.invalidate(worldPosition);
+        }
+        super.setRemoved();
+    }
+
     public boolean hasRenderableScene() {
         if (sourceItem.isEmpty() || sceneKeys.isEmpty()) {
             return false;
@@ -245,7 +254,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
 
     public void applyConfig(List<String> newSceneKeys, ProjectorTriggerMode newMode,
                             @Nullable BlockPos newProjectionOffset, int newPlaybackDurationTicks,
-                            boolean newShowBlueTint, float newMiniatureScale) {
+                            boolean newShowBlueTint, float newMiniatureScale, float newTextScale) {
         this.sceneKeys = sourceItem.isEmpty() ? List.of() : resolveSceneKeys(newSceneKeys);
         this.triggerMode = newMode == null ? ProjectorTriggerMode.MANUAL_LOOP : newMode;
 
@@ -259,6 +268,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         this.playbackDurationTicks = Math.max(0, newPlaybackDurationTicks);
         this.showBlueTint = newShowBlueTint;
         this.miniatureScale = Math.max(0.1F, Math.min(5.0F, newMiniatureScale));
+        this.textScale = Math.max(0.1F, Math.min(10.0F, newTextScale));
         if (this.playbackDurationTicks <= 0 && !this.sceneKeys.isEmpty()) {
             this.playbackDurationTicks = estimateDurationOrFallback();
         }

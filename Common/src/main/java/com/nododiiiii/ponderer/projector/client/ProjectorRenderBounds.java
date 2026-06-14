@@ -35,6 +35,12 @@ public final class ProjectorRenderBounds {
         cachedLevel = null;
     }
 
+    static void clear(BlockPos pos) {
+        if (pos != null) {
+            CACHE.remove(pos.immutable());
+        }
+    }
+
     public static AABB estimate(ProjectorBlockEntity blockEntity) {
         Level level = Minecraft.getInstance().level;
         if (level != cachedLevel) {
@@ -68,7 +74,7 @@ public final class ProjectorRenderBounds {
             return cached.bounds();
         }
 
-        ProjectorSceneBundle bundle = ProjectorSceneBundle.compile(sceneKeys);
+        ProjectorSceneBundle bundle = ProjectorPlaybackState.forBlock(blockEntity).bundleFor(sceneKeys);
         if (bundle != null) {
             AABB estimated = toWorldBounds(blockEntity, bundle.combinedBounds()).inflate(CULL_PADDING);
             CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, estimated));
