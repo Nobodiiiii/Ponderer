@@ -57,8 +57,11 @@ public class ProjectorBlock extends BaseEntityBlock {
 
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
+        Direction facing = kind == ProjectorKind.MINIATURE
+            ? context.getHorizontalDirection()
+            : context.getHorizontalDirection().getOpposite();
         return defaultBlockState()
-            .setValue(FACING, context.getHorizontalDirection().getOpposite())
+            .setValue(FACING, facing)
             .setValue(POWERED, context.getLevel().hasNeighborSignal(context.getClickedPos()))
             .setValue(LIT, Boolean.FALSE);
     }
