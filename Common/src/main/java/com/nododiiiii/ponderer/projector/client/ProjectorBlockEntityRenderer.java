@@ -155,7 +155,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return;
         }
 
-        RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds());
+        RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds(),
+            prepared.activeScene(), partialTick);
         renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
 
         if (distanceSqr > OVERLAY_RENDER_DISTANCE_SQR) {
@@ -186,6 +187,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.translate(layout.origin().x, layout.origin().y, layout.origin().z);
         poseStack.translate(layout.rotationPivot().x, layout.rotationPivot().y, layout.rotationPivot().z);
         poseStack.mulPose(Axis.YP.rotationDegrees(layout.rotationDegrees()));
+        poseStack.mulPose(Axis.YP.rotationDegrees(layout.sceneRotation().yDegrees()));
         poseStack.scale(layout.scale(), layout.scale(), layout.scale());
         poseStack.translate(layout.sceneTranslate().x, layout.sceneTranslate().y, layout.sceneTranslate().z);
 
@@ -933,11 +935,15 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private record RenderLayout(ProjectorKind kind, Vec3 origin, Vec3 rotationPivot, Vec3 sceneTranslate, float scale,
-                                float rotationDegrees, BoundingBox bounds,
+                                float rotationDegrees, ProjectorSceneRotation sceneRotation, BoundingBox bounds,
                                 float redTint, float greenTint, float blueTint, float uiScale) {
-        static RenderLayout from(ProjectorBlockEntity blockEntity, BoundingBox bounds) {
+        static RenderLayout from(ProjectorBlockEntity blockEntity, BoundingBox bounds,
+                                 PonderScene activeScene, float partialTick) {
             ProjectorKind kind = blockEntity.getProjectorKind();
             float rotation = blockEntity.getSceneRotationDegrees();
+            ProjectorSceneRotation sceneRotation = kind == ProjectorKind.MINIATURE
+                ? ProjectorSceneRotation.from(activeScene, partialTick)
+                : ProjectorSceneRotation.NONE;
 
             if (kind == ProjectorKind.MINIATURE) {
                 int spanX = Math.max(1, bounds.getXSpan());
@@ -956,6 +962,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     new Vec3(-centerX, -centerY, -centerZ),
                     scale,
                     rotation,
+                    sceneRotation,
                     bounds,
                     tint(blockEntity, 0.76F), tint(blockEntity, 0.96F), tint(blockEntity, 1.00F),
                     scale * globalTextScale * perProjectorScale);
@@ -975,6 +982,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 new Vec3(-0.5D, 0.0D, -0.5D),
                 1.0F,
                 rotation,
+                sceneRotation,
                 bounds,
                 tint(blockEntity, 0.72F), tint(blockEntity, 0.88F), tint(blockEntity, 1.00F),
                 globalTextScale * perProjectorScale);
@@ -985,7 +993,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             double scaledX = translated.x * scale;
             double scaledY = translated.y * scale;
             double scaledZ = translated.z * scale;
-            Vec3 rotated = rotateY(new Vec3(scaledX, scaledY, scaledZ), rotationDegrees);
+            Vec3 sceneRotated = sceneRotation.apply(new Vec3(scaledX, scaledY, scaledZ));
+            Vec3 rotated = ProjectorSceneRotation.rotateY(sceneRotated, rotationDegrees);
             return origin.add(rotationPivot).add(rotated);
         }
 
@@ -1004,15 +1013,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             double centerZ = (bounds.minZ() + bounds.maxZ() + 1) * 0.5D;
             return localPointFor(new Vec3(centerX, centerY, centerZ))
                 .add(0.0D, LIFE_SIZE_CARD_RISE + safeLane * 0.28D, 0.0D);
-        }
-
-        private static Vec3 rotateY(Vec3 vec, float rotationDegrees) {
-            double radians = Math.toRadians(rotationDegrees);
-            double sin = Math.sin(radians);
-            double cos = Math.cos(radians);
-            double x = vec.x * cos + vec.z * sin;
-            double z = vec.z * cos - vec.x * sin;
-            return new Vec3(x, vec.y, z);
         }
 
         private static float tint(ProjectorBlockEntity blockEntity, float tintedValue) {

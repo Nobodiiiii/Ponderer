@@ -117,6 +117,7 @@ public final class ProjectorRenderBounds {
                 blockPos.getZ() + 0.5D);
             rotationPivot = Vec3.ZERO;
             sceneTranslate = new Vec3(-centerX, -centerY, -centerZ);
+            return toMiniatureRotationSweptBounds(bounds, worldOrigin, sceneTranslate, scale);
         } else {
             BlockPos anchor = blockEntity.getProjectionAnchor();
             worldOrigin = new Vec3(anchor.getX(), anchor.getY(), anchor.getZ());
@@ -141,7 +142,7 @@ public final class ProjectorRenderBounds {
                 for (double z : zs) {
                     Vec3 translated = new Vec3(x, y, z).add(sceneTranslate);
                     Vec3 scaled = new Vec3(translated.x * scale, translated.y * scale, translated.z * scale);
-                    Vec3 rotated = rotateY(scaled, rotationDegrees);
+                    Vec3 rotated = ProjectorSceneRotation.rotateY(scaled, rotationDegrees);
                     Vec3 world = worldOrigin.add(rotationPivot).add(rotated);
 
                     minX = Math.min(minX, world.x);
@@ -157,13 +158,30 @@ public final class ProjectorRenderBounds {
         return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
-    private static Vec3 rotateY(Vec3 vec, float rotationDegrees) {
-        double radians = Math.toRadians(rotationDegrees);
-        double sin = Math.sin(radians);
-        double cos = Math.cos(radians);
-        double x = vec.x * cos + vec.z * sin;
-        double z = vec.z * cos - vec.x * sin;
-        return new Vec3(x, vec.y, z);
+    private static AABB toMiniatureRotationSweptBounds(BoundingBox bounds, Vec3 worldOrigin,
+                                                       Vec3 sceneTranslate, float scale) {
+        double radius = 0.0D;
+        double[] xs = {bounds.minX(), bounds.maxX() + 1.0D};
+        double[] ys = {bounds.minY(), bounds.maxY() + 1.0D};
+        double[] zs = {bounds.minZ(), bounds.maxZ() + 1.0D};
+
+        for (double x : xs) {
+            for (double y : ys) {
+                for (double z : zs) {
+                    Vec3 translated = new Vec3(x, y, z).add(sceneTranslate);
+                    Vec3 scaled = new Vec3(translated.x * scale, translated.y * scale, translated.z * scale);
+                    radius = Math.max(radius, scaled.length());
+                }
+            }
+        }
+
+        return new AABB(
+            worldOrigin.x - radius,
+            worldOrigin.y - radius,
+            worldOrigin.z - radius,
+            worldOrigin.x + radius,
+            worldOrigin.y + radius,
+            worldOrigin.z + radius);
     }
 
     private record CachedBounds(String sceneKey, ProjectorKind kind, Direction facing,
