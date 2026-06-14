@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.blueprint;
 
 import com.nododiiiii.ponderer.Config;
+import com.nododiiiii.ponderer.FeatureAvailability;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -24,11 +25,7 @@ public final class BlueprintFeature {
      * Returns true when the server config enables Ponderer's built-in Blueprint item.
      */
     public static boolean isBuiltinBlueprintItemEnabled() {
-        try {
-            return Config.ENABLE_BLUEPRINT_ITEM.get();
-        } catch (Exception e) {
-            return false;
-        }
+        return FeatureAvailability.isBlueprintEnabled();
     }
 
     /**

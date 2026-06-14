@@ -46,6 +46,14 @@ public class PondererConfigScreen extends AbstractDeclarativeConfigListScreen {
         entries.add(ConfigEntries.doubleEntry("ponderer.ui.mod_config.projector_life_size_text_scale",
             "ponderer.ui.mod_config.projector_life_size_text_scale.tooltip",
             Config.PROJECTOR_LIFE_SIZE_TEXT_SCALE));
+        entries.add(FieldSpecs.fullButton(
+            () -> UIText.of("ponderer.ui.mod_config.projector_server"),
+            () -> UIText.of(hasUnsavedChanges()
+                ? "ponderer.ui.mod_config.projector_server.save_first"
+                : "ponderer.ui.mod_config.projector_server.tooltip"),
+            () -> Minecraft.getInstance().setScreen(new ProjectorFeatureConfigScreen(this)),
+            () -> 0xFFFFFF,
+            () -> !hasUnsavedChanges()));
     }
 
     @Override

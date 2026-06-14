@@ -185,6 +185,44 @@ public class ForgeNetworkHelper implements NetworkHelper {
                     ctx.get().setPacketHandled(true);
                 })
                 .add();
+
+        CHANNEL.messageBuilder(ProjectorFeatureConfigRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ProjectorFeatureConfigRequestPayload::encode)
+                .decoder(ProjectorFeatureConfigRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    ProjectorFeatureConfigRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(ProjectorFeatureConfigUpdatePayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ProjectorFeatureConfigUpdatePayload::encode)
+                .decoder(ProjectorFeatureConfigUpdatePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    ProjectorFeatureConfigUpdatePayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(ProjectorFeatureConfigResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(ProjectorFeatureConfigResponsePayload::encode)
+                .decoder(ProjectorFeatureConfigResponsePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ProjectorFeatureConfigResponsePayload.handle(msg);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(FeatureAvailabilityPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(FeatureAvailabilityPayload::encode)
+                .decoder(FeatureAvailabilityPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    FeatureAvailabilityPayload.handle(msg);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
     }
 
     @Override

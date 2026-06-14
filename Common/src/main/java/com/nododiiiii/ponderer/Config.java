@@ -7,10 +7,21 @@ public class Config {
 
     public static final ForgeConfigSpec.BooleanValue ENABLE_BLUEPRINT_ITEM = SERVER_BUILDER
         .comment("Enable Ponderer's built-in Blueprint item.",
-                 "This is a server-side setting synced to clients.",
+                 "This setting is captured when the server starts; restart the game/server for changes to take effect.",
                  "When disabled, clients may still use their configured carrier item,",
-                 "but ponderer:blueprint will not appear in creative tabs and cannot be used as the carrier.")
-        .define("enableBlueprintItem", false);
+                 "but ponderer:blueprint will not appear in creative tabs, cannot be used as the carrier,",
+                 "and existing built-in Blueprint items disappear when used.",
+                 "[@cui:RequiresReload:server]")
+        .define("enableBlueprintItem", true);
+
+    public static final ForgeConfigSpec.BooleanValue ENABLE_PROJECTOR = SERVER_BUILDER
+        .comment("Enable Ponderer's Projector blocks.",
+                 "This setting is captured when the server starts; restart the game/server for changes to take effect.",
+                 "When disabled, projector blocks will not appear in creative tabs and cannot be placed, configured, or played.",
+                 "Existing projector blocks turn into named chests containing their internal source item,",
+                 "and existing projector items disappear when used.",
+                 "[@cui:RequiresReload:server]")
+        .define("enableProjector", true);
 
     public static final ForgeConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
 

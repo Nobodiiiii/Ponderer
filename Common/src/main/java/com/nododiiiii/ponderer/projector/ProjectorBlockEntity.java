@@ -22,8 +22,11 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
@@ -77,6 +80,11 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, ProjectorBlockEntity projector) {
         if (level.isClientSide) {
+            return;
+        }
+
+        if (!ProjectorFeature.isProjectorEnabled()) {
+            projector.convertToDisabledChest();
             return;
         }
 
@@ -370,6 +378,32 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         }
         this.playing = false;
         setChanged();
+    }
+
+    private void convertToDisabledChest() {
+        if (level == null || level.isClientSide || getBlockState().getBlock() == Blocks.CHEST) {
+            return;
+        }
+
+        ItemStack recoveredSourceItem = sourceItem.copy();
+        ProjectorKind kind = getProjectorKind();
+        Direction facing = getBlockState().hasProperty(ProjectorBlock.FACING)
+            ? getBlockState().getValue(ProjectorBlock.FACING)
+            : Direction.NORTH;
+
+        sourceItem = ItemStack.EMPTY;
+        sceneKeys = List.of();
+        stopPlayback();
+
+        BlockState chestState = Blocks.CHEST.defaultBlockState().setValue(ChestBlock.FACING, facing);
+        level.setBlock(worldPosition, chestState, Block.UPDATE_ALL);
+        if (level.getBlockEntity(worldPosition) instanceof ChestBlockEntity chest) {
+            chest.setCustomName(Component.translatable(kind.translationKey()));
+            if (!recoveredSourceItem.isEmpty()) {
+                chest.setItem(13, recoveredSourceItem);
+            }
+            chest.setChanged();
+        }
     }
 
     private void syncBlockState() {
