@@ -33,7 +33,7 @@ public final class ProjectorOverlayExtractor {
     private ProjectorOverlayExtractor() {
     }
 
-    public static List<ProjectorSceneBundle.OverlayCue> extract(PonderScene scene, int localTick) {
+    public static List<ProjectorSceneBundle.OverlayCue> extract(PonderScene scene, int localTick, float partialTick) {
         if (scene == null || scene.getElements().isEmpty()) {
             return List.of();
         }
@@ -44,7 +44,8 @@ public final class ProjectorOverlayExtractor {
             if (!(element instanceof PonderOverlayElement) || !element.isVisible()) {
                 continue;
             }
-            if (element instanceof AnimatedOverlayElement animated && animated.getFade(0) < 1.0F / 16.0F) {
+            if (element instanceof AnimatedOverlayElement animated
+                && animated.getFade(partialTick) < 1.0F / 16.0F) {
                 continue;
             }
 

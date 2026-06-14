@@ -89,7 +89,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      *  Base scale is 1.0; default 2.0 doubles the size of text, boxes, and line width.
      *  所有投影叠加层 UI（文本窗口、面板、卡片）的全局缩放倍数。
      *  基础缩放为 1.0；默认 2.0 将文本、框体和线宽的大小翻倍。*/
-    private static final float OVERLAY_UI_SCALE = 1.8F;
+    private static final float OVERLAY_UI_SCALE = 1.0F;
     /** Horizontal leader length (in billboard-local font pixels) between the anchor point and the left edge of an
      *  anchored text card. The card text and box are drawn to the screen-right of the anchor by this much, with a
      *  thin horizontal guide line bridging the gap — mirroring Ponder's {@code TextWindowElement} layout. */
@@ -150,7 +150,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
         DeferredOverlayBatch deferredNativeOverlay = captureNativePonderOverlays(prepared.activeScene(), layout, partialTick,
             overlayBasePose);
-        List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle().activeCues(prepared.globalTick());
+        List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle().activeCues(prepared.globalTick(), partialTick);
         DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
         if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
             deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose);
@@ -936,7 +936,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     rotation,
                     bounds,
                     tint(blockEntity, 0.76F), tint(blockEntity, 0.96F), tint(blockEntity, 1.00F),
-                    scale);
+                    scale * 2.5F);
             }
 
             BlockPos anchor = blockEntity.getProjectionAnchor();
@@ -953,7 +953,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 rotation,
                 bounds,
                 tint(blockEntity, 0.72F), tint(blockEntity, 0.88F), tint(blockEntity, 1.00F),
-                1.0F);
+                1.25F);
         }
 
         Vec3 localPointFor(Vec3 scenePoint) {
