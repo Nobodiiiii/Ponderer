@@ -2,7 +2,11 @@ package com.nododiiiii.ponderer.forge;
 
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.services.RegistrationHelper;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.level.block.Block;
@@ -24,6 +28,8 @@ public class ForgeRegistrationHelper implements RegistrationHelper {
 
     private static final DeferredRegister<Item> ITEMS =
             DeferredRegister.create(ForgeRegistries.ITEMS, Ponderer.MODID);
+    private static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
+            DeferredRegister.create(Registries.CREATIVE_MODE_TAB, Ponderer.MODID);
     private static final DeferredRegister<Block> BLOCKS =
             DeferredRegister.create(ForgeRegistries.BLOCKS, Ponderer.MODID);
     private static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES =
@@ -35,6 +41,16 @@ public class ForgeRegistrationHelper implements RegistrationHelper {
     public Supplier<Item> registerItem(String id, Supplier<Item> itemSupplier) {
         RegistryObject<Item> obj = ITEMS.register(id, itemSupplier);
         return obj;
+    }
+
+    @Override
+    public Supplier<CreativeModeTab> registerCreativeModeTab(String id, Component title, Supplier<ItemStack> iconSupplier,
+                                                             CreativeModeTab.DisplayItemsGenerator displayItems) {
+        return CREATIVE_MODE_TABS.register(id, () -> CreativeModeTab.builder()
+            .title(title)
+            .icon(iconSupplier)
+            .displayItems(displayItems)
+            .build());
     }
 
     @Override
@@ -58,6 +74,7 @@ public class ForgeRegistrationHelper implements RegistrationHelper {
     public void init() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         ITEMS.register(modEventBus);
+        CREATIVE_MODE_TABS.register(modEventBus);
         BLOCKS.register(modEventBus);
         BLOCK_ENTITY_TYPES.register(modEventBus);
         MENU_TYPES.register(modEventBus);

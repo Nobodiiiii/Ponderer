@@ -2,16 +2,11 @@ package com.nododiiiii.ponderer.forge;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.registry.ModBlocks;
 import com.nododiiiii.ponderer.registry.ModItems;
-import net.minecraft.world.item.CreativeModeTabs;
-import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
@@ -46,7 +41,6 @@ public class PondererForge {
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
         modEventBus.addListener(this::onCommonSetup);
-        modEventBus.addListener(this::onBuildCreativeTab);
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
             // All client event registration is in a separate class to avoid
@@ -58,15 +52,5 @@ public class PondererForge {
     private void onCommonSetup(FMLCommonSetupEvent event) {
         PondererServices.NETWORK.registerPackets();
         StickSnapshotFeature.onCommonSetup(event);
-    }
-
-    private void onBuildCreativeTab(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
-            if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
-                event.accept(new ItemStack(ModItems.BLUEPRINT.get()));
-            }
-            event.accept(new ItemStack(ModBlocks.MINIATURE_PROJECTOR_ITEM.get()));
-            event.accept(new ItemStack(ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get()));
-        }
     }
 }

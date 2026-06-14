@@ -2,6 +2,9 @@ package com.nododiiiii.ponderer.platform.services;
 
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Item;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
@@ -23,6 +26,10 @@ public interface RegistrationHelper {
 
     /** Register an item. Returns a supplier that provides the registered item. */
     Supplier<Item> registerItem(String id, Supplier<Item> itemSupplier);
+
+    /** Register a creative mode tab. Returns a supplier that provides the registered tab. */
+    Supplier<CreativeModeTab> registerCreativeModeTab(String id, Component title, Supplier<ItemStack> iconSupplier,
+                                                      CreativeModeTab.DisplayItemsGenerator displayItems);
 
     /** Register a block. Returns a supplier that provides the registered block. */
     <T extends Block> Supplier<T> registerBlock(String id, Supplier<T> blockSupplier);

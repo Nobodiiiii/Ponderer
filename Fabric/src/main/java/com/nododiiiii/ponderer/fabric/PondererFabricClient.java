@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.fabric;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
@@ -11,8 +10,6 @@ import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
-import com.nododiiiii.ponderer.registry.ModBlocks;
-import com.nododiiiii.ponderer.registry.ModItems;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.CoordPickState;
@@ -32,7 +29,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.Screen;
@@ -40,8 +36,6 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-import net.minecraft.world.item.CreativeModeTabs;
-import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -96,15 +90,6 @@ public class PondererFabricClient implements ClientModInitializer {
         // Register client commands
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             PondererClientCommands.register(dispatcher);
-        });
-
-        // Creative tab
-        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> {
-            if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
-                entries.accept(new ItemStack(ModItems.BLUEPRINT.get()));
-            }
-            entries.accept(new ItemStack(ModBlocks.MINIATURE_PROJECTOR_ITEM.get()));
-            entries.accept(new ItemStack(ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get()));
         });
 
         // Client tick: key bindings + blueprint handler + player join notifications + JEI interception
