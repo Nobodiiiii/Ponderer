@@ -47,12 +47,15 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private EditBox offsetZ;
     @Nullable
     private EditBox scaleBox;
+    @Nullable
+    private EditBox textScaleBox;
 
     private List<String> resolvedSceneKeys = List.of();
     private String sourceFingerprint = "";
     private int triggerModeIndex;
     private boolean showBlueTint = true;
     private float miniatureScale = 1.0F;
+    private float textScale = 1.0F;
     private Component statusMessage = Component.empty();
     private int statusColor = INFO;
 
@@ -88,6 +91,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             playButton = addRenderableWidget(Button.builder(
                 Component.translatable("ponderer.ui.projector.play_once"),
                 button -> triggerManualOnce()).bounds(x + 149, y + 102, 62, 20).build());
+            textScaleBox = addRenderableWidget(textScaleBox(x + 140, y + 80));
         } else {
             blueTintButton = addRenderableWidget(Button.builder(
                 Component.empty(),
@@ -96,6 +100,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 Component.translatable("ponderer.ui.projector.play_once"),
                 button -> triggerManualOnce()).bounds(x + 118, y + 76, 88, 20).build());
             scaleBox = addRenderableWidget(scaleBox(x + 74, y + 102));
+            textScaleBox = addRenderableWidget(textScaleBox(x + 140, y + 102));
         }
 
         ProjectorBlockEntity projector = menu.projector();
@@ -116,6 +121,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         tickBox(offsetY);
         tickBox(offsetZ);
         tickBox(scaleBox);
+        tickBox(textScaleBox);
 
         String current = fingerprint(menu.sourceItem());
         if (!current.equals(sourceFingerprint)) {
@@ -161,8 +167,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         graphics.drawString(font, Component.translatable("ponderer.ui.projector.trigger_mode"), 10, 61, TEXT, false);
         if (menu.projectorKind().requiresAnchor()) {
             graphics.drawString(font, Component.translatable("ponderer.ui.projector.offset"), 10, 85, TEXT, false);
+            graphics.drawString(font, Component.translatable("ponderer.ui.projector.text_scale"), 138, 85, TEXT, false);
         } else {
             graphics.drawString(font, Component.translatable("ponderer.ui.projector.scale"), 10, 107, TEXT, false);
+            graphics.drawString(font, Component.translatable("ponderer.ui.projector.text_scale"), 138, 107, TEXT, false);
         }
 
         if (statusMessage != null && !statusMessage.getString().isBlank()) {
@@ -180,6 +188,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         triggerModeIndex = projector.getTriggerMode().ordinal();
         showBlueTint = projector.showBlueTint();
         miniatureScale = projector.getMiniatureScale();
+        textScale = projector.getTextScale();
     }
 
     private EditBox offsetBox(int x, int y) {
@@ -195,6 +204,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         box.setMaxLength(6);
         box.setTextColor(0xFFFFFF);
         box.setValue(String.valueOf(miniatureScale));
+        return box;
+    }
+
+    private EditBox textScaleBox(int x, int y) {
+        EditBox box = new EditBox(font, x, y, 60, 18, Component.translatable("ponderer.ui.projector.text_scale"));
+        box.setMaxLength(6);
+        box.setTextColor(0xFFFFFF);
+        box.setValue(String.valueOf(textScale));
         return box;
     }
 
@@ -265,6 +282,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         float scale = parseScale();
+        float textScale = parseTextScale();
         PondererServices.NETWORK.sendToServer(new ProjectorConfigUpdatePayload(
             menu.projectorPos(),
             resolvedSceneKeys,
@@ -272,7 +290,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             offset,
             estimateDuration(resolvedSceneKeys),
             showBlueTint,
-            scale));
+            scale,
+            textScale));
         if (showStatus) {
             status(Component.translatable("ponderer.ui.projector.saved"), INFO);
         }
@@ -342,6 +361,21 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
         try {
             return Math.max(0.1F, Math.min(5.0F, Float.parseFloat(rawScale)));
+        } catch (NumberFormatException ignored) {
+            return 1.0F;
+        }
+    }
+
+    private float parseTextScale() {
+        if (textScaleBox == null) {
+            return textScale;
+        }
+        String rawScale = textScaleBox.getValue().trim();
+        if (rawScale.isBlank()) {
+            return 1.0F;
+        }
+        try {
+            return Math.max(0.1F, Math.min(10.0F, Float.parseFloat(rawScale)));
         } catch (NumberFormatException ignored) {
             return 1.0F;
         }

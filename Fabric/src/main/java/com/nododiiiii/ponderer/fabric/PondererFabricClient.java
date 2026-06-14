@@ -1,6 +1,8 @@
 package com.nododiiiii.ponderer.fabric;
 
 import com.nododiiiii.ponderer.ModKeyBindings;
+import com.nododiiiii.ponderer.Config;
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
@@ -20,6 +22,7 @@ import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
 import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
+import net.createmod.catnip.config.ui.BaseConfigScreen;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.fabricmc.api.ClientModInitializer;
@@ -41,7 +44,6 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
-import com.nododiiiii.ponderer.Config;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -194,6 +196,12 @@ public class PondererFabricClient implements ClientModInitializer {
         // Blueprint mouse events are handled via the tick method and client input directly
         // Fabric doesn't have direct mouse scroll/click events at the same level as Forge's InputEvent
         // The BlueprintHandler itself checks for key states in its tick() method
+        prepareNativeConfigUi();
+    }
+
+    private static void prepareNativeConfigUi() {
+        BaseConfigScreen.setDefaultActionFor(Ponderer.MODID,
+            base -> base.withSpecs(Config.CLIENT_SPEC, null, Config.SERVER_SPEC));
     }
 
     private void showPendingNotifications() {

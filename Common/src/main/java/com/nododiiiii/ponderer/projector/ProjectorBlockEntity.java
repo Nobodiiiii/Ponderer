@@ -47,6 +47,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_DURATION = "PlaybackDurationTicks";
     private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
     private static final String TAG_MINIATURE_SCALE = "MiniatureScale";
+    private static final String TAG_TEXT_SCALE = "TextScale";
     private static final int FALLBACK_ONCE_DURATION_TICKS = 20 * 60;
 
     private ItemStack sourceItem = ItemStack.EMPTY;
@@ -63,6 +64,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private int playbackDurationTicks;
     private boolean showBlueTint = true;
     private float miniatureScale = 1.0F;
+    private float textScale = 1.0F;
 
     public ProjectorBlockEntity(BlockPos pos, BlockState state) {
         this(ModBlockEntities.PROJECTOR.get(), pos, state);
@@ -215,6 +217,16 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
 
     public float getMiniatureScale() {
         return miniatureScale;
+    }
+
+    public float getTextScale() {
+        return textScale;
+    }
+
+    public void setTextScale(float textScale) {
+        this.textScale = Math.max(0.1F, Math.min(10.0F, textScale));
+        setChanged();
+        syncToClient();
     }
 
     public AABB getRenderBoundingBox() {
@@ -517,6 +529,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         tag.putInt(TAG_DURATION, playbackDurationTicks);
         tag.putBoolean(TAG_SHOW_BLUE_TINT, showBlueTint);
         tag.putFloat(TAG_MINIATURE_SCALE, miniatureScale);
+        tag.putFloat(TAG_TEXT_SCALE, textScale);
     }
 
     @Override
@@ -545,6 +558,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         playbackDurationTicks = tag.getInt(TAG_DURATION);
         showBlueTint = !tag.contains(TAG_SHOW_BLUE_TINT) || tag.getBoolean(TAG_SHOW_BLUE_TINT);
         miniatureScale = tag.contains(TAG_MINIATURE_SCALE) ? tag.getFloat(TAG_MINIATURE_SCALE) : 1.0F;
+        textScale = tag.contains(TAG_TEXT_SCALE) ? tag.getFloat(TAG_TEXT_SCALE) : 1.0F;
     }
 
     private static List<String> loadSceneKeys(CompoundTag tag) {

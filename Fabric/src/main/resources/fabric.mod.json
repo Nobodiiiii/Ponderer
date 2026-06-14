@@ -19,6 +19,9 @@
     "client": [
       "com.nododiiiii.ponderer.fabric.PondererFabricClient"
     ],
+    "modmenu": [
+      "com.nododiiiii.ponderer.fabric.compat.PondererModMenuIntegration"
+    ],
     "jei_mod_plugin": [
       "com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin"
     ]
@@ -31,6 +34,7 @@
   },
   "suggests": {
     "jei": ">=${jei_version}",
+    "modmenu": "*",
     "resourcify": ">=1.0.0"
   }
 }

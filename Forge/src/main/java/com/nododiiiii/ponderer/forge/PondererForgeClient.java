@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.forge;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ModKeyBindings;
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
@@ -19,6 +20,7 @@ import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
+import net.createmod.catnip.config.ui.BaseConfigScreen;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
@@ -33,12 +35,16 @@ import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
+import net.minecraftforge.fml.ModContainer;
+import net.minecraftforge.fml.ModList;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +64,7 @@ public class PondererForgeClient {
 
         modEventBus.addListener(PondererForgeClient::onClientSetup);
         modEventBus.addListener(PondererForgeClient::onRegisterKeyMappings);
+        modEventBus.addListener(PondererForgeClient::onLoadComplete);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onRegisterClientCommands);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onPlayerLoggedIn);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onClientTick);
@@ -99,6 +106,18 @@ public class PondererForgeClient {
 
     private static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
         PondererClientCommands.register(event.getDispatcher());
+    }
+
+    private static void onLoadComplete(FMLLoadCompleteEvent event) {
+        ModContainer modContainer = ModList.get()
+            .getModContainerById(Ponderer.MODID)
+            .orElseThrow(() -> new IllegalStateException("Ponderer mod container missing after loadComplete"));
+        modContainer.registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class,
+            () -> new ConfigScreenHandler.ConfigScreenFactory(
+                (minecraft, previousScreen) -> new BaseConfigScreen(previousScreen, Ponderer.MODID)));
+
+        BaseConfigScreen.setDefaultActionFor(Ponderer.MODID,
+            base -> base.withSpecs(Config.CLIENT_SPEC, null, Config.SERVER_SPEC));
     }
 
     // --- Client tick for key bindings ---

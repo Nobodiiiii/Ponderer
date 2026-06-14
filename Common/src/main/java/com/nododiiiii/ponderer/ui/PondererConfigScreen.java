@@ -40,6 +40,12 @@ public class PondererConfigScreen extends AbstractDeclarativeConfigListScreen {
         entries.add(ConfigEntries.booleanEntry("ponderer.ui.mod_config.developer_mode",
             "ponderer.ui.mod_config.developer_mode.tooltip",
             Config.DEVELOPER_MODE));
+        entries.add(ConfigEntries.doubleEntry("ponderer.ui.mod_config.projector_miniature_text_scale",
+            "ponderer.ui.mod_config.projector_miniature_text_scale.tooltip",
+            Config.PROJECTOR_MINIATURE_TEXT_SCALE));
+        entries.add(ConfigEntries.doubleEntry("ponderer.ui.mod_config.projector_life_size_text_scale",
+            "ponderer.ui.mod_config.projector_life_size_text_scale.tooltip",
+            Config.PROJECTOR_LIFE_SIZE_TEXT_SCALE));
     }
 
     @Override
