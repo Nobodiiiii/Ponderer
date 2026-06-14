@@ -95,6 +95,20 @@ public class Config {
                  "Set to false to suppress these prompts.")
         .define("pack.orphanPrompt", true);
 
+    // -- Projector Text Scaling --
+
+    public static final ForgeConfigSpec.DoubleValue PROJECTOR_MINIATURE_TEXT_SCALE = CLIENT_BUILDER
+        .comment("Text scale multiplier for miniature projectors.",
+                 "Higher values make overlay text (text windows, input bubbles) larger.",
+                 "Default: 2.5. Range: 0.5-5.0.")
+        .defineInRange("projector.miniatureTextScale", 2.5D, 0.5D, 5.0D);
+
+    public static final ForgeConfigSpec.DoubleValue PROJECTOR_LIFE_SIZE_TEXT_SCALE = CLIENT_BUILDER
+        .comment("Text scale multiplier for life-size projectors.",
+                 "Higher values make overlay text (text windows, input bubbles) larger.",
+                 "Default: 1.25. Range: 0.5-5.0.")
+        .defineInRange("projector.lifeSizeTextScale", 1.25D, 0.5D, 5.0D);
+
     /** Resolve the effective base URL (use default if config is empty). */
     public static String getEffectiveBaseUrl() {
         String url = AI_API_BASE_URL.get().trim();

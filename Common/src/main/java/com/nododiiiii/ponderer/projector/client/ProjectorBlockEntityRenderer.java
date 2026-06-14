@@ -9,6 +9,7 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.math.Axis;
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.mixin.InputWindowElementAccessor;
 import com.nododiiiii.ponderer.mixin.RenderSystemShaderLightsAccessor;
 import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
@@ -927,6 +928,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 double centerX = (bounds.minX() + bounds.maxX() + 1) * 0.5D;
                 double centerY = bounds.minY();
                 double centerZ = (bounds.minZ() + bounds.maxZ() + 1) * 0.5D;
+                float textScale = (float) Config.PROJECTOR_MINIATURE_TEXT_SCALE.get();
                 return new RenderLayout(
                     kind,
                     new Vec3(0.5D, MINIATURE_Y_OFFSET, 0.5D),
@@ -936,7 +938,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     rotation,
                     bounds,
                     tint(blockEntity, 0.76F), tint(blockEntity, 0.96F), tint(blockEntity, 1.00F),
-                    scale * 2.5F);
+                    scale * textScale);
             }
 
             BlockPos anchor = blockEntity.getProjectionAnchor();
@@ -944,6 +946,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 anchor.getX() - blockEntity.getBlockPos().getX(),
                 anchor.getY() - blockEntity.getBlockPos().getY(),
                 anchor.getZ() - blockEntity.getBlockPos().getZ());
+            float textScale = (float) Config.PROJECTOR_LIFE_SIZE_TEXT_SCALE.get();
             return new RenderLayout(
                 kind,
                 offset,
@@ -953,7 +956,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 rotation,
                 bounds,
                 tint(blockEntity, 0.72F), tint(blockEntity, 0.88F), tint(blockEntity, 1.00F),
-                1.25F);
+                textScale);
         }
 
         Vec3 localPointFor(Vec3 scenePoint) {
