@@ -52,6 +52,9 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
         )));
 
         sections.add(new Section("ponderer.ui.function_page.sync", List.of(
+            new ButtonDef("ponderer.ui.function_page.remote_browser",
+                () -> Minecraft.getInstance().setScreen(new RemoteBrowserScreen(this)),
+                "ponderer.ui.function_page.remote_browser.tooltip"),
             new ButtonDef("ponderer.ui.function_page.push",
                 () -> Minecraft.getInstance().setScreen(buildPushPage()),
                 "ponderer.ui.function_page.push.tooltip"),

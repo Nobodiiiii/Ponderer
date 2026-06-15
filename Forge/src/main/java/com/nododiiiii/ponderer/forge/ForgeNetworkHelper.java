@@ -15,7 +15,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public class ForgeNetworkHelper implements NetworkHelper {
 
-    private static final String VERSION = "2";
+    private static final String VERSION = "3";
     private static SimpleChannel CHANNEL;
     private static int id = 0;
 
@@ -131,6 +131,56 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 })
                 .add();
 
+        CHANNEL.messageBuilder(RemoteCatalogRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(RemoteCatalogRequestPayload::encode)
+                .decoder(RemoteCatalogRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    RemoteCatalogRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(RemotePullRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(RemotePullRequestPayload::encode)
+                .decoder(RemotePullRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    RemotePullRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(RemoteDeleteRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(RemoteDeleteRequestPayload::encode)
+                .decoder(RemoteDeleteRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    RemoteDeleteRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(RemoteHistoryRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(RemoteHistoryRequestPayload::encode)
+                .decoder(RemoteHistoryRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    RemoteHistoryRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(RemoteRollbackRequestPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(RemoteRollbackRequestPayload::encode)
+                .decoder(RemoteRollbackRequestPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    RemoteRollbackRequestPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
         // Server -> Client
         CHANNEL.messageBuilder(SyncResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SyncResponsePayload::encode)
@@ -220,6 +270,33 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .decoder(FeatureAvailabilityPayload::decode)
                 .consumerMainThread((msg, ctx) -> {
                     FeatureAvailabilityPayload.handle(msg);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(RemoteCatalogResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(RemoteCatalogResponsePayload::encode)
+                .decoder(RemoteCatalogResponsePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    RemoteCatalogResponsePayload.handle(msg);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(RemoteActionResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(RemoteActionResponsePayload::encode)
+                .decoder(RemoteActionResponsePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    RemoteActionResponsePayload.handle(msg);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(RemoteHistoryResponsePayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(RemoteHistoryResponsePayload::encode)
+                .decoder(RemoteHistoryResponsePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    RemoteHistoryResponsePayload.handle(msg);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();
