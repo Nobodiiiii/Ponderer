@@ -72,6 +72,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private static final float MINIATURE_FILL = 0.85F;
     private static final float MINIATURE_Y_OFFSET = 1.06F;
+    private static final float MINIATURE_BEAM_SOURCE_Y = 14.0F / 16.0F;
+    private static final float MINIATURE_BEAM_OUTER_HEIGHT = 0.05F;
+    private static final float MINIATURE_BEAM_BASE_RADIUS = 0.06F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
     /** Tiny z lift (toward camera) shared by flat overlay foreground content so it never z-fights the box it
      *  sits on: the TextWindow body text, the speech-box divot, and the show_controls panel item all use it.
@@ -151,6 +154,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds(),
             prepared.activeScene(), partialTick);
+        renderMiniatureProjectionGlow(blockEntity, layout, poseStack, partialTick);
         renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
 
         if (distanceSqr > OVERLAY_RENDER_DISTANCE_SQR) {
@@ -199,6 +203,135 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         poseStack.popPose();
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    private void renderMiniatureProjectionGlow(ProjectorBlockEntity blockEntity, RenderLayout layout,
+                                               PoseStack poseStack, float partialTick) {
+        if (layout.kind() != ProjectorKind.MINIATURE
+            || !blockEntity.getBlockState().getValue(ProjectorBlock.LIT)
+            || !blockEntity.showBlueTint()) {
+            return;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) {
+            return;
+        }
+
+        float time = minecraft.level.getGameTime() + partialTick;
+        float breathe = 0.5F + 0.5F * (float) Math.cos(time * 0.11F);
+        int spanX = Math.max(1, layout.bounds().getXSpan());
+        int spanZ = Math.max(1, layout.bounds().getZSpan());
+        float waistY = (float) layout.origin().y;
+        float outerSourceY = MINIATURE_BEAM_SOURCE_Y;
+        float beamWaistHalfX = layout.scale() * spanX * 0.5F;
+        float beamWaistHalfZ = layout.scale() * spanZ * 0.5F;
+        float outerHeight = MINIATURE_BEAM_OUTER_HEIGHT * (0.88F + 0.12F * breathe);
+        float outerTopY = waistY + outerHeight;
+        float beamTopHalfX = continueBeamHalfExtent(0.0F, beamWaistHalfX, outerSourceY, waistY, outerTopY);
+        float beamTopHalfZ = continueBeamHalfExtent(0.0F, beamWaistHalfZ, outerSourceY, waistY, outerTopY);
+
+        float sourceRed = clamp(layout.redTint() * lerp(1.0F, 0.76F, breathe), 0.0F, 1.0F);
+        float sourceGreen = clamp(layout.greenTint() * lerp(1.0F, 0.92F, breathe), 0.0F, 1.0F);
+        float waistRed = clamp(layout.redTint() * lerp(1.0F, 0.62F, breathe), 0.0F, 1.0F);
+        float waistGreen = clamp(layout.greenTint() * lerp(1.0F, 0.84F, breathe), 0.0F, 1.0F);
+        float topRed = clamp(layout.redTint() * lerp(1.0F, 0.52F, breathe), 0.0F, 1.0F);
+        float topGreen = clamp(layout.greenTint() * lerp(1.0F, 0.78F, breathe), 0.0F, 1.0F);
+
+        int outerSourceColor = argb(64, sourceRed, sourceGreen, 1.0F);
+        int outerWaistColor = argb(108, waistRed, waistGreen, 1.0F);
+        int outerTopColor = argb(24, topRed, topGreen, 1.0F);
+
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.enableDepthTest();
+        RenderSystem.depthMask(false);
+        RenderSystem.disableCull();
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+
+        Vec3 apex = new Vec3(layout.origin().x, outerSourceY, layout.origin().z);
+        Vec3 northWaistLeft = miniatureBeamPoint(layout, -beamWaistHalfX, waistY, -beamWaistHalfZ);
+        Vec3 northWaistRight = miniatureBeamPoint(layout, beamWaistHalfX, waistY, -beamWaistHalfZ);
+        Vec3 northTopLeft = miniatureBeamPoint(layout, -beamTopHalfX, outerTopY, -beamTopHalfZ);
+        Vec3 northTopRight = miniatureBeamPoint(layout, beamTopHalfX, outerTopY, -beamTopHalfZ);
+        Vec3 eastWaistLeft = miniatureBeamPoint(layout, beamWaistHalfX, waistY, -beamWaistHalfZ);
+        Vec3 eastWaistRight = miniatureBeamPoint(layout, beamWaistHalfX, waistY, beamWaistHalfZ);
+        Vec3 eastTopLeft = miniatureBeamPoint(layout, beamTopHalfX, outerTopY, -beamTopHalfZ);
+        Vec3 eastTopRight = miniatureBeamPoint(layout, beamTopHalfX, outerTopY, beamTopHalfZ);
+        Vec3 southWaistLeft = miniatureBeamPoint(layout, beamWaistHalfX, waistY, beamWaistHalfZ);
+        Vec3 southWaistRight = miniatureBeamPoint(layout, -beamWaistHalfX, waistY, beamWaistHalfZ);
+        Vec3 southTopLeft = miniatureBeamPoint(layout, beamTopHalfX, outerTopY, beamTopHalfZ);
+        Vec3 southTopRight = miniatureBeamPoint(layout, -beamTopHalfX, outerTopY, beamTopHalfZ);
+        Vec3 westWaistLeft = miniatureBeamPoint(layout, -beamWaistHalfX, waistY, beamWaistHalfZ);
+        Vec3 westWaistRight = miniatureBeamPoint(layout, -beamWaistHalfX, waistY, -beamWaistHalfZ);
+        Vec3 westTopLeft = miniatureBeamPoint(layout, -beamTopHalfX, outerTopY, beamTopHalfZ);
+        Vec3 westTopRight = miniatureBeamPoint(layout, -beamTopHalfX, outerTopY, -beamTopHalfZ);
+
+        Matrix4f matrix = poseStack.last().pose();
+        renderBeamTriangle(
+            matrix,
+            (float) apex.x, (float) apex.y, (float) apex.z,
+            (float) northWaistLeft.x, (float) northWaistLeft.y, (float) northWaistLeft.z,
+            (float) northWaistRight.x, (float) northWaistRight.y, (float) northWaistRight.z,
+            outerSourceColor,
+            outerWaistColor);
+        renderBeamTrapezoid(
+            matrix,
+            (float) northWaistLeft.x, (float) northWaistLeft.y, (float) northWaistLeft.z,
+            (float) northWaistRight.x, (float) northWaistRight.y, (float) northWaistRight.z,
+            (float) northTopRight.x, (float) northTopRight.y, (float) northTopRight.z,
+            (float) northTopLeft.x, (float) northTopLeft.y, (float) northTopLeft.z,
+            outerWaistColor,
+            outerTopColor);
+        renderBeamTriangle(
+            matrix,
+            (float) apex.x, (float) apex.y, (float) apex.z,
+            (float) eastWaistLeft.x, (float) eastWaistLeft.y, (float) eastWaistLeft.z,
+            (float) eastWaistRight.x, (float) eastWaistRight.y, (float) eastWaistRight.z,
+            outerSourceColor,
+            outerWaistColor);
+        renderBeamTrapezoid(
+            matrix,
+            (float) eastWaistLeft.x, (float) eastWaistLeft.y, (float) eastWaistLeft.z,
+            (float) eastWaistRight.x, (float) eastWaistRight.y, (float) eastWaistRight.z,
+            (float) eastTopRight.x, (float) eastTopRight.y, (float) eastTopRight.z,
+            (float) eastTopLeft.x, (float) eastTopLeft.y, (float) eastTopLeft.z,
+            outerWaistColor,
+            outerTopColor);
+        renderBeamTriangle(
+            matrix,
+            (float) apex.x, (float) apex.y, (float) apex.z,
+            (float) southWaistLeft.x, (float) southWaistLeft.y, (float) southWaistLeft.z,
+            (float) southWaistRight.x, (float) southWaistRight.y, (float) southWaistRight.z,
+            outerSourceColor,
+            outerWaistColor);
+        renderBeamTrapezoid(
+            matrix,
+            (float) southWaistLeft.x, (float) southWaistLeft.y, (float) southWaistLeft.z,
+            (float) southWaistRight.x, (float) southWaistRight.y, (float) southWaistRight.z,
+            (float) southTopRight.x, (float) southTopRight.y, (float) southTopRight.z,
+            (float) southTopLeft.x, (float) southTopLeft.y, (float) southTopLeft.z,
+            outerWaistColor,
+            outerTopColor);
+        renderBeamTriangle(
+            matrix,
+            (float) apex.x, (float) apex.y, (float) apex.z,
+            (float) westWaistLeft.x, (float) westWaistLeft.y, (float) westWaistLeft.z,
+            (float) westWaistRight.x, (float) westWaistRight.y, (float) westWaistRight.z,
+            outerSourceColor,
+            outerWaistColor);
+        renderBeamTrapezoid(
+            matrix,
+            (float) westWaistLeft.x, (float) westWaistLeft.y, (float) westWaistLeft.z,
+            (float) westWaistRight.x, (float) westWaistRight.y, (float) westWaistRight.z,
+            (float) westTopRight.x, (float) westTopRight.y, (float) westTopRight.z,
+            (float) westTopLeft.x, (float) westTopLeft.y, (float) westTopLeft.z,
+            outerWaistColor,
+            outerTopColor);
+
+        RenderSystem.enableCull();
+        RenderSystem.depthMask(true);
+        RenderSystem.defaultBlendFunc();
     }
 
     private DeferredOverlayBatch captureNativePonderOverlays(PonderScene scene, RenderLayout layout, float partialTick,
@@ -464,6 +597,45 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .endVertex();
     }
 
+    private static void colorVertex(BufferBuilder buffer, Matrix4f matrix, float x, float y, float z, int color) {
+        buffer.vertex(matrix, x, y, z)
+            .color((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, (color >> 24) & 0xFF)
+            .endVertex();
+    }
+
+    private void renderBeamTriangle(Matrix4f matrix,
+                                    float apexX, float apexY, float apexZ,
+                                    float baseLeftX, float baseY, float baseLeftZ,
+                                    float baseRightX, float baseRightY, float baseRightZ,
+                                    int apexColor, int baseColor) {
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder buffer = tesselator.getBuilder();
+        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        colorVertex(buffer, matrix, apexX, apexY, apexZ, apexColor);
+        colorVertex(buffer, matrix, baseRightX, baseRightY, baseRightZ, baseColor);
+        colorVertex(buffer, matrix, baseRightX, baseRightY, baseRightZ, baseColor);
+        colorVertex(buffer, matrix, baseLeftX, baseY, baseLeftZ, baseColor);
+
+        tesselator.end();
+    }
+
+    private void renderBeamTrapezoid(Matrix4f matrix,
+                                     float bottomLeftX, float bottomY, float bottomLeftZ,
+                                     float bottomRightX, float bottomRightY, float bottomRightZ,
+                                     float topRightX, float topY, float topRightZ,
+                                     float topLeftX, float topLeftY, float topLeftZ,
+                                     int bottomColor, int topColor) {
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder buffer = tesselator.getBuilder();
+        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        colorVertex(buffer, matrix, bottomLeftX, bottomY, bottomLeftZ, bottomColor);
+        colorVertex(buffer, matrix, bottomRightX, bottomRightY, bottomRightZ, bottomColor);
+        colorVertex(buffer, matrix, topRightX, topY, topRightZ, topColor);
+        colorVertex(buffer, matrix, topLeftX, topLeftY, topLeftZ, topColor);
+
+        tesselator.end();
+    }
+
     private static int withAlpha(int color, float alphaMultiplier) {
         int baseAlpha = (color >>> 24) & 0xFF;
         if (baseAlpha == 0) {
@@ -471,6 +643,45 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
         int alpha = Math.max(0, Math.min(255, Math.round(baseAlpha * alphaMultiplier)));
         return (alpha << 24) | (color & 0x00FFFFFF);
+    }
+
+    private static int argb(int alpha, float red, float green, float blue) {
+        return (clampChannel(alpha) << 24)
+            | (clampChannel(Math.round(red * 255.0F)) << 16)
+            | (clampChannel(Math.round(green * 255.0F)) << 8)
+            | clampChannel(Math.round(blue * 255.0F));
+    }
+
+    private static Vec3 miniatureBeamPoint(RenderLayout layout, float localX, float localY, float localZ) {
+        Vec3 relative = new Vec3(
+            localX,
+            localY - layout.origin().y,
+            localZ);
+        Vec3 sceneRotated = layout.sceneRotation().apply(relative);
+        Vec3 rotated = ProjectorSceneRotation.rotateY(sceneRotated, layout.rotationDegrees());
+        return layout.origin().add(rotated);
+    }
+
+    private static float continueBeamHalfExtent(float sourceRadius, float waistHalfExtent,
+                                                float sourceY, float waistY, float targetY) {
+        float height = waistY - sourceY;
+        if (Math.abs(height) < 1.0E-4F) {
+            return waistHalfExtent;
+        }
+        float slope = (waistHalfExtent - sourceRadius) / height;
+        return waistHalfExtent + slope * (targetY - waistY);
+    }
+
+    private static int clampChannel(int value) {
+        return Math.max(0, Math.min(255, value));
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static float lerp(float start, float end, float delta) {
+        return start + (end - start) * delta;
     }
 
     private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,

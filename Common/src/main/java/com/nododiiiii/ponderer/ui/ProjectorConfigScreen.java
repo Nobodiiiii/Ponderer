@@ -146,7 +146,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             blueTintButton = addRenderableWidget(modeButton(
                 leftPos + LEFT_COLUMN_X + LABEL_WIDTH, topPos + ROW_3_Y - 2,
                 "ponderer.ui.projector.blue_tint", showBlueTint,
-                value -> Component.translatable("ponderer.ui.projector.blue_tint." + (value ? "on" : "off")),
+                value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> showBlueTint = value));
             intermissionBox = addRenderableWidget(integerBox(
                 leftPos + LEFT_COLUMN_X + LABEL_WIDTH, topPos + ROW_4_Y - 1, VALUE_WIDTH,
@@ -168,7 +168,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             blueTintButton = addRenderableWidget(modeButton(
                 leftPos + LEFT_COLUMN_X + LABEL_WIDTH, topPos + ROW_3_Y - 2,
                 "ponderer.ui.projector.blue_tint", showBlueTint,
-                value -> Component.translatable("ponderer.ui.projector.blue_tint." + (value ? "on" : "off")),
+                value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> showBlueTint = value));
             intermissionBox = addRenderableWidget(integerBox(
                 leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ROW_3_Y - 1, VALUE_WIDTH,
