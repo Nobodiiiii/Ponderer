@@ -28,6 +28,7 @@ public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(FieldSpecs.sectionHeader(() -> UIText.of("ponderer.ui.scope.client")));
         entries.add(ConfigEntries.choiceEntry("ponderer.ui.ai_config.source",
             "ponderer.ui.ai_config.source.tooltip",
             Config.AI_CONFIG_SOURCE,

@@ -162,7 +162,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             overlayBasePose);
         DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
         if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
-            List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle().activeCues(prepared.globalTick(), partialTick);
+            List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle()
+                .activeCues(prepared.segment(), prepared.localTick(), partialTick);
             deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose);
         }
         DeferredOverlayBatch combinedOverlays = DeferredOverlayBatch.combine(deferredNativeOverlay, deferredCueOverlay);

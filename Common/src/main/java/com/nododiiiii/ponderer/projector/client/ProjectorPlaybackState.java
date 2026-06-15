@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.projector.client;
 
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
+import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
 import net.createmod.ponder.foundation.PonderScene;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -65,20 +66,26 @@ final class ProjectorPlaybackState {
         }
 
         long elapsed = Math.max(0L, blockEntity.getLevel().getGameTime() - blockEntity.getPlaybackStartGameTime());
-        int totalDuration = preparedBundle.totalDurationTicks();
-        int globalTick;
+        int totalDuration = ProjectorSceneTimeline.withIntermissions(
+            preparedBundle.totalDurationTicks(),
+            preparedBundle.segments().size(),
+            blockEntity.getIntermissionTicks(),
+            blockEntity.isPlaybackLooping());
+        int playbackTick;
         if (blockEntity.isPlaybackLooping()) {
-            globalTick = totalDuration <= 0 ? 0 : (int) (elapsed % totalDuration);
+            playbackTick = totalDuration <= 0 ? 0 : (int) (elapsed % totalDuration);
         } else {
-            globalTick = (int) Math.min(elapsed, Math.max(0, totalDuration - 1));
+            playbackTick = (int) Math.min(elapsed, Math.max(0, totalDuration - 1));
         }
 
-        ProjectorSceneBundle.Segment segment = preparedBundle.segmentAt(globalTick);
-        if (segment == null) {
+        PlaybackCursor cursor = cursorAt(preparedBundle, playbackTick,
+            blockEntity.getIntermissionTicks(), blockEntity.isPlaybackLooping());
+        if (cursor == null) {
             return null;
         }
 
-        int localTick = segment.localTick(globalTick);
+        ProjectorSceneBundle.Segment segment = cursor.segment();
+        int localTick = cursor.localTick();
         PonderScene activeScene = segment.scene();
 
         if (blockEntity.getPlaybackRevision() != lastRevision
@@ -90,12 +97,57 @@ final class ProjectorPlaybackState {
         }
 
         if (localTick > activeLocalTick) {
-            ProjectorRenderContext.run(() -> activeScene.seekToTime(localTick));
-            activeLocalTick = localTick;
+            advanceScene(activeScene, localTick, segment.durationTicks());
         }
 
         lastRevision = blockEntity.getPlaybackRevision();
-        return new PreparedFrame(preparedBundle, segment, activeScene, globalTick, localTick);
+        return new PreparedFrame(preparedBundle, segment, activeScene, playbackTick, localTick);
+    }
+
+    @Nullable
+    private static PlaybackCursor cursorAt(ProjectorSceneBundle bundle, int playbackTick, int intermissionTicks,
+                                           boolean includeFinalIntermission) {
+        List<ProjectorSceneBundle.Segment> segments = bundle.segments();
+        if (segments.isEmpty()) {
+            return null;
+        }
+
+        int timeline = 0;
+        int safeIntermission = Math.max(0, intermissionTicks);
+        for (int i = 0; i < segments.size(); i++) {
+            ProjectorSceneBundle.Segment segment = segments.get(i);
+            int duration = Math.max(1, segment.durationTicks());
+            int activeEnd = timeline + duration;
+            if (playbackTick < activeEnd) {
+                return new PlaybackCursor(segment, Math.max(0, playbackTick - timeline));
+            }
+
+            boolean hasFollowingSegment = i < segments.size() - 1;
+            int holdEnd = activeEnd + (hasFollowingSegment || includeFinalIntermission ? safeIntermission : 0);
+            if (playbackTick < holdEnd) {
+                return new PlaybackCursor(segment, duration + Math.max(0, playbackTick - activeEnd));
+            }
+            timeline = holdEnd;
+        }
+
+        ProjectorSceneBundle.Segment last = segments.get(segments.size() - 1);
+        return new PlaybackCursor(last, Math.max(0, last.durationTicks() - 1));
+    }
+
+    private void advanceScene(PonderScene activeScene, int targetLocalTick, int segmentDuration) {
+        int previousLocalTick = activeLocalTick;
+        ProjectorRenderContext.run(() -> {
+            int activeDuration = Math.max(0, segmentDuration);
+            if (previousLocalTick < activeDuration) {
+                activeScene.seekToTime(Math.min(targetLocalTick, activeDuration));
+            }
+
+            int extraTicks = targetLocalTick - Math.max(previousLocalTick, activeDuration);
+            for (int i = 0; i < extraTicks; i++) {
+                activeScene.tick();
+            }
+        });
+        activeLocalTick = targetLocalTick;
     }
 
     @Nullable
@@ -113,5 +165,8 @@ final class ProjectorPlaybackState {
             activeLocalTick = -1;
         }
         return bundle;
+    }
+
+    private record PlaybackCursor(ProjectorSceneBundle.Segment segment, int localTick) {
     }
 }

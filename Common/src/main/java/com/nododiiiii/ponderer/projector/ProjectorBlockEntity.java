@@ -49,10 +49,12 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_START_TIME = "PlaybackStartGameTime";
     private static final String TAG_REVISION = "PlaybackRevision";
     private static final String TAG_DURATION = "PlaybackDurationTicks";
+    private static final String TAG_INTERMISSION = "IntermissionTicks";
     private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
     private static final String TAG_MINIATURE_SCALE = "MiniatureScale";
     private static final String TAG_TEXT_SCALE = "TextScale";
     private static final int FALLBACK_ONCE_DURATION_TICKS = 20 * 60;
+    public static final int DEFAULT_INTERMISSION_TICKS = 40;
 
     private ItemStack sourceItem = ItemStack.EMPTY;
     private List<String> sceneKeys = List.of();
@@ -66,6 +68,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private long playbackStartGameTime;
     private int playbackRevision;
     private int playbackDurationTicks;
+    private int intermissionTicks = DEFAULT_INTERMISSION_TICKS;
     private boolean showBlueTint = true;
     private float miniatureScale = 1.0F;
     private float textScale = 1.0F;
@@ -220,6 +223,10 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return playbackDurationTicks;
     }
 
+    public int getIntermissionTicks() {
+        return intermissionTicks;
+    }
+
     public boolean showBlueTint() {
         return showBlueTint;
     }
@@ -262,7 +269,8 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
 
     public void applyConfig(List<String> newSceneKeys, ProjectorTriggerMode newMode,
                             @Nullable BlockPos newProjectionOffset, int newPlaybackDurationTicks,
-                            boolean newShowBlueTint, float newMiniatureScale, float newTextScale) {
+                            int newIntermissionTicks, boolean newShowBlueTint,
+                            float newMiniatureScale, float newTextScale) {
         this.sceneKeys = sourceItem.isEmpty() ? List.of() : resolveSceneKeys(newSceneKeys);
         this.triggerMode = newMode == null ? ProjectorTriggerMode.MANUAL_LOOP : newMode;
 
@@ -274,6 +282,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         }
 
         this.playbackDurationTicks = Math.max(0, newPlaybackDurationTicks);
+        this.intermissionTicks = sanitizeIntermissionTicks(newIntermissionTicks);
         this.showBlueTint = newShowBlueTint;
         this.miniatureScale = Math.max(0.1F, Math.min(5.0F, newMiniatureScale));
         this.textScale = Math.max(0.1F, Math.min(10.0F, newTextScale));
@@ -364,11 +373,12 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     }
 
     private int estimateDurationOrFallback() {
-        int total = 0;
-        for (String sceneKey : sceneKeys) {
-            total += Math.max(0, ProjectorSceneTimeline.estimateTotalTicks(sceneKey));
-        }
+        int total = ProjectorSceneTimeline.estimatePlaybackTicks(sceneKeys, intermissionTicks);
         return total > 0 ? total : FALLBACK_ONCE_DURATION_TICKS;
+    }
+
+    private static int sanitizeIntermissionTicks(int ticks) {
+        return Math.max(0, ticks);
     }
 
     private void stopPlayback() {
@@ -571,6 +581,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         tag.putLong(TAG_START_TIME, playbackStartGameTime);
         tag.putInt(TAG_REVISION, playbackRevision);
         tag.putInt(TAG_DURATION, playbackDurationTicks);
+        tag.putInt(TAG_INTERMISSION, intermissionTicks);
         tag.putBoolean(TAG_SHOW_BLUE_TINT, showBlueTint);
         tag.putFloat(TAG_MINIATURE_SCALE, miniatureScale);
         tag.putFloat(TAG_TEXT_SCALE, textScale);
@@ -600,6 +611,9 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         playbackStartGameTime = tag.getLong(TAG_START_TIME);
         playbackRevision = tag.getInt(TAG_REVISION);
         playbackDurationTicks = tag.getInt(TAG_DURATION);
+        intermissionTicks = tag.contains(TAG_INTERMISSION)
+            ? sanitizeIntermissionTicks(tag.getInt(TAG_INTERMISSION))
+            : DEFAULT_INTERMISSION_TICKS;
         showBlueTint = !tag.contains(TAG_SHOW_BLUE_TINT) || tag.getBoolean(TAG_SHOW_BLUE_TINT);
         miniatureScale = tag.contains(TAG_MINIATURE_SCALE) ? tag.getFloat(TAG_MINIATURE_SCALE) : 1.0F;
         textScale = tag.contains(TAG_TEXT_SCALE) ? tag.getFloat(TAG_TEXT_SCALE) : 1.0F;

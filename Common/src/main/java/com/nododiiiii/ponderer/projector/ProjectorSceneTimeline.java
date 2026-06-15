@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.projector;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 
+import java.util.List;
 import java.util.Locale;
 
 public final class ProjectorSceneTimeline {
@@ -21,6 +22,45 @@ public final class ProjectorSceneTimeline {
             total += estimateSegmentTicks(segment);
         }
         return total;
+    }
+
+    public static int estimatePlaybackTicks(List<String> sceneKeys, int intermissionTicks) {
+        if (sceneKeys == null || sceneKeys.isEmpty()) {
+            return 0;
+        }
+
+        int total = 0;
+        int segments = 0;
+        for (String sceneKey : sceneKeys) {
+            int sceneTicks = Math.max(0, estimateTotalTicks(sceneKey));
+            int sceneSegments = sceneTicks <= 0 ? 0 : estimateSegmentCount(sceneKey);
+            total += sceneTicks;
+            segments += sceneSegments;
+        }
+        return withIntermissions(total, segments, intermissionTicks, false);
+    }
+
+    public static int withIntermissions(int activeTicks, int segmentCount, int intermissionTicks,
+                                        boolean includeFinalIntermission) {
+        int safeActiveTicks = Math.max(0, activeTicks);
+        int safeSegmentCount = Math.max(0, segmentCount);
+        if (safeActiveTicks <= 0 || safeSegmentCount <= 0) {
+            return safeActiveTicks;
+        }
+
+        int intervalCount = Math.max(0, safeSegmentCount - 1);
+        if (includeFinalIntermission) {
+            intervalCount++;
+        }
+        return safeActiveTicks + Math.max(0, intermissionTicks) * intervalCount;
+    }
+
+    public static int estimateSegmentCount(String sceneKey) {
+        DslScene scene = SceneRuntime.findByKey(sceneKey);
+        if (scene == null || scene.scenes == null || scene.scenes.isEmpty()) {
+            return 0;
+        }
+        return scene.scenes.size();
     }
 
     public static int estimateSegmentTicks(DslScene.SceneSegment segment) {

@@ -12,8 +12,8 @@ import java.util.List;
 
 public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> sceneKeys,
                                            ProjectorTriggerMode triggerMode, @Nullable BlockPos anchorPos,
-                                           int playbackDurationTicks, boolean showBlueTint, float miniatureScale,
-                                           float textScale) {
+                                           int playbackDurationTicks, int intermissionTicks,
+                                           boolean showBlueTint, float miniatureScale, float textScale) {
 
     private static final int MAX_SCENE_KEYS = 256;
     private static final int MAX_SCENE_KEY_LENGTH = 1024;
@@ -35,6 +35,7 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
             buf.writeBlockPos(anchorPos);
         }
         buf.writeVarInt(playbackDurationTicks);
+        buf.writeVarInt(intermissionTicks);
         buf.writeBoolean(showBlueTint);
         buf.writeFloat(miniatureScale);
         buf.writeFloat(textScale);
@@ -54,11 +55,12 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         ProjectorTriggerMode triggerMode = ProjectorTriggerMode.byName(buf.readUtf(MAX_TRIGGER_MODE_LENGTH));
         BlockPos anchorPos = buf.readBoolean() ? buf.readBlockPos() : null;
         int playbackDurationTicks = buf.readVarInt();
+        int intermissionTicks = buf.readVarInt();
         boolean showBlueTint = buf.readBoolean();
         float miniatureScale = buf.readFloat();
         float textScale = buf.readFloat();
-        return new ProjectorConfigUpdatePayload(projectorPos, sceneKeys, triggerMode, anchorPos, playbackDurationTicks,
-            showBlueTint, miniatureScale, textScale);
+        return new ProjectorConfigUpdatePayload(projectorPos, sceneKeys, triggerMode, anchorPos,
+            playbackDurationTicks, intermissionTicks, showBlueTint, miniatureScale, textScale);
     }
 
     public static void handle(ProjectorConfigUpdatePayload payload, @Nullable ServerPlayer player) {
@@ -69,7 +71,8 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
             return;
         }
         projector.applyConfig(payload.sceneKeys(), payload.triggerMode(), payload.anchorPos(),
-            payload.playbackDurationTicks(), payload.showBlueTint(), payload.miniatureScale(), payload.textScale());
+            payload.playbackDurationTicks(), payload.intermissionTicks(), payload.showBlueTint(),
+            payload.miniatureScale(), payload.textScale());
     }
 
     private static boolean isAuthorized(ServerPlayer player, BlockPos pos) {

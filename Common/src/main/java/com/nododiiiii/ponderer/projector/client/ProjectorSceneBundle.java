@@ -278,7 +278,14 @@ public final class ProjectorSceneBundle {
             return List.of();
         }
 
-        int localTick = segment.localTick(globalTick);
+        return activeCues(segment, segment.localTick(globalTick), partialTick);
+    }
+
+    public List<OverlayCue> activeCues(Segment segment, int localTick, float partialTick) {
+        if (segment == null) {
+            return List.of();
+        }
+
         List<OverlayCue> result = new ArrayList<>();
         if (segment.extractRuntimeOverlays()) {
             // Keep runtime cue fallback in lockstep with native overlay fade interpolation.

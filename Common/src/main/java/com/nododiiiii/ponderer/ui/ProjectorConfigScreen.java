@@ -90,6 +90,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private EditBox scaleBox;
     @Nullable
     private EditBox textScaleBox;
+    @Nullable
+    private EditBox intermissionBox;
 
     private List<String> resolvedSceneKeys = List.of();
     private String sourceFingerprint = "";
@@ -98,6 +100,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private boolean showBlueTint = true;
     private float miniatureScale = 1.0F;
     private float textScale = 1.0F;
+    private int intermissionTicks = ProjectorBlockEntity.DEFAULT_INTERMISSION_TICKS;
     private Component statusMessage = Component.empty();
     private int statusColor = 0x606060;
 
@@ -145,6 +148,9 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 "ponderer.ui.projector.blue_tint", showBlueTint,
                 value -> Component.translatable("ponderer.ui.projector.blue_tint." + (value ? "on" : "off")),
                 value -> showBlueTint = value));
+            intermissionBox = addRenderableWidget(integerBox(
+                leftPos + LEFT_COLUMN_X + LABEL_WIDTH, topPos + ROW_4_Y - 1, VALUE_WIDTH,
+                Component.translatable("ponderer.ui.projector.intermission"), intermissionTicks));
             resetOffsetButton = addRenderableWidget(Button.builder(
                 Component.translatable("ponderer.ui.projector.reset_offset"),
                 button -> resetOffset()).bounds(leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ACTION_ROW_TOP_Y, VALUE_WIDTH, 20).build());
@@ -164,9 +170,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 "ponderer.ui.projector.blue_tint", showBlueTint,
                 value -> Component.translatable("ponderer.ui.projector.blue_tint." + (value ? "on" : "off")),
                 value -> showBlueTint = value));
+            intermissionBox = addRenderableWidget(integerBox(
+                leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ROW_3_Y - 1, VALUE_WIDTH,
+                Component.translatable("ponderer.ui.projector.intermission"), intermissionTicks));
             playButton = addRenderableWidget(Button.builder(
                 Component.translatable("ponderer.ui.projector.play_once"),
-                button -> triggerManualOnce()).bounds(leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ROW_3_Y - 2, VALUE_WIDTH, 20).build());
+                button -> triggerManualOnce()).bounds(leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ACTION_ROW_BOTTOM_Y, VALUE_WIDTH, 20).build());
         }
 
         ProjectorBlockEntity projector = menu.projector();
@@ -187,6 +196,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         tickBox(offsetZ);
         tickBox(scaleBox);
         tickBox(textScaleBox);
+        tickBox(intermissionBox);
 
         String current = fingerprint(menu.sourceItem());
         if (!current.equals(sourceFingerprint)) {
@@ -232,10 +242,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             graphics.drawString(font, Component.translatable("ponderer.ui.projector.offset"), LEFT_COLUMN_X, ROW_2_Y + 4, TEXT, false);
             drawRowLabel(graphics, "ponderer.ui.projector.text_scale", RIGHT_COLUMN_X, ROW_2_Y + 4);
             drawRowLabel(graphics, "ponderer.ui.projector.blue_tint", LEFT_COLUMN_X, ROW_3_Y + 4);
+            drawRowLabel(graphics, "ponderer.ui.projector.intermission", LEFT_COLUMN_X, ROW_4_Y + 4);
         } else {
             drawRowLabel(graphics, "ponderer.ui.projector.scale", LEFT_COLUMN_X, ROW_2_Y + 4);
             drawRowLabel(graphics, "ponderer.ui.projector.text_scale", RIGHT_COLUMN_X, ROW_2_Y + 4);
             drawRowLabel(graphics, "ponderer.ui.projector.blue_tint", LEFT_COLUMN_X, ROW_3_Y + 4);
+            drawRowLabel(graphics, "ponderer.ui.projector.intermission", RIGHT_COLUMN_X, ROW_3_Y + 4);
         }
     }
 
@@ -254,6 +266,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         showBlueTint = projector.showBlueTint();
         miniatureScale = projector.getMiniatureScale();
         textScale = projector.getTextScale();
+        intermissionTicks = projector.getIntermissionTicks();
     }
 
     private void applyMode(ProjectorTriggerMode mode) {
@@ -287,6 +300,15 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         box.setFilter(value -> value.isEmpty() || "-".equals(value) || ".".equals(value) || "-.".equals(value)
             || value.matches("-?\\d*(\\.\\d*)?"));
         box.setValue(trimFloat(initialValue));
+        return box;
+    }
+
+    private EditBox integerBox(int x, int y, int width, Component narration, int initialValue) {
+        EditBox box = new EditBox(font, x, y, width, 18, narration);
+        box.setMaxLength(6);
+        box.setTextColor(0xFFFFFF);
+        box.setFilter(value -> value.isEmpty() || value.matches("\\d+"));
+        box.setValue(String.valueOf(Math.max(0, initialValue)));
         return box;
     }
 
@@ -334,12 +356,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         float scale = parseScale();
         float resolvedTextScale = parseTextScale();
+        int resolvedIntermissionTicks = parseIntermissionTicks();
         PondererServices.NETWORK.sendToServer(new ProjectorConfigUpdatePayload(
             menu.projectorPos(),
             resolvedSceneKeys,
             ProjectorTriggerMode.fromFields(redstoneMode, loopMode),
             offset,
-            estimateDuration(resolvedSceneKeys),
+            estimateDuration(resolvedSceneKeys, resolvedIntermissionTicks),
+            resolvedIntermissionTicks,
             showBlueTint,
             scale,
             resolvedTextScale));
@@ -416,6 +440,21 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return parseFloat(textScaleBox, 1.0F, 0.1F, 10.0F);
     }
 
+    private int parseIntermissionTicks() {
+        if (intermissionBox == null) {
+            return intermissionTicks;
+        }
+        String raw = intermissionBox.getValue().trim();
+        if (raw.isBlank()) {
+            return ProjectorBlockEntity.DEFAULT_INTERMISSION_TICKS;
+        }
+        try {
+            return Math.max(0, Integer.parseInt(raw));
+        } catch (NumberFormatException ignored) {
+            return ProjectorBlockEntity.DEFAULT_INTERMISSION_TICKS;
+        }
+    }
+
     private float parseFloat(EditBox box, float fallback, float min, float max) {
         String raw = box.getValue().trim();
         if (raw.isBlank() || "-".equals(raw) || ".".equals(raw) || "-.".equals(raw)) {
@@ -448,12 +487,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return 0x2E6E2E;
     }
 
-    private int estimateDuration(List<String> sceneKeys) {
-        int total = 0;
-        for (String sceneKey : sceneKeys) {
-            total += Math.max(0, ProjectorSceneCompiler.estimateTotalTicks(sceneKey));
-        }
-        return total;
+    private int estimateDuration(List<String> sceneKeys, int intermissionTicks) {
+        return ProjectorSceneCompiler.estimatePlaybackTicks(sceneKeys, intermissionTicks);
     }
 
     private String fingerprint(ItemStack stack) {

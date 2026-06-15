@@ -87,26 +87,15 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 "ponderer.ui.function_page.from_ponderjs.tooltip")
         )));
 
-        sections.add(new Section("ponderer.ui.function_page.settings", List.of(
-            new ButtonDef("ponderer.ui.function_page.permissions",
-                () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
-                "ponderer.ui.function_page.permissions.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.blueprint_item",
-                () -> Minecraft.getInstance().setScreen(new BlueprintItemConfigScreen(this)),
-                "ponderer.ui.function_page.blueprint_item.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.projector",
-                () -> Minecraft.getInstance().setScreen(new ProjectorFeatureConfigScreen(this)),
-                "ponderer.ui.function_page.projector.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.keybindings",
-                () -> Minecraft.getInstance().setScreen(new PondererKeyBindingsScreen(this)),
-                "ponderer.ui.function_page.keybindings.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.mod_config",
-                () -> Minecraft.getInstance().setScreen(new PondererConfigScreen(this)),
-                "ponderer.ui.function_page.mod_config.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.ai_config",
-                () -> Minecraft.getInstance().setScreen(new AiConfigScreen(this)),
-                "ponderer.ui.function_page.ai_config.tooltip")
-        )));
+        sections.add(new Section(
+            "ponderer.ui.function_page.settings",
+            List.of(
+                new ButtonDef("ponderer.ui.function_page.permissions",
+                    () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
+                    "ponderer.ui.function_page.permissions.tooltip"),
+                new ButtonDef("ponderer.ui.function_page.mod_config",
+                    () -> Minecraft.getInstance().setScreen(new PondererConfigScreen(this)),
+                    "ponderer.ui.function_page.mod_config.tooltip"))));
     }
 
     @Override
