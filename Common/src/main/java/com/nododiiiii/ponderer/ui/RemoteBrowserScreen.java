@@ -9,27 +9,42 @@ import com.nododiiiii.ponderer.network.RemoteHistoryResponsePayload;
 import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
 import com.nododiiiii.ponderer.network.RemoteRollbackRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.DynamicActionRowListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
@@ -37,6 +52,15 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
 
     private enum Tab {
         SCENES, STRUCTURES, PACKS, HISTORY
+    }
+
+    private record LocalComparison(boolean priority, String detail) {
+        static LocalComparison none() {
+            return new LocalComparison(false, "");
+        }
+    }
+
+    private record RemoteRow(RemoteCatalogResponsePayload.Entry entry, LocalComparison comparison, ItemStack iconStack) {
     }
 
     private Tab tab = Tab.SCENES;
@@ -83,7 +107,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
                 setInfoMessage(payload.message());
             }
         } else {
-            setInfoMessage("Remote catalog loaded: " + scenes.size() + " scenes, " + structures.size() + " structures");
+            setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.catalog_loaded", scenes.size(), structures.size()));
         }
         rebuildListPreservingScroll();
     }
@@ -118,27 +142,31 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
         history = payload.entries();
         historyCanManage = payload.canManage();
         tab = Tab.HISTORY;
-        setInfoMessage("History loaded: " + displayKey(historyId, historyPack));
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.history_loaded", displayKey(historyId, historyPack)));
         rebuildListAtTop();
     }
 
     @Override
     protected void collectHeaderEntries(List<ConfigScreenList.Entry> entries) {
         entries.add(new WorkspaceHeaderListEntry(
-            () -> "Remote Browser",
+            () -> UIText.of("ponderer.ui.function_page.remote_browser.title"),
             this::subtitle,
-            List.of(WorkspaceHeaderListEntry.button("R", this::requestCatalog, "Refresh remote catalog", () -> true))));
+            List.of(WorkspaceHeaderListEntry.iconButton(
+                PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_RESET),
+                this::requestCatalog,
+                tooltip("ponderer.ui.remote_browser.refresh.tooltip"),
+                () -> true))));
         entries.add(new ActionStripListEntry(List.of(
-            ActionStripListEntry.button("Scenes", null, () -> switchTab(Tab.SCENES)),
-            ActionStripListEntry.button("Structs", null, () -> switchTab(Tab.STRUCTURES)),
-            ActionStripListEntry.button("Packs", null, () -> switchTab(Tab.PACKS)),
-            ActionStripListEntry.button("History", null, () -> switchTab(Tab.HISTORY)))));
+            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.scenes"), null, () -> switchTab(Tab.SCENES), () -> 0xFFFFFF, () -> true),
+            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.structures"), null, () -> switchTab(Tab.STRUCTURES), () -> 0xFFFFFF, () -> true),
+            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.packs"), null, () -> switchTab(Tab.PACKS), () -> 0xFFFFFF, () -> true),
+            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.history"), null, () -> switchTab(Tab.HISTORY), () -> 0xFFFFFF, () -> true))));
     }
 
     @Override
     protected void collectEntries(List<ConfigScreenList.Entry> entries) {
         if (waitingForServer) {
-            entries.add(new SectionHeaderListEntry("Loading remote catalog..."));
+            entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.loading")));
             return;
         }
 
@@ -157,72 +185,88 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
 
     private void collectSceneEntries(List<ConfigScreenList.Entry> entries) {
         if (scenes.isEmpty()) {
-            entries.add(new SectionHeaderListEntry("No remote scenes"));
+            entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.empty.scenes")));
             return;
         }
-        for (RemoteCatalogResponsePayload.Entry entry : scenes) {
+        for (RemoteRow row : remoteRows(scenes)) {
+            RemoteCatalogResponsePayload.Entry entry = row.entry();
             entries.add(new DynamicActionRowListEntry(
                 () -> sceneTitle(entry),
-                () -> resourceDetail(entry),
+                () -> resourceDetail(entry, row.comparison()),
                 () -> searchText(entry),
                 List.of(
-                    ActionStripListEntry.button(() -> "Pull", null, () -> pull(entry, true), () -> 0xA8E6FF, () -> canPull),
-                    ActionStripListEntry.button(() -> "Upload", null, () -> uploadLocal(entry), () -> 0xB5F5A8,
-                        () -> canUpload && hasLocalScene(entry)),
-                    ActionStripListEntry.button(() -> "Hist", null, () -> requestHistory(entry), () -> 0xFFFFFF, () -> true),
-                    ActionStripListEntry.button(() -> "Del", null, () -> delete(entry), () -> 0xFF9A9A, () -> canManage))));
+                    actionButton("ponderer.ui.remote_browser.action.pull", "ponderer.ui.remote_browser.action.pull.tooltip",
+                        () -> pull(entry, true), 0xA8E6FF, () -> canPull),
+                    actionButton("ponderer.ui.remote_browser.action.upload", "ponderer.ui.remote_browser.action.upload.tooltip",
+                        () -> uploadLocal(entry), 0xB5F5A8, () -> canUpload && hasLocalScene(entry)),
+                    actionButton("ponderer.ui.remote_browser.action.history", "ponderer.ui.remote_browser.action.history.tooltip",
+                        () -> requestHistory(entry), 0xFFFFFF, () -> true),
+                    actionButton("ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
+                        () -> delete(entry), 0xFF9A9A, () -> canManage)),
+                row::iconStack,
+                row.comparison()::priority));
         }
     }
 
     private void collectStructureEntries(List<ConfigScreenList.Entry> entries) {
         if (structures.isEmpty()) {
-            entries.add(new SectionHeaderListEntry("No remote structures"));
+            entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.empty.structures")));
             return;
         }
-        for (RemoteCatalogResponsePayload.Entry entry : structures) {
+        for (RemoteRow row : remoteRows(structures)) {
+            RemoteCatalogResponsePayload.Entry entry = row.entry();
             entries.add(new DynamicActionRowListEntry(
                 () -> displayKey(entry.id(), entry.pack()),
-                () -> resourceDetail(entry),
+                () -> resourceDetail(entry, row.comparison()),
                 () -> searchText(entry),
                 List.of(
-                    ActionStripListEntry.button(() -> "Pull", null, () -> pull(entry, false), () -> 0xA8E6FF, () -> canPull),
-                    ActionStripListEntry.button(() -> "Hist", null, () -> requestHistory(entry), () -> 0xFFFFFF, () -> true),
-                    ActionStripListEntry.button(() -> "Del", null, () -> delete(entry), () -> 0xFF9A9A, () -> canManage))));
+                    actionButton("ponderer.ui.remote_browser.action.pull", "ponderer.ui.remote_browser.action.pull.tooltip",
+                        () -> pull(entry, false), 0xA8E6FF, () -> canPull),
+                    actionButton("ponderer.ui.remote_browser.action.history", "ponderer.ui.remote_browser.action.history.tooltip",
+                        () -> requestHistory(entry), 0xFFFFFF, () -> true),
+                    actionButton("ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
+                        () -> delete(entry), 0xFF9A9A, () -> canManage)),
+                row::iconStack,
+                row.comparison()::priority));
         }
     }
 
     private void collectPackEntries(List<ConfigScreenList.Entry> entries) {
         if (packs.isEmpty()) {
-            entries.add(new SectionHeaderListEntry("No remote packs"));
+            entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.empty.packs")));
             return;
         }
-        for (RemoteCatalogResponsePayload.Entry entry : packs) {
+        for (RemoteRow row : remoteRows(packs)) {
+            RemoteCatalogResponsePayload.Entry entry = row.entry();
             entries.add(new DynamicActionRowListEntry(
                 entry::id,
-                entry::summary,
+                () -> resourceDetail(entry, row.comparison()),
                 () -> entry.id() + " " + entry.summary(),
-                List.of(ActionStripListEntry.button(() -> "Pull", null,
-                    () -> pullPack(entry.id()), () -> 0xA8E6FF, () -> canPull))));
+                List.of(actionButton("ponderer.ui.remote_browser.action.pull", "ponderer.ui.remote_browser.action.pull_pack.tooltip",
+                    () -> pullPack(entry.id()), 0xA8E6FF, () -> canPull)),
+                row::iconStack,
+                row.comparison()::priority));
         }
     }
 
     private void collectHistoryEntries(List<ConfigScreenList.Entry> entries) {
         if (historyId.isBlank()) {
-            entries.add(new SectionHeaderListEntry("Select a remote resource and press Hist"));
+            entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.history.select")));
             return;
         }
-        entries.add(new SectionHeaderListEntry("History: " + displayKey(historyId, historyPack)));
+        entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.history.title",
+            displayKey(historyId, historyPack))));
         if (history.isEmpty()) {
-            entries.add(new SectionHeaderListEntry("No history yet. Upload, delete, or rollback will create revisions."));
+            entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.history.empty")));
             return;
         }
         for (RemoteHistoryResponsePayload.Entry entry : history) {
             entries.add(new DynamicActionRowListEntry(
-                () -> "#" + entry.revision() + " " + entry.action(),
+                () -> UIText.of("ponderer.ui.remote_browser.history.row", entry.revision(), entry.action()),
                 () -> historyDetail(entry),
                 () -> entry.revision() + " " + entry.action() + " " + entry.actor(),
-                List.of(ActionStripListEntry.button(() -> "Rollback", null,
-                    () -> rollback(entry.revision()), () -> 0xFFE08A, () -> historyCanManage))));
+                List.of(actionButton("ponderer.ui.remote_browser.action.rollback", "ponderer.ui.remote_browser.action.rollback.tooltip",
+                    () -> rollback(entry.revision()), 0xFFE08A, () -> historyCanManage))));
         }
     }
 
@@ -234,7 +278,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     private void requestCatalog() {
         requestSent = true;
         waitingForServer = true;
-        setInfoMessage("Loading remote catalog...");
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.loading"));
         PondererServices.NETWORK.sendToServer(new RemoteCatalogRequestPayload());
         if (list != null) {
             rebuildListPreservingScroll();
@@ -242,38 +286,40 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     }
 
     private void pull(RemoteCatalogResponsePayload.Entry entry, boolean includeDependencies) {
-        setInfoMessage("Pulling " + displayKey(entry.id(), entry.pack()) + "...");
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.pulling", displayKey(entry.id(), entry.pack())));
         PondererServices.NETWORK.sendToServer(
             new RemotePullRequestPayload(entry.kind(), entry.id(), entry.pack(), includeDependencies));
     }
 
     private void pullPack(String pack) {
-        setInfoMessage("Pulling remote pack " + pack + "...");
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.pulling_pack", pack));
         PondererServices.NETWORK.sendToServer(
             new RemotePullRequestPayload(RemoteWorkspaceService.KIND_PACK, pack, null, true));
     }
 
     private void uploadLocal(RemoteCatalogResponsePayload.Entry entry) {
         if (!hasLocalScene(entry)) {
-            setErrorMessage("No matching local scene: " + displayKey(entry.id(), entry.pack()));
+            setErrorMessage(UIText.of("ponderer.ui.remote_browser.status.no_local_scene",
+                displayKey(entry.id(), entry.pack())));
             return;
         }
-        setInfoMessage("Uploading local scene " + displayKey(entry.id(), entry.pack()) + "...");
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.uploading", displayKey(entry.id(), entry.pack())));
         PondererClientCommands.pushByKey(displayKey(entry.id(), entry.pack()), "check");
     }
 
     private void delete(RemoteCatalogResponsePayload.Entry entry) {
-        setInfoMessage("Deleting " + displayKey(entry.id(), entry.pack()) + "...");
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.deleting", displayKey(entry.id(), entry.pack())));
         PondererServices.NETWORK.sendToServer(new RemoteDeleteRequestPayload(entry.kind(), entry.id(), entry.pack()));
     }
 
     private void requestHistory(RemoteCatalogResponsePayload.Entry entry) {
-        setInfoMessage("Loading history for " + displayKey(entry.id(), entry.pack()) + "...");
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.loading_history",
+            displayKey(entry.id(), entry.pack())));
         PondererServices.NETWORK.sendToServer(new RemoteHistoryRequestPayload(entry.kind(), entry.id(), entry.pack()));
     }
 
     private void rollback(int revision) {
-        setInfoMessage("Rolling back " + displayKey(historyId, historyPack) + "...");
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.rolling_back", displayKey(historyId, historyPack)));
         PondererServices.NETWORK.sendToServer(new RemoteRollbackRequestPayload(historyKind, historyId, historyPack, revision));
     }
 
@@ -287,10 +333,18 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
         return displayKey(entry.id(), entry.pack()) + "  " + title;
     }
 
-    private String resourceDetail(RemoteCatalogResponsePayload.Entry entry) {
+    private String resourceDetail(RemoteCatalogResponsePayload.Entry entry, LocalComparison comparison) {
         List<String> parts = new ArrayList<>();
+        if (!comparison.detail().isBlank()) {
+            parts.add(comparison.detail());
+        }
+        if (RemoteWorkspaceService.KIND_PACK.equals(entry.kind())) {
+            parts.add(UIText.of("ponderer.ui.remote_browser.detail.pack_counts",
+                entry.dependencyCount(), entry.refCount()));
+            return String.join(" | ", parts);
+        }
         if (entry.revision() > 0) {
-            parts.add("rev " + entry.revision());
+            parts.add(UIText.of("ponderer.ui.remote_browser.detail.revision", entry.revision()));
         }
         if (entry.size() > 0) {
             parts.add(formatBytes(entry.size()));
@@ -299,30 +353,158 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             parts.add(TIME_FORMAT.format(Instant.ofEpochMilli(entry.updatedAt())));
         }
         if (entry.dependencyCount() > 0) {
-            parts.add(entry.dependencyCount() + " deps");
+            parts.add(UIText.of("ponderer.ui.remote_browser.detail.dependencies", entry.dependencyCount()));
         }
         if (entry.refCount() > 0) {
-            parts.add(entry.refCount() + " refs");
+            parts.add(UIText.of("ponderer.ui.remote_browser.detail.references", entry.refCount()));
         }
         if (parts.isEmpty() && entry.summary() != null && !entry.summary().isBlank()) {
             parts.add(entry.summary());
+        } else if (parts.isEmpty() && RemoteWorkspaceService.KIND_SCENE.equals(entry.kind())) {
+            parts.add(UIText.of("ponderer.ui.remote_browser.detail.no_bound_items"));
         }
         return String.join(" | ", parts);
     }
 
     private String historyDetail(RemoteHistoryResponsePayload.Entry entry) {
         String time = entry.createdAt() <= 0 ? "" : TIME_FORMAT.format(Instant.ofEpochMilli(entry.createdAt()));
-        String actor = entry.actor() == null || entry.actor().isBlank() ? "server" : entry.actor();
+        String actor = entry.actor() == null || entry.actor().isBlank()
+            ? UIText.of("ponderer.ui.remote_browser.actor.server")
+            : entry.actor();
         return actor + (time.isBlank() ? "" : " | " + time) + " | " + formatBytes(entry.size());
     }
 
     private String subtitle() {
         return switch (tab) {
-            case SCENES -> scenes.size() + " remote scenes";
-            case STRUCTURES -> structures.size() + " remote structures";
-            case PACKS -> packs.size() + " remote packs";
-            case HISTORY -> historyId.isBlank() ? "No history selected" : displayKey(historyId, historyPack);
+            case SCENES -> UIText.of("ponderer.ui.remote_browser.subtitle.scenes", scenes.size());
+            case STRUCTURES -> UIText.of("ponderer.ui.remote_browser.subtitle.structures", structures.size());
+            case PACKS -> UIText.of("ponderer.ui.remote_browser.subtitle.packs", packs.size());
+            case HISTORY -> historyId.isBlank()
+                ? UIText.of("ponderer.ui.remote_browser.subtitle.no_history")
+                : displayKey(historyId, historyPack);
         };
+    }
+
+    private List<RemoteRow> remoteRows(List<RemoteCatalogResponsePayload.Entry> entries) {
+        List<RemoteRow> rows = new ArrayList<>();
+        for (RemoteCatalogResponsePayload.Entry entry : entries) {
+            rows.add(new RemoteRow(entry, compareLocal(entry), iconStackFor(entry)));
+        }
+        rows.sort(Comparator
+            .comparing((RemoteRow row) -> !row.comparison().priority())
+            .thenComparing(row -> Objects.toString(row.entry().pack(), ""), String.CASE_INSENSITIVE_ORDER)
+            .thenComparing(row -> row.entry().id(), String.CASE_INSENSITIVE_ORDER));
+        return rows;
+    }
+
+    private LocalComparison compareLocal(RemoteCatalogResponsePayload.Entry entry) {
+        if (RemoteWorkspaceService.KIND_SCENE.equals(entry.kind())) {
+            return compareHash(entry, SceneStore.findLocalSceneFile(entry.id(), entry.pack()));
+        }
+        if (RemoteWorkspaceService.KIND_STRUCTURE.equals(entry.kind())) {
+            ResourceLocation loc = ResourceLocation.tryParse(entry.id());
+            Path path = loc == null ? null : SceneStore.resolveLocalSyncStructurePath(loc, entry.pack());
+            return compareHash(entry, path);
+        }
+        return LocalComparison.none();
+    }
+
+    private LocalComparison compareHash(RemoteCatalogResponsePayload.Entry entry, @Nullable Path localPath) {
+        String remoteHash = clean(entry.hash());
+        if (remoteHash.isBlank()) {
+            return LocalComparison.none();
+        }
+        if (localPath == null || !Files.exists(localPath)) {
+            return new LocalComparison(true,
+                UIText.of("ponderer.ui.remote_browser.diff.local_missing", shortHash(remoteHash)));
+        }
+        String localHash = clean(SyncMeta.hashLocalFile(localPath));
+        if (localHash.isBlank()) {
+            return LocalComparison.none();
+        }
+        if (!localHash.equalsIgnoreCase(remoteHash)) {
+            return new LocalComparison(true,
+                UIText.of("ponderer.ui.remote_browser.diff.hash", shortHash(localHash), shortHash(remoteHash)));
+        }
+        return LocalComparison.none();
+    }
+
+    private ItemStack iconStackFor(RemoteCatalogResponsePayload.Entry entry) {
+        ResourceLocation itemId = firstBoundItem(entry);
+        if (itemId == null) {
+            return ItemStack.EMPTY;
+        }
+        Item item = BuiltInRegistries.ITEM.getOptional(itemId).orElse(Items.AIR);
+        if (item == Items.AIR) {
+            return ItemStack.EMPTY;
+        }
+        return new ItemStack(item);
+    }
+
+    @Nullable
+    private ResourceLocation firstBoundItem(RemoteCatalogResponsePayload.Entry entry) {
+        DslScene localScene = SceneRuntime.findByKey(displayKey(entry.id(), entry.pack()));
+        ResourceLocation localItem = firstValidItem(localScene == null ? null : localScene.items);
+        if (localItem != null) {
+            return localItem;
+        }
+        if (!RemoteWorkspaceService.KIND_SCENE.equals(entry.kind()) || entry.summary() == null) {
+            return null;
+        }
+        for (String part : entry.summary().split(",")) {
+            ResourceLocation parsed = parseItemId(part);
+            if (parsed != null) {
+                return parsed;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private ResourceLocation firstValidItem(@Nullable List<String> items) {
+        if (items == null) {
+            return null;
+        }
+        for (String item : items) {
+            ResourceLocation parsed = parseItemId(item);
+            if (parsed != null) {
+                return parsed;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private ResourceLocation parseItemId(@Nullable String raw) {
+        String itemId = clean(raw);
+        if (itemId.isBlank()) {
+            return null;
+        }
+        int nbtStart = itemId.indexOf('{');
+        if (nbtStart >= 0) {
+            itemId = itemId.substring(0, nbtStart).trim();
+        }
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        if (loc == null) {
+            return null;
+        }
+        Item item = BuiltInRegistries.ITEM.getOptional(loc).orElse(Items.AIR);
+        return item == Items.AIR ? null : loc;
+    }
+
+    private static ActionStripListEntry.ButtonModel actionButton(String labelKey, @Nullable String tooltipKey,
+                                                                 Runnable action, int color,
+                                                                 BooleanSupplier activeGetter) {
+        return ActionStripListEntry.button(
+            () -> UIText.of(labelKey),
+            tooltipKey == null ? null : tooltip(tooltipKey),
+            action,
+            () -> color,
+            activeGetter);
+    }
+
+    private static Supplier<List<Component>> tooltip(String key) {
+        return () -> List.of(Component.literal(UIText.of(key)));
     }
 
     private static String searchText(RemoteCatalogResponsePayload.Entry entry) {
@@ -350,5 +532,14 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             return String.format(Locale.ROOT, "%.1f KiB", kib);
         }
         return String.format(Locale.ROOT, "%.1f MiB", kib / 1024.0);
+    }
+
+    private static String shortHash(String hash) {
+        String clean = clean(hash);
+        return clean.length() <= 8 ? clean : clean.substring(0, 8);
+    }
+
+    private static String clean(@Nullable String value) {
+        return value == null ? "" : value.trim();
     }
 }
