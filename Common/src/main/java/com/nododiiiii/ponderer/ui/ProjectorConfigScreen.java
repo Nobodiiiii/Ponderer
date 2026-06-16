@@ -23,9 +23,9 @@ import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
@@ -41,6 +41,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu> {
 
@@ -49,65 +52,77 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final ResourceLocation PLAYER_INVENTORY =
         new ResourceLocation("ponderer", "textures/gui/player_inventory.png");
     private static final int TEXT = 0x4A2D31;
+    private static final int LABEL_TEXT = 0xF2F4FF;
+    private static final int PROJECTOR_TEXTURE_WIDTH = 320;
+    private static final int PROJECTOR_TEXTURE_HEIGHT = 480;
     private static final int PLAYER_INVENTORY_WIDTH = 176;
     private static final int PLAYER_INVENTORY_HEIGHT = 108;
     private static final int PLAYER_INVENTORY_TEXTURE_SIZE = 256;
     private static final int PLAYER_INVENTORY_X = ProjectorMenu.INVENTORY_PANEL_X;
-    private static final int PLAYER_INVENTORY_Y = 180;
+    private static final int PLAYER_INVENTORY_Y = 194;
     private static final int SCREEN_WIDTH = ProjectorMenu.SCREEN_WIDTH;
     private static final int SCREEN_HEIGHT = PLAYER_INVENTORY_Y + PLAYER_INVENTORY_HEIGHT;
-    private static final int MAIN_PANEL_HEIGHT = 180;
+    private static final int MAIN_PANEL_HEIGHT = 194;
     private static final int TITLE_Y = 6;
-    private static final int WHITEBOARD_X = 10;
-    private static final int WHITEBOARD_Y = 18;
-    private static final int WHITEBOARD_WIDTH = SCREEN_WIDTH - 20;
-    private static final int WHITEBOARD_HEIGHT = 148;
-    private static final int FIELD_PADDING_X = 12;
-    private static final int ROW_GAP = 26;
-    private static final int COLUMN_GAP = 20;
-    private static final int FIELD_COLUMN_WIDTH = 133;
-    private static final int LABEL_WIDTH = 52;
-    private static final int VALUE_WIDTH = FIELD_COLUMN_WIDTH - LABEL_WIDTH;
-    private static final int SOURCE_LABEL_X = WHITEBOARD_X + FIELD_PADDING_X;
-    private static final int SOURCE_ROW_Y = WHITEBOARD_Y + 14;
-    private static final int SOURCE_TEXT_X = ProjectorMenu.SOURCE_SLOT_X + 28;
-    private static final int SOURCE_TEXT_WIDTH = 148;
+    private static final int SOURCE_LABEL_TEXT_X = 34;
+    private static final int SOURCE_TEXT_Y = 31;
+    private static final int SOURCE_INFO_X = ProjectorMenu.SOURCE_SLOT_X + 20;
+    private static final int SOURCE_INFO_WIDTH = 149;
     private static final int INVENTORY_LABEL_X = PLAYER_INVENTORY_X + 8;
     private static final int INVENTORY_LABEL_Y = PLAYER_INVENTORY_Y + 6;
-    private static final int LEFT_COLUMN_X = WHITEBOARD_X + FIELD_PADDING_X;
-    private static final int RIGHT_COLUMN_X = LEFT_COLUMN_X + FIELD_COLUMN_WIDTH + COLUMN_GAP;
-    private static final int ROW_1_Y = SOURCE_ROW_Y + ROW_GAP;
-    private static final int ROW_2_Y = ROW_1_Y + ROW_GAP;
-    private static final int ROW_3_Y = ROW_2_Y + ROW_GAP;
-    private static final int ROW_4_Y = ROW_3_Y + ROW_GAP;
-    private static final int SCENE_BUTTON_SIZE = 20;
-    private static final int SCENE_BUTTON_Y = SOURCE_ROW_Y - 2;
-    private static final int SCENE_LEFT_BUTTON_X = SOURCE_TEXT_X;
-    private static final int SCENE_RIGHT_BUTTON_X = WHITEBOARD_X + WHITEBOARD_WIDTH - FIELD_PADDING_X - SCENE_BUTTON_SIZE;
-    private static final int SCENE_TITLE_X = SCENE_LEFT_BUTTON_X + SCENE_BUTTON_SIZE + 6;
-    private static final int SCENE_TITLE_Y = SOURCE_ROW_Y + 1;
-    private static final int SCENE_BAR_X = SCENE_TITLE_X;
-    private static final int SCENE_BAR_Y = SOURCE_ROW_Y + 14;
-    private static final int SCENE_BAR_WIDTH = SCENE_RIGHT_BUTTON_X - SCENE_BAR_X - 4;
+    private static final int LEFT_LABEL_TEXT_X = 32;
+    private static final int RIGHT_LABEL_TEXT_X = 163;
+    private static final int LEFT_VALUE_X = 80;
+    private static final int RIGHT_VALUE_X = 211;
+    private static final int VALUE_WIDTH = 59;
+    private static final int CONTROL_HEIGHT = 18;
+    private static final int ROW_1_Y = 55;
+    private static final int ROW_2_Y = 74;
+    private static final int ROW_3_Y = 93;
+    private static final int ROW_4_Y = 112;
+    private static final int LABEL_TEXT_OFFSET_Y = 5;
+    private static final int SCENE_BUTTON_SIZE = 18;
+    private static final int SCENE_BUTTON_Y = 139;
+    private static final int SCENE_LEFT_BUTTON_X = 11;
+    private static final int SCENE_RIGHT_BUTTON_X = 252;
+    private static final int SCENE_BAR_X = 35;
+    private static final int SCENE_BAR_Y = 148;
+    private static final int SCENE_BAR_WIDTH = 211;
     private static final int SCENE_BAR_HEIGHT = 1;
     private static final int SCENE_KEYFRAME_HIT_RADIUS = 6;
-    private static final int OFFSET_BOX_WIDTH = 19;
+    private static final int OFFSET_BOX_WIDTH = 18;
     private static final int OFFSET_GAP = 2;
-    private static final int OFFSET_RESET_BUTTON_SIZE = 18;
-    private static final int OFFSET_TOTAL_WIDTH = OFFSET_BOX_WIDTH * 3 + OFFSET_GAP * 3 + OFFSET_RESET_BUTTON_SIZE;
-    private static final int OFFSET_START_X = LEFT_COLUMN_X + LABEL_WIDTH + (VALUE_WIDTH - OFFSET_TOTAL_WIDTH) / 2;
+    private static final int OFFSET_START_X = LEFT_VALUE_X;
+    private static final int OFFSET_ROW_TEXTURE_X = 79;
+    private static final int OFFSET_ROW_TEXTURE_Y = 316;
+    private static final int OFFSET_ROW_TEXTURE_WIDTH = 60;
+    private static final int BOTTOM_ACTION_Y = 171;
+    private static final int RESET_BUTTON_X = 192;
+    private static final int RESET_BUTTON_SIZE = 18;
+    private static final int PLAY_BUTTON_X = 220;
+    private static final int PLAY_BUTTON_WIDTH = 54;
+    private static final int VALUE_STATE_IDLE_U = 58;
+    private static final int VALUE_STATE_HOVER_U = 122;
+    private static final int VALUE_STATE_CLICK_U = 186;
+    private static final int VALUE_STATE_V = 462;
+    private static final int VALUE_STATE_W = 59;
+    private static final int BUTTON_STATE_IDLE_U = 57;
+    private static final int BUTTON_STATE_HOVER_U = 111;
+    private static final int BUTTON_STATE_CLICK_U = 165;
+    private static final int BUTTON_STATE_V = 441;
+    private static final int BUTTON_STATE_W = 54;
 
-    private CycleButton<Boolean> redstoneModeButton;
-    private CycleButton<Boolean> loopModeButton;
-    private CycleButton<Boolean> blueTintButton;
-    private CycleButton<Boolean> textAntiOcclusionButton;
+    private Button redstoneModeButton;
+    private Button loopModeButton;
+    private Button blueTintButton;
+    private Button textAntiOcclusionButton;
     private Button playButton;
     @Nullable
     private PonderButton previousSceneButton;
     @Nullable
     private PonderButton nextSceneButton;
     @Nullable
-    private PonderButton resetOffsetButton;
+    private Button resetProjectionButton;
     @Nullable
     private EditBox offsetX;
     @Nullable
@@ -150,88 +165,95 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     @Override
     protected void init() {
         super.init();
-        titleLabelX = WHITEBOARD_X + 8;
+        titleLabelX = 18;
         titleLabelY = TITLE_Y;
         loadProjectorState();
         configuredSceneKeys = menu.projector() == null ? List.of() : List.copyOf(menu.projector().getSceneKeys());
 
         redstoneModeButton = addRenderableWidget(modeButton(
-            leftPos + LEFT_COLUMN_X + LABEL_WIDTH,
-            topPos + ROW_1_Y - 2,
-            "ponderer.ui.projector.redstone_mode",
-            redstoneMode,
+            leftPos + LEFT_VALUE_X,
+            topPos + ROW_1_Y,
+            () -> redstoneMode,
             value -> Component.translatable("ponderer.ui.projector.redstone_mode." + (value ? "redstone" : "manual")),
             value -> redstoneMode = value));
         loopModeButton = addRenderableWidget(modeButton(
-            leftPos + RIGHT_COLUMN_X + LABEL_WIDTH,
-            topPos + ROW_1_Y - 2,
-            "ponderer.ui.projector.loop_mode",
-            loopMode,
+            leftPos + RIGHT_VALUE_X,
+            topPos + ROW_1_Y,
+            () -> loopMode,
             value -> Component.translatable("ponderer.ui.projector.loop_mode." + (value ? "loop" : "once")),
             value -> loopMode = value));
-        previousSceneButton = addRenderableWidget(new PonderButton(leftPos + SCENE_LEFT_BUTTON_X, topPos + SCENE_BUTTON_Y)
+        previousSceneButton = addRenderableWidget(new PonderButton(
+            leftPos + SCENE_LEFT_BUTTON_X,
+            topPos + SCENE_BUTTON_Y,
+            SCENE_BUTTON_SIZE,
+            SCENE_BUTTON_SIZE)
             .showing(PonderGuiTextures.ICON_PONDER_LEFT)
             .withCallback(this::cycleSceneBackward));
-        nextSceneButton = addRenderableWidget(new PonderButton(leftPos + SCENE_RIGHT_BUTTON_X, topPos + SCENE_BUTTON_Y)
+        nextSceneButton = addRenderableWidget(new PonderButton(
+            leftPos + SCENE_RIGHT_BUTTON_X,
+            topPos + SCENE_BUTTON_Y,
+            SCENE_BUTTON_SIZE,
+            SCENE_BUTTON_SIZE)
             .showing(PonderGuiTextures.ICON_PONDER_RIGHT)
             .withCallback(this::cycleSceneForward));
 
         if (menu.projectorKind().requiresAnchor()) {
             int offsetXStart = leftPos + OFFSET_START_X;
-            offsetX = addRenderableWidget(offsetBox(offsetXStart, topPos + ROW_2_Y - 1));
-            offsetY = addRenderableWidget(offsetBox(offsetXStart + OFFSET_BOX_WIDTH + OFFSET_GAP, topPos + ROW_2_Y - 1));
-            offsetZ = addRenderableWidget(offsetBox(offsetXStart + (OFFSET_BOX_WIDTH + OFFSET_GAP) * 2, topPos + ROW_2_Y - 1));
-            resetOffsetButton = addRenderableWidget(new PonderButton(
-                offsetXStart + (OFFSET_BOX_WIDTH + OFFSET_GAP) * 3,
-                topPos + ROW_2_Y - 1,
-                OFFSET_RESET_BUTTON_SIZE,
-                18)
-                .showing(PonderGuiTextures.ICON_CONFIG_RESET)
-                .withCallback(this::resetOffset));
-            textScaleBox = addRenderableWidget(decimalBox(
-                leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ROW_2_Y - 1, VALUE_WIDTH,
-                Component.translatable("ponderer.ui.projector.text_scale"), textScale));
+            offsetX = addRenderableWidget(offsetBox(offsetXStart, topPos + ROW_4_Y));
+            offsetY = addRenderableWidget(offsetBox(offsetXStart + OFFSET_BOX_WIDTH + OFFSET_GAP, topPos + ROW_4_Y));
+            offsetZ = addRenderableWidget(offsetBox(offsetXStart + (OFFSET_BOX_WIDTH + OFFSET_GAP) * 2, topPos + ROW_4_Y));
 
             blueTintButton = addRenderableWidget(modeButton(
-                leftPos + LEFT_COLUMN_X + LABEL_WIDTH, topPos + ROW_3_Y - 2,
-                "ponderer.ui.projector.blue_tint", showBlueTint,
+                leftPos + LEFT_VALUE_X, topPos + ROW_2_Y,
+                () -> showBlueTint,
                 value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> showBlueTint = value));
             textAntiOcclusionButton = addRenderableWidget(modeButton(
-                leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ROW_3_Y - 2,
-                "ponderer.ui.projector.text_anti_occlusion", overlayAntiOcclusion,
+                leftPos + RIGHT_VALUE_X, topPos + ROW_2_Y,
+                () -> overlayAntiOcclusion,
                 value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> overlayAntiOcclusion = value));
             intermissionBox = addRenderableWidget(integerBox(
-                leftPos + LEFT_COLUMN_X + LABEL_WIDTH, topPos + ROW_4_Y - 1, VALUE_WIDTH,
+                leftPos + LEFT_VALUE_X, topPos + ROW_3_Y, VALUE_WIDTH,
                 Component.translatable("ponderer.ui.projector.intermission"), intermissionTicks));
-            playButton = addRenderableWidget(Button.builder(
+            textScaleBox = addRenderableWidget(decimalBox(
+                leftPos + RIGHT_VALUE_X, topPos + ROW_3_Y, VALUE_WIDTH,
+                Component.translatable("ponderer.ui.projector.text_scale"), textScale));
+            resetProjectionButton = addRenderableWidget(new ProjectorTextureButton(
+                leftPos + RESET_BUTTON_X, topPos + BOTTOM_ACTION_Y, RESET_BUTTON_SIZE, CONTROL_HEIGHT,
+                Component.empty(), button -> resetProjectionControl(), ButtonVisual.ACTION_ICON_RESET));
+            playButton = addRenderableWidget(new ProjectorTextureButton(
+                leftPos + PLAY_BUTTON_X, topPos + BOTTOM_ACTION_Y, PLAY_BUTTON_WIDTH, CONTROL_HEIGHT,
                 Component.translatable("ponderer.ui.projector.play_once"),
-                button -> triggerManualOnce()).bounds(leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ROW_4_Y - 1, VALUE_WIDTH, 20).build());
+                button -> triggerManualOnce(), ButtonVisual.ACTION_PLAY));
         } else {
             scaleBox = addRenderableWidget(decimalBox(
-                leftPos + LEFT_COLUMN_X + LABEL_WIDTH, topPos + ROW_2_Y - 1, VALUE_WIDTH,
+                leftPos + LEFT_VALUE_X, topPos + ROW_4_Y, VALUE_WIDTH,
                 Component.translatable("ponderer.ui.projector.scale"), miniatureScale));
-            textScaleBox = addRenderableWidget(decimalBox(
-                leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ROW_2_Y - 1, VALUE_WIDTH,
-                Component.translatable("ponderer.ui.projector.text_scale"), textScale));
 
             blueTintButton = addRenderableWidget(modeButton(
-                leftPos + LEFT_COLUMN_X + LABEL_WIDTH, topPos + ROW_3_Y - 2,
-                "ponderer.ui.projector.blue_tint", showBlueTint,
+                leftPos + LEFT_VALUE_X, topPos + ROW_2_Y,
+                () -> showBlueTint,
                 value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> showBlueTint = value));
             textAntiOcclusionButton = addRenderableWidget(modeButton(
-                leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ROW_3_Y - 2,
-                "ponderer.ui.projector.text_anti_occlusion", overlayAntiOcclusion,
+                leftPos + RIGHT_VALUE_X, topPos + ROW_2_Y,
+                () -> overlayAntiOcclusion,
                 value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> overlayAntiOcclusion = value));
             intermissionBox = addRenderableWidget(integerBox(
-                leftPos + LEFT_COLUMN_X + LABEL_WIDTH, topPos + ROW_4_Y - 1, VALUE_WIDTH,
+                leftPos + LEFT_VALUE_X, topPos + ROW_3_Y, VALUE_WIDTH,
                 Component.translatable("ponderer.ui.projector.intermission"), intermissionTicks));
-            playButton = addRenderableWidget(Button.builder(
+            textScaleBox = addRenderableWidget(decimalBox(
+                leftPos + RIGHT_VALUE_X, topPos + ROW_3_Y, VALUE_WIDTH,
+                Component.translatable("ponderer.ui.projector.text_scale"), textScale));
+            resetProjectionButton = addRenderableWidget(new ProjectorTextureButton(
+                leftPos + RESET_BUTTON_X, topPos + BOTTOM_ACTION_Y, RESET_BUTTON_SIZE, CONTROL_HEIGHT,
+                Component.empty(), button -> resetProjectionControl(), ButtonVisual.ACTION_ICON_RESET));
+            playButton = addRenderableWidget(new ProjectorTextureButton(
+                leftPos + PLAY_BUTTON_X, topPos + BOTTOM_ACTION_Y, PLAY_BUTTON_WIDTH, CONTROL_HEIGHT,
                 Component.translatable("ponderer.ui.projector.play_once"),
-                button -> triggerManualOnce()).bounds(leftPos + RIGHT_COLUMN_X + LABEL_WIDTH, topPos + ROW_4_Y - 1, VALUE_WIDTH, 20).build());
+                button -> triggerManualOnce(), ButtonVisual.ACTION_PLAY));
         }
 
         ProjectorBlockEntity projector = menu.projector();
@@ -289,7 +311,13 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         int x = leftPos;
         int y = topPos;
-        graphics.blit(BACKGROUND, x, y, 0, 0, SCREEN_WIDTH, MAIN_PANEL_HEIGHT, SCREEN_WIDTH, MAIN_PANEL_HEIGHT);
+        graphics.blit(BACKGROUND, x, y, 0, 0, SCREEN_WIDTH, MAIN_PANEL_HEIGHT,
+            PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
+        if (menu.projectorKind().requiresAnchor()) {
+            graphics.blit(BACKGROUND, x + OFFSET_START_X, y + ROW_4_Y,
+                OFFSET_ROW_TEXTURE_X, OFFSET_ROW_TEXTURE_Y, OFFSET_ROW_TEXTURE_WIDTH, CONTROL_HEIGHT,
+                PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
+        }
         graphics.blit(PLAYER_INVENTORY, x + PLAYER_INVENTORY_X, y + PLAYER_INVENTORY_Y,
             0, 0, PLAYER_INVENTORY_WIDTH, PLAYER_INVENTORY_HEIGHT,
             PLAYER_INVENTORY_TEXTURE_SIZE, PLAYER_INVENTORY_TEXTURE_SIZE);
@@ -303,30 +331,26 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         graphics.drawString(font, projectorKind, imageWidth - 14 - font.width(projectorKind), TITLE_Y, TEXT, false);
         graphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, TEXT, false);
 
-        drawRowLabel(graphics, "ponderer.ui.projector.source_item", SOURCE_LABEL_X, SOURCE_ROW_Y + 4);
-        graphics.drawString(font, trimToWidth(sceneSummaryLabel(), SCENE_BAR_WIDTH), SCENE_TITLE_X,
-            SCENE_TITLE_Y, sceneSummaryColor(), false);
+        drawLabel(graphics, "ponderer.ui.projector.source_item", SOURCE_LABEL_TEXT_X, SOURCE_TEXT_Y);
+        graphics.drawString(font, trimToWidth(sceneSummaryLabel(), SOURCE_INFO_WIDTH), SOURCE_INFO_X,
+            SOURCE_TEXT_Y, sceneSummaryColor(), false);
 
-        drawRowLabel(graphics, "ponderer.ui.projector.redstone_mode", LEFT_COLUMN_X, ROW_1_Y + 4);
-        drawRowLabel(graphics, "ponderer.ui.projector.loop_mode", RIGHT_COLUMN_X, ROW_1_Y + 4);
+        drawLabel(graphics, "ponderer.ui.projector.redstone_mode", LEFT_LABEL_TEXT_X, ROW_1_Y + LABEL_TEXT_OFFSET_Y);
+        drawLabel(graphics, "ponderer.ui.projector.loop_mode", RIGHT_LABEL_TEXT_X, ROW_1_Y + LABEL_TEXT_OFFSET_Y);
+        drawLabel(graphics, "ponderer.ui.projector.blue_tint", LEFT_LABEL_TEXT_X, ROW_2_Y + LABEL_TEXT_OFFSET_Y);
+        drawLabel(graphics, "ponderer.ui.projector.text_anti_occlusion", RIGHT_LABEL_TEXT_X, ROW_2_Y + LABEL_TEXT_OFFSET_Y);
+        drawLabel(graphics, "ponderer.ui.projector.intermission", LEFT_LABEL_TEXT_X, ROW_3_Y + LABEL_TEXT_OFFSET_Y);
+        drawLabel(graphics, "ponderer.ui.projector.text_scale", RIGHT_LABEL_TEXT_X, ROW_3_Y + LABEL_TEXT_OFFSET_Y);
 
         if (menu.projectorKind().requiresAnchor()) {
-            graphics.drawString(font, Component.translatable("ponderer.ui.projector.offset"), LEFT_COLUMN_X, ROW_2_Y + 4, TEXT, false);
-            drawRowLabel(graphics, "ponderer.ui.projector.text_scale", RIGHT_COLUMN_X, ROW_2_Y + 4);
-            drawRowLabel(graphics, "ponderer.ui.projector.blue_tint", LEFT_COLUMN_X, ROW_3_Y + 4);
-            drawRowLabel(graphics, "ponderer.ui.projector.text_anti_occlusion", RIGHT_COLUMN_X, ROW_3_Y + 4);
-            drawRowLabel(graphics, "ponderer.ui.projector.intermission", LEFT_COLUMN_X, ROW_4_Y + 4);
+            drawLabel(graphics, "ponderer.ui.projector.offset", LEFT_LABEL_TEXT_X, ROW_4_Y + LABEL_TEXT_OFFSET_Y);
         } else {
-            drawRowLabel(graphics, "ponderer.ui.projector.scale", LEFT_COLUMN_X, ROW_2_Y + 4);
-            drawRowLabel(graphics, "ponderer.ui.projector.text_scale", RIGHT_COLUMN_X, ROW_2_Y + 4);
-            drawRowLabel(graphics, "ponderer.ui.projector.blue_tint", LEFT_COLUMN_X, ROW_3_Y + 4);
-            drawRowLabel(graphics, "ponderer.ui.projector.text_anti_occlusion", RIGHT_COLUMN_X, ROW_3_Y + 4);
-            drawRowLabel(graphics, "ponderer.ui.projector.intermission", LEFT_COLUMN_X, ROW_4_Y + 4);
+            drawLabel(graphics, "ponderer.ui.projector.scale", LEFT_LABEL_TEXT_X, ROW_4_Y + LABEL_TEXT_OFFSET_Y);
         }
 
         if (!statusMessage.getString().isBlank()) {
-            graphics.drawString(font, trimToWidth(statusMessage, WHITEBOARD_WIDTH - 16),
-                WHITEBOARD_X + 8, WHITEBOARD_Y + WHITEBOARD_HEIGHT - 12, statusColor, false);
+            graphics.drawString(font, trimToWidth(statusMessage, 210),
+                SCENE_BAR_X, 157, statusColor, false);
         }
     }
 
@@ -350,29 +374,30 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         loopMode = mode.loops();
     }
 
-    private CycleButton<Boolean> modeButton(int x, int y, String labelKey, boolean initialValue,
-                                            java.util.function.Function<Boolean, Component> valueLabel,
-                                            java.util.function.Consumer<Boolean> setter) {
-        return CycleButton.builder(valueLabel)
-            .withValues(Boolean.FALSE, Boolean.TRUE)
-            .withInitialValue(initialValue)
-            .displayOnlyValue()
-            .create(x, y, VALUE_WIDTH, 20, Component.translatable(labelKey), (button, value) -> setter.accept(value));
+    private Button modeButton(int x, int y, BooleanSupplier getter,
+                              Function<Boolean, Component> valueLabel,
+                              Consumer<Boolean> setter) {
+        return new ProjectorTextureButton(x, y, VALUE_WIDTH, CONTROL_HEIGHT, valueLabel.apply(getter.getAsBoolean()), button -> {
+            boolean next = !getter.getAsBoolean();
+            setter.accept(next);
+            button.setMessage(valueLabel.apply(next));
+        }, ButtonVisual.VALUE);
     }
 
     private EditBox offsetBox(int x, int y) {
-        EditBox box = new EditBox(font, x, y, OFFSET_BOX_WIDTH, 18, Component.translatable("ponderer.ui.projector.offset"));
+        EditBox box = new ProjectorEditBox(font, x, y, OFFSET_BOX_WIDTH, CONTROL_HEIGHT,
+            Component.translatable("ponderer.ui.projector.offset"));
         box.setMaxLength(6);
-        box.setTextColor(0xFFFFFF);
+        box.setTextColor(TEXT);
         box.setFilter(value -> value.isEmpty() || "-".equals(value) || value.matches("-?\\d+"));
         box.setHint(Component.literal("0"));
         return box;
     }
 
     private EditBox decimalBox(int x, int y, int width, Component narration, float initialValue) {
-        EditBox box = new EditBox(font, x, y, width, 18, narration);
+        EditBox box = new ProjectorEditBox(font, x, y, width, CONTROL_HEIGHT, narration);
         box.setMaxLength(6);
-        box.setTextColor(0xFFFFFF);
+        box.setTextColor(TEXT);
         box.setFilter(value -> value.isEmpty() || "-".equals(value) || ".".equals(value) || "-.".equals(value)
             || value.matches("-?\\d*(\\.\\d*)?"));
         box.setValue(trimFloat(initialValue));
@@ -380,9 +405,9 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private EditBox integerBox(int x, int y, int width, Component narration, int initialValue) {
-        EditBox box = new EditBox(font, x, y, width, 18, narration);
+        EditBox box = new ProjectorEditBox(font, x, y, width, CONTROL_HEIGHT, narration);
         box.setMaxLength(6);
-        box.setTextColor(0xFFFFFF);
+        box.setTextColor(TEXT);
         box.setFilter(value -> value.isEmpty() || value.matches("\\d+"));
         box.setValue(String.valueOf(Math.max(0, initialValue)));
         return box;
@@ -537,6 +562,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
     private void resetOffset() {
         setOffset(ProjectorBlockEntity.defaultProjectionOffset(projectorFacing()));
+    }
+
+    private void resetProjectionControl() {
+        if (menu.projectorKind().requiresAnchor()) {
+            resetOffset();
+        } else if (scaleBox != null) {
+            scaleBox.setValue(trimFloat(1.0F));
+        }
     }
 
     @Nullable
@@ -1132,8 +1165,128 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return Float.toString(value);
     }
 
-    private void drawRowLabel(GuiGraphics graphics, String key, int x, int y) {
-        graphics.drawString(font, Component.translatable(key), x, y, TEXT, false);
+    private void drawLabel(GuiGraphics graphics, String key, int x, int y) {
+        graphics.drawString(font, trimToWidth(Component.translatable(key), 40), x, y, LABEL_TEXT, false);
+    }
+
+    private static void renderControlOverlay(GuiGraphics graphics, int x, int y, int width, int height,
+                                             int sourceU, int sourceV, int sourceWidth) {
+        if (width == sourceWidth) {
+            graphics.blit(BACKGROUND, x, y, sourceU, sourceV, width, height,
+                PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
+            return;
+        }
+
+        graphics.blit(BACKGROUND, x, y, sourceU, sourceV, 1, height,
+            PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
+        for (int offset = 1; offset < width - 1; offset++) {
+            graphics.blit(BACKGROUND, x + offset, y, sourceU + 1, sourceV, 1, height,
+                PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
+        }
+        graphics.blit(BACKGROUND, x + width - 1, y, sourceU + sourceWidth - 1, sourceV, 1, height,
+            PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
+    }
+
+    private enum ButtonVisual {
+        VALUE,
+        ACTION_ICON_RESET,
+        ACTION_PLAY
+    }
+
+    private static class ProjectorTextureButton extends Button {
+        private final ButtonVisual visual;
+        private int clickTicks;
+
+        private ProjectorTextureButton(int x, int y, int width, int height, Component message, OnPress onPress,
+                                       ButtonVisual visual) {
+            super(x, y, width, height, message, onPress, DEFAULT_NARRATION);
+            this.visual = visual;
+        }
+
+        @Override
+        public void onClick(double mouseX, double mouseY) {
+            clickTicks = 4;
+            super.onClick(mouseX, mouseY);
+        }
+
+        @Override
+        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+            int u = visual == ButtonVisual.VALUE ? VALUE_STATE_IDLE_U : BUTTON_STATE_IDLE_U;
+            int v = visual == ButtonVisual.VALUE ? VALUE_STATE_V : BUTTON_STATE_V;
+            int sourceWidth = visual == ButtonVisual.VALUE ? VALUE_STATE_W : BUTTON_STATE_W;
+            if (active && clickTicks > 0) {
+                u = visual == ButtonVisual.VALUE ? VALUE_STATE_CLICK_U : BUTTON_STATE_CLICK_U;
+                clickTicks--;
+            } else if (active && isHoveredOrFocused()) {
+                u = visual == ButtonVisual.VALUE ? VALUE_STATE_HOVER_U : BUTTON_STATE_HOVER_U;
+            } else if (!active) {
+                u = visual == ButtonVisual.VALUE ? VALUE_STATE_IDLE_U : BUTTON_STATE_IDLE_U;
+            } else {
+                u = -1;
+            }
+
+            boolean renderedOverlay = u >= 0;
+            if (renderedOverlay) {
+                renderControlOverlay(graphics, getX(), getY(), width, height, u, v, sourceWidth);
+            }
+
+            Font font = Minecraft.getInstance().font;
+            int color = active ? (visual == ButtonVisual.VALUE ? TEXT : 0xF2F4FF) : 0x707070;
+            if (visual == ButtonVisual.ACTION_ICON_RESET) {
+                if (renderedOverlay) {
+                    PonderGuiTextures.ICON_CONFIG_RESET.render(graphics, getX() + 1, getY() + 1);
+                }
+                return;
+            }
+            if (visual == ButtonVisual.ACTION_PLAY) {
+                if (renderedOverlay) {
+                    PonderGuiTextures.ICON_PONDER_RIGHT.render(graphics, getX() + 2, getY() + 1);
+                }
+                String text = font.plainSubstrByWidth(getMessage().getString(), width - 20);
+                graphics.drawString(font, text, getX() + 18, getY() + 5, color, false);
+                return;
+            }
+
+            String text = font.plainSubstrByWidth(getMessage().getString(), width - 6);
+            graphics.drawCenteredString(font, text, getX() + width / 2, getY() + 5, color);
+        }
+    }
+
+    private static class ProjectorEditBox extends EditBox {
+        private final int backgroundX;
+        private final int backgroundY;
+        private final int backgroundWidth;
+        private final int backgroundHeight;
+
+        private ProjectorEditBox(Font font, int x, int y, int width, int height, Component narration) {
+            super(font, x + 4, y + 5, Math.max(1, width - 8), 8, narration);
+            this.backgroundX = x;
+            this.backgroundY = y;
+            this.backgroundWidth = width;
+            this.backgroundHeight = height;
+            setBordered(false);
+        }
+
+        @Override
+        public boolean isMouseOver(double mouseX, double mouseY) {
+            return visible
+                && mouseX >= backgroundX
+                && mouseY >= backgroundY
+                && mouseX < backgroundX + backgroundWidth
+                && mouseY < backgroundY + backgroundHeight;
+        }
+
+        @Override
+        public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+            if (isFocused()) {
+                renderControlOverlay(graphics, backgroundX, backgroundY, backgroundWidth, backgroundHeight,
+                    VALUE_STATE_CLICK_U, VALUE_STATE_V, VALUE_STATE_W);
+            } else if (isMouseOver(mouseX, mouseY)) {
+                renderControlOverlay(graphics, backgroundX, backgroundY, backgroundWidth, backgroundHeight,
+                    VALUE_STATE_HOVER_U, VALUE_STATE_V, VALUE_STATE_W);
+            }
+            super.renderWidget(graphics, mouseX, mouseY, partialTick);
+        }
     }
 
     private record ScenePreview(String sceneKey, String title, int totalTicks, List<Integer> keyframes) {

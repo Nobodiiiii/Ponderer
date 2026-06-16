@@ -18,13 +18,13 @@ import org.jetbrains.annotations.Nullable;
 public class ProjectorMenu extends AbstractContainerMenu {
 
     public static final int SOURCE_SLOT = 0;
-    public static final int SCREEN_WIDTH = 320;
-    public static final int INVENTORY_PANEL_X = 72;
-    public static final int INVENTORY_PANEL_Y = 184;
+    public static final int SCREEN_WIDTH = 280;
+    public static final int INVENTORY_PANEL_X = 52;
+    public static final int INVENTORY_PANEL_Y = 198;
     public static final int INVENTORY_PANEL_WIDTH = 176;
     public static final int INVENTORY_PANEL_HEIGHT = 96;
-    public static final int SOURCE_SLOT_X = 75;
-    public static final int SOURCE_SLOT_Y = 32;
+    public static final int SOURCE_SLOT_X = 79;
+    public static final int SOURCE_SLOT_Y = 26;
     private static final int PLAYER_INV_START = 1;
     private static final int PLAYER_INV_SIZE = 36;
     private static final int PLAYER_INV_X = INVENTORY_PANEL_X + 8;
