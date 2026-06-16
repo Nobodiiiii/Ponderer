@@ -425,6 +425,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         refreshSceneButtons();
         playButton.active = !resolveSceneKeysToSave().isEmpty();
         refreshScenePreview(true);
+        tryAutoSyncResolvedScenes();
 
         if (menu.sourceItem().isEmpty()) {
             status(Component.translatable("ponderer.ui.projector.insert_item"), 0x606060);
@@ -436,6 +437,32 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         status(Component.translatable("ponderer.ui.projector.scenes_detected", resolvedSceneKeys.size()), 0x2E6E2E);
+    }
+
+    /**
+     * Native Java ponder scenes are discovered on the client. When the projector slot changes,
+     * sync those resolved keys back to the server immediately so playback starts without needing
+     * a manual scene-switch click.
+     */
+    private void tryAutoSyncResolvedScenes() {
+        ProjectorBlockEntity projector = menu.projector();
+        if (projector == null || menu.sourceItem().isEmpty() || resolvedSceneKeys.isEmpty()) {
+            return;
+        }
+        if (!projector.getSceneKeys().isEmpty()) {
+            return;
+        }
+
+        List<String> sceneKeysToSave = resolveSceneKeysToSave();
+        if (sceneKeysToSave.isEmpty()) {
+            return;
+        }
+
+        sendConfigUpdate(sceneKeysToSave, projector.getTriggerMode(), projector.getProjectionOffset(),
+            projector.getIntermissionTicks(), projector.showBlueTint(), projector.getMiniatureScale(),
+            projector.getTextScale());
+        configuredSceneKeys = List.copyOf(sceneKeysToSave);
+        sceneSelectionDirty = false;
     }
 
     private boolean applyConfig(boolean showStatus) {
