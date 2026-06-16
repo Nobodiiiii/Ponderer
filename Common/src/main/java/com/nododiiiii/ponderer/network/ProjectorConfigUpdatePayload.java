@@ -13,7 +13,8 @@ import java.util.List;
 public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> sceneKeys,
                                            ProjectorTriggerMode triggerMode, @Nullable BlockPos anchorPos,
                                            int playbackDurationTicks, int intermissionTicks,
-                                           boolean showBlueTint, float miniatureScale, float textScale) {
+                                           boolean showBlueTint, boolean overlayAntiOcclusion,
+                                           float miniatureScale, float textScale) {
 
     private static final int MAX_SCENE_KEYS = 256;
     private static final int MAX_SCENE_KEY_LENGTH = 1024;
@@ -37,6 +38,7 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         buf.writeVarInt(playbackDurationTicks);
         buf.writeVarInt(intermissionTicks);
         buf.writeBoolean(showBlueTint);
+        buf.writeBoolean(overlayAntiOcclusion);
         buf.writeFloat(miniatureScale);
         buf.writeFloat(textScale);
     }
@@ -57,10 +59,12 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         int playbackDurationTicks = buf.readVarInt();
         int intermissionTicks = buf.readVarInt();
         boolean showBlueTint = buf.readBoolean();
+        boolean overlayAntiOcclusion = buf.readBoolean();
         float miniatureScale = buf.readFloat();
         float textScale = buf.readFloat();
         return new ProjectorConfigUpdatePayload(projectorPos, sceneKeys, triggerMode, anchorPos,
-            playbackDurationTicks, intermissionTicks, showBlueTint, miniatureScale, textScale);
+            playbackDurationTicks, intermissionTicks, showBlueTint, overlayAntiOcclusion,
+            miniatureScale, textScale);
     }
 
     public static void handle(ProjectorConfigUpdatePayload payload, @Nullable ServerPlayer player) {
@@ -72,7 +76,7 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         }
         projector.applyConfig(payload.sceneKeys(), payload.triggerMode(), payload.anchorPos(),
             payload.playbackDurationTicks(), payload.intermissionTicks(), payload.showBlueTint(),
-            payload.miniatureScale(), payload.textScale());
+            payload.overlayAntiOcclusion(), payload.miniatureScale(), payload.textScale());
     }
 
     private static boolean isAuthorized(ServerPlayer player, BlockPos pos) {

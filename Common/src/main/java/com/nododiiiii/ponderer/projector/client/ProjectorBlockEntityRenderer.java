@@ -1,6 +1,9 @@
 package com.nododiiiii.ponderer.projector.client;
 
 import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -117,6 +120,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final double PROJECTION_RENDER_DISTANCE = 64.0D;
     private static final double OVERLAY_RENDER_DISTANCE_SQR = OVERLAY_RENDER_DISTANCE * OVERLAY_RENDER_DISTANCE;
     private static final double PROJECTION_RENDER_DISTANCE_SQR = PROJECTION_RENDER_DISTANCE * PROJECTION_RENDER_DISTANCE;
+    private static TextureTarget preservedWorldDepthTarget;
+    private static int preservedWorldDepthWidth = -1;
+    private static int preservedWorldDepthHeight = -1;
 
     /**
      * Private, isolated buffer for the show_controls panel. Never the shared world buffer source, so
@@ -155,7 +161,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds(),
             prepared.activeScene(), partialTick);
         renderMiniatureProjectionGlow(blockEntity, layout, poseStack, partialTick);
-        renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
+        renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick,
+            !blockEntity.overlayAntiOcclusion());
 
         if (distanceSqr > OVERLAY_RENDER_DISTANCE_SQR) {
             return;
@@ -163,12 +170,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         PoseSnapshot overlayBasePose = PoseSnapshot.capture(poseStack);
         DeferredOverlayBatch deferredNativeOverlay = captureNativePonderOverlays(prepared.activeScene(), layout, partialTick,
-            overlayBasePose);
+            overlayBasePose, blockEntity.overlayAntiOcclusion());
         DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
         if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
             List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle()
                 .activeCues(prepared.segment(), prepared.localTick(), partialTick);
-            deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose);
+            deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose, blockEntity.overlayAntiOcclusion());
         }
         DeferredOverlayBatch combinedOverlays = DeferredOverlayBatch.combine(deferredNativeOverlay, deferredCueOverlay);
         if (!combinedOverlays.isEmpty()) {
@@ -177,7 +184,17 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private void renderProjectedScene(PonderScene scene, RenderLayout layout, PoseStack poseStack,
-                                      int localTick, float partialTick) {
+                                      int localTick, float partialTick, boolean preserveWorldDepth) {
+        if (preserveWorldDepth) {
+            renderWithWorldDepthPreserved(() ->
+                renderProjectedSceneInternal(scene, layout, poseStack, localTick, partialTick));
+            return;
+        }
+        renderProjectedSceneInternal(scene, layout, poseStack, localTick, partialTick);
+    }
+
+    private void renderProjectedSceneInternal(PonderScene scene, RenderLayout layout, PoseStack poseStack,
+                                              int localTick, float partialTick) {
         RenderSystem.enableBlend();
         RenderSystem.enableDepthTest();
         RenderSystem.setShaderColor(layout.redTint(), layout.greenTint(), layout.blueTint(), 1.0F);
@@ -203,6 +220,37 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         poseStack.popPose();
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    private static void renderWithWorldDepthPreserved(Runnable renderer) {
+        Minecraft minecraft = Minecraft.getInstance();
+        RenderTarget mainTarget = minecraft.getMainRenderTarget();
+        TextureTarget preservedDepth = ensurePreservedWorldDepthTarget(minecraft);
+        preservedDepth.copyDepthFrom(mainTarget);
+        try {
+            renderer.run();
+        } finally {
+            mainTarget.copyDepthFrom(preservedDepth);
+            mainTarget.bindWrite(false);
+        }
+    }
+
+    private static TextureTarget ensurePreservedWorldDepthTarget(Minecraft minecraft) {
+        Window window = minecraft.getWindow();
+        int width = window.getWidth();
+        int height = window.getHeight();
+        if (preservedWorldDepthTarget == null) {
+            preservedWorldDepthTarget = new TextureTarget(width, height, true, Minecraft.ON_OSX);
+            preservedWorldDepthWidth = width;
+            preservedWorldDepthHeight = height;
+            return preservedWorldDepthTarget;
+        }
+        if (preservedWorldDepthWidth != width || preservedWorldDepthHeight != height) {
+            preservedWorldDepthTarget.resize(width, height, Minecraft.ON_OSX);
+            preservedWorldDepthWidth = width;
+            preservedWorldDepthHeight = height;
+        }
+        return preservedWorldDepthTarget;
     }
 
     private void renderMiniatureProjectionGlow(ProjectorBlockEntity blockEntity, RenderLayout layout,
@@ -335,7 +383,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private DeferredOverlayBatch captureNativePonderOverlays(PonderScene scene, RenderLayout layout, float partialTick,
-                                                             PoseSnapshot overlayBasePose) {
+                                                             PoseSnapshot overlayBasePose,
+                                                             boolean antiOcclusion) {
         Set<PonderElement> elements = scene.getElements();
         if (elements.isEmpty()) {
             return DeferredOverlayBatch.empty();
@@ -383,11 +432,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             }
         }
 
-        return DeferredOverlayBatch.of(overlayBasePose, overlays);
+        return DeferredOverlayBatch.of(overlayBasePose, overlays, antiOcclusion);
     }
 
     private DeferredOverlayBatch captureOverlayCues(List<ProjectorSceneBundle.OverlayCue> cues, RenderLayout layout,
-                                                    PoseSnapshot overlayBasePose) {
+                                                    PoseSnapshot overlayBasePose,
+                                                    boolean antiOcclusion) {
         if (cues.isEmpty()) {
             return DeferredOverlayBatch.empty();
         }
@@ -411,7 +461,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             } catch (RuntimeException ignored) {
             }
         }
-        return DeferredOverlayBatch.of(overlayBasePose, overlays);
+        return DeferredOverlayBatch.of(overlayBasePose, overlays, antiOcclusion);
     }
 
     private DeferredOverlay captureTextOverlay(TextWindowElementAccessor accessor, float fade, int fallbackLane,
@@ -463,14 +513,20 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
+        boolean antiOcclusion = batch.antiOcclusion();
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
+        if (antiOcclusion) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+        } else {
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthMask(true);
+        }
         try {
             PoseStack poseStack = batch.poseSnapshot().createPoseStack();
             for (DeferredOverlay overlay : batch.overlays()) {
-                renderDeferredOverlay(overlay, poseStack, bufferSource);
+                renderDeferredOverlay(overlay, poseStack, bufferSource, antiOcclusion);
             }
             bufferSource.endBatch();
         } finally {
@@ -480,19 +536,19 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private void renderDeferredOverlay(DeferredOverlay overlay, PoseStack poseStack,
-                                       MultiBufferSource bufferSource) {
+                                       MultiBufferSource bufferSource, boolean antiOcclusion) {
         switch (overlay.kind()) {
             case BILLBOARD_CARD -> drawBillboardCard(overlay.lines(), overlay.localPos(), overlay.accentColor(),
-                overlay.anchor() != null, poseStack, bufferSource);
+                overlay.anchor() != null, poseStack, bufferSource, antiOcclusion);
             case TEXT_WINDOW -> drawTextWindowBillboard(overlay.text(), overlay.localPos(), overlay.palette(),
-                overlay.fade(), overlay.anchor() != null, overlay.layout(), poseStack, bufferSource);
+                overlay.fade(), overlay.anchor() != null, overlay.layout(), poseStack, bufferSource, antiOcclusion);
             case INPUT_BUBBLE -> drawInputBubbleBillboard(overlay.scenePoint(), overlay.direction(), overlay.icon(),
-                overlay.text(), overlay.item(), overlay.fade(), overlay.layout(), poseStack);
+                overlay.text(), overlay.item(), overlay.fade(), overlay.layout(), poseStack, antiOcclusion);
         }
     }
 
     private void drawBillboardCard(List<Component> lines, Vec3 localPos, int accentColor, boolean withLeader,
-                                   PoseStack poseStack, MultiBufferSource bufferSource) {
+                                   PoseStack poseStack, MultiBufferSource bufferSource, boolean antiOcclusion) {
         if (lines.isEmpty()) {
             return;
         }
@@ -513,24 +569,30 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.translate(0.0F, -(totalHeight + 2) / 2.0F, 0.0F);
 
         if (withLeader) {
-            drawLocalLeaderLine(poseStack, leader, (totalHeight + 2) / 2.0F, accentColor);
+            drawLocalLeaderLine(poseStack, leader, (totalHeight + 2) / 2.0F, accentColor, antiOcclusion);
         }
 
+        if (!antiOcclusion) {
+            poseStack.pushPose();
+            poseStack.translate(0.0F, 0.0F, PANEL_FG_Z);
+        }
         for (int i = 0; i < lines.size(); i++) {
             Component line = lines.get(i);
             float y = i * font.lineHeight;
             int color = i == 0 ? accentColor | 0xFF000000 : textColor;
-            font.drawInBatch(
-                line,
-                leader,
-                y,
-                color,
-                false,
-                poseStack.last().pose(),
-                bufferSource,
-                Font.DisplayMode.SEE_THROUGH,
-                backgroundColor,
-                LightTexture.FULL_BRIGHT);
+            if (antiOcclusion) {
+                font.drawInBatch(
+                    line,
+                    leader,
+                    y,
+                    color,
+                    false,
+                    poseStack.last().pose(),
+                    bufferSource,
+                    Font.DisplayMode.SEE_THROUGH,
+                    backgroundColor,
+                    LightTexture.FULL_BRIGHT);
+            }
             font.drawInBatch(
                 line,
                 leader,
@@ -540,8 +602,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 poseStack.last().pose(),
                 bufferSource,
                 Font.DisplayMode.NORMAL,
-                0,
+                antiOcclusion ? 0 : backgroundColor,
                 LightTexture.FULL_BRIGHT);
+        }
+        if (!antiOcclusion) {
+            poseStack.popPose();
         }
 
         poseStack.popPose();
@@ -550,7 +615,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     /** Draws the thin horizontal guide line inside the current billboard-local space, from the anchor (x=0,
      *  vertically centred on the card) rightward to the card's left edge. The line is rendered as a tiny quad in
      *  the same local coordinate system as the text box, so it inherits the same perspective scaling. */
-    private void drawLocalLeaderLine(PoseStack poseStack, float leader, float centerY, int color) {
+    private void drawLocalLeaderLine(PoseStack poseStack, float leader, float centerY, int color,
+                                     boolean antiOcclusion) {
         if (leader <= 0.0F) {
             return;
         }
@@ -566,19 +632,23 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             leader,
             centerY + halfThickness,
             withAlpha(color, 0.95F),
-            withAlpha(color, 0.75F));
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
+            withAlpha(color, 0.75F),
+            antiOcclusion);
 
         poseStack.popPose();
     }
 
     private void drawImmediateGradientRect(Matrix4f matrix, float left, float top, float right, float bottom,
-                                           int leftColor, int rightColor) {
+                                           int leftColor, int rightColor, boolean antiOcclusion) {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
+        if (antiOcclusion) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+        } else {
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthMask(false);
+        }
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
 
         Tesselator tesselator = Tesselator.getInstance();
@@ -589,6 +659,13 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         colorVertex(buffer, matrix, right, top, rightColor);
         colorVertex(buffer, matrix, left, top, leftColor);
         tesselator.end();
+        if (antiOcclusion) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+        } else {
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthMask(true);
+        }
     }
 
     private static void colorVertex(BufferBuilder buffer, Matrix4f matrix, float x, float y, int color) {
@@ -686,7 +763,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,
                                          boolean withLeader, RenderLayout layout, PoseStack poseStack,
-                                         MultiBufferSource bufferSource) {
+                                         MultiBufferSource bufferSource, boolean antiOcclusion) {
         Font font = Minecraft.getInstance().font;
         List<FormattedText> lines = font.getSplitter().splitLines(text, 180, Style.EMPTY);
         if (lines.isEmpty()) {
@@ -716,7 +793,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         if (withLeader) {
             int leaderColor = palette == null ? 0xE6FCFF : palette.getColor();
-            drawLocalLeaderLine(poseStack, leader, (boxHeight + 6.0F) / 2.0F, leaderColor);
+            drawLocalLeaderLine(poseStack, leader, (boxHeight + 6.0F) / 2.0F, leaderColor, antiOcclusion);
         }
 
         GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
@@ -728,22 +805,24 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .render(graphics);
 
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_TEXT_Z);
+        poseStack.translate(0.0F, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : PANEL_FG_Z);
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i).getString();
             float y = 3 + font.lineHeight * i;
             int color = brighter.copy().scaleAlphaForText(fade).getRGB();
-            font.drawInBatch(
-                line,
-                leader,
-                y,
-                color,
-                false,
-                poseStack.last().pose(),
-                bufferSource,
-                Font.DisplayMode.SEE_THROUGH,
-                0,
-                LightTexture.FULL_BRIGHT);
+            if (antiOcclusion) {
+                font.drawInBatch(
+                    line,
+                    leader,
+                    y,
+                    color,
+                    false,
+                    poseStack.last().pose(),
+                    bufferSource,
+                    Font.DisplayMode.SEE_THROUGH,
+                    0,
+                    LightTexture.FULL_BRIGHT);
+            }
             font.drawInBatch(
                 line,
                 leader,
@@ -762,7 +841,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private void drawInputBubbleBillboard(Vec3 scenePoint, Pointing direction, ScreenElement icon, String text,
                                           ItemStack item, float fade,
-                                          RenderLayout layout, PoseStack poseStack) {
+                                          RenderLayout layout, PoseStack poseStack, boolean antiOcclusion) {
         Font font = Minecraft.getInstance().font;
 
         boolean hasIcon = icon != null;
@@ -807,27 +886,33 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         // Layer 1 — background speech box + divot. renderSpeechBoxLocal leaves the pose translated to
         // the box's top-left corner, so the content below is positioned relative to it (native layout).
-        renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction);
-        flushPanelBufferNoDepth();
+        renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction,
+            antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : PANEL_FG_Z);
+        flushPanelBuffer(antiOcclusion);
 
         // Layer 2 — the item as a real 3D model, drawn after (on top of) the box.
         if (hasItem) {
-            drawPanelItem(poseStack, item, keyWidth + (hasIcon ? 24 : 0));
+            drawPanelItem(poseStack, item, keyWidth + (hasIcon ? 24 : 0), antiOcclusion);
         }
 
         // Layer 3 — key text + icon. They sit beside the item (never overlapping it), so a tiny lift
         // above the box is enough to keep them on top without floating away from the panel.
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_TEXT_Z);
+        poseStack.translate(0.0F, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : PANEL_FG_Z);
         if (hasText) {
             int color = PonderPalette.WHITE.getColorObject().copy().scaleAlpha(fade).getRGB();
             font.drawInBatch(text, 2.0F, (height - font.lineHeight) / 2.0F + 2.0F, color, false,
-                poseStack.last().pose(), panelNoDepthBuffer, Font.DisplayMode.NORMAL, 0,
+                poseStack.last().pose(), antiOcclusion ? panelNoDepthBuffer : panelBuffer, Font.DisplayMode.NORMAL, 0,
                 LightTexture.FULL_BRIGHT);
         }
         if (hasIcon) {
-            RenderSystem.disableDepthTest();
-            RenderSystem.depthMask(false);
+            if (antiOcclusion) {
+                RenderSystem.disableDepthTest();
+                RenderSystem.depthMask(false);
+            } else {
+                RenderSystem.enableDepthTest();
+                RenderSystem.depthMask(true);
+            }
             poseStack.pushPose();
             poseStack.translate(keyWidth, 0.0F, 0.0F);
             // Squash the icon completely flat onto the box plane (z-scale = 0). The icon may be a JEI ingredient
@@ -844,7 +929,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             icon.render(graphics, 0, 0);
             poseStack.popPose();
         }
-        flushPanelBufferNoDepth();
+        flushPanelBuffer(antiOcclusion);
         poseStack.popPose();
 
         poseStack.popPose();
@@ -865,7 +950,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      * enabled during the item render to preserve correct layer ordering, then cleared afterward to keep
      * the overall item on top of the background box.
      */
-    private void drawPanelItem(PoseStack poseStack, ItemStack item, int x) {
+    private void drawPanelItem(PoseStack poseStack, ItemStack item, int x, boolean antiOcclusion) {
         Minecraft minecraft = Minecraft.getInstance();
         ItemRenderer itemRenderer = minecraft.getItemRenderer();
         BakedModel model = itemRenderer.getModel(item, null, null, 0);
@@ -897,7 +982,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.pushPose();
         // Lift the item just off the box plane (the same tiny offset the TextWindow text uses) so a flat,
         // depthless item — a stick, an apple — does not z-fight the box background sitting behind it.
-        poseStack.translate(x, 0.0F, LOCAL_OVERLAY_TEXT_Z);
+        poseStack.translate(x, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : PANEL_FG_Z);
         // Squash the item's depth toward the camera so it sits on the box's plane (no parallax) yet keeps
         // its inventory-style 3D silhouette. Applied first so it compresses the whole model along view-z.
         // A 0 z-scale makes the normal matrix singular and the item renders dark, so repair normals after
@@ -924,14 +1009,21 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderSystem.enableDepthTest();
         RenderSystem.depthMask(true);
         RenderSystem.depthFunc(515); // GL_LEQUAL - normal depth test
-        GL11.glDepthRange(0.0D, PANEL_ITEM_DEPTH_FRONT);
+        if (antiOcclusion) {
+            GL11.glDepthRange(0.0D, PANEL_ITEM_DEPTH_FRONT);
+        }
         itemRenderer.render(item, ItemDisplayContext.GUI, false, poseStack, panelBuffer,
             LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, model);
         panelBuffer.endBatch();
         GL11.glDepthRange(0.0D, 1.0D); // restore default depth range
-        // Restore no-depth state for subsequent layers (text, icon)
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
+        if (antiOcclusion) {
+            // Restore no-depth state for subsequent layers (text, icon)
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+        } else {
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthMask(true);
+        }
 
         poseStack.popPose();
 
@@ -965,16 +1057,26 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         };
     }
 
-    private void flushPanelBufferNoDepth() {
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
+    private void flushPanelBuffer(boolean antiOcclusion) {
+        if (antiOcclusion) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+        } else {
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthMask(true);
+        }
         panelBuffer.endBatch();
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
+        if (antiOcclusion) {
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+        } else {
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthMask(true);
+        }
     }
 
     private static void renderSpeechBoxLocal(GuiGraphics graphics, int x, int y, int w, int h, boolean highlighted,
-                                             Pointing pointing) {
+                                             Pointing pointing, float divotZ) {
         PoseStack poseStack = graphics.pose();
 
         int boxX = x;
@@ -1037,7 +1139,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             .render(graphics);
 
         poseStack.pushPose();
-        poseStack.translate(divotX + divotRadius, divotY + divotRadius, LOCAL_OVERLAY_TEXT_Z);
+        poseStack.translate(divotX + divotRadius, divotY + divotRadius, divotZ);
         poseStack.mulPose(Axis.ZP.rotationDegrees(divotRotation));
         poseStack.translate(-divotRadius, -divotRadius, 0);
         net.createmod.ponder.enums.PonderGuiTextures.SPEECH_TOOLTIP_BACKGROUND.render(graphics, 0, 0);
@@ -1175,16 +1277,17 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
     }
 
-    record DeferredOverlayBatch(PoseSnapshot poseSnapshot, List<DeferredOverlay> overlays) {
+    record DeferredOverlayBatch(PoseSnapshot poseSnapshot, List<DeferredOverlay> overlays, boolean antiOcclusion) {
         static DeferredOverlayBatch empty() {
-            return new DeferredOverlayBatch(PoseSnapshot.identity(), List.of());
+            return new DeferredOverlayBatch(PoseSnapshot.identity(), List.of(), true);
         }
 
-        static DeferredOverlayBatch of(PoseSnapshot poseSnapshot, List<DeferredOverlay> overlays) {
+        static DeferredOverlayBatch of(PoseSnapshot poseSnapshot, List<DeferredOverlay> overlays,
+                                       boolean antiOcclusion) {
             if (overlays == null || overlays.isEmpty()) {
                 return empty();
             }
-            return new DeferredOverlayBatch(poseSnapshot, List.copyOf(overlays));
+            return new DeferredOverlayBatch(poseSnapshot, List.copyOf(overlays), antiOcclusion);
         }
 
         static DeferredOverlayBatch combine(DeferredOverlayBatch first, DeferredOverlayBatch second) {
@@ -1203,7 +1306,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             List<DeferredOverlay> combined = new ArrayList<>(first.overlays().size() + second.overlays().size());
             combined.addAll(first.overlays());
             combined.addAll(second.overlays());
-            return new DeferredOverlayBatch(first.poseSnapshot(), List.copyOf(combined));
+            return new DeferredOverlayBatch(first.poseSnapshot(), List.copyOf(combined), first.antiOcclusion());
         }
 
         boolean isEmpty() {

@@ -1195,6 +1195,8 @@
   "ponderer.ui.projector.scale.tooltip": "微缩投影的显示大小（0.1-5.0）",
   "ponderer.ui.projector.text_scale": "文本缩放",
   "ponderer.ui.projector.text_scale.tooltip": "单个投影仪的文本缩放倍率，会叠乘到全局投影文本缩放之上。",
+  "ponderer.ui.projector.text_anti_occlusion": "文本防遮",
+  "ponderer.ui.projector.text_anti_occlusion.tooltip": "开启后投影文字、物品与背景框始终显示在最上层；关闭后它们会被真实世界中的方块和实体遮挡，但不会被投影内的虚拟方块遮挡。",
   "ponderer.ui.projector.intermission": "幕间间隔(t)",
   "ponderer.ui.projector.intermission.tooltip": "在切换场景、切换 section 或循环前，继续播放当前思索并停留的刻数。",
   "ponderer.ui.projector.overlay_ui_scale": "叠加层 UI 缩放",
