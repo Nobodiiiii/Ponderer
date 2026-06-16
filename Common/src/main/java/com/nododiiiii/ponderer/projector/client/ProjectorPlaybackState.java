@@ -71,15 +71,19 @@ final class ProjectorPlaybackState {
             preparedBundle.segments().size(),
             blockEntity.getIntermissionTicks(),
             blockEntity.isPlaybackLooping());
-        int playbackTick;
-        if (blockEntity.isPlaybackLooping()) {
-            playbackTick = totalDuration <= 0 ? 0 : (int) (elapsed % totalDuration);
-        } else {
-            playbackTick = (int) Math.min(elapsed, Math.max(0, totalDuration - 1));
+        boolean persistAfterEnd = blockEntity.shouldPersistAfterPlaybackEnd();
+        int playbackTick = ProjectorSceneTimeline.resolvePlaybackTick(
+            elapsed,
+            totalDuration,
+            blockEntity.isPlaybackLooping(),
+            persistAfterEnd,
+            ProjectorBlockEntity.FINAL_EXTRA_TICKS);
+        if (playbackTick == ProjectorSceneTimeline.NO_PLAYBACK_TICK) {
+            return null;
         }
 
         PlaybackCursor cursor = cursorAt(preparedBundle, playbackTick,
-            blockEntity.getIntermissionTicks(), blockEntity.isPlaybackLooping());
+            blockEntity.getIntermissionTicks(), blockEntity.isPlaybackLooping(), persistAfterEnd);
         if (cursor == null) {
             return null;
         }
@@ -93,10 +97,10 @@ final class ProjectorPlaybackState {
             || localTick < activeLocalTick) {
             ProjectorRenderContext.run(activeScene::begin);
             activeSegmentStartTick = segment.startTick();
-            activeLocalTick = 0;
+            activeLocalTick = -1;
         }
 
-        if (localTick > activeLocalTick) {
+        if (localTick != activeLocalTick) {
             advanceScene(activeScene, localTick, segment.durationTicks());
         }
 
@@ -106,7 +110,7 @@ final class ProjectorPlaybackState {
 
     @Nullable
     private static PlaybackCursor cursorAt(ProjectorSceneBundle bundle, int playbackTick, int intermissionTicks,
-                                           boolean includeFinalIntermission) {
+                                           boolean includeFinalIntermission, boolean extendPastPlaybackEnd) {
         List<ProjectorSceneBundle.Segment> segments = bundle.segments();
         if (segments.isEmpty()) {
             return null;
@@ -127,17 +131,32 @@ final class ProjectorPlaybackState {
             if (playbackTick < holdEnd) {
                 return new PlaybackCursor(segment, duration + Math.max(0, playbackTick - activeEnd));
             }
+            if (extendPastPlaybackEnd && !hasFollowingSegment) {
+                return new PlaybackCursor(segment, duration + Math.max(0, playbackTick - activeEnd));
+            }
             timeline = holdEnd;
         }
 
         ProjectorSceneBundle.Segment last = segments.get(segments.size() - 1);
-        return new PlaybackCursor(last, Math.max(0, last.durationTicks() - 1));
+        int lastDuration = Math.max(1, last.durationTicks());
+        return new PlaybackCursor(last, extendPastPlaybackEnd ? lastDuration + Math.max(0, playbackTick - timeline)
+            : Math.max(0, lastDuration - 1));
     }
 
     private void advanceScene(PonderScene activeScene, int targetLocalTick, int segmentDuration) {
         int previousLocalTick = activeLocalTick;
+        int activeDuration = Math.max(0, segmentDuration);
         ProjectorRenderContext.run(() -> {
-            int activeDuration = Math.max(0, segmentDuration);
+            // Ponder scenes only become visibly populated after their first tick.
+            // Prime a freshly-begun segment so the projector's opening frame is not blank.
+            if (previousLocalTick < 0 && targetLocalTick == 0) {
+                int initialTick = Math.min(1, activeDuration);
+                if (initialTick > 0) {
+                    activeScene.seekToTime(initialTick);
+                    return;
+                }
+            }
+
             if (previousLocalTick < activeDuration) {
                 activeScene.seekToTime(Math.min(targetLocalTick, activeDuration));
             }

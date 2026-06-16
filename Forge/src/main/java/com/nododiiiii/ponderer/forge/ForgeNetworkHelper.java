@@ -15,7 +15,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public class ForgeNetworkHelper implements NetworkHelper {
 
-    private static final String VERSION = "3";
+    private static final String VERSION = "4";
     private static SimpleChannel CHANNEL;
     private static int id = 0;
 
@@ -127,6 +127,16 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .consumerMainThread((msg, ctx) -> {
                     ServerPlayer player = ctx.get().getSender();
                     ProjectorManualTriggerPayload.handle(msg, player);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(ProjectorSeekPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ProjectorSeekPayload::encode)
+                .decoder(ProjectorSeekPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ServerPlayer player = ctx.get().getSender();
+                    ProjectorSeekPayload.handle(msg, player);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();

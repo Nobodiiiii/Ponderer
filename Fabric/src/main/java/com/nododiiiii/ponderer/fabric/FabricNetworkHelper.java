@@ -27,6 +27,7 @@ public class FabricNetworkHelper implements NetworkHelper {
     private static final ResourceLocation BLUEPRINT_CONFIG_UPDATE = new ResourceLocation(Ponderer.MODID, "blueprint_config_update");
     private static final ResourceLocation PROJECTOR_CONFIG_UPDATE = new ResourceLocation(Ponderer.MODID, "projector_config_update");
     private static final ResourceLocation PROJECTOR_MANUAL_TRIGGER = new ResourceLocation(Ponderer.MODID, "projector_manual_trigger");
+    private static final ResourceLocation PROJECTOR_SEEK = new ResourceLocation(Ponderer.MODID, "projector_seek");
     private static final ResourceLocation PROJECTOR_FEATURE_CONFIG_REQUEST = new ResourceLocation(Ponderer.MODID, "projector_feature_config_request");
     private static final ResourceLocation PROJECTOR_FEATURE_CONFIG_UPDATE = new ResourceLocation(Ponderer.MODID, "projector_feature_config_update");
     private static final ResourceLocation REMOTE_CATALOG_REQUEST = new ResourceLocation(Ponderer.MODID, "remote_catalog_request");
@@ -97,6 +98,11 @@ public class FabricNetworkHelper implements NetworkHelper {
         ServerPlayNetworking.registerGlobalReceiver(PROJECTOR_MANUAL_TRIGGER, (server, player, handler, buf, responseSender) -> {
             ProjectorManualTriggerPayload msg = ProjectorManualTriggerPayload.decode(buf);
             server.execute(() -> ProjectorManualTriggerPayload.handle(msg, player));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PROJECTOR_SEEK, (server, player, handler, buf, responseSender) -> {
+            ProjectorSeekPayload msg = ProjectorSeekPayload.decode(buf);
+            server.execute(() -> ProjectorSeekPayload.handle(msg, player));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(PROJECTOR_FEATURE_CONFIG_REQUEST, (server, player, handler, buf, responseSender) -> {
@@ -231,6 +237,7 @@ public class FabricNetworkHelper implements NetworkHelper {
         if (packet instanceof BlueprintConfigUpdatePayload) return BLUEPRINT_CONFIG_UPDATE;
         if (packet instanceof ProjectorConfigUpdatePayload) return PROJECTOR_CONFIG_UPDATE;
         if (packet instanceof ProjectorManualTriggerPayload) return PROJECTOR_MANUAL_TRIGGER;
+        if (packet instanceof ProjectorSeekPayload) return PROJECTOR_SEEK;
         if (packet instanceof ProjectorFeatureConfigRequestPayload) return PROJECTOR_FEATURE_CONFIG_REQUEST;
         if (packet instanceof ProjectorFeatureConfigUpdatePayload) return PROJECTOR_FEATURE_CONFIG_UPDATE;
         if (packet instanceof RemoteCatalogRequestPayload) return REMOTE_CATALOG_REQUEST;
@@ -264,6 +271,7 @@ public class FabricNetworkHelper implements NetworkHelper {
         else if (packet instanceof BlueprintConfigUpdatePayload p) p.encode(buf);
         else if (packet instanceof ProjectorConfigUpdatePayload p) p.encode(buf);
         else if (packet instanceof ProjectorManualTriggerPayload p) p.encode(buf);
+        else if (packet instanceof ProjectorSeekPayload p) p.encode(buf);
         else if (packet instanceof ProjectorFeatureConfigRequestPayload p) p.encode(buf);
         else if (packet instanceof ProjectorFeatureConfigUpdatePayload p) p.encode(buf);
         else if (packet instanceof RemoteCatalogRequestPayload p) p.encode(buf);
