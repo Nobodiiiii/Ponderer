@@ -459,7 +459,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         sendConfigUpdate(sceneKeysToSave, projector.getTriggerMode(), projector.getProjectionOffset(),
-            projector.getIntermissionTicks(), projector.showBlueTint(), projector.getMiniatureScale(),
+            projector.getIntermissionTicks(), projector.showBlueTint(), projector.overlayAntiOcclusion(),
+            projector.getMiniatureScale(),
             projector.getTextScale());
         configuredSceneKeys = List.copyOf(sceneKeysToSave);
         sceneSelectionDirty = false;
