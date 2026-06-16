@@ -12,6 +12,7 @@ public final class ProjectorWorldOverlayQueue {
 
     public static void beginFrame() {
         QUEUED.clear();
+        ProjectorBlockEntityRenderer.beginFrame();
     }
 
     static void enqueue(ProjectorBlockEntityRenderer renderer,

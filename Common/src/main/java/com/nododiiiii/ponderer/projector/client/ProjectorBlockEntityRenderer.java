@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.projector.client;
 
 import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -63,6 +63,7 @@ import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 
 import java.util.IdentityHashMap;
 import java.util.ArrayList;
@@ -84,9 +85,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      *  叠加层前景内容的微小 z 提升（朝向相机），避免与背景框发生 z-fighting：TextWindow 正文、气泡框尖角和
      *  show_controls 面板物品都使用此值。*/
     private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
-    /** Larger lift for the input panel's key text + icon, which sit beside (not on top of) the item.
-     *  输入面板按键文本和图标的较大提升值，它们位于物品旁边（而非其上方）。*/
-    private static final float PANEL_FG_Z = 2.0F;
     /** Negative z offset (away from camera) for leader lines so they render behind text boxes but still
      *  use no-depth rendering to avoid block occlusion.
      *  引导线的负 z 偏移（远离相机），使其渲染在文本框下方，但仍使用无深度测试以避免被方块遮挡。*/
@@ -123,6 +121,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static TextureTarget preservedWorldDepthTarget;
     private static int preservedWorldDepthWidth = -1;
     private static int preservedWorldDepthHeight = -1;
+    private static boolean preservedWorldDepthCapturedThisFrame;
 
     /**
      * Private, isolated buffer for the show_controls panel. Never the shared world buffer source, so
@@ -138,6 +137,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     public ProjectorBlockEntityRenderer(BlockEntityRendererProvider.Context context) {
+    }
+
+    static void beginFrame() {
+        preservedWorldDepthCapturedThisFrame = false;
     }
 
     @Override
@@ -160,9 +163,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds(),
             prepared.activeScene(), partialTick);
+        boolean antiOcclusion = blockEntity.overlayAntiOcclusion();
+        captureWorldDepthIfNeeded();
         renderMiniatureProjectionGlow(blockEntity, layout, poseStack, partialTick);
-        renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick,
-            !blockEntity.overlayAntiOcclusion());
+        renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
 
         if (distanceSqr > OVERLAY_RENDER_DISTANCE_SQR) {
             return;
@@ -170,12 +174,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         PoseSnapshot overlayBasePose = PoseSnapshot.capture(poseStack);
         DeferredOverlayBatch deferredNativeOverlay = captureNativePonderOverlays(prepared.activeScene(), layout, partialTick,
-            overlayBasePose, blockEntity.overlayAntiOcclusion());
+            overlayBasePose, antiOcclusion);
         DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
         if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
             List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle()
                 .activeCues(prepared.segment(), prepared.localTick(), partialTick);
-            deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose, blockEntity.overlayAntiOcclusion());
+            deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose, antiOcclusion);
         }
         DeferredOverlayBatch combinedOverlays = DeferredOverlayBatch.combine(deferredNativeOverlay, deferredCueOverlay);
         if (!combinedOverlays.isEmpty()) {
@@ -184,17 +188,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private void renderProjectedScene(PonderScene scene, RenderLayout layout, PoseStack poseStack,
-                                      int localTick, float partialTick, boolean preserveWorldDepth) {
-        if (preserveWorldDepth) {
-            renderWithWorldDepthPreserved(() ->
-                renderProjectedSceneInternal(scene, layout, poseStack, localTick, partialTick));
-            return;
-        }
-        renderProjectedSceneInternal(scene, layout, poseStack, localTick, partialTick);
-    }
-
-    private void renderProjectedSceneInternal(PonderScene scene, RenderLayout layout, PoseStack poseStack,
-                                              int localTick, float partialTick) {
+                                      int localTick, float partialTick) {
         RenderSystem.enableBlend();
         RenderSystem.enableDepthTest();
         RenderSystem.setShaderColor(layout.redTint(), layout.greenTint(), layout.blueTint(), 1.0F);
@@ -222,17 +216,41 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
-    private static void renderWithWorldDepthPreserved(Runnable renderer) {
-        Minecraft minecraft = Minecraft.getInstance();
-        RenderTarget mainTarget = minecraft.getMainRenderTarget();
-        TextureTarget preservedDepth = ensurePreservedWorldDepthTarget(minecraft);
-        preservedDepth.copyDepthFrom(mainTarget);
-        try {
-            renderer.run();
-        } finally {
-            mainTarget.copyDepthFrom(preservedDepth);
-            mainTarget.bindWrite(false);
+    private static void captureWorldDepthIfNeeded() {
+        if (preservedWorldDepthCapturedThisFrame) {
+            return;
         }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        TextureTarget preservedDepth = ensurePreservedWorldDepthTarget(minecraft);
+        int currentFramebuffer = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        copyDepth(currentFramebuffer, preservedDepth.frameBufferId,
+            preservedDepth.width, preservedDepth.height);
+        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, currentFramebuffer);
+        preservedWorldDepthCapturedThisFrame = true;
+    }
+
+    private static void restorePreservedWorldDepth() {
+        if (!preservedWorldDepthCapturedThisFrame) {
+            return;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        TextureTarget preservedDepth = ensurePreservedWorldDepthTarget(minecraft);
+        int currentFramebuffer = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        copyDepth(preservedDepth.frameBufferId, currentFramebuffer,
+            preservedDepth.width, preservedDepth.height);
+        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, currentFramebuffer);
+    }
+
+    private static void copyDepth(int srcFramebuffer, int dstFramebuffer, int width, int height) {
+        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, srcFramebuffer);
+        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, dstFramebuffer);
+        GlStateManager._glBlitFrameBuffer(
+            0, 0, width, height,
+            0, 0, width, height,
+            GL11.GL_DEPTH_BUFFER_BIT,
+            GL11.GL_NEAREST);
     }
 
     private static TextureTarget ensurePreservedWorldDepthTarget(Minecraft minecraft) {
@@ -521,14 +539,26 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             RenderSystem.depthMask(false);
         } else {
             RenderSystem.enableDepthTest();
-            RenderSystem.depthMask(true);
+            RenderSystem.depthMask(false);
         }
         try {
             PoseStack poseStack = batch.poseSnapshot().createPoseStack();
             for (DeferredOverlay overlay : batch.overlays()) {
+                if (!antiOcclusion) {
+                    restorePreservedWorldDepth();
+                    RenderSystem.enableDepthTest();
+                    RenderSystem.depthMask(false);
+                }
                 renderDeferredOverlay(overlay, poseStack, bufferSource, antiOcclusion);
+                if (!antiOcclusion) {
+                    RenderSystem.enableDepthTest();
+                    RenderSystem.depthMask(false);
+                    bufferSource.endBatch();
+                }
             }
-            bufferSource.endBatch();
+            if (antiOcclusion) {
+                bufferSource.endBatch();
+            }
         } finally {
             RenderSystem.depthMask(true);
             RenderSystem.enableDepthTest();
@@ -536,24 +566,26 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private void renderDeferredOverlay(DeferredOverlay overlay, PoseStack poseStack,
-                                       MultiBufferSource bufferSource, boolean antiOcclusion) {
+                                       MultiBufferSource.BufferSource bufferSource, boolean antiOcclusion) {
         switch (overlay.kind()) {
             case BILLBOARD_CARD -> drawBillboardCard(overlay.lines(), overlay.localPos(), overlay.accentColor(),
                 overlay.anchor() != null, poseStack, bufferSource, antiOcclusion);
             case TEXT_WINDOW -> drawTextWindowBillboard(overlay.text(), overlay.localPos(), overlay.palette(),
                 overlay.fade(), overlay.anchor() != null, overlay.layout(), poseStack, bufferSource, antiOcclusion);
             case INPUT_BUBBLE -> drawInputBubbleBillboard(overlay.scenePoint(), overlay.direction(), overlay.icon(),
-                overlay.text(), overlay.item(), overlay.fade(), overlay.layout(), poseStack, antiOcclusion);
+                overlay.text(), overlay.item(), overlay.fade(), overlay.layout(), poseStack, bufferSource,
+                antiOcclusion);
         }
     }
 
     private void drawBillboardCard(List<Component> lines, Vec3 localPos, int accentColor, boolean withLeader,
-                                   PoseStack poseStack, MultiBufferSource bufferSource, boolean antiOcclusion) {
+                                   PoseStack poseStack, MultiBufferSource.BufferSource bufferSource, boolean antiOcclusion) {
         if (lines.isEmpty()) {
             return;
         }
 
         Font font = Minecraft.getInstance().font;
+        MultiBufferSource fontBuffer = antiOcclusion ? panelNoDepthBuffer : bufferSource;
         float textScale = 0.018F * OVERLAY_UI_SCALE;
 
         int totalHeight = lines.size() * font.lineHeight;
@@ -572,10 +604,6 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             drawLocalLeaderLine(poseStack, leader, (totalHeight + 2) / 2.0F, accentColor, antiOcclusion);
         }
 
-        if (!antiOcclusion) {
-            poseStack.pushPose();
-            poseStack.translate(0.0F, 0.0F, PANEL_FG_Z);
-        }
         for (int i = 0; i < lines.size(); i++) {
             Component line = lines.get(i);
             float y = i * font.lineHeight;
@@ -588,7 +616,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     color,
                     false,
                     poseStack.last().pose(),
-                    bufferSource,
+                    fontBuffer,
                     Font.DisplayMode.SEE_THROUGH,
                     backgroundColor,
                     LightTexture.FULL_BRIGHT);
@@ -600,14 +628,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 color,
                 false,
                 poseStack.last().pose(),
-                bufferSource,
+                fontBuffer,
                 Font.DisplayMode.NORMAL,
                 antiOcclusion ? 0 : backgroundColor,
                 LightTexture.FULL_BRIGHT);
         }
-        if (!antiOcclusion) {
-            poseStack.popPose();
-        }
+        flushPanelBuffer(antiOcclusion);
 
         poseStack.popPose();
     }
@@ -763,8 +789,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,
                                          boolean withLeader, RenderLayout layout, PoseStack poseStack,
-                                         MultiBufferSource bufferSource, boolean antiOcclusion) {
+                                         MultiBufferSource.BufferSource bufferSource, boolean antiOcclusion) {
         Font font = Minecraft.getInstance().font;
+        MultiBufferSource fontBuffer = antiOcclusion ? panelNoDepthBuffer : bufferSource;
         List<FormattedText> lines = font.getSplitter().splitLines(text, 180, Style.EMPTY);
         if (lines.isEmpty()) {
             lines = List.of(FormattedText.of(text));
@@ -793,19 +820,20 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         if (withLeader) {
             int leaderColor = palette == null ? 0xE6FCFF : palette.getColor();
-            drawLocalLeaderLine(poseStack, leader, (boxHeight + 6.0F) / 2.0F, leaderColor, antiOcclusion);
+            drawLocalLeaderLine(poseStack, leader * fade, (boxHeight + 6.0F) / 2.0F, leaderColor, antiOcclusion);
         }
 
-        GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack);
+        GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack, panelBuffer);
         new BoxElement()
             .withBackground(PonderUI.BACKGROUND_FLAT)
             .gradientBorder(TextWindowElement.COLOR_WINDOW_BORDER)
             .at(leader, 3, 0)
             .withBounds(boxWidth, Math.max(1, boxHeight - 1))
             .render(graphics);
+        flushPanelBuffer(antiOcclusion);
 
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : PANEL_FG_Z);
+        poseStack.translate(0.0F, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : 0.0F);
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i).getString();
             float y = 3 + font.lineHeight * i;
@@ -818,7 +846,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                     color,
                     false,
                     poseStack.last().pose(),
-                    bufferSource,
+                    fontBuffer,
                     Font.DisplayMode.SEE_THROUGH,
                     0,
                     LightTexture.FULL_BRIGHT);
@@ -830,18 +858,20 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 color,
                 false,
                 poseStack.last().pose(),
-                bufferSource,
+                fontBuffer,
                 Font.DisplayMode.NORMAL,
                 0,
                 LightTexture.FULL_BRIGHT);
         }
+        flushPanelBuffer(antiOcclusion);
         poseStack.popPose();
         poseStack.popPose();
     }
 
     private void drawInputBubbleBillboard(Vec3 scenePoint, Pointing direction, ScreenElement icon, String text,
                                           ItemStack item, float fade,
-                                          RenderLayout layout, PoseStack poseStack, boolean antiOcclusion) {
+                                          RenderLayout layout, PoseStack poseStack,
+                                          MultiBufferSource.BufferSource bufferSource, boolean antiOcclusion) {
         Font font = Minecraft.getInstance().font;
 
         boolean hasIcon = icon != null;
@@ -887,7 +917,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         // Layer 1 — background speech box + divot. renderSpeechBoxLocal leaves the pose translated to
         // the box's top-left corner, so the content below is positioned relative to it (native layout).
         renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction,
-            antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : PANEL_FG_Z);
+            LOCAL_OVERLAY_TEXT_Z);
         flushPanelBuffer(antiOcclusion);
 
         // Layer 2 — the item as a real 3D model, drawn after (on top of) the box.
@@ -898,11 +928,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         // Layer 3 — key text + icon. They sit beside the item (never overlapping it), so a tiny lift
         // above the box is enough to keep them on top without floating away from the panel.
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : PANEL_FG_Z);
+        poseStack.translate(0.0F, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : 0.0F);
         if (hasText) {
             int color = PonderPalette.WHITE.getColorObject().copy().scaleAlpha(fade).getRGB();
             font.drawInBatch(text, 2.0F, (height - font.lineHeight) / 2.0F + 2.0F, color, false,
-                poseStack.last().pose(), antiOcclusion ? panelNoDepthBuffer : panelBuffer, Font.DisplayMode.NORMAL, 0,
+                poseStack.last().pose(), antiOcclusion ? panelNoDepthBuffer : bufferSource,
+                Font.DisplayMode.NORMAL, 0,
                 LightTexture.FULL_BRIGHT);
         }
         if (hasIcon) {
@@ -982,7 +1013,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.pushPose();
         // Lift the item just off the box plane (the same tiny offset the TextWindow text uses) so a flat,
         // depthless item — a stick, an apple — does not z-fight the box background sitting behind it.
-        poseStack.translate(x, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : PANEL_FG_Z);
+        poseStack.translate(x, 0.0F, LOCAL_OVERLAY_TEXT_Z);
         // Squash the item's depth toward the camera so it sits on the box's plane (no parallax) yet keeps
         // its inventory-style 3D silhouette. Applied first so it compresses the whole model along view-z.
         // A 0 z-scale makes the normal matrix singular and the item renders dark, so repair normals after
@@ -1022,7 +1053,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             RenderSystem.depthMask(false);
         } else {
             RenderSystem.enableDepthTest();
-            RenderSystem.depthMask(true);
+            RenderSystem.depthMask(false);
         }
 
         poseStack.popPose();
@@ -1063,7 +1094,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             RenderSystem.depthMask(false);
         } else {
             RenderSystem.enableDepthTest();
-            RenderSystem.depthMask(true);
+            RenderSystem.depthMask(false);
         }
         panelBuffer.endBatch();
         if (antiOcclusion) {
@@ -1071,7 +1102,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             RenderSystem.depthMask(false);
         } else {
             RenderSystem.enableDepthTest();
-            RenderSystem.depthMask(true);
+            RenderSystem.depthMask(false);
         }
     }
 
