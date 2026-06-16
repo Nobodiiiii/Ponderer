@@ -80,15 +80,14 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float MINIATURE_BEAM_OUTER_HEIGHT = 0.05F;
     private static final float MINIATURE_BEAM_BASE_RADIUS = 0.06F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
-    /** Tiny z lift (toward camera) shared by flat overlay foreground content so it never z-fights the box it
-     *  sits on: the TextWindow body text, the speech-box divot, and the show_controls panel item all use it.
-     *  叠加层前景内容的微小 z 提升（朝向相机），避免与背景框发生 z-fighting：TextWindow 正文、气泡框尖角和
-     *  show_controls 面板物品都使用此值。*/
-    private static final float LOCAL_OVERLAY_TEXT_Z = 0.02F;
-    /** Negative z offset (away from camera) for leader lines so they render behind text boxes but still
-     *  use no-depth rendering to avoid block occlusion.
-     *  引导线的负 z 偏移（远离相机），使其渲染在文本框下方，但仍使用无深度测试以避免被方块遮挡。*/
-    private static final float LEADER_LINE_Z_OFFSET = -0.01F;
+    /** Local billboard z step in font-pixel units. The pose is scaled to world space later, so half a
+     *  local pixel is enough to break depth ties without making the projected UI visibly float. */
+    private static final float LOCAL_OVERLAY_Z_STEP = 0.5F;
+    /** Depth-tested overlays still need an internal layer stack. Native Ponder's TextWindow puts the
+     *  box, guide line, and text on distinct GUI z levels; mirror that ordering in billboard-local space. */
+    private static final float LOCAL_OVERLAY_BACKGROUND_Z = LOCAL_OVERLAY_Z_STEP;
+    private static final float LOCAL_OVERLAY_LEADER_Z = LOCAL_OVERLAY_Z_STEP * 2.0F;
+    private static final float LOCAL_OVERLAY_FOREGROUND_Z = LOCAL_OVERLAY_Z_STEP * 3.0F;
     /** Global scale multiplier for all projected overlay UI (text windows, panels, cards).
      *  Base scale is 1.0; default 2.0 doubles the size of text, boxes, and line width.
      *  所有投影叠加层 UI（文本窗口、面板、卡片）的全局缩放倍数。
@@ -604,6 +603,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             drawLocalLeaderLine(poseStack, leader, (totalHeight + 2) / 2.0F, accentColor, antiOcclusion);
         }
 
+        poseStack.pushPose();
+        poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_FOREGROUND_Z);
         for (int i = 0; i < lines.size(); i++) {
             Component line = lines.get(i);
             float y = i * font.lineHeight;
@@ -633,6 +634,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 antiOcclusion ? 0 : backgroundColor,
                 LightTexture.FULL_BRIGHT);
         }
+        poseStack.popPose();
         flushPanelBuffer(antiOcclusion);
 
         poseStack.popPose();
@@ -648,7 +650,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
 
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, LEADER_LINE_Z_OFFSET);
+        poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_LEADER_Z);
 
         float halfThickness = OVERLAY_LEADER_THICKNESS * 0.5F;
         drawImmediateGradientRect(
@@ -690,7 +692,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             RenderSystem.depthMask(false);
         } else {
             RenderSystem.enableDepthTest();
-            RenderSystem.depthMask(true);
+            RenderSystem.depthMask(false);
         }
     }
 
@@ -827,13 +829,13 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         new BoxElement()
             .withBackground(PonderUI.BACKGROUND_FLAT)
             .gradientBorder(TextWindowElement.COLOR_WINDOW_BORDER)
-            .at(leader, 3, 0)
+            .at(leader, 3, LOCAL_OVERLAY_BACKGROUND_Z)
             .withBounds(boxWidth, Math.max(1, boxHeight - 1))
             .render(graphics);
         flushPanelBuffer(antiOcclusion);
 
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : 0.0F);
+        poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_FOREGROUND_Z);
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i).getString();
             float y = 3 + font.lineHeight * i;
@@ -917,7 +919,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         // Layer 1 — background speech box + divot. renderSpeechBoxLocal leaves the pose translated to
         // the box's top-left corner, so the content below is positioned relative to it (native layout).
         renderSpeechBoxLocal(graphics, 0, 0, width, height, false, direction,
-            LOCAL_OVERLAY_TEXT_Z);
+            LOCAL_OVERLAY_BACKGROUND_Z,
+            LOCAL_OVERLAY_FOREGROUND_Z);
         flushPanelBuffer(antiOcclusion);
 
         // Layer 2 — the item as a real 3D model, drawn after (on top of) the box.
@@ -928,7 +931,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         // Layer 3 — key text + icon. They sit beside the item (never overlapping it), so a tiny lift
         // above the box is enough to keep them on top without floating away from the panel.
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, antiOcclusion ? LOCAL_OVERLAY_TEXT_Z : 0.0F);
+        poseStack.translate(0.0F, 0.0F, LOCAL_OVERLAY_FOREGROUND_Z);
         if (hasText) {
             int color = PonderPalette.WHITE.getColorObject().copy().scaleAlpha(fade).getRGB();
             font.drawInBatch(text, 2.0F, (height - font.lineHeight) / 2.0F + 2.0F, color, false,
@@ -1011,9 +1014,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         minecraft.getTextureManager().getTexture(InventoryMenu.BLOCK_ATLAS).setFilter(false, false);
 
         poseStack.pushPose();
-        // Lift the item just off the box plane (the same tiny offset the TextWindow text uses) so a flat,
+        // Lift the item onto the same foreground layer as the TextWindow text so a flat,
         // depthless item — a stick, an apple — does not z-fight the box background sitting behind it.
-        poseStack.translate(x, 0.0F, LOCAL_OVERLAY_TEXT_Z);
+        poseStack.translate(x, 0.0F, LOCAL_OVERLAY_FOREGROUND_Z);
         // Squash the item's depth toward the camera so it sits on the box's plane (no parallax) yet keeps
         // its inventory-style 3D silhouette. Applied first so it compresses the whole model along view-z.
         // A 0 z-scale makes the normal matrix singular and the item renders dark, so repair normals after
@@ -1107,7 +1110,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     }
 
     private static void renderSpeechBoxLocal(GuiGraphics graphics, int x, int y, int w, int h, boolean highlighted,
-                                             Pointing pointing, float divotZ) {
+                                             Pointing pointing, float backgroundZ, float foregroundZ) {
         PoseStack poseStack = graphics.pose();
 
         int boxX = x;
@@ -1165,12 +1168,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         new BoxElement()
             .withBackground(PonderUI.BACKGROUND_FLAT)
             .gradientBorder(borderColors)
-            .at(boxX, boxY, 0)
+            .at(boxX, boxY, backgroundZ)
             .withBounds(w, h)
             .render(graphics);
 
         poseStack.pushPose();
-        poseStack.translate(divotX + divotRadius, divotY + divotRadius, divotZ);
+        poseStack.translate(divotX + divotRadius, divotY + divotRadius, foregroundZ);
         poseStack.mulPose(Axis.ZP.rotationDegrees(divotRotation));
         poseStack.translate(-divotRadius, -divotRadius, 0);
         net.createmod.ponder.enums.PonderGuiTextures.SPEECH_TOOLTIP_BACKGROUND.render(graphics, 0, 0);

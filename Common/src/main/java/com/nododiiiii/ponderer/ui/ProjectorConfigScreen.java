@@ -282,6 +282,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
+        renderTooltip(graphics, mouseX, mouseY);
     }
 
     @Override
@@ -327,10 +328,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             graphics.drawString(font, trimToWidth(statusMessage, WHITEBOARD_WIDTH - 16),
                 WHITEBOARD_X + 8, WHITEBOARD_Y + WHITEBOARD_HEIGHT - 12, statusColor, false);
         }
-    }
-
-    @Override
-    protected void renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
     }
 
     private void loadProjectorState() {
