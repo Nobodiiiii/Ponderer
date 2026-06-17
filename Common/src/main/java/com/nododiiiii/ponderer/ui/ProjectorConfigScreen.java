@@ -18,7 +18,6 @@ import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.theme.Color;
-import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.createmod.ponder.enums.PonderGuiTextures;
@@ -51,7 +50,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         new ResourceLocation("ponderer", "textures/gui/projector.png");
     private static final ResourceLocation PLAYER_INVENTORY =
         new ResourceLocation("ponderer", "textures/gui/player_inventory.png");
-    private static final int TEXT = 0x4A2D31;
+    private static final int TEXT = 0x000000;
+    private static final int INPUT_TEXT = 0xFFFFFF;
     private static final int LABEL_TEXT = 0xF2F4FF;
     private static final int PROJECTOR_TEXTURE_WIDTH = 320;
     private static final int PROJECTOR_TEXTURE_HEIGHT = 480;
@@ -63,18 +63,23 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int SCREEN_WIDTH = ProjectorMenu.SCREEN_WIDTH;
     private static final int SCREEN_HEIGHT = PLAYER_INVENTORY_Y + PLAYER_INVENTORY_HEIGHT;
     private static final int MAIN_PANEL_HEIGHT = 194;
-    private static final int TITLE_Y = 6;
-    private static final int SOURCE_LABEL_TEXT_X = 34;
+    private static final int TITLE_Y = 4;
+    private static final int SOURCE_LABEL_TEXT_X = 31;
+    private static final int SOURCE_LABEL_TEXT_Y = 30;
     private static final int SOURCE_TEXT_Y = 31;
     private static final int SOURCE_INFO_X = ProjectorMenu.SOURCE_SLOT_X + 20;
     private static final int SOURCE_INFO_WIDTH = 149;
     private static final int INVENTORY_LABEL_X = PLAYER_INVENTORY_X + 8;
     private static final int INVENTORY_LABEL_Y = PLAYER_INVENTORY_Y + 6;
-    private static final int LEFT_LABEL_TEXT_X = 32;
-    private static final int RIGHT_LABEL_TEXT_X = 163;
+    private static final int LEFT_LABEL_TEXT_X = 29;
+    private static final int RIGHT_LABEL_TEXT_X = 160;
+    private static final int LABEL_TEXT_MAX_WIDTH = 48;
     private static final int LEFT_VALUE_X = 80;
     private static final int RIGHT_VALUE_X = 211;
+    private static final int LEFT_POINTED_VALUE_X = 76;
+    private static final int RIGHT_POINTED_VALUE_X = 207;
     private static final int VALUE_WIDTH = 59;
+    private static final int POINTED_VALUE_WIDTH = 64;
     private static final int CONTROL_HEIGHT = 18;
     private static final int ROW_1_Y = 55;
     private static final int ROW_2_Y = 74;
@@ -101,16 +106,23 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int RESET_BUTTON_SIZE = 18;
     private static final int PLAY_BUTTON_X = 220;
     private static final int PLAY_BUTTON_WIDTH = 54;
-    private static final int VALUE_STATE_IDLE_U = 58;
-    private static final int VALUE_STATE_HOVER_U = 122;
-    private static final int VALUE_STATE_CLICK_U = 186;
-    private static final int VALUE_STATE_V = 462;
-    private static final int VALUE_STATE_W = 59;
+    private static final int VALUE_STATE_IDLE_U = 54;
+    private static final int VALUE_STATE_HOVER_U = 118;
+    private static final int VALUE_STATE_CLICK_U = 182;
+    private static final int VALUE_STATE_V = 461;
+    private static final int VALUE_STATE_W = 64;
+    private static final int VALUE_TEXT_OFFSET_X = 4;
     private static final int BUTTON_STATE_IDLE_U = 57;
     private static final int BUTTON_STATE_HOVER_U = 111;
     private static final int BUTTON_STATE_CLICK_U = 165;
     private static final int BUTTON_STATE_V = 441;
     private static final int BUTTON_STATE_W = 54;
+    private static final int PONDER_BUTTON_IDLE_U = 248;
+    private static final int PONDER_BUTTON_HOVER_U = 266;
+    private static final int PONDER_BUTTON_CLICK_U = 284;
+    private static final int PONDER_BUTTON_DISABLED_U = 302;
+    private static final int PONDER_BUTTON_STATE_V = 441;
+    private static final int PONDER_BUTTON_STATE_SIZE = 18;
 
     private Button redstoneModeButton;
     private Button loopModeButton;
@@ -118,9 +130,9 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private Button textAntiOcclusionButton;
     private Button playButton;
     @Nullable
-    private PonderButton previousSceneButton;
+    private Button previousSceneButton;
     @Nullable
-    private PonderButton nextSceneButton;
+    private Button nextSceneButton;
     @Nullable
     private Button resetProjectionButton;
     @Nullable
@@ -171,31 +183,33 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         configuredSceneKeys = menu.projector() == null ? List.of() : List.copyOf(menu.projector().getSceneKeys());
 
         redstoneModeButton = addRenderableWidget(modeButton(
-            leftPos + LEFT_VALUE_X,
+            leftPos + LEFT_POINTED_VALUE_X,
             topPos + ROW_1_Y,
             () -> redstoneMode,
             value -> Component.translatable("ponderer.ui.projector.redstone_mode." + (value ? "redstone" : "manual")),
             value -> redstoneMode = value));
         loopModeButton = addRenderableWidget(modeButton(
-            leftPos + RIGHT_VALUE_X,
+            leftPos + RIGHT_POINTED_VALUE_X,
             topPos + ROW_1_Y,
             () -> loopMode,
             value -> Component.translatable("ponderer.ui.projector.loop_mode." + (value ? "loop" : "once")),
             value -> loopMode = value));
-        previousSceneButton = addRenderableWidget(new PonderButton(
+        previousSceneButton = addRenderableWidget(new ProjectorTextureButton(
             leftPos + SCENE_LEFT_BUTTON_X,
             topPos + SCENE_BUTTON_Y,
             SCENE_BUTTON_SIZE,
-            SCENE_BUTTON_SIZE)
-            .showing(PonderGuiTextures.ICON_PONDER_LEFT)
-            .withCallback(this::cycleSceneBackward));
-        nextSceneButton = addRenderableWidget(new PonderButton(
+            SCENE_BUTTON_SIZE,
+            Component.empty(),
+            button -> cycleSceneBackward(),
+            ButtonVisual.ACTION_ICON_LEFT));
+        nextSceneButton = addRenderableWidget(new ProjectorTextureButton(
             leftPos + SCENE_RIGHT_BUTTON_X,
             topPos + SCENE_BUTTON_Y,
             SCENE_BUTTON_SIZE,
-            SCENE_BUTTON_SIZE)
-            .showing(PonderGuiTextures.ICON_PONDER_RIGHT)
-            .withCallback(this::cycleSceneForward));
+            SCENE_BUTTON_SIZE,
+            Component.empty(),
+            button -> cycleSceneForward(),
+            ButtonVisual.ACTION_ICON_RIGHT));
 
         if (menu.projectorKind().requiresAnchor()) {
             int offsetXStart = leftPos + OFFSET_START_X;
@@ -204,12 +218,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             offsetZ = addRenderableWidget(offsetBox(offsetXStart + (OFFSET_BOX_WIDTH + OFFSET_GAP) * 2, topPos + ROW_4_Y));
 
             blueTintButton = addRenderableWidget(modeButton(
-                leftPos + LEFT_VALUE_X, topPos + ROW_2_Y,
+                leftPos + LEFT_POINTED_VALUE_X, topPos + ROW_2_Y,
                 () -> showBlueTint,
                 value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> showBlueTint = value));
             textAntiOcclusionButton = addRenderableWidget(modeButton(
-                leftPos + RIGHT_VALUE_X, topPos + ROW_2_Y,
+                leftPos + RIGHT_POINTED_VALUE_X, topPos + ROW_2_Y,
                 () -> overlayAntiOcclusion,
                 value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> overlayAntiOcclusion = value));
@@ -232,12 +246,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 Component.translatable("ponderer.ui.projector.scale"), miniatureScale));
 
             blueTintButton = addRenderableWidget(modeButton(
-                leftPos + LEFT_VALUE_X, topPos + ROW_2_Y,
+                leftPos + LEFT_POINTED_VALUE_X, topPos + ROW_2_Y,
                 () -> showBlueTint,
                 value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> showBlueTint = value));
             textAntiOcclusionButton = addRenderableWidget(modeButton(
-                leftPos + RIGHT_VALUE_X, topPos + ROW_2_Y,
+                leftPos + RIGHT_POINTED_VALUE_X, topPos + ROW_2_Y,
                 () -> overlayAntiOcclusion,
                 value -> Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off")),
                 value -> overlayAntiOcclusion = value));
@@ -326,12 +340,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        graphics.drawString(font, title, titleLabelX, titleLabelY, TEXT, false);
         Component projectorKind = Component.translatable(menu.projectorKind().translationKey());
-        graphics.drawString(font, projectorKind, imageWidth - 14 - font.width(projectorKind), TITLE_Y, TEXT, false);
+        graphics.drawString(font, projectorKind, (imageWidth - font.width(projectorKind)) / 2,
+            TITLE_Y, TEXT, false);
         graphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, TEXT, false);
 
-        drawLabel(graphics, "ponderer.ui.projector.source_item", SOURCE_LABEL_TEXT_X, SOURCE_TEXT_Y);
+        drawLabel(graphics, "ponderer.ui.projector.source_item", SOURCE_LABEL_TEXT_X, SOURCE_LABEL_TEXT_Y);
         graphics.drawString(font, trimToWidth(sceneSummaryLabel(), SOURCE_INFO_WIDTH), SOURCE_INFO_X,
             SOURCE_TEXT_Y, sceneSummaryColor(), false);
 
@@ -377,18 +391,18 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private Button modeButton(int x, int y, BooleanSupplier getter,
                               Function<Boolean, Component> valueLabel,
                               Consumer<Boolean> setter) {
-        return new ProjectorTextureButton(x, y, VALUE_WIDTH, CONTROL_HEIGHT, valueLabel.apply(getter.getAsBoolean()), button -> {
+        return new ProjectorTextureButton(x, y, POINTED_VALUE_WIDTH, CONTROL_HEIGHT, valueLabel.apply(getter.getAsBoolean()), button -> {
             boolean next = !getter.getAsBoolean();
             setter.accept(next);
             button.setMessage(valueLabel.apply(next));
-        }, ButtonVisual.VALUE);
+        }, ButtonVisual.POINTED_VALUE);
     }
 
     private EditBox offsetBox(int x, int y) {
         EditBox box = new ProjectorEditBox(font, x, y, OFFSET_BOX_WIDTH, CONTROL_HEIGHT,
             Component.translatable("ponderer.ui.projector.offset"));
         box.setMaxLength(6);
-        box.setTextColor(TEXT);
+        box.setTextColor(INPUT_TEXT);
         box.setFilter(value -> value.isEmpty() || "-".equals(value) || value.matches("-?\\d+"));
         box.setHint(Component.literal("0"));
         return box;
@@ -397,7 +411,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private EditBox decimalBox(int x, int y, int width, Component narration, float initialValue) {
         EditBox box = new ProjectorEditBox(font, x, y, width, CONTROL_HEIGHT, narration);
         box.setMaxLength(6);
-        box.setTextColor(TEXT);
+        box.setTextColor(INPUT_TEXT);
         box.setFilter(value -> value.isEmpty() || "-".equals(value) || ".".equals(value) || "-.".equals(value)
             || value.matches("-?\\d*(\\.\\d*)?"));
         box.setValue(trimFloat(initialValue));
@@ -407,7 +421,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private EditBox integerBox(int x, int y, int width, Component narration, int initialValue) {
         EditBox box = new ProjectorEditBox(font, x, y, width, CONTROL_HEIGHT, narration);
         box.setMaxLength(6);
-        box.setTextColor(TEXT);
+        box.setTextColor(INPUT_TEXT);
         box.setFilter(value -> value.isEmpty() || value.matches("\\d+"));
         box.setValue(String.valueOf(Math.max(0, initialValue)));
         return box;
@@ -666,12 +680,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
     private int sceneSummaryColor() {
         if (menu.sourceItem().isEmpty()) {
-            return 0x606060;
+            return TEXT;
         }
         if (resolvedSceneKeys.isEmpty()) {
-            return 0xA03030;
+            return TEXT;
         }
-        return 0x2E6E2E;
+        return TEXT;
     }
 
     private int estimateDuration(List<String> sceneKeys, int intermissionTicks) {
@@ -1166,7 +1180,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void drawLabel(GuiGraphics graphics, String key, int x, int y) {
-        graphics.drawString(font, trimToWidth(Component.translatable(key), 40), x, y, LABEL_TEXT, false);
+        graphics.drawString(font, trimToWidth(Component.translatable(key), LABEL_TEXT_MAX_WIDTH), x, y, LABEL_TEXT, false);
     }
 
     private static void renderControlOverlay(GuiGraphics graphics, int x, int y, int width, int height,
@@ -1188,14 +1202,16 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private enum ButtonVisual {
-        VALUE,
+        POINTED_VALUE,
         ACTION_ICON_RESET,
+        ACTION_ICON_LEFT,
+        ACTION_ICON_RIGHT,
         ACTION_PLAY
     }
 
     private static class ProjectorTextureButton extends Button {
         private final ButtonVisual visual;
-        private int clickTicks;
+        private boolean pressed;
 
         private ProjectorTextureButton(int x, int y, int width, int height, Component message, OnPress onPress,
                                        ButtonVisual visual) {
@@ -1205,24 +1221,44 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         @Override
         public void onClick(double mouseX, double mouseY) {
-            clickTicks = 4;
+            pressed = true;
             super.onClick(mouseX, mouseY);
         }
 
         @Override
+        public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            pressed = false;
+            return super.mouseReleased(mouseX, mouseY, button);
+        }
+
+        @Override
         public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            int u = visual == ButtonVisual.VALUE ? VALUE_STATE_IDLE_U : BUTTON_STATE_IDLE_U;
-            int v = visual == ButtonVisual.VALUE ? VALUE_STATE_V : BUTTON_STATE_V;
-            int sourceWidth = visual == ButtonVisual.VALUE ? VALUE_STATE_W : BUTTON_STATE_W;
-            if (active && clickTicks > 0) {
-                u = visual == ButtonVisual.VALUE ? VALUE_STATE_CLICK_U : BUTTON_STATE_CLICK_U;
-                clickTicks--;
-            } else if (active && isHoveredOrFocused()) {
-                u = visual == ButtonVisual.VALUE ? VALUE_STATE_HOVER_U : BUTTON_STATE_HOVER_U;
+            boolean hovered = isHoveredOrFocused();
+            if (!hovered) {
+                pressed = false;
+            }
+
+            int u = -1;
+            int v = BUTTON_STATE_V;
+            int sourceWidth = BUTTON_STATE_W;
+            if (visual == ButtonVisual.POINTED_VALUE) {
+                v = VALUE_STATE_V;
+                sourceWidth = VALUE_STATE_W;
+                u = active
+                    ? (pressed ? VALUE_STATE_CLICK_U : (hovered ? VALUE_STATE_HOVER_U : -1))
+                    : VALUE_STATE_IDLE_U;
+            } else if (isPonderButtonVisual()) {
+                v = PONDER_BUTTON_STATE_V;
+                sourceWidth = PONDER_BUTTON_STATE_SIZE;
+                u = active
+                    ? (pressed ? PONDER_BUTTON_CLICK_U : (hovered ? PONDER_BUTTON_HOVER_U : PONDER_BUTTON_IDLE_U))
+                    : PONDER_BUTTON_DISABLED_U;
+            } else if (active && pressed) {
+                u = BUTTON_STATE_CLICK_U;
+            } else if (active && hovered) {
+                u = BUTTON_STATE_HOVER_U;
             } else if (!active) {
-                u = visual == ButtonVisual.VALUE ? VALUE_STATE_IDLE_U : BUTTON_STATE_IDLE_U;
-            } else {
-                u = -1;
+                u = BUTTON_STATE_IDLE_U;
             }
 
             boolean renderedOverlay = u >= 0;
@@ -1231,11 +1267,19 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             }
 
             Font font = Minecraft.getInstance().font;
-            int color = active ? (visual == ButtonVisual.VALUE ? TEXT : 0xF2F4FF) : 0x707070;
+            int color = active && visual == ButtonVisual.ACTION_PLAY ? 0xF2F4FF : (active ? TEXT : 0x707070);
             if (visual == ButtonVisual.ACTION_ICON_RESET) {
                 if (renderedOverlay) {
                     PonderGuiTextures.ICON_CONFIG_RESET.render(graphics, getX() + 1, getY() + 1);
                 }
+                return;
+            }
+            if (visual == ButtonVisual.ACTION_ICON_LEFT) {
+                PonderGuiTextures.ICON_PONDER_LEFT.render(graphics, getX() + 1, getY() + 1);
+                return;
+            }
+            if (visual == ButtonVisual.ACTION_ICON_RIGHT) {
+                PonderGuiTextures.ICON_PONDER_RIGHT.render(graphics, getX() + 1, getY() + 1);
                 return;
             }
             if (visual == ButtonVisual.ACTION_PLAY) {
@@ -1247,8 +1291,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 return;
             }
 
-            String text = font.plainSubstrByWidth(getMessage().getString(), width - 6);
-            graphics.drawCenteredString(font, text, getX() + width / 2, getY() + 5, color);
+            int textWidth = width - VALUE_TEXT_OFFSET_X - 6;
+            String text = font.plainSubstrByWidth(getMessage().getString(), textWidth);
+            graphics.drawString(font, text, getX() + VALUE_TEXT_OFFSET_X + 3 + (textWidth - font.width(text)) / 2,
+                getY() + 5, color, false);
+        }
+
+        private boolean isPonderButtonVisual() {
+            return visual == ButtonVisual.ACTION_ICON_LEFT || visual == ButtonVisual.ACTION_ICON_RIGHT;
         }
     }
 
@@ -1278,13 +1328,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         @Override
         public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            if (isFocused()) {
-                renderControlOverlay(graphics, backgroundX, backgroundY, backgroundWidth, backgroundHeight,
-                    VALUE_STATE_CLICK_U, VALUE_STATE_V, VALUE_STATE_W);
-            } else if (isMouseOver(mouseX, mouseY)) {
-                renderControlOverlay(graphics, backgroundX, backgroundY, backgroundWidth, backgroundHeight,
-                    VALUE_STATE_HOVER_U, VALUE_STATE_V, VALUE_STATE_W);
-            }
             super.renderWidget(graphics, mouseX, mouseY, partialTick);
         }
     }
