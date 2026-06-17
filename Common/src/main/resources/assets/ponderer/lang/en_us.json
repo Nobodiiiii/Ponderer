@@ -374,7 +374,7 @@
   "ponderer.ui.change_interface_slot.info": "Stored slots: %s",
   "ponderer.ui.change_interface_slot.error.empty": "Please assign at least one interface slot",
   "ponderer.ui.change_interface_slot.hint.drag": "Drag JEI ingredients on to mirrored slots",
-  "ponderer.ui.change_interface_slot.hint.exit": "ESC/Backspace to return, saved slots: %s",
+  "ponderer.ui.change_interface_slot.hint.exit": "ESC to return, saved slots: %s",
   "ponderer.ui.click_interface": "Click Interface",
   "ponderer.ui.click_interface.point": "Click Position",
   "ponderer.ui.click_interface.point.tooltip": "Choose where to simulate a click in the mirrored interface (use [P] to pick in the Ponder UI)",

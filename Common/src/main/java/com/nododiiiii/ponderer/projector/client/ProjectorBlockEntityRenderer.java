@@ -80,7 +80,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float MINIATURE_BEAM_SOURCE_Y = 14.0F / 16.0F;
     private static final float MINIATURE_BEAM_OUTER_HEIGHT = 0.05F;
     private static final float MINIATURE_BEAM_BASE_RADIUS = 0.06F;
-    private static final float LIFE_SIZE_BEAM_SOURCE_Y = 9.0F / 16.0F;
+    private static final float LIFE_SIZE_BEAM_FACE_WIDTH = 8.5F / 16.0F;
+    private static final float LIFE_SIZE_BEAM_SOURCE_Y = 9.5F / 16.0F;
+    private static final float LIFE_SIZE_BEAM_FACE_INSET = 2.0F / 16.0F;
     private static final float LIFE_SIZE_BEAM_OUTER_LENGTH = 0.05F;
     private static final float LIFE_SIZE_BEAM_BASE_HALF_EXTENT = 0.5F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
@@ -174,7 +176,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             ? blockEntity.getProjectionMode()
             : ProjectorProjectionMode.DEFAULT;
         captureWorldDepthIfNeeded();
-        renderProjectionGlow(blockEntity, layout, poseStack, partialTick);
+        enqueueProjectionGlow(blockEntity, layout, poseStack, partialTick);
         if (projectionMode.rendersScene()) {
             renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
         }
@@ -283,22 +285,29 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         return preservedWorldDepthTarget;
     }
 
-    private void renderProjectionGlow(ProjectorBlockEntity blockEntity, RenderLayout layout,
-                                      PoseStack poseStack, float partialTick) {
+    private void enqueueProjectionGlow(ProjectorBlockEntity blockEntity, RenderLayout layout,
+                                       PoseStack poseStack, float partialTick) {
         if (!blockEntity.getBlockState().getValue(ProjectorBlock.LIT)
             || !blockEntity.showBlueTint()) {
             return;
         }
 
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null) {
+        ProjectorWorldOverlayQueue.enqueueProjectionGlow(this, new DeferredProjectionGlow(
+            PoseSnapshot.capture(poseStack),
+            layout,
+            blockEntity.getBlockState().getValue(ProjectorBlock.FACING),
+            partialTick));
+    }
+
+    void renderDeferredProjectionGlow(DeferredProjectionGlow glow) {
+        if (glow == null || Minecraft.getInstance().level == null) {
             return;
         }
 
-        float time = minecraft.level.getGameTime() + partialTick;
+        float time = Minecraft.getInstance().level.getGameTime() + glow.partialTick();
         float breathe = 0.5F + 0.5F * (float) Math.cos(time * 0.11F);
         float outerScale = 0.88F + 0.12F * breathe;
-        ProjectionGlowColors colors = projectionGlowColors(layout, breathe);
+        ProjectionGlowColors colors = projectionGlowColors(glow.layout(), breathe);
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -307,11 +316,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderSystem.disableCull();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
 
+        PoseStack poseStack = glow.poseSnapshot().createPoseStack();
         Matrix4f matrix = poseStack.last().pose();
-        if (layout.kind() == ProjectorKind.MINIATURE) {
-            renderMiniatureProjectionBeam(matrix, layout, outerScale, colors);
+        if (glow.layout().kind() == ProjectorKind.MINIATURE) {
+            renderMiniatureProjectionBeam(matrix, glow.layout(), outerScale, colors);
         } else {
-            renderLifeSizeProjectionBeam(matrix, blockEntity, layout, outerScale, colors);
+            renderLifeSizeProjectionBeam(matrix, glow.facing(), glow.layout(), outerScale, colors);
         }
 
         RenderSystem.enableCull();
@@ -412,14 +422,13 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             colors.topColor());
     }
 
-    private void renderLifeSizeProjectionBeam(Matrix4f matrix, ProjectorBlockEntity blockEntity,
+    private void renderLifeSizeProjectionBeam(Matrix4f matrix, Direction facing,
                                               RenderLayout layout, float outerScale,
                                               ProjectionGlowColors colors) {
-        Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
         Vec3 source = new Vec3(
-            0.5D + facing.getStepX() * 0.5D,
+            lifeSizeBeamSourceX(facing),
             LIFE_SIZE_BEAM_SOURCE_Y,
-            0.5D + facing.getStepZ() * 0.5D);
+            lifeSizeBeamSourceZ(facing));
         Vec3 baseCenter = layout.localPointFor(new Vec3(0.5D, 0.5D, 0.5D));
         Vec3 axis = baseCenter.subtract(source);
         if (axis.lengthSqr() < 1.0E-6D) {
@@ -837,6 +846,22 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private static Vec3 beamCorner(Vec3 center, Vec3 side, Vec3 up, float sideOffset, float upOffset) {
         return center.add(side.scale(sideOffset)).add(up.scale(upOffset));
+    }
+
+    private static double lifeSizeBeamSourceX(Direction facing) {
+        return switch (facing) {
+            case EAST -> 1.0D - LIFE_SIZE_BEAM_FACE_INSET;
+            case WEST -> LIFE_SIZE_BEAM_FACE_INSET;
+            default -> LIFE_SIZE_BEAM_FACE_WIDTH;
+        };
+    }
+
+    private static double lifeSizeBeamSourceZ(Direction facing) {
+        return switch (facing) {
+            case SOUTH -> 1.0D - LIFE_SIZE_BEAM_FACE_INSET;
+            case NORTH -> LIFE_SIZE_BEAM_FACE_INSET;
+            default -> LIFE_SIZE_BEAM_FACE_WIDTH;
+        };
     }
 
     private static int withAlpha(int color, float alphaMultiplier) {
@@ -1328,6 +1353,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static double distanceToProjectorSqr(ProjectorBlockEntity blockEntity) {
         Vec3 cameraPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
         return cameraPos.distanceToSqr(Vec3.atCenterOf(blockEntity.getBlockPos()));
+    }
+
+    record DeferredProjectionGlow(PoseSnapshot poseSnapshot, RenderLayout layout, Direction facing,
+                                  float partialTick) {
     }
 
     private record RenderLayout(ProjectorKind kind, Vec3 origin, Vec3 rotationPivot, Vec3 sceneTranslate, float scale,

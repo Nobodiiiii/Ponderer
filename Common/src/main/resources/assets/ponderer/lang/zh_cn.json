@@ -374,7 +374,7 @@
   "ponderer.ui.change_interface_slot.info": "已保存槽位：%s",
   "ponderer.ui.change_interface_slot.error.empty": "请至少设置一个界面槽位",
   "ponderer.ui.change_interface_slot.hint.drag": "将 JEI 配料拖到镜像界面的目标槽位",
-  "ponderer.ui.change_interface_slot.hint.exit": "按 ESC/Backspace 返回，当前已保存槽位：%s",
+  "ponderer.ui.change_interface_slot.hint.exit": "按 ESC 返回，当前已保存槽位：%s",
   "ponderer.ui.click_interface": "点击界面",
   "ponderer.ui.click_interface.point": "点击位置",
   "ponderer.ui.click_interface.point.tooltip": "在镜像界面中选择要模拟点击的位置（可用 [P] 在 Ponder 界面选点）",

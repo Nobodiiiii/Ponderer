@@ -382,6 +382,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             refreshResolvedScenes();
         } else {
             refreshScenePreviewIfNeeded();
+            refreshSceneButtons();
         }
     }
 
@@ -581,10 +582,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             sceneSelectionDirty = false;
         }
         selectSceneAfterRefresh(previousSelectedSceneKey);
-        refreshSceneButtons();
         remotePullButton.active = !menu.sourceItem().isEmpty();
         playButton.active = !resolveSceneKeysToSave().isEmpty();
         refreshScenePreview(true);
+        refreshSceneButtons();
         tryAutoSyncResolvedScenes();
     }
 
@@ -995,7 +996,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         refreshScenePreview(false);
         previewTick = segmentStartTick(target.segmentOrdinal());
-        refreshSceneButtons();
+        refreshSceneButtons(clampedIndex);
         playButton.active = !resolveSceneKeysToSave().isEmpty();
 
         if (changedSceneKey) {
@@ -1048,9 +1049,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void refreshSceneButtons() {
+        refreshSceneButtons(currentDisplaySceneIndex());
+    }
+
+    private void refreshSceneButtons(int currentIndex) {
         boolean hasScenes = displaySceneCount() > 0;
         boolean multipleScenes = displaySceneCount() > 1;
-        int currentIndex = currentDisplaySceneIndex();
         if (previousSceneButton != null) {
             previousSceneButton.visible = hasScenes;
             previousSceneButton.active = multipleScenes && currentIndex > 0;
