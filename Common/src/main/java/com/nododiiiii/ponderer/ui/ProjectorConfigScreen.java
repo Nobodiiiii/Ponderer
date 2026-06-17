@@ -59,25 +59,27 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int PLAYER_INVENTORY_HEIGHT = 108;
     private static final int PLAYER_INVENTORY_TEXTURE_SIZE = 256;
     private static final int PLAYER_INVENTORY_X = ProjectorMenu.INVENTORY_PANEL_X;
-    private static final int PLAYER_INVENTORY_Y = 194;
+    private static final int PLAYER_INVENTORY_Y = 195;
     private static final int SCREEN_WIDTH = ProjectorMenu.SCREEN_WIDTH;
     private static final int SCREEN_HEIGHT = PLAYER_INVENTORY_Y + PLAYER_INVENTORY_HEIGHT;
-    private static final int MAIN_PANEL_HEIGHT = 194;
+    private static final int MAIN_PANEL_HEIGHT = 195;
+    private static final int MINIATURE_PANEL_TEXTURE_Y = 0;
+    private static final int LIFE_SIZE_PANEL_TEXTURE_Y = 203;
     private static final int TITLE_Y = 4;
-    private static final int SOURCE_LABEL_TEXT_X = 31;
+    private static final int SOURCE_LABEL_TEXT_X = 30;
     private static final int SOURCE_LABEL_TEXT_Y = 30;
     private static final int SOURCE_TEXT_Y = 31;
-    private static final int SOURCE_INFO_X = ProjectorMenu.SOURCE_SLOT_X + 20;
+    private static final int SOURCE_INFO_X = 98;
     private static final int SOURCE_INFO_WIDTH = 149;
     private static final int INVENTORY_LABEL_X = PLAYER_INVENTORY_X + 8;
     private static final int INVENTORY_LABEL_Y = PLAYER_INVENTORY_Y + 6;
-    private static final int LEFT_LABEL_TEXT_X = 29;
-    private static final int RIGHT_LABEL_TEXT_X = 160;
+    private static final int LEFT_LABEL_TEXT_X = 28;
+    private static final int RIGHT_LABEL_TEXT_X = 159;
     private static final int LABEL_TEXT_MAX_WIDTH = 48;
-    private static final int LEFT_VALUE_X = 80;
-    private static final int RIGHT_VALUE_X = 211;
-    private static final int LEFT_POINTED_VALUE_X = 76;
-    private static final int RIGHT_POINTED_VALUE_X = 207;
+    private static final int LEFT_VALUE_X = 79;
+    private static final int RIGHT_VALUE_X = 210;
+    private static final int LEFT_POINTED_VALUE_X = 75;
+    private static final int RIGHT_POINTED_VALUE_X = 206;
     private static final int VALUE_WIDTH = 59;
     private static final int POINTED_VALUE_WIDTH = 64;
     private static final int CONTROL_HEIGHT = 18;
@@ -88,19 +90,16 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int LABEL_TEXT_OFFSET_Y = 5;
     private static final int SCENE_BUTTON_SIZE = 18;
     private static final int SCENE_BUTTON_Y = 139;
-    private static final int SCENE_LEFT_BUTTON_X = 12;
-    private static final int SCENE_RIGHT_BUTTON_X = 252;
-    private static final int SCENE_BAR_X = 36;
+    private static final int SCENE_LEFT_BUTTON_X = 11;
+    private static final int SCENE_RIGHT_BUTTON_X = 251;
+    private static final int SCENE_BAR_X = 35;
     private static final int SCENE_BAR_Y = 148;
     private static final int SCENE_BAR_WIDTH = 210;
     private static final int SCENE_BAR_HEIGHT = 1;
     private static final int SCENE_KEYFRAME_HIT_RADIUS = 6;
-    private static final int OFFSET_BOX_WIDTH = 18;
-    private static final int OFFSET_GAP = 2;
-    private static final int OFFSET_START_X = LEFT_VALUE_X;
-    private static final int OFFSET_ROW_TEXTURE_X = 79;
-    private static final int OFFSET_ROW_TEXTURE_Y = 316;
-    private static final int OFFSET_ROW_TEXTURE_WIDTH = 60;
+    private static final int OFFSET_BOX_WIDTH = 40;
+    private static final int OFFSET_GAP = 0;
+    private static final int OFFSET_START_X = 77;
     private static final int BOTTOM_ACTION_Y = 171;
     private static final int RESET_BUTTON_X = 173;
     private static final int RESET_BUTTON_SIZE = 18;
@@ -117,12 +116,20 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int BUTTON_STATE_CLICK_U = 201;
     private static final int BUTTON_STATE_V = 441;
     private static final int BUTTON_STATE_W = 72;
-    private static final int PONDER_BUTTON_IDLE_U = 248;
-    private static final int PONDER_BUTTON_HOVER_U = 266;
-    private static final int PONDER_BUTTON_CLICK_U = 284;
-    private static final int PONDER_BUTTON_DISABLED_U = 302;
-    private static final int PONDER_BUTTON_STATE_V = 462;
-    private static final int PONDER_BUTTON_STATE_SIZE = 18;
+    private static final int SCENE_BUTTON_IDLE_U = 248;
+    private static final int SCENE_BUTTON_HOVER_U = 266;
+    private static final int SCENE_BUTTON_DISABLED_U = 302;
+    private static final int SCENE_BUTTON_STATE_V = 462;
+    private static final int SCENE_BUTTON_STATE_SIZE = 18;
+    private static final Color SCENE_BUTTON_DISABLED_ICON_COLOR = new Color(0xff_9c9c9c, true);
+    private static final int RESET_ICON_U = 22;
+    private static final int RESET_ICON_V = 445;
+    private static final int PLAY_ICON_U = 40;
+    private static final int PLAY_ICON_V = 445;
+    private static final int ACTION_ICON_SIZE = 10;
+    private static final int ACTION_ICON_OFFSET = 4;
+    private static final int PLAY_TEXT_START_X = ACTION_ICON_OFFSET + ACTION_ICON_SIZE + 3;
+    private static final int PLAY_TEXT_RIGHT_PADDING = 4;
 
     private Button redstoneModeButton;
     private Button loopModeButton;
@@ -325,13 +332,11 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         int x = leftPos;
         int y = topPos;
-        graphics.blit(BACKGROUND, x, y, 0, 0, SCREEN_WIDTH, MAIN_PANEL_HEIGHT,
+        int panelTextureY = menu.projectorKind().requiresAnchor()
+            ? LIFE_SIZE_PANEL_TEXTURE_Y
+            : MINIATURE_PANEL_TEXTURE_Y;
+        graphics.blit(BACKGROUND, x, y, 0, panelTextureY, SCREEN_WIDTH, MAIN_PANEL_HEIGHT,
             PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
-        if (menu.projectorKind().requiresAnchor()) {
-            graphics.blit(BACKGROUND, x + OFFSET_START_X, y + ROW_4_Y,
-                OFFSET_ROW_TEXTURE_X, OFFSET_ROW_TEXTURE_Y, OFFSET_ROW_TEXTURE_WIDTH, CONTROL_HEIGHT,
-                PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
-        }
         graphics.blit(PLAYER_INVENTORY, x + PLAYER_INVENTORY_X, y + PLAYER_INVENTORY_Y,
             0, 0, PLAYER_INVENTORY_WIDTH, PLAYER_INVENTORY_HEIGHT,
             PLAYER_INVENTORY_TEXTURE_SIZE, PLAYER_INVENTORY_TEXTURE_SIZE);
@@ -1233,7 +1238,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         @Override
         public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hovered = isHovered();
+            boolean hovered = isMouseOver(mouseX, mouseY);
             if (!hovered) {
                 pressed = false;
             }
@@ -1247,12 +1252,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 u = active
                     ? (pressed ? VALUE_STATE_CLICK_U : (hovered ? VALUE_STATE_HOVER_U : VALUE_STATE_IDLE_U))
                     : VALUE_STATE_IDLE_U;
-            } else if (isPonderButtonVisual()) {
-                v = PONDER_BUTTON_STATE_V;
-                sourceWidth = PONDER_BUTTON_STATE_SIZE;
+            } else if (isSceneButtonVisual()) {
+                v = SCENE_BUTTON_STATE_V;
+                sourceWidth = SCENE_BUTTON_STATE_SIZE;
                 u = active
-                    ? (pressed ? PONDER_BUTTON_CLICK_U : (hovered ? PONDER_BUTTON_HOVER_U : PONDER_BUTTON_IDLE_U))
-                    : PONDER_BUTTON_DISABLED_U;
+                    ? (hovered ? SCENE_BUTTON_HOVER_U : SCENE_BUTTON_IDLE_U)
+                    : SCENE_BUTTON_DISABLED_U;
             } else if (active && pressed) {
                 u = BUTTON_STATE_CLICK_U;
             } else if (active && hovered) {
@@ -1270,24 +1275,29 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             int color = active && visual == ButtonVisual.ACTION_PLAY ? 0xF2F4FF : (active ? TEXT : 0x707070);
             if (visual == ButtonVisual.ACTION_ICON_RESET) {
                 if (renderedOverlay) {
-                    PonderGuiTextures.ICON_CONFIG_RESET.render(graphics, getX() + 1, getY() + 1);
+                    renderTextureIcon(graphics, getX() + ACTION_ICON_OFFSET, getY() + ACTION_ICON_OFFSET,
+                        RESET_ICON_U, RESET_ICON_V);
                 }
                 return;
             }
             if (visual == ButtonVisual.ACTION_ICON_LEFT) {
-                PonderGuiTextures.ICON_PONDER_LEFT.render(graphics, getX() + 1, getY() + 1);
+                renderSceneButtonIcon(graphics, PonderGuiTextures.ICON_PONDER_LEFT);
                 return;
             }
             if (visual == ButtonVisual.ACTION_ICON_RIGHT) {
-                PonderGuiTextures.ICON_PONDER_RIGHT.render(graphics, getX() + 1, getY() + 1);
+                renderSceneButtonIcon(graphics, PonderGuiTextures.ICON_PONDER_RIGHT);
                 return;
             }
             if (visual == ButtonVisual.ACTION_PLAY) {
                 if (renderedOverlay) {
-                    PonderGuiTextures.ICON_PONDER_RIGHT.render(graphics, getX() + 2, getY() + 1);
+                    renderTextureIcon(graphics, getX() + ACTION_ICON_OFFSET, getY() + ACTION_ICON_OFFSET,
+                        PLAY_ICON_U, PLAY_ICON_V);
                 }
-                String text = font.plainSubstrByWidth(getMessage().getString(), width - 17);
-                graphics.drawString(font, text, getX() + 15, getY() + 5, color, false);
+                int textAreaX = getX() + PLAY_TEXT_START_X;
+                int textAreaWidth = width - PLAY_TEXT_START_X - PLAY_TEXT_RIGHT_PADDING;
+                String text = font.plainSubstrByWidth(getMessage().getString(), textAreaWidth);
+                graphics.drawString(font, text, textAreaX + (textAreaWidth - font.width(text)) / 2,
+                    getY() + 5, color, false);
                 return;
             }
 
@@ -1297,8 +1307,21 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 getY() + 5, color, false);
         }
 
-        private boolean isPonderButtonVisual() {
+        private boolean isSceneButtonVisual() {
             return visual == ButtonVisual.ACTION_ICON_LEFT || visual == ButtonVisual.ACTION_ICON_RIGHT;
+        }
+
+        private void renderSceneButtonIcon(GuiGraphics graphics, PonderGuiTextures icon) {
+            if (active) {
+                icon.render(graphics, getX() + 1, getY() + 1);
+            } else {
+                icon.render(graphics, getX() + 1, getY() + 1, SCENE_BUTTON_DISABLED_ICON_COLOR);
+            }
+        }
+
+        private void renderTextureIcon(GuiGraphics graphics, int x, int y, int sourceU, int sourceV) {
+            graphics.blit(BACKGROUND, x, y, sourceU, sourceV, ACTION_ICON_SIZE, ACTION_ICON_SIZE,
+                PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
         }
     }
 
