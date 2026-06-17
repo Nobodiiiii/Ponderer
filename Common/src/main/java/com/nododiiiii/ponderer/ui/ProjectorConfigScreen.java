@@ -88,11 +88,11 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int LABEL_TEXT_OFFSET_Y = 5;
     private static final int SCENE_BUTTON_SIZE = 18;
     private static final int SCENE_BUTTON_Y = 139;
-    private static final int SCENE_LEFT_BUTTON_X = 11;
+    private static final int SCENE_LEFT_BUTTON_X = 12;
     private static final int SCENE_RIGHT_BUTTON_X = 252;
-    private static final int SCENE_BAR_X = 35;
+    private static final int SCENE_BAR_X = 36;
     private static final int SCENE_BAR_Y = 148;
-    private static final int SCENE_BAR_WIDTH = 211;
+    private static final int SCENE_BAR_WIDTH = 210;
     private static final int SCENE_BAR_HEIGHT = 1;
     private static final int SCENE_KEYFRAME_HIT_RADIUS = 6;
     private static final int OFFSET_BOX_WIDTH = 18;
@@ -102,10 +102,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int OFFSET_ROW_TEXTURE_Y = 316;
     private static final int OFFSET_ROW_TEXTURE_WIDTH = 60;
     private static final int BOTTOM_ACTION_Y = 171;
-    private static final int RESET_BUTTON_X = 192;
+    private static final int RESET_BUTTON_X = 173;
     private static final int RESET_BUTTON_SIZE = 18;
-    private static final int PLAY_BUTTON_X = 220;
-    private static final int PLAY_BUTTON_WIDTH = 54;
+    private static final int PLAY_BUTTON_X = 201;
+    private static final int PLAY_BUTTON_WIDTH = 72;
     private static final int VALUE_STATE_IDLE_U = 54;
     private static final int VALUE_STATE_HOVER_U = 118;
     private static final int VALUE_STATE_CLICK_U = 182;
@@ -113,15 +113,15 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int VALUE_STATE_W = 64;
     private static final int VALUE_TEXT_OFFSET_X = 4;
     private static final int BUTTON_STATE_IDLE_U = 57;
-    private static final int BUTTON_STATE_HOVER_U = 111;
-    private static final int BUTTON_STATE_CLICK_U = 165;
+    private static final int BUTTON_STATE_HOVER_U = 129;
+    private static final int BUTTON_STATE_CLICK_U = 201;
     private static final int BUTTON_STATE_V = 441;
-    private static final int BUTTON_STATE_W = 54;
+    private static final int BUTTON_STATE_W = 72;
     private static final int PONDER_BUTTON_IDLE_U = 248;
     private static final int PONDER_BUTTON_HOVER_U = 266;
     private static final int PONDER_BUTTON_CLICK_U = 284;
     private static final int PONDER_BUTTON_DISABLED_U = 302;
-    private static final int PONDER_BUTTON_STATE_V = 441;
+    private static final int PONDER_BUTTON_STATE_V = 462;
     private static final int PONDER_BUTTON_STATE_SIZE = 18;
 
     private Button redstoneModeButton;
@@ -1233,7 +1233,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         @Override
         public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hovered = isHoveredOrFocused();
+            boolean hovered = isHovered();
             if (!hovered) {
                 pressed = false;
             }
@@ -1245,7 +1245,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 v = VALUE_STATE_V;
                 sourceWidth = VALUE_STATE_W;
                 u = active
-                    ? (pressed ? VALUE_STATE_CLICK_U : (hovered ? VALUE_STATE_HOVER_U : -1))
+                    ? (pressed ? VALUE_STATE_CLICK_U : (hovered ? VALUE_STATE_HOVER_U : VALUE_STATE_IDLE_U))
                     : VALUE_STATE_IDLE_U;
             } else if (isPonderButtonVisual()) {
                 v = PONDER_BUTTON_STATE_V;
@@ -1257,7 +1257,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 u = BUTTON_STATE_CLICK_U;
             } else if (active && hovered) {
                 u = BUTTON_STATE_HOVER_U;
-            } else if (!active) {
+            } else {
                 u = BUTTON_STATE_IDLE_U;
             }
 
@@ -1286,8 +1286,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 if (renderedOverlay) {
                     PonderGuiTextures.ICON_PONDER_RIGHT.render(graphics, getX() + 2, getY() + 1);
                 }
-                String text = font.plainSubstrByWidth(getMessage().getString(), width - 20);
-                graphics.drawString(font, text, getX() + 18, getY() + 5, color, false);
+                String text = font.plainSubstrByWidth(getMessage().getString(), width - 17);
+                graphics.drawString(font, text, getX() + 15, getY() + 5, color, false);
                 return;
             }
 
