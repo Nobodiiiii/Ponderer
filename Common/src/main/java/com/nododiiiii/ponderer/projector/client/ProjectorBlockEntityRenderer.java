@@ -291,6 +291,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             || !blockEntity.showBlueTint()) {
             return;
         }
+        // Life-size projector glow code is kept below, but intentionally not wired into the
+        // render queue for now; only miniature projectors currently show the projection beam.
+        if (layout.kind() != ProjectorKind.MINIATURE) {
+            return;
+        }
 
         ProjectorWorldOverlayQueue.enqueueProjectionGlow(this, new DeferredProjectionGlow(
             PoseSnapshot.capture(poseStack),
