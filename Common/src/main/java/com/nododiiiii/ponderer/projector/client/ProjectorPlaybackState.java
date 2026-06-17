@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.projector.client;
 
+import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
+import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
 import net.createmod.ponder.foundation.PonderScene;
@@ -95,7 +97,10 @@ final class ProjectorPlaybackState {
         if (blockEntity.getPlaybackRevision() != lastRevision
             || activeSegmentStartTick != segment.startTick()
             || localTick < activeLocalTick) {
-            ProjectorRenderContext.run(activeScene::begin);
+            ProjectorRenderContext.run(() -> {
+                resetSceneViewState(activeScene);
+                activeScene.begin();
+            });
             activeSegmentStartTick = segment.startTick();
             activeLocalTick = -1;
         }
@@ -167,6 +172,19 @@ final class ProjectorPlaybackState {
             }
         });
         activeLocalTick = targetLocalTick;
+    }
+
+    private static void resetSceneViewState(PonderScene scene) {
+        if (!(scene instanceof PonderSceneViewOffsetAccess viewOffset)) {
+            return;
+        }
+
+        float defaultScale = viewOffset.ponderer$getDefaultScale();
+        if (scene instanceof PonderSceneAccessor accessor && !Float.isNaN(defaultScale)) {
+            accessor.ponderer$setScaleFactor(defaultScale);
+        }
+        viewOffset.ponderer$resetViewOffset();
+        viewOffset.ponderer$setDefaultScale(Float.NaN);
     }
 
     @Nullable

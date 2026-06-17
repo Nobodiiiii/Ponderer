@@ -837,13 +837,16 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private PreviewSegment activePreviewSegment() {
+        Integer liveTick = resolveLiveSceneTimelineTick();
+        return activePreviewSegmentForTick(liveTick == null ? previewTick : liveTick);
+    }
+
+    private PreviewSegment activePreviewSegmentForTick(int tick) {
         if (scenePreview.segments().isEmpty()) {
             return PreviewSegment.EMPTY;
         }
 
-        Integer liveTick = resolveLiveSceneTimelineTick();
-        int labelTick = Math.max(0, Math.min(scenePreview.totalTicks(),
-            liveTick == null ? previewTick : liveTick));
+        int labelTick = Math.max(0, Math.min(scenePreview.totalTicks(), tick));
         for (PreviewSegment segment : scenePreview.segments()) {
             if (labelTick >= segment.startTick()
                 && labelTick < segment.startTick() + Math.max(1, segment.durationTicks())) {
@@ -869,6 +872,23 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             }
         }
         return Math.max(0, Math.min(selectedSceneIndex, displaySceneSegments.size() - 1));
+    }
+
+    private int currentDisplaySceneIndex() {
+        if (resolvedSceneKeys.isEmpty()) {
+            return -1;
+        }
+        PreviewSegment activeSegment = activePreviewSegment();
+        return displaySceneIndex(selectedSceneKey(), activeSegment.segmentOrdinal());
+    }
+
+    private int segmentStartTick(int segmentOrdinal) {
+        for (PreviewSegment segment : scenePreview.segments()) {
+            if (segment.segmentOrdinal() == segmentOrdinal) {
+                return Math.max(0, Math.min(scenePreview.totalTicks(), segment.startTick()));
+            }
+        }
+        return 0;
     }
 
     private String displaySceneTitle(String sceneKey, String title) {
@@ -940,27 +960,50 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void cycleSceneBackward() {
-        if (resolvedSceneKeys.size() <= 1 || selectedSceneIndex <= 0) {
+        int currentIndex = currentDisplaySceneIndex();
+        if (currentIndex <= 0) {
             return;
         }
-        selectedSceneIndex--;
-        sceneSelectionDirty = true;
-        refreshScenePreview(true);
-        refreshSceneButtons();
-        playButton.active = !resolveSceneKeysToSave().isEmpty();
-        applySelectedSceneImmediately();
+        selectDisplayScene(currentIndex - 1);
     }
 
     private void cycleSceneForward() {
-        if (resolvedSceneKeys.size() <= 1 || selectedSceneIndex >= resolvedSceneKeys.size() - 1) {
+        int currentIndex = currentDisplaySceneIndex();
+        if (currentIndex < 0 || currentIndex >= displaySceneCount() - 1) {
             return;
         }
-        selectedSceneIndex++;
-        sceneSelectionDirty = true;
-        refreshScenePreview(true);
+        selectDisplayScene(currentIndex + 1);
+    }
+
+    private void selectDisplayScene(int displayIndex) {
+        if (displaySceneSegments.isEmpty()) {
+            return;
+        }
+
+        int clampedIndex = Math.max(0, Math.min(displayIndex, displaySceneSegments.size() - 1));
+        DisplaySceneSegment target = displaySceneSegments.get(clampedIndex);
+        int targetSceneIndex = resolvedSceneKeys.indexOf(target.sceneKey());
+        if (targetSceneIndex < 0) {
+            return;
+        }
+
+        boolean changedSceneKey = targetSceneIndex != selectedSceneIndex;
+        selectedSceneIndex = targetSceneIndex;
+        if (changedSceneKey) {
+            sceneSelectionDirty = true;
+        }
+
+        refreshScenePreview(false);
+        previewTick = segmentStartTick(target.segmentOrdinal());
         refreshSceneButtons();
         playButton.active = !resolveSceneKeysToSave().isEmpty();
-        applySelectedSceneImmediately();
+
+        if (changedSceneKey) {
+            applySelectedSceneImmediately();
+            seekSelectedSceneTimeline(previewTick);
+        } else if (!isConfigDirty()) {
+            seekSelectedSceneTimeline(previewTick);
+        }
     }
 
     private void applySelectedSceneImmediately() {
@@ -1005,15 +1048,16 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void refreshSceneButtons() {
-        boolean hasScenes = !resolvedSceneKeys.isEmpty();
-        boolean multipleScenes = resolvedSceneKeys.size() > 1;
+        boolean hasScenes = displaySceneCount() > 0;
+        boolean multipleScenes = displaySceneCount() > 1;
+        int currentIndex = currentDisplaySceneIndex();
         if (previousSceneButton != null) {
             previousSceneButton.visible = hasScenes;
-            previousSceneButton.active = multipleScenes && selectedSceneIndex > 0;
+            previousSceneButton.active = multipleScenes && currentIndex > 0;
         }
         if (nextSceneButton != null) {
             nextSceneButton.visible = hasScenes;
-            nextSceneButton.active = multipleScenes && selectedSceneIndex < resolvedSceneKeys.size() - 1;
+            nextSceneButton.active = multipleScenes && currentIndex >= 0 && currentIndex < displaySceneCount() - 1;
         }
     }
 
@@ -1141,15 +1185,25 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         int keyframeMouseX = (int) Math.round(mouseX - (leftPos + SCENE_BAR_X - 2));
         Integer hoveredKeyframe = null;
         int hoveredDistance = Integer.MAX_VALUE;
+        Integer liveTick = resolveLiveSceneTimelineTick();
+        int animatedTick = Math.max(0, Math.min(scenePreview.totalTicks(), liveTick == null ? previewTick : liveTick));
+        PreviewSegment activeSegment = activePreviewSegmentForTick(animatedTick);
+        int segmentStart = activeSegment.startTick();
+        int segmentDuration = Math.max(1, activeSegment.durationTicks());
+        int segmentEnd = segmentStart + segmentDuration;
 
-        int startDistance = Math.abs(keyframeMouseX - timelineKeyframePosition(0));
+        int startDistance = Math.abs(keyframeMouseX - timelineKeyframePosition(0, segmentDuration));
         if (startDistance <= SCENE_KEYFRAME_HIT_RADIUS) {
-            hoveredKeyframe = 0;
+            hoveredKeyframe = segmentStart;
             hoveredDistance = startDistance;
         }
 
         for (int keyframeTick : scenePreview.keyframes()) {
-            int keyframePos = timelineKeyframePosition(keyframeTick);
+            if (keyframeTick < segmentStart || keyframeTick > segmentEnd) {
+                continue;
+            }
+            int localKeyframeTick = Math.max(0, Math.min(segmentDuration, keyframeTick - segmentStart));
+            int keyframePos = timelineKeyframePosition(localKeyframeTick, segmentDuration);
             int distance = Math.abs(keyframeMouseX - keyframePos);
             if (distance <= SCENE_KEYFRAME_HIT_RADIUS && distance < hoveredDistance) {
                 hoveredKeyframe = keyframeTick;
@@ -1401,9 +1455,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         PoseStack poseStack = graphics.pose();
         Integer liveTick = resolveLiveSceneTimelineTick();
-        float animatedTick = liveTick == null ? previewTick : liveTick;
-        animatedTick = Math.max(0.0F, Math.min(scenePreview.totalTicks(), animatedTick));
-        float progress = Math.max(0.0F, Math.min(1.0F, animatedTick / (float) scenePreview.totalTicks()));
+        int animatedTick = Math.max(0, Math.min(scenePreview.totalTicks(), liveTick == null ? previewTick : liveTick));
+        PreviewSegment activeSegment = activePreviewSegmentForTick(animatedTick);
+        int segmentDuration = Math.max(1, activeSegment.durationTicks());
+        int segmentStart = activeSegment.startTick();
+        int localTick = Math.max(0, Math.min(segmentDuration, animatedTick - segmentStart));
+        float progress = Math.max(0.0F, Math.min(1.0F, localTick / (float) segmentDuration));
         Integer hoveredKeyframe = hoveredSceneKeyframeTick(mouseX, mouseY);
 
         poseStack.pushPose();
@@ -1418,13 +1475,18 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
         var futureColors = PonderUI.COLOR_IDLE.map(color -> color.setAlpha(0x70));
         var passedColors = PonderUI.COLOR_HOVER.map(color -> color.setAlpha(0xe0));
-        if (hoveredKeyframe != null && hoveredKeyframe == 0 && !scenePreview.keyframes().contains(0)) {
-            int keyframePos = timelineKeyframePosition(0);
+        if (hoveredKeyframe != null && hoveredKeyframe == segmentStart
+            && !scenePreview.keyframes().contains(segmentStart)) {
+            int keyframePos = timelineKeyframePosition(0, segmentDuration);
             UIRenderHelper.drawGradientRect(poseStack.last().pose(), 320, keyframePos, 0f,
                 keyframePos + 2f, 9f, passedColors.getFirst(), passedColors.getSecond());
         }
         for (int keyframeTick : scenePreview.keyframes()) {
-            int keyframePos = timelineKeyframePosition(keyframeTick);
+            if (keyframeTick < segmentStart || keyframeTick > segmentStart + segmentDuration) {
+                continue;
+            }
+            int localKeyframeTick = Math.max(0, Math.min(segmentDuration, keyframeTick - segmentStart));
+            int keyframePos = timelineKeyframePosition(localKeyframeTick, segmentDuration);
             boolean hovered = hoveredKeyframe != null && hoveredKeyframe == keyframeTick;
             boolean passed = animatedTick >= keyframeTick;
             var colors = hovered ? passedColors : (passed ? passedColors : futureColors);
@@ -1444,8 +1506,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             y + SCENE_STATUS_TEXT_Y_OFFSET, TEXT, false);
     }
 
-    private int timelineKeyframePosition(int keyframeTick) {
-        return (int) (((float) keyframeTick) / Math.max(1.0F, (float) scenePreview.totalTicks())
+    private int timelineKeyframePosition(int keyframeTick, int durationTicks) {
+        return (int) (((float) keyframeTick) / Math.max(1.0F, (float) durationTicks)
             * (SCENE_BAR_WIDTH + 2));
     }
 

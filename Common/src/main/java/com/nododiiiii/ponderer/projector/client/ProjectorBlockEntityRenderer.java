@@ -80,6 +80,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static final float MINIATURE_BEAM_SOURCE_Y = 14.0F / 16.0F;
     private static final float MINIATURE_BEAM_OUTER_HEIGHT = 0.05F;
     private static final float MINIATURE_BEAM_BASE_RADIUS = 0.06F;
+    private static final float LIFE_SIZE_BEAM_SOURCE_Y = 9.0F / 16.0F;
+    private static final float LIFE_SIZE_BEAM_OUTER_LENGTH = 0.05F;
+    private static final float LIFE_SIZE_BEAM_BASE_HALF_EXTENT = 0.5F;
     private static final float LIFE_SIZE_CARD_RISE = 0.85F;
     /** Local billboard z step in font-pixel units. The pose is scaled to world space later, so half a
      *  local pixel is enough to break depth ties without making the projected UI visibly float. */
@@ -161,14 +164,17 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return;
         }
 
-        RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds(),
+        BoundingBox layoutBounds = blockEntity.getProjectorKind() == ProjectorKind.MINIATURE
+            ? prepared.segment().scene().getBounds()
+            : prepared.bundle().combinedBounds();
+        RenderLayout layout = RenderLayout.from(blockEntity, layoutBounds,
             prepared.activeScene(), partialTick);
         boolean antiOcclusion = blockEntity.overlayAntiOcclusion();
         ProjectorProjectionMode projectionMode = blockEntity.getProjectorKind().requiresAnchor()
             ? blockEntity.getProjectionMode()
             : ProjectorProjectionMode.DEFAULT;
         captureWorldDepthIfNeeded();
-        renderMiniatureProjectionGlow(blockEntity, layout, poseStack, partialTick);
+        renderProjectionGlow(blockEntity, layout, poseStack, partialTick);
         if (projectionMode.rendersScene()) {
             renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
         }
@@ -277,10 +283,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         return preservedWorldDepthTarget;
     }
 
-    private void renderMiniatureProjectionGlow(ProjectorBlockEntity blockEntity, RenderLayout layout,
-                                               PoseStack poseStack, float partialTick) {
-        if (layout.kind() != ProjectorKind.MINIATURE
-            || !blockEntity.getBlockState().getValue(ProjectorBlock.LIT)
+    private void renderProjectionGlow(ProjectorBlockEntity blockEntity, RenderLayout layout,
+                                      PoseStack poseStack, float partialTick) {
+        if (!blockEntity.getBlockState().getValue(ProjectorBlock.LIT)
             || !blockEntity.showBlueTint()) {
             return;
         }
@@ -292,27 +297,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
         float time = minecraft.level.getGameTime() + partialTick;
         float breathe = 0.5F + 0.5F * (float) Math.cos(time * 0.11F);
-        int spanX = Math.max(1, layout.bounds().getXSpan());
-        int spanZ = Math.max(1, layout.bounds().getZSpan());
-        float waistY = (float) layout.origin().y;
-        float outerSourceY = MINIATURE_BEAM_SOURCE_Y;
-        float beamWaistHalfX = layout.scale() * spanX * 0.5F;
-        float beamWaistHalfZ = layout.scale() * spanZ * 0.5F;
-        float outerHeight = MINIATURE_BEAM_OUTER_HEIGHT * (0.88F + 0.12F * breathe);
-        float outerTopY = waistY + outerHeight;
-        float beamTopHalfX = continueBeamHalfExtent(0.0F, beamWaistHalfX, outerSourceY, waistY, outerTopY);
-        float beamTopHalfZ = continueBeamHalfExtent(0.0F, beamWaistHalfZ, outerSourceY, waistY, outerTopY);
-
-        float sourceRed = clamp(layout.redTint() * lerp(1.0F, 0.76F, breathe), 0.0F, 1.0F);
-        float sourceGreen = clamp(layout.greenTint() * lerp(1.0F, 0.92F, breathe), 0.0F, 1.0F);
-        float waistRed = clamp(layout.redTint() * lerp(1.0F, 0.62F, breathe), 0.0F, 1.0F);
-        float waistGreen = clamp(layout.greenTint() * lerp(1.0F, 0.84F, breathe), 0.0F, 1.0F);
-        float topRed = clamp(layout.redTint() * lerp(1.0F, 0.52F, breathe), 0.0F, 1.0F);
-        float topGreen = clamp(layout.greenTint() * lerp(1.0F, 0.78F, breathe), 0.0F, 1.0F);
-
-        int outerSourceColor = argb(64, sourceRed, sourceGreen, 1.0F);
-        int outerWaistColor = argb(108, waistRed, waistGreen, 1.0F);
-        int outerTopColor = argb(24, topRed, topGreen, 1.0F);
+        float outerScale = 0.88F + 0.12F * breathe;
+        ProjectionGlowColors colors = projectionGlowColors(layout, breathe);
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -320,6 +306,31 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderSystem.depthMask(false);
         RenderSystem.disableCull();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
+
+        Matrix4f matrix = poseStack.last().pose();
+        if (layout.kind() == ProjectorKind.MINIATURE) {
+            renderMiniatureProjectionBeam(matrix, layout, outerScale, colors);
+        } else {
+            renderLifeSizeProjectionBeam(matrix, blockEntity, layout, outerScale, colors);
+        }
+
+        RenderSystem.enableCull();
+        RenderSystem.depthMask(true);
+        RenderSystem.defaultBlendFunc();
+    }
+
+    private void renderMiniatureProjectionBeam(Matrix4f matrix, RenderLayout layout, float outerScale,
+                                               ProjectionGlowColors colors) {
+        int spanX = Math.max(1, layout.bounds().getXSpan());
+        int spanZ = Math.max(1, layout.bounds().getZSpan());
+        float waistY = (float) layout.origin().y;
+        float outerSourceY = MINIATURE_BEAM_SOURCE_Y;
+        float beamWaistHalfX = layout.scale() * spanX * 0.5F;
+        float beamWaistHalfZ = layout.scale() * spanZ * 0.5F;
+        float outerHeight = MINIATURE_BEAM_OUTER_HEIGHT * outerScale;
+        float outerTopY = waistY + outerHeight;
+        float beamTopHalfX = continueBeamHalfExtent(0.0F, beamWaistHalfX, outerSourceY, waistY, outerTopY);
+        float beamTopHalfZ = continueBeamHalfExtent(0.0F, beamWaistHalfZ, outerSourceY, waistY, outerTopY);
 
         Vec3 apex = new Vec3(layout.origin().x, outerSourceY, layout.origin().z);
         Vec3 northWaistLeft = miniatureBeamPoint(layout, -beamWaistHalfX, waistY, -beamWaistHalfZ);
@@ -339,71 +350,114 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         Vec3 westTopLeft = miniatureBeamPoint(layout, -beamTopHalfX, outerTopY, beamTopHalfZ);
         Vec3 westTopRight = miniatureBeamPoint(layout, -beamTopHalfX, outerTopY, -beamTopHalfZ);
 
-        Matrix4f matrix = poseStack.last().pose();
         renderBeamTriangle(
             matrix,
             (float) apex.x, (float) apex.y, (float) apex.z,
             (float) northWaistLeft.x, (float) northWaistLeft.y, (float) northWaistLeft.z,
             (float) northWaistRight.x, (float) northWaistRight.y, (float) northWaistRight.z,
-            outerSourceColor,
-            outerWaistColor);
+            colors.sourceColor(),
+            colors.waistColor());
         renderBeamTrapezoid(
             matrix,
             (float) northWaistLeft.x, (float) northWaistLeft.y, (float) northWaistLeft.z,
             (float) northWaistRight.x, (float) northWaistRight.y, (float) northWaistRight.z,
             (float) northTopRight.x, (float) northTopRight.y, (float) northTopRight.z,
             (float) northTopLeft.x, (float) northTopLeft.y, (float) northTopLeft.z,
-            outerWaistColor,
-            outerTopColor);
+            colors.waistColor(),
+            colors.topColor());
         renderBeamTriangle(
             matrix,
             (float) apex.x, (float) apex.y, (float) apex.z,
             (float) eastWaistLeft.x, (float) eastWaistLeft.y, (float) eastWaistLeft.z,
             (float) eastWaistRight.x, (float) eastWaistRight.y, (float) eastWaistRight.z,
-            outerSourceColor,
-            outerWaistColor);
+            colors.sourceColor(),
+            colors.waistColor());
         renderBeamTrapezoid(
             matrix,
             (float) eastWaistLeft.x, (float) eastWaistLeft.y, (float) eastWaistLeft.z,
             (float) eastWaistRight.x, (float) eastWaistRight.y, (float) eastWaistRight.z,
             (float) eastTopRight.x, (float) eastTopRight.y, (float) eastTopRight.z,
             (float) eastTopLeft.x, (float) eastTopLeft.y, (float) eastTopLeft.z,
-            outerWaistColor,
-            outerTopColor);
+            colors.waistColor(),
+            colors.topColor());
         renderBeamTriangle(
             matrix,
             (float) apex.x, (float) apex.y, (float) apex.z,
             (float) southWaistLeft.x, (float) southWaistLeft.y, (float) southWaistLeft.z,
             (float) southWaistRight.x, (float) southWaistRight.y, (float) southWaistRight.z,
-            outerSourceColor,
-            outerWaistColor);
+            colors.sourceColor(),
+            colors.waistColor());
         renderBeamTrapezoid(
             matrix,
             (float) southWaistLeft.x, (float) southWaistLeft.y, (float) southWaistLeft.z,
             (float) southWaistRight.x, (float) southWaistRight.y, (float) southWaistRight.z,
             (float) southTopRight.x, (float) southTopRight.y, (float) southTopRight.z,
             (float) southTopLeft.x, (float) southTopLeft.y, (float) southTopLeft.z,
-            outerWaistColor,
-            outerTopColor);
+            colors.waistColor(),
+            colors.topColor());
         renderBeamTriangle(
             matrix,
             (float) apex.x, (float) apex.y, (float) apex.z,
             (float) westWaistLeft.x, (float) westWaistLeft.y, (float) westWaistLeft.z,
             (float) westWaistRight.x, (float) westWaistRight.y, (float) westWaistRight.z,
-            outerSourceColor,
-            outerWaistColor);
+            colors.sourceColor(),
+            colors.waistColor());
         renderBeamTrapezoid(
             matrix,
             (float) westWaistLeft.x, (float) westWaistLeft.y, (float) westWaistLeft.z,
             (float) westWaistRight.x, (float) westWaistRight.y, (float) westWaistRight.z,
             (float) westTopRight.x, (float) westTopRight.y, (float) westTopRight.z,
             (float) westTopLeft.x, (float) westTopLeft.y, (float) westTopLeft.z,
-            outerWaistColor,
-            outerTopColor);
+            colors.waistColor(),
+            colors.topColor());
+    }
 
-        RenderSystem.enableCull();
-        RenderSystem.depthMask(true);
-        RenderSystem.defaultBlendFunc();
+    private void renderLifeSizeProjectionBeam(Matrix4f matrix, ProjectorBlockEntity blockEntity,
+                                              RenderLayout layout, float outerScale,
+                                              ProjectionGlowColors colors) {
+        Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
+        Vec3 source = new Vec3(
+            0.5D + facing.getStepX() * 0.5D,
+            LIFE_SIZE_BEAM_SOURCE_Y,
+            0.5D + facing.getStepZ() * 0.5D);
+        Vec3 baseCenter = layout.localPointFor(new Vec3(0.5D, 0.5D, 0.5D));
+        Vec3 axis = baseCenter.subtract(source);
+        if (axis.lengthSqr() < 1.0E-6D) {
+            axis = new Vec3(facing.getStepX(), 0.0D, facing.getStepZ());
+        }
+
+        Vec3 axisNormal = axis.normalize();
+        Direction sideDirection = facing.getClockWise();
+        Vec3 side = new Vec3(sideDirection.getStepX(), 0.0D, sideDirection.getStepZ());
+        Vec3 up = new Vec3(0.0D, 1.0D, 0.0D);
+
+        float baseDistance = (float) axis.length();
+        float outerLength = LIFE_SIZE_BEAM_OUTER_LENGTH * outerScale;
+        float outerHalfExtent = continueBeamHalfExtent(
+            0.0F,
+            LIFE_SIZE_BEAM_BASE_HALF_EXTENT,
+            0.0F,
+            baseDistance,
+            baseDistance + outerLength);
+        Vec3 outerCenter = baseCenter.add(axisNormal.scale(outerLength));
+
+        Vec3 baseTopLeft = beamCorner(baseCenter, side, up, -LIFE_SIZE_BEAM_BASE_HALF_EXTENT,
+            LIFE_SIZE_BEAM_BASE_HALF_EXTENT);
+        Vec3 baseTopRight = beamCorner(baseCenter, side, up, LIFE_SIZE_BEAM_BASE_HALF_EXTENT,
+            LIFE_SIZE_BEAM_BASE_HALF_EXTENT);
+        Vec3 baseBottomRight = beamCorner(baseCenter, side, up, LIFE_SIZE_BEAM_BASE_HALF_EXTENT,
+            -LIFE_SIZE_BEAM_BASE_HALF_EXTENT);
+        Vec3 baseBottomLeft = beamCorner(baseCenter, side, up, -LIFE_SIZE_BEAM_BASE_HALF_EXTENT,
+            -LIFE_SIZE_BEAM_BASE_HALF_EXTENT);
+        Vec3 outerTopLeft = beamCorner(outerCenter, side, up, -outerHalfExtent, outerHalfExtent);
+        Vec3 outerTopRight = beamCorner(outerCenter, side, up, outerHalfExtent, outerHalfExtent);
+        Vec3 outerBottomRight = beamCorner(outerCenter, side, up, outerHalfExtent, -outerHalfExtent);
+        Vec3 outerBottomLeft = beamCorner(outerCenter, side, up, -outerHalfExtent, -outerHalfExtent);
+
+        renderBeamFace(matrix, source, baseTopLeft, baseTopRight, outerTopRight, outerTopLeft, colors);
+        renderBeamFace(matrix, source, baseTopRight, baseBottomRight, outerBottomRight, outerTopRight, colors);
+        renderBeamFace(matrix, source, baseBottomRight, baseBottomLeft, outerBottomLeft, outerBottomRight, colors);
+        renderBeamFace(matrix, source, baseBottomLeft, baseTopLeft, outerTopLeft, outerBottomLeft, colors);
     }
 
     private DeferredOverlayBatch captureNativePonderOverlays(PonderScene scene, RenderLayout layout, float partialTick,
@@ -748,6 +802,43 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         tesselator.end();
     }
 
+    private void renderBeamFace(Matrix4f matrix, Vec3 source, Vec3 baseLeft, Vec3 baseRight,
+                                Vec3 outerRight, Vec3 outerLeft, ProjectionGlowColors colors) {
+        renderBeamTriangle(
+            matrix,
+            (float) source.x, (float) source.y, (float) source.z,
+            (float) baseLeft.x, (float) baseLeft.y, (float) baseLeft.z,
+            (float) baseRight.x, (float) baseRight.y, (float) baseRight.z,
+            colors.sourceColor(),
+            colors.waistColor());
+        renderBeamTrapezoid(
+            matrix,
+            (float) baseLeft.x, (float) baseLeft.y, (float) baseLeft.z,
+            (float) baseRight.x, (float) baseRight.y, (float) baseRight.z,
+            (float) outerRight.x, (float) outerRight.y, (float) outerRight.z,
+            (float) outerLeft.x, (float) outerLeft.y, (float) outerLeft.z,
+            colors.waistColor(),
+            colors.topColor());
+    }
+
+    private static ProjectionGlowColors projectionGlowColors(RenderLayout layout, float breathe) {
+        float sourceRed = clamp(layout.redTint() * lerp(1.0F, 0.76F, breathe), 0.0F, 1.0F);
+        float sourceGreen = clamp(layout.greenTint() * lerp(1.0F, 0.92F, breathe), 0.0F, 1.0F);
+        float waistRed = clamp(layout.redTint() * lerp(1.0F, 0.62F, breathe), 0.0F, 1.0F);
+        float waistGreen = clamp(layout.greenTint() * lerp(1.0F, 0.84F, breathe), 0.0F, 1.0F);
+        float topRed = clamp(layout.redTint() * lerp(1.0F, 0.52F, breathe), 0.0F, 1.0F);
+        float topGreen = clamp(layout.greenTint() * lerp(1.0F, 0.78F, breathe), 0.0F, 1.0F);
+
+        return new ProjectionGlowColors(
+            argb(64, sourceRed, sourceGreen, 1.0F),
+            argb(108, waistRed, waistGreen, 1.0F),
+            argb(24, topRed, topGreen, 1.0F));
+    }
+
+    private static Vec3 beamCorner(Vec3 center, Vec3 side, Vec3 up, float sideOffset, float upOffset) {
+        return center.add(side.scale(sideOffset)).add(up.scale(upOffset));
+    }
+
     private static int withAlpha(int color, float alphaMultiplier) {
         int baseAlpha = (color >>> 24) & 0xFF;
         if (baseAlpha == 0) {
@@ -794,6 +885,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private static float lerp(float start, float end, float delta) {
         return start + (end - start) * delta;
+    }
+
+    private record ProjectionGlowColors(int sourceColor, int waistColor, int topColor) {
     }
 
     private void drawTextWindowBillboard(String text, Vec3 localPos, PonderPalette palette, float fade,
