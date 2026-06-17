@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.projector.ProjectorTriggerMode;
+import com.nododiiiii.ponderer.projector.ProjectorProjectionMode;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -23,6 +24,8 @@ class ProjectorConfigUpdatePayloadTest {
             30,
             false,
             false,
+            false,
+            ProjectorProjectionMode.TEXT_ONLY,
             0.75F,
             1.5F);
 

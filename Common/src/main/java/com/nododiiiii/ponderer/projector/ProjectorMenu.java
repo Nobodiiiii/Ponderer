@@ -20,7 +20,9 @@ public class ProjectorMenu extends AbstractContainerMenu {
     public static final int SOURCE_SLOT = 0;
     public static final int SCREEN_WIDTH = 280;
     public static final int INVENTORY_PANEL_X = 52;
-    public static final int INVENTORY_PANEL_Y = 199;
+    public static final int MINIATURE_INVENTORY_PANEL_Y = 199;
+    public static final int LIFE_SIZE_INVENTORY_PANEL_Y = 218;
+    public static final int INVENTORY_PANEL_Y = MINIATURE_INVENTORY_PANEL_Y;
     public static final int INVENTORY_PANEL_WIDTH = 176;
     public static final int INVENTORY_PANEL_HEIGHT = 96;
     public static final int SOURCE_SLOT_X = 78;
@@ -28,8 +30,6 @@ public class ProjectorMenu extends AbstractContainerMenu {
     private static final int PLAYER_INV_START = 1;
     private static final int PLAYER_INV_SIZE = 36;
     private static final int PLAYER_INV_X = INVENTORY_PANEL_X + 8;
-    private static final int PLAYER_INV_Y = INVENTORY_PANEL_Y + 14;
-    private static final int HOTBAR_Y = INVENTORY_PANEL_Y + 72;
 
     private final BlockPos projectorPos;
     private final ProjectorKind projectorKind;
@@ -115,15 +115,22 @@ public class ProjectorMenu extends AbstractContainerMenu {
     }
 
     private void addPlayerSlots(Inventory inventory) {
+        int inventoryPanelY = inventoryPanelY(projectorKind);
+        int playerInvY = inventoryPanelY + 14;
+        int hotbarY = inventoryPanelY + 72;
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(inventory, col + row * 9 + 9, PLAYER_INV_X + col * 18, PLAYER_INV_Y + row * 18));
+                addSlot(new Slot(inventory, col + row * 9 + 9, PLAYER_INV_X + col * 18, playerInvY + row * 18));
             }
         }
 
         for (int hotbar = 0; hotbar < 9; hotbar++) {
-            addSlot(new Slot(inventory, hotbar, PLAYER_INV_X + hotbar * 18, HOTBAR_Y));
+            addSlot(new Slot(inventory, hotbar, PLAYER_INV_X + hotbar * 18, hotbarY));
         }
+    }
+
+    public static int inventoryPanelY(ProjectorKind kind) {
+        return kind != null && kind.requiresAnchor() ? LIFE_SIZE_INVENTORY_PANEL_Y : MINIATURE_INVENTORY_PANEL_Y;
     }
 
     @Nullable

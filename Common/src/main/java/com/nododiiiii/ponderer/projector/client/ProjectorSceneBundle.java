@@ -273,15 +273,23 @@ public final class ProjectorSceneBundle {
     }
 
     public List<OverlayCue> activeCues(int globalTick, float partialTick) {
+        return activeCues(globalTick, partialTick, true);
+    }
+
+    public List<OverlayCue> activeCues(int globalTick, float partialTick, boolean compatibilityMode) {
         Segment segment = segmentAt(globalTick);
         if (segment == null) {
             return List.of();
         }
 
-        return activeCues(segment, segment.localTick(globalTick), partialTick);
+        return activeCues(segment, segment.localTick(globalTick), partialTick, compatibilityMode);
     }
 
     public List<OverlayCue> activeCues(Segment segment, int localTick, float partialTick) {
+        return activeCues(segment, localTick, partialTick, true);
+    }
+
+    public List<OverlayCue> activeCues(Segment segment, int localTick, float partialTick, boolean compatibilityMode) {
         if (segment == null) {
             return List.of();
         }
@@ -289,7 +297,8 @@ public final class ProjectorSceneBundle {
         List<OverlayCue> result = new ArrayList<>();
         if (segment.extractRuntimeOverlays()) {
             // Keep runtime cue fallback in lockstep with native overlay fade interpolation.
-            result.addAll(ProjectorOverlayExtractor.extract(segment.scene(), localTick, partialTick));
+            result.addAll(ProjectorOverlayExtractor.extract(segment.scene(), localTick, partialTick,
+                compatibilityMode));
         }
 
         List<OverlayCue> cues = ProjectorCueIndexStore.get(segment.scene());

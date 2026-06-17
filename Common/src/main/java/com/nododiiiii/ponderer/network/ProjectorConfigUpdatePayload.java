@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
+import com.nododiiiii.ponderer.projector.ProjectorProjectionMode;
 import com.nododiiiii.ponderer.projector.ProjectorTriggerMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -14,14 +15,17 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
                                            ProjectorTriggerMode triggerMode, @Nullable BlockPos anchorPos,
                                            int playbackDurationTicks, int intermissionTicks,
                                            boolean showBlueTint, boolean overlayAntiOcclusion,
+                                           boolean compatibilityMode, ProjectorProjectionMode projectionMode,
                                            float miniatureScale, float textScale) {
 
     private static final int MAX_SCENE_KEYS = 256;
     private static final int MAX_SCENE_KEY_LENGTH = 1024;
     private static final int MAX_TRIGGER_MODE_LENGTH = 64;
+    private static final int MAX_PROJECTION_MODE_LENGTH = 64;
 
     public ProjectorConfigUpdatePayload {
         sceneKeys = sceneKeys == null ? List.of() : List.copyOf(sceneKeys);
+        projectionMode = projectionMode == null ? ProjectorProjectionMode.DEFAULT : projectionMode;
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -39,6 +43,8 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         buf.writeVarInt(intermissionTicks);
         buf.writeBoolean(showBlueTint);
         buf.writeBoolean(overlayAntiOcclusion);
+        buf.writeBoolean(compatibilityMode);
+        buf.writeUtf(projectionMode.serializedName(), MAX_PROJECTION_MODE_LENGTH);
         buf.writeFloat(miniatureScale);
         buf.writeFloat(textScale);
     }
@@ -60,11 +66,13 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         int intermissionTicks = buf.readVarInt();
         boolean showBlueTint = buf.readBoolean();
         boolean overlayAntiOcclusion = buf.readBoolean();
+        boolean compatibilityMode = buf.readBoolean();
+        ProjectorProjectionMode projectionMode = ProjectorProjectionMode.byName(buf.readUtf(MAX_PROJECTION_MODE_LENGTH));
         float miniatureScale = buf.readFloat();
         float textScale = buf.readFloat();
         return new ProjectorConfigUpdatePayload(projectorPos, sceneKeys, triggerMode, anchorPos,
             playbackDurationTicks, intermissionTicks, showBlueTint, overlayAntiOcclusion,
-            miniatureScale, textScale);
+            compatibilityMode, projectionMode, miniatureScale, textScale);
     }
 
     public static void handle(ProjectorConfigUpdatePayload payload, @Nullable ServerPlayer player) {
@@ -76,7 +84,8 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos, List<String> s
         }
         projector.applyConfig(payload.sceneKeys(), payload.triggerMode(), payload.anchorPos(),
             payload.playbackDurationTicks(), payload.intermissionTicks(), payload.showBlueTint(),
-            payload.overlayAntiOcclusion(), payload.miniatureScale(), payload.textScale());
+            payload.overlayAntiOcclusion(), payload.compatibilityMode(), payload.projectionMode(),
+            payload.miniatureScale(), payload.textScale());
     }
 
     private static boolean isAuthorized(ServerPlayer player, BlockPos pos) {

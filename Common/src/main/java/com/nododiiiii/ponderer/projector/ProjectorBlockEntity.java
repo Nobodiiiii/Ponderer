@@ -52,6 +52,8 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_INTERMISSION = "IntermissionTicks";
     private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
     private static final String TAG_OVERLAY_ANTI_OCCLUSION = "OverlayAntiOcclusion";
+    private static final String TAG_COMPATIBILITY_MODE = "CompatibilityMode";
+    private static final String TAG_PROJECTION_MODE = "ProjectionMode";
     private static final String TAG_MINIATURE_SCALE = "MiniatureScale";
     private static final String TAG_TEXT_SCALE = "TextScale";
     private static final int FALLBACK_ONCE_DURATION_TICKS = 20 * 60;
@@ -73,6 +75,8 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private int intermissionTicks = DEFAULT_INTERMISSION_TICKS;
     private boolean showBlueTint = true;
     private boolean overlayAntiOcclusion = true;
+    private boolean compatibilityMode = true;
+    private ProjectorProjectionMode projectionMode = ProjectorProjectionMode.DEFAULT;
     private float miniatureScale = 1.0F;
     private float textScale = 1.0F;
 
@@ -235,6 +239,14 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return overlayAntiOcclusion;
     }
 
+    public boolean compatibilityMode() {
+        return compatibilityMode;
+    }
+
+    public ProjectorProjectionMode getProjectionMode() {
+        return projectionMode;
+    }
+
     public float getMiniatureScale() {
         return miniatureScale;
     }
@@ -274,7 +286,8 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     public void applyConfig(List<String> newSceneKeys, ProjectorTriggerMode newMode,
                             @Nullable BlockPos newProjectionOffset, int newPlaybackDurationTicks,
                             int newIntermissionTicks, boolean newShowBlueTint,
-                            boolean newOverlayAntiOcclusion,
+                            boolean newOverlayAntiOcclusion, boolean newCompatibilityMode,
+                            ProjectorProjectionMode newProjectionMode,
                             float newMiniatureScale, float newTextScale) {
         this.sceneKeys = sourceItem.isEmpty() ? List.of() : resolveSceneKeys(newSceneKeys);
         this.triggerMode = newMode == null ? ProjectorTriggerMode.MANUAL_LOOP : newMode;
@@ -290,6 +303,8 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         this.intermissionTicks = sanitizeIntermissionTicks(newIntermissionTicks);
         this.showBlueTint = newShowBlueTint;
         this.overlayAntiOcclusion = newOverlayAntiOcclusion;
+        this.compatibilityMode = newCompatibilityMode;
+        this.projectionMode = newProjectionMode == null ? ProjectorProjectionMode.DEFAULT : newProjectionMode;
         this.miniatureScale = Math.max(0.1F, Math.min(5.0F, newMiniatureScale));
         this.textScale = Math.max(0.1F, Math.min(10.0F, newTextScale));
         if (this.playbackDurationTicks <= 0 && !this.sceneKeys.isEmpty()) {
@@ -636,6 +651,8 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         tag.putInt(TAG_INTERMISSION, intermissionTicks);
         tag.putBoolean(TAG_SHOW_BLUE_TINT, showBlueTint);
         tag.putBoolean(TAG_OVERLAY_ANTI_OCCLUSION, overlayAntiOcclusion);
+        tag.putBoolean(TAG_COMPATIBILITY_MODE, compatibilityMode);
+        tag.putString(TAG_PROJECTION_MODE, projectionMode.serializedName());
         tag.putFloat(TAG_MINIATURE_SCALE, miniatureScale);
         tag.putFloat(TAG_TEXT_SCALE, textScale);
     }
@@ -670,6 +687,10 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         showBlueTint = !tag.contains(TAG_SHOW_BLUE_TINT) || tag.getBoolean(TAG_SHOW_BLUE_TINT);
         overlayAntiOcclusion = !tag.contains(TAG_OVERLAY_ANTI_OCCLUSION)
             || tag.getBoolean(TAG_OVERLAY_ANTI_OCCLUSION);
+        compatibilityMode = !tag.contains(TAG_COMPATIBILITY_MODE) || tag.getBoolean(TAG_COMPATIBILITY_MODE);
+        projectionMode = tag.contains(TAG_PROJECTION_MODE)
+            ? ProjectorProjectionMode.byName(tag.getString(TAG_PROJECTION_MODE))
+            : ProjectorProjectionMode.DEFAULT;
         miniatureScale = tag.contains(TAG_MINIATURE_SCALE) ? tag.getFloat(TAG_MINIATURE_SCALE) : 1.0F;
         textScale = tag.contains(TAG_TEXT_SCALE) ? tag.getFloat(TAG_TEXT_SCALE) : 1.0F;
     }

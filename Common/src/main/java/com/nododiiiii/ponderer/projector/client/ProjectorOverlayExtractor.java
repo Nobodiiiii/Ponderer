@@ -36,7 +36,8 @@ public final class ProjectorOverlayExtractor {
     private ProjectorOverlayExtractor() {
     }
 
-    public static List<ProjectorSceneBundle.OverlayCue> extract(PonderScene scene, int localTick, float partialTick) {
+    public static List<ProjectorSceneBundle.OverlayCue> extract(PonderScene scene, int localTick, float partialTick,
+                                                                boolean compatibilityMode) {
         if (scene == null || scene.getElements().isEmpty()) {
             return List.of();
         }
@@ -53,7 +54,8 @@ public final class ProjectorOverlayExtractor {
             }
 
             try {
-                ProjectorSceneBundle.OverlayCue cue = extractElement(element, localTick, fallbackLane);
+                ProjectorSceneBundle.OverlayCue cue = extractElement(element, localTick, fallbackLane,
+                    compatibilityMode);
                 if (cue == null) {
                     continue;
                 }
@@ -70,12 +72,17 @@ public final class ProjectorOverlayExtractor {
     }
 
     @Nullable
-    private static ProjectorSceneBundle.OverlayCue extractElement(PonderElement element, int localTick, int fallbackLane) {
+    private static ProjectorSceneBundle.OverlayCue extractElement(PonderElement element, int localTick,
+                                                                  int fallbackLane, boolean compatibilityMode) {
         if (element instanceof TextWindowElement) {
             return extractText((TextWindowElementAccessor) element, localTick, fallbackLane);
         }
         if (element instanceof InputWindowElement) {
             return extractInput((InputWindowElementAccessor) element, localTick);
+        }
+        if (!compatibilityMode) {
+            logSkipped(element, null);
+            return null;
         }
         return extractUnknown(element, localTick, fallbackLane);
     }

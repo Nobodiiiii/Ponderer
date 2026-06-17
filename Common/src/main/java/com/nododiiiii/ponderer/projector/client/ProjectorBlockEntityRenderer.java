@@ -19,6 +19,7 @@ import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
 import com.nododiiiii.ponderer.projector.ProjectorBlock;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorKind;
+import com.nododiiiii.ponderer.projector.ProjectorProjectionMode;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.gui.element.ScreenElement;
@@ -163,11 +164,16 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         RenderLayout layout = RenderLayout.from(blockEntity, prepared.bundle().combinedBounds(),
             prepared.activeScene(), partialTick);
         boolean antiOcclusion = blockEntity.overlayAntiOcclusion();
+        ProjectorProjectionMode projectionMode = blockEntity.getProjectorKind().requiresAnchor()
+            ? blockEntity.getProjectionMode()
+            : ProjectorProjectionMode.DEFAULT;
         captureWorldDepthIfNeeded();
         renderMiniatureProjectionGlow(blockEntity, layout, poseStack, partialTick);
-        renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
+        if (projectionMode.rendersScene()) {
+            renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
+        }
 
-        if (distanceSqr > OVERLAY_RENDER_DISTANCE_SQR) {
+        if (!projectionMode.rendersText() || distanceSqr > OVERLAY_RENDER_DISTANCE_SQR) {
             return;
         }
 
@@ -177,7 +183,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
         if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
             List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle()
-                .activeCues(prepared.segment(), prepared.localTick(), partialTick);
+                .activeCues(prepared.segment(), prepared.localTick(), partialTick,
+                    blockEntity.compatibilityMode());
             deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose, antiOcclusion);
         }
         DeferredOverlayBatch combinedOverlays = DeferredOverlayBatch.combine(deferredNativeOverlay, deferredCueOverlay);
