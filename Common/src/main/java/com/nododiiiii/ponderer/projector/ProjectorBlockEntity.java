@@ -74,7 +74,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private int playbackDurationTicks;
     private int intermissionTicks = DEFAULT_INTERMISSION_TICKS;
     private boolean showBlueTint = true;
-    private boolean overlayAntiOcclusion = true;
+    private boolean overlayAntiOcclusion = false;
     private boolean compatibilityMode = true;
     private ProjectorProjectionMode projectionMode = ProjectorProjectionMode.DEFAULT;
     private float miniatureScale = 1.0F;
@@ -685,8 +685,8 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
             ? sanitizeIntermissionTicks(tag.getInt(TAG_INTERMISSION))
             : DEFAULT_INTERMISSION_TICKS;
         showBlueTint = !tag.contains(TAG_SHOW_BLUE_TINT) || tag.getBoolean(TAG_SHOW_BLUE_TINT);
-        overlayAntiOcclusion = !tag.contains(TAG_OVERLAY_ANTI_OCCLUSION)
-            || tag.getBoolean(TAG_OVERLAY_ANTI_OCCLUSION);
+        overlayAntiOcclusion = tag.contains(TAG_OVERLAY_ANTI_OCCLUSION)
+            && tag.getBoolean(TAG_OVERLAY_ANTI_OCCLUSION);
         compatibilityMode = !tag.contains(TAG_COMPATIBILITY_MODE) || tag.getBoolean(TAG_COMPATIBILITY_MODE);
         projectionMode = tag.contains(TAG_PROJECTION_MODE)
             ? ProjectorProjectionMode.byName(tag.getString(TAG_PROJECTION_MODE))

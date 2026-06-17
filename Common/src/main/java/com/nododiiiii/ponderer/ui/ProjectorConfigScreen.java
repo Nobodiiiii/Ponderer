@@ -1,16 +1,20 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
+import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
 import com.nododiiiii.ponderer.network.ProjectorConfigUpdatePayload;
 import com.nododiiiii.ponderer.network.ProjectorManualTriggerPayload;
 import com.nododiiiii.ponderer.network.ProjectorSeekPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.projector.ProjectorBlock;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorMenu;
 import com.nododiiiii.ponderer.projector.ProjectorProjectionMode;
+import com.nododiiiii.ponderer.projector.ProjectorSceneKey;
 import com.nododiiiii.ponderer.projector.ProjectorTriggerMode;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientSceneResolver;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneBundle;
@@ -27,9 +31,11 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -54,6 +60,9 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int TEXT = 0x000000;
     private static final int INPUT_TEXT = 0xFFFFFF;
     private static final int LABEL_TEXT = 0xF2F4FF;
+    private static final int TITLE_READY_TEXT = 0x2E6E2E;
+    private static final int TITLE_ERROR_TEXT = 0xA03030;
+    private static final int STATUS_TEXT = 0x606060;
     private static final int PROJECTOR_TEXTURE_WIDTH = 320;
     private static final int PROJECTOR_TEXTURE_HEIGHT = 480;
     private static final int PLAYER_INVENTORY_WIDTH = 176;
@@ -73,6 +82,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int SOURCE_TEXT_Y = SOURCE_LABEL_TEXT_Y;
     private static final int SOURCE_INFO_X = 98;
     private static final int SOURCE_INFO_WIDTH = 149;
+    private static final int REMOTE_PULL_BUTTON_X = 249;
+    private static final int REMOTE_PULL_BUTTON_Y = 25;
     private static final int INVENTORY_LABEL_X = PLAYER_INVENTORY_X + 8;
     private static final int LEFT_LABEL_TEXT_X = 28;
     private static final int RIGHT_LABEL_TEXT_X = 159;
@@ -98,16 +109,17 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int SCENE_BAR_X = 35;
     private static final int MINIATURE_SCENE_BAR_Y = 148;
     private static final int LIFE_SIZE_SCENE_BAR_Y = 167;
-    private static final int MINIATURE_STATUS_Y = 157;
-    private static final int LIFE_SIZE_STATUS_Y = 176;
     private static final int SCENE_BAR_WIDTH = 210;
     private static final int SCENE_BAR_HEIGHT = 1;
+    private static final int SCENE_STATUS_TEXT_Y_OFFSET = -12;
     private static final int SCENE_KEYFRAME_HIT_RADIUS = 6;
     private static final int OFFSET_BOX_WIDTH = 40;
     private static final int OFFSET_GAP = 0;
     private static final int OFFSET_START_X = 77;
     private static final int MINIATURE_BOTTOM_ACTION_Y = 171;
     private static final int LIFE_SIZE_BOTTOM_ACTION_Y = 190;
+    private static final int BOTTOM_STATUS_X = 10;
+    private static final int BOTTOM_STATUS_WIDTH = 158;
     private static final int RESET_BUTTON_X = 173;
     private static final int RESET_BUTTON_SIZE = 18;
     private static final int PLAY_BUTTON_X = 201;
@@ -129,13 +141,13 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int SCENE_BUTTON_STATE_V = 462;
     private static final int SCENE_BUTTON_STATE_SIZE = 18;
     private static final Color SCENE_BUTTON_DISABLED_ICON_COLOR = new Color(0xff_9c9c9c, true);
-    private static final int RESET_ICON_U = 22;
-    private static final int RESET_ICON_V = 445;
-    private static final int PLAY_ICON_U = 40;
-    private static final int PLAY_ICON_V = 445;
-    private static final int ACTION_ICON_SIZE = 10;
-    private static final int ACTION_ICON_OFFSET = 4;
-    private static final int PLAY_TEXT_START_X = ACTION_ICON_OFFSET + ACTION_ICON_SIZE + 3;
+    private static final int PULL_ICON_U = 0;
+    private static final int RESET_ICON_U = 18;
+    private static final int PLAY_ICON_U = 36;
+    private static final int ACTION_ICON_V = 441;
+    private static final int ACTION_ICON_SIZE = 16;
+    private static final int ACTION_ICON_OFFSET = 0;
+    private static final int PLAY_TEXT_START_X = ACTION_ICON_OFFSET + ACTION_ICON_SIZE + 2;
     private static final int PLAY_TEXT_RIGHT_PADDING = 4;
 
     private Button redstoneModeButton;
@@ -145,6 +157,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private Button compatibilityModeButton;
     @Nullable
     private Button projectionModeButton;
+    private Button remotePullButton;
     private Button playButton;
     @Nullable
     private Button previousSceneButton;
@@ -167,6 +180,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
     private List<String> resolvedSceneKeys = List.of();
     private List<String> configuredSceneKeys = List.of();
+    private List<DisplaySceneSegment> displaySceneSegments = List.of();
     private String sourceFingerprint = "";
     private int selectedSceneIndex;
     private boolean sceneSelectionDirty;
@@ -176,7 +190,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private boolean redstoneMode;
     private boolean loopMode = true;
     private boolean showBlueTint = true;
-    private boolean overlayAntiOcclusion = true;
+    private boolean overlayAntiOcclusion = false;
     private boolean compatibilityMode = true;
     private ProjectorProjectionMode projectionMode = ProjectorProjectionMode.DEFAULT;
     private float miniatureScale = 1.0F;
@@ -213,10 +227,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return isLifeSizeProjector() ? LIFE_SIZE_SCENE_BAR_Y : MINIATURE_SCENE_BAR_Y;
     }
 
-    private int statusY() {
-        return isLifeSizeProjector() ? LIFE_SIZE_STATUS_Y : MINIATURE_STATUS_Y;
-    }
-
     private int bottomActionY() {
         return isLifeSizeProjector() ? LIFE_SIZE_BOTTOM_ACTION_Y : MINIATURE_BOTTOM_ACTION_Y;
     }
@@ -229,6 +239,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         loadProjectorState();
         configuredSceneKeys = menu.projector() == null ? List.of() : List.copyOf(menu.projector().getSceneKeys());
 
+        remotePullButton = addRenderableWidget(new ProjectorTextureButton(
+            leftPos + REMOTE_PULL_BUTTON_X,
+            topPos + REMOTE_PULL_BUTTON_Y,
+            RESET_BUTTON_SIZE,
+            CONTROL_HEIGHT,
+            Component.empty(),
+            button -> pullRemoteScenesForSource(),
+            ButtonVisual.ACTION_ICON_REMOTE_PULL));
         redstoneModeButton = addRenderableWidget(modeButton(
             leftPos + LEFT_POINTED_VALUE_X,
             topPos + ROW_1_Y,
@@ -334,6 +352,11 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                 button -> triggerManualOnce(), ButtonVisual.ACTION_PLAY));
         }
 
+        remotePullButton.setTooltip(Tooltip.create(Component.translatable("ponderer.ui.projector.remote_pull.tooltip")));
+        if (resetProjectionButton != null) {
+            resetProjectionButton.setTooltip(Tooltip.create(Component.translatable("ponderer.ui.projector.reset_offset.tooltip")));
+        }
+
         ProjectorBlockEntity projector = menu.projector();
         if (menu.projectorKind().requiresAnchor()) {
             setOffset(projector != null
@@ -408,8 +431,11 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         graphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, TEXT, false);
 
         drawLabel(graphics, "ponderer.ui.projector.source_item", SOURCE_LABEL_TEXT_X, SOURCE_LABEL_TEXT_Y);
-        graphics.drawString(font, trimToWidth(sceneSummaryLabel(), SOURCE_INFO_WIDTH), SOURCE_INFO_X,
-            SOURCE_TEXT_Y, sceneSummaryColor(), false);
+        Component sourceStatus = titleStatusLabel();
+        if (!sourceStatus.getString().isBlank()) {
+            graphics.drawString(font, trimToWidth(sourceStatus, SOURCE_INFO_WIDTH), SOURCE_INFO_X,
+                SOURCE_TEXT_Y, titleStatusColor(), false);
+        }
 
         drawLabel(graphics, "ponderer.ui.projector.redstone_mode", LEFT_LABEL_TEXT_X, ROW_1_Y + LABEL_TEXT_OFFSET_Y);
         drawLabel(graphics, "ponderer.ui.projector.loop_mode", RIGHT_LABEL_TEXT_X, ROW_1_Y + LABEL_TEXT_OFFSET_Y);
@@ -429,10 +455,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             drawLabel(graphics, "ponderer.ui.projector.text_scale", RIGHT_LABEL_TEXT_X, ROW_4_Y + LABEL_TEXT_OFFSET_Y);
         }
 
-        if (!statusMessage.getString().isBlank()) {
-            graphics.drawString(font, trimToWidth(statusMessage, 210),
-                SCENE_BAR_X, statusY(), statusColor, false);
-        }
+        renderBottomStatus(graphics);
     }
 
     private void loadProjectorState() {
@@ -455,6 +478,29 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private void applyMode(ProjectorTriggerMode mode) {
         redstoneMode = mode.usesRedstone();
         loopMode = mode.loops();
+    }
+
+    private Component redstoneModeLabel() {
+        return Component.translatable("ponderer.ui.projector.redstone_mode." + (redstoneMode ? "redstone" : "manual"));
+    }
+
+    private Component loopModeLabel() {
+        return Component.translatable("ponderer.ui.projector.loop_mode." + (loopMode ? "loop" : "once"));
+    }
+
+    private Component toggleLabel(boolean value) {
+        return Component.translatable("ponderer.ui.projector.toggle." + (value ? "on" : "off"));
+    }
+
+    private void refreshConfigButtonLabels() {
+        redstoneModeButton.setMessage(redstoneModeLabel());
+        loopModeButton.setMessage(loopModeLabel());
+        blueTintButton.setMessage(toggleLabel(showBlueTint));
+        textAntiOcclusionButton.setMessage(toggleLabel(overlayAntiOcclusion));
+        compatibilityModeButton.setMessage(toggleLabel(compatibilityMode));
+        if (projectionModeButton != null) {
+            projectionModeButton.setMessage(Component.translatable(projectionMode.translationKey()));
+        }
     }
 
     private Button modeButton(int x, int y, BooleanSupplier getter,
@@ -525,6 +571,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         String previousSelectedSceneKey = selectedSceneKey();
         sourceFingerprint = fingerprint(menu.sourceItem());
         resolvedSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(menu.sourceItem());
+        displaySceneSegments = buildDisplaySceneSegments(resolvedSceneKeys);
         List<String> projectorSceneKeys = currentProjectorSceneKeys();
         if (!projectorSceneKeys.isEmpty()) {
             configuredSceneKeys = List.copyOf(projectorSceneKeys);
@@ -535,20 +582,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
         selectSceneAfterRefresh(previousSelectedSceneKey);
         refreshSceneButtons();
+        remotePullButton.active = !menu.sourceItem().isEmpty();
         playButton.active = !resolveSceneKeysToSave().isEmpty();
         refreshScenePreview(true);
         tryAutoSyncResolvedScenes();
-
-        if (menu.sourceItem().isEmpty()) {
-            status(Component.translatable("ponderer.ui.projector.insert_item"), 0x606060);
-            return;
-        }
-        if (resolvedSceneKeys.isEmpty()) {
-            status(Component.translatable("ponderer.ui.projector.no_scenes_for_item"), 0xA03030);
-            return;
-        }
-
-        status(Component.translatable("ponderer.ui.projector.scenes_detected", resolvedSceneKeys.size()), 0x2E6E2E);
     }
 
     /**
@@ -659,11 +696,27 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void resetProjectionControl() {
-        if (menu.projectorKind().requiresAnchor()) {
-            resetOffset();
-        } else if (scaleBox != null) {
+        redstoneMode = false;
+        loopMode = true;
+        showBlueTint = true;
+        overlayAntiOcclusion = false;
+        compatibilityMode = true;
+        projectionMode = ProjectorProjectionMode.DEFAULT;
+        refreshConfigButtonLabels();
+
+        if (textScaleBox != null) {
+            textScaleBox.setValue(trimFloat(1.0F));
+        }
+        if (intermissionBox != null) {
+            intermissionBox.setValue(String.valueOf(ProjectorBlockEntity.DEFAULT_INTERMISSION_TICKS));
+        }
+        if (scaleBox != null) {
             scaleBox.setValue(trimFloat(1.0F));
         }
+        if (menu.projectorKind().requiresAnchor()) {
+            resetOffset();
+        }
+        refreshScenePreview(false);
     }
 
     @Nullable
@@ -745,7 +798,28 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         if (resolvedSceneKeys.isEmpty()) {
             return Component.translatable("ponderer.ui.projector.no_scenes_for_item");
         }
-        return Component.translatable("ponderer.ui.projector.scenes_detected", resolvedSceneKeys.size());
+        return Component.translatable("ponderer.ui.projector.scenes_detected", displaySceneCount());
+    }
+
+    private Component titleStatusLabel() {
+        if (menu.sourceItem().isEmpty()) {
+            return Component.empty();
+        }
+        if (resolvedSceneKeys.isEmpty()) {
+            return Component.translatable("ponderer.ui.projector.no_scenes_for_item");
+        }
+        return Component.translatable("ponderer.ui.projector.scenes_detected", displaySceneCount());
+    }
+
+    private int titleStatusColor() {
+        if (menu.sourceItem().isEmpty()) {
+            return TEXT;
+        }
+        return resolvedSceneKeys.isEmpty() ? TITLE_ERROR_TEXT : TITLE_READY_TEXT;
+    }
+
+    private int displaySceneCount() {
+        return displaySceneSegments.isEmpty() ? resolvedSceneKeys.size() : displaySceneSegments.size();
     }
 
     private Component sceneSummaryLabel() {
@@ -753,9 +827,59 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             return sceneSummary();
         }
 
-        String title = scenePreview.title().isBlank() ? selectedSceneKey() : scenePreview.title();
-        String prefix = "[" + (selectedSceneIndex + 1) + "/" + resolvedSceneKeys.size() + "] ";
+        PreviewSegment activeSegment = activePreviewSegment();
+        int displayIndex = displaySceneIndex(selectedSceneKey(), activeSegment.segmentOrdinal());
+        String title = activeSegment.title().isBlank()
+            ? displaySceneTitle(selectedSceneKey(), scenePreview.title())
+            : activeSegment.title();
+        String prefix = "[" + (displayIndex + 1) + "/" + displaySceneCount() + "] ";
         return Component.literal(prefix + title);
+    }
+
+    private PreviewSegment activePreviewSegment() {
+        if (scenePreview.segments().isEmpty()) {
+            return PreviewSegment.EMPTY;
+        }
+
+        Integer liveTick = resolveLiveSceneTimelineTick();
+        int labelTick = Math.max(0, Math.min(scenePreview.totalTicks(),
+            liveTick == null ? previewTick : liveTick));
+        for (PreviewSegment segment : scenePreview.segments()) {
+            if (labelTick >= segment.startTick()
+                && labelTick < segment.startTick() + Math.max(1, segment.durationTicks())) {
+                return segment;
+            }
+        }
+        return scenePreview.segments().get(scenePreview.segments().size() - 1);
+    }
+
+    private int displaySceneIndex(String sceneKey, int segmentOrdinal) {
+        if (displaySceneSegments.isEmpty()) {
+            return Math.max(0, Math.min(selectedSceneIndex, Math.max(0, resolvedSceneKeys.size() - 1)));
+        }
+        for (int index = 0; index < displaySceneSegments.size(); index++) {
+            DisplaySceneSegment segment = displaySceneSegments.get(index);
+            if (segment.sceneKey().equals(sceneKey) && segment.segmentOrdinal() == segmentOrdinal) {
+                return index;
+            }
+        }
+        for (int index = 0; index < displaySceneSegments.size(); index++) {
+            if (displaySceneSegments.get(index).sceneKey().equals(sceneKey)) {
+                return index;
+            }
+        }
+        return Math.max(0, Math.min(selectedSceneIndex, displaySceneSegments.size() - 1));
+    }
+
+    private String displaySceneTitle(String sceneKey, String title) {
+        ProjectorSceneKey.Native nativeKey = ProjectorSceneKey.parseNative(sceneKey);
+        if (nativeKey != null) {
+            return nativeKey.sceneId().getPath();
+        }
+        if (title == null || title.isBlank()) {
+            return sceneKey;
+        }
+        return title;
     }
 
     private int sceneSummaryColor() {
@@ -920,6 +1044,44 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
         int clampedIndex = Math.max(0, Math.min(selectedSceneIndex, resolvedSceneKeys.size() - 1));
         return resolvedSceneKeys.get(clampedIndex);
+    }
+
+    private List<DisplaySceneSegment> buildDisplaySceneSegments(List<String> sceneKeys) {
+        if (sceneKeys == null || sceneKeys.isEmpty()) {
+            return List.of();
+        }
+
+        List<DisplaySceneSegment> segments = new ArrayList<>();
+        for (String sceneKey : sceneKeys) {
+            if (sceneKey == null || sceneKey.isBlank()) {
+                continue;
+            }
+            DslScene dslScene = SceneRuntime.findByKey(sceneKey);
+            String sceneTitle = resolveSceneTitle(sceneKey, dslScene);
+            try {
+                ProjectorSceneBundle bundle = ProjectorSceneBundle.compile(sceneKey);
+                if (bundle != null && !bundle.segments().isEmpty()) {
+                    for (int ordinal = 0; ordinal < bundle.segments().size(); ordinal++) {
+                        ProjectorSceneBundle.Segment segment = bundle.segments().get(ordinal);
+                        segments.add(new DisplaySceneSegment(sceneKey, ordinal,
+                            resolveSegmentTitle(dslScene, segment.segmentIndex(), segment.scene().getTitle(), sceneTitle)));
+                    }
+                    continue;
+                }
+            } catch (Throwable ignored) {
+            }
+
+            if (dslScene != null && dslScene.scenes != null && !dslScene.scenes.isEmpty()) {
+                for (int ordinal = 0; ordinal < dslScene.scenes.size(); ordinal++) {
+                    segments.add(new DisplaySceneSegment(sceneKey, ordinal,
+                        resolveSegmentTitle(dslScene, ordinal, "", sceneTitle)));
+                }
+            } else {
+                segments.add(new DisplaySceneSegment(sceneKey, 0, displaySceneTitle(sceneKey, sceneTitle)));
+            }
+        }
+
+        return List.copyOf(segments);
     }
 
     private List<String> resolveSceneKeysToSave() {
@@ -1129,34 +1291,54 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
                     title = bundle.segments().get(0).scene().getTitle();
                 }
                 List<Integer> keyframes = new ArrayList<>();
+                List<PreviewSegment> previewSegments = new ArrayList<>();
                 int timeline = 0;
                 for (int segmentIndex = 0; segmentIndex < bundle.segments().size(); segmentIndex++) {
                     ProjectorSceneBundle.Segment segment = bundle.segments().get(segmentIndex);
+                    int duration = Math.max(1, segment.durationTicks());
+                    previewSegments.add(new PreviewSegment(segmentIndex,
+                        resolveSegmentTitle(dslScene, segment.segmentIndex(), segment.scene().getTitle(), title),
+                        timeline, duration));
                     for (int keyframeIndex = 0; keyframeIndex < segment.scene().getKeyframeCount(); keyframeIndex++) {
                         keyframes.add(timeline + segment.scene().getKeyframeTime(keyframeIndex));
                     }
-                    timeline += Math.max(1, segment.durationTicks());
+                    timeline += duration;
                     if (segmentIndex < bundle.segments().size() - 1) {
                         timeline += Math.max(0, intermissionTicks);
                     }
                 }
-                return new ScenePreview(sceneKey, title == null ? sceneKey : title, timeline, List.copyOf(keyframes));
+                return new ScenePreview(sceneKey, title == null ? sceneKey : title, timeline,
+                    List.copyOf(keyframes), List.copyOf(previewSegments));
             }
         } catch (Throwable ignored) {
         }
 
         if (dslScene != null && dslScene.scenes != null && !dslScene.scenes.isEmpty()) {
+            List<PreviewSegment> previewSegments = new ArrayList<>();
+            int segmentTimeline = 0;
+            for (int segmentIndex = 0; segmentIndex < dslScene.scenes.size(); segmentIndex++) {
+                DslScene.SceneSegment segment = dslScene.scenes.get(segmentIndex);
+                int duration = Math.max(1, ProjectorSceneCompiler.estimateSegmentTicks(segment));
+                previewSegments.add(new PreviewSegment(segmentIndex,
+                    resolveSegmentTitle(dslScene, segmentIndex, "", title), segmentTimeline, duration));
+                segmentTimeline += duration;
+                if (segmentIndex < dslScene.scenes.size() - 1) {
+                    segmentTimeline += Math.max(0, intermissionTicks);
+                }
+            }
             int timeline = ProjectorSceneTimeline.withIntermissions(
                 ProjectorSceneTimeline.estimateTotalTicks(sceneKey),
                 dslScene.scenes.size(),
                 intermissionTicks,
                 false);
             return new ScenePreview(sceneKey, title, timeline,
-                ProjectorSceneTimeline.estimateKeyframeTicks(dslScene, intermissionTicks));
+                ProjectorSceneTimeline.estimateKeyframeTicks(dslScene, intermissionTicks),
+                List.copyOf(previewSegments));
         }
 
         int totalTicks = Math.max(0, ProjectorSceneCompiler.estimateTotalTicks(sceneKey));
-        return new ScenePreview(sceneKey, title, totalTicks, List.of());
+        return new ScenePreview(sceneKey, title, totalTicks, List.of(),
+            List.of(new PreviewSegment(0, displaySceneTitle(sceneKey, title), 0, totalTicks)));
     }
 
     private String resolveSceneTitle(String sceneKey, @Nullable DslScene dslScene) {
@@ -1174,6 +1356,29 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return sceneKey;
     }
 
+    private String resolveSegmentTitle(@Nullable DslScene dslScene, int segmentIndex,
+                                       @Nullable String compiledTitle, @Nullable String sceneTitle) {
+        if (dslScene != null && dslScene.scenes != null
+            && segmentIndex >= 0 && segmentIndex < dslScene.scenes.size()) {
+            DslScene.SceneSegment segment = dslScene.scenes.get(segmentIndex);
+            if (segment != null) {
+                if (segment.title != null) {
+                    String title = segment.title.resolve();
+                    if (!title.isBlank()) {
+                        return title;
+                    }
+                }
+                if (segment.id != null && !segment.id.isBlank()) {
+                    return segment.id;
+                }
+            }
+        }
+        if (compiledTitle != null && !compiledTitle.isBlank()) {
+            return compiledTitle;
+        }
+        return sceneTitle == null || sceneTitle.isBlank() ? "" : sceneTitle;
+    }
+
     private void renderSceneTimeline(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         if (resolvedSceneKeys.isEmpty()) {
             return;
@@ -1187,6 +1392,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             .at(x, y, 400)
             .withBounds(SCENE_BAR_WIDTH, SCENE_BAR_HEIGHT)
             .render(graphics);
+
+        renderSceneProgressStatus(graphics, x, y);
 
         if (scenePreview.totalTicks() <= 0) {
             return;
@@ -1228,6 +1435,15 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         poseStack.popPose();
     }
 
+    private void renderSceneProgressStatus(GuiGraphics graphics, int x, int y) {
+        if (resolvedSceneKeys.isEmpty()) {
+            return;
+        }
+        Component label = trimToWidth(sceneSummaryLabel(), SCENE_BAR_WIDTH);
+        graphics.drawString(font, label, x + (SCENE_BAR_WIDTH - font.width(label)) / 2,
+            y + SCENE_STATUS_TEXT_Y_OFFSET, TEXT, false);
+    }
+
     private int timelineKeyframePosition(int keyframeTick) {
         return (int) (((float) keyframeTick) / Math.max(1.0F, (float) scenePreview.totalTicks())
             * (SCENE_BAR_WIDTH + 2));
@@ -1238,6 +1454,62 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             return "";
         }
         return stack.save(new CompoundTag()).toString();
+    }
+
+    private void pullRemoteScenesForSource() {
+        ItemStack source = menu.sourceItem();
+        if (source.isEmpty()) {
+            status(Component.translatable("ponderer.ui.projector.insert_item"), STATUS_TEXT);
+            return;
+        }
+
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(source.getItem());
+        if (itemId == null) {
+            status(Component.translatable("ponderer.ui.projector.remote_pull.no_item"), TITLE_ERROR_TEXT);
+            return;
+        }
+
+        PondererServices.NETWORK.sendToServer(new RemotePullRequestPayload(
+            RemoteWorkspaceService.KIND_ITEM_SCENES, itemId.toString(), null, true));
+        status(Component.translatable("ponderer.ui.projector.remote_pull.requesting", itemId), STATUS_TEXT);
+    }
+
+    public void receiveRemoteAction(RemoteActionResponsePayload payload) {
+        if (payload.message() != null && !payload.message().isBlank()) {
+            status(localizedRemotePullMessage(payload.message()), payload.success() ? TITLE_READY_TEXT : TITLE_ERROR_TEXT);
+        }
+        if (payload.success()) {
+            refreshResolvedScenes();
+        }
+    }
+
+    private Component localizedRemotePullMessage(String message) {
+        String noRemotePrefix = "No remote scenes found for item ";
+        if (message.startsWith(noRemotePrefix)) {
+            return Component.translatable("ponderer.ui.projector.remote_pull.none",
+                message.substring(noRemotePrefix.length()));
+        }
+
+        String pulledPrefix = "Pulled ";
+        String pulledSuffix = " remote scene(s) for item ";
+        if (message.startsWith(pulledPrefix)) {
+            int suffixStart = message.indexOf(pulledSuffix, pulledPrefix.length());
+            if (suffixStart > pulledPrefix.length()) {
+                String count = message.substring(pulledPrefix.length(), suffixStart);
+                String itemId = message.substring(suffixStart + pulledSuffix.length());
+                return Component.translatable("ponderer.ui.projector.remote_pull.done", count, itemId);
+            }
+        }
+
+        return Component.literal(message);
+    }
+
+    private void renderBottomStatus(GuiGraphics graphics) {
+        if (statusMessage.getString().isBlank()) {
+            return;
+        }
+        Component message = trimToWidth(statusMessage, BOTTOM_STATUS_WIDTH);
+        graphics.drawString(font, message, BOTTOM_STATUS_X, bottomActionY() + 5, statusColor, false);
     }
 
     private void status(Component message, int color) {
@@ -1290,6 +1562,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
     private enum ButtonVisual {
         POINTED_VALUE,
+        ACTION_ICON_REMOTE_PULL,
         ACTION_ICON_RESET,
         ACTION_ICON_LEFT,
         ACTION_ICON_RIGHT,
@@ -1355,10 +1628,17 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
             Font font = Minecraft.getInstance().font;
             int color = active && visual == ButtonVisual.ACTION_PLAY ? 0xF2F4FF : (active ? TEXT : 0x707070);
+            if (visual == ButtonVisual.ACTION_ICON_REMOTE_PULL) {
+                if (renderedOverlay) {
+                    renderTextureIcon(graphics, getX() + ACTION_ICON_OFFSET, getY() + ACTION_ICON_OFFSET,
+                        PULL_ICON_U, ACTION_ICON_V);
+                }
+                return;
+            }
             if (visual == ButtonVisual.ACTION_ICON_RESET) {
                 if (renderedOverlay) {
                     renderTextureIcon(graphics, getX() + ACTION_ICON_OFFSET, getY() + ACTION_ICON_OFFSET,
-                        RESET_ICON_U, RESET_ICON_V);
+                        RESET_ICON_U, ACTION_ICON_V);
                 }
                 return;
             }
@@ -1373,7 +1653,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             if (visual == ButtonVisual.ACTION_PLAY) {
                 if (renderedOverlay) {
                     renderTextureIcon(graphics, getX() + ACTION_ICON_OFFSET, getY() + ACTION_ICON_OFFSET,
-                        PLAY_ICON_U, PLAY_ICON_V);
+                        PLAY_ICON_U, ACTION_ICON_V);
                 }
                 int textAreaX = getX() + PLAY_TEXT_START_X;
                 int textAreaWidth = width - PLAY_TEXT_START_X - PLAY_TEXT_RIGHT_PADDING;
@@ -1437,8 +1717,16 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
     }
 
-    private record ScenePreview(String sceneKey, String title, int totalTicks, List<Integer> keyframes) {
-        private static final ScenePreview EMPTY = new ScenePreview("", "", 0, List.of());
+    private record DisplaySceneSegment(String sceneKey, int segmentOrdinal, String title) {
+    }
+
+    private record PreviewSegment(int segmentOrdinal, String title, int startTick, int durationTicks) {
+        private static final PreviewSegment EMPTY = new PreviewSegment(0, "", 0, 0);
+    }
+
+    private record ScenePreview(String sceneKey, String title, int totalTicks, List<Integer> keyframes,
+                                List<PreviewSegment> segments) {
+        private static final ScenePreview EMPTY = new ScenePreview("", "", 0, List.of(), List.of());
     }
 
     private record SceneTimelineWindow(int startTick, int sceneDurationTicks, int holdEndTick, boolean isLastScene) {

@@ -41,6 +41,7 @@ public final class RemoteWorkspaceService {
     public static final String KIND_SCENE = "scene";
     public static final String KIND_STRUCTURE = "structure";
     public static final String KIND_PACK = "pack";
+    public static final String KIND_ITEM_SCENES = "item_scenes";
 
     private static final String HISTORY_DIR = "remote_history";
     private static final String LOCAL_SCOPE = "_local";
@@ -165,6 +166,31 @@ public final class RemoteWorkspaceService {
                 }
             }
             return new PullBundle(List.copyOf(scripts), List.copyOf(structures), "Pulled remote pack " + packOrId(id, pack));
+        }
+
+        if (KIND_ITEM_SCENES.equals(kind)) {
+            Set<String> structureKeys = new HashSet<>();
+            int matchedScenes = 0;
+            for (SceneStore.SyncFileRef sceneRef : SceneStore.collectServerScriptRefs(server)) {
+                DslScene scene = readScene(sceneRef.path());
+                if (!sceneMatchesItem(scene, id)) {
+                    continue;
+                }
+                matchedScenes++;
+                addScriptEntry(sceneRef, scripts);
+                if (includeDependencies) {
+                    for (SceneStore.SyncFileRef structureRef : collectSceneStructureRefs(server, sceneRef)) {
+                        if (structureKeys.add(refKey(structureRef.id(), structureRef.pack()))) {
+                            addStructureEntry(structureRef, structures);
+                        }
+                    }
+                }
+            }
+            if (matchedScenes == 0) {
+                return new PullBundle(List.of(), List.of(), "No remote scenes found for item " + id);
+            }
+            return new PullBundle(List.copyOf(scripts), List.copyOf(structures),
+                "Pulled " + matchedScenes + " remote scene(s) for item " + id);
         }
 
         if (KIND_SCENE.equals(kind)) {
@@ -435,6 +461,31 @@ public final class RemoteWorkspaceService {
             LOGGER.warn("Failed to parse remote scene {}", path, e);
             return null;
         }
+    }
+
+    private static boolean sceneMatchesItem(@Nullable DslScene scene, String itemId) {
+        if (scene == null || scene.items == null || itemId == null || itemId.isBlank()) {
+            return false;
+        }
+        for (String rawItem : scene.items) {
+            String boundItem = cleanItemId(rawItem);
+            if (itemId.equals(boundItem)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String cleanItemId(@Nullable String rawItem) {
+        if (rawItem == null) {
+            return "";
+        }
+        String itemId = rawItem.trim();
+        int nbtStart = itemId.indexOf('{');
+        if (nbtStart >= 0) {
+            itemId = itemId.substring(0, nbtStart).trim();
+        }
+        return itemId;
     }
 
     @Nullable
