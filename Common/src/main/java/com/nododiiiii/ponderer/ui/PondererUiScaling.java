@@ -68,7 +68,11 @@ public final class PondererUiScaling {
         if (mc == null || !active) {
             return;
         }
-        mc.execute(PondererUiScaling::maybeRestore);
+        // Always defer past the current setScreen() call. Minecraft may run
+        // execute() immediately on the render thread while mc.screen still
+        // points at the removed ScaledScreen, causing the restore check to be
+        // consumed too early.
+        mc.tell(PondererUiScaling::maybeRestore);
     }
 
     private static int computeTargetScale(Minecraft mc) {

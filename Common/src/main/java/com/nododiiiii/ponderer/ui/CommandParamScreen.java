@@ -26,7 +26,8 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
 
     public record TextFieldDef(String id, String labelKey, @Nullable String hintKey, boolean required,
                                @Nullable IdFieldMode jeiMode,
-                               boolean sceneSelector, boolean sceneMultiSelect) implements FieldDef {
+                               boolean sceneSelector, boolean sceneMultiSelect,
+                               boolean packSelector) implements FieldDef {
     }
 
     public record ChoiceFieldDef(String id, String labelKey, List<String> optionLabelKeys,
@@ -106,6 +107,15 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
                             () -> openSceneSelector(textDef.id, textDef.sceneMultiSelect),
                             () -> currentSceneSelectionButtonLabel(textDef),
                             sceneSelectorTooltipGetter(textDef)));
+                        continue;
+                    }
+                    if (textDef.packSelector) {
+                        entries.add(FieldSpecs.labeledButton(
+                            textDef.labelKey,
+                            textDef.hintKey,
+                            () -> openPackSelector(textDef.id),
+                            () -> currentPackSelectionButtonLabel(textDef),
+                            packSelectorTooltipGetter(textDef)));
                         continue;
                     }
 
@@ -311,6 +321,16 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
             () -> Minecraft.getInstance().setScreen(this)));
     }
 
+    private void openPackSelector(String targetFieldId) {
+        Minecraft.getInstance().setScreen(new PonderPackSelectScreen(
+            this,
+            packId -> {
+                setTextValue(targetFieldId, packId);
+                Minecraft.getInstance().setScreen(this);
+            },
+            () -> Minecraft.getInstance().setScreen(this)));
+    }
+
     private void cycleChoice(ChoiceFieldDef choiceDef) {
         ensureChoiceState(choiceDef);
         int next = (choiceSelections.get(choiceDef.id) + 1) % choiceDef.values.size();
@@ -346,6 +366,14 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         return UIText.of("ponderer.ui.export.selected_scenes", selectedCount);
     }
 
+    private String currentPackSelectionButtonLabel(TextFieldDef textDef) {
+        String pack = currentTextValue(textDef.id).trim();
+        if (pack.isEmpty()) {
+            return UIText.of("ponderer.ui.function_page.select_pack");
+        }
+        return UIText.of("ponderer.ui.function_page.selected_pack", pack);
+    }
+
     private int selectedSceneCount(String rawValue) {
         if (rawValue == null || rawValue.isBlank()) {
             return 0;
@@ -366,6 +394,20 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
             int selectedCount = selectedSceneCount(currentTextValue(textDef.id));
             if (selectedCount > 0) {
                 return UIText.of("ponderer.ui.export.selected_scenes", selectedCount);
+            }
+            if (textDef.hintKey == null || textDef.hintKey.isBlank()) {
+                return "";
+            }
+            return UIText.of(textDef.hintKey);
+        };
+    }
+
+    @Nullable
+    private Supplier<String> packSelectorTooltipGetter(TextFieldDef textDef) {
+        return () -> {
+            String pack = currentTextValue(textDef.id).trim();
+            if (!pack.isEmpty()) {
+                return UIText.of("ponderer.ui.function_page.selected_pack", pack);
             }
             if (textDef.hintKey == null || textDef.hintKey.isBlank()) {
                 return "";
@@ -449,23 +491,28 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         }
 
         public Builder textField(String id, String labelKey, String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, false));
             return this;
         }
 
         public Builder itemField(String id, String labelKey, String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, IdFieldMode.ITEM, false, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, IdFieldMode.ITEM, false, false, false));
             return this;
         }
 
         public Builder sceneIdField(String id, String labelKey, @Nullable String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, false, false));
             return this;
         }
 
         public Builder sceneIdField(String id, String labelKey, @Nullable String hintKey, boolean required,
                                     boolean multiSelect) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, multiSelect));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, multiSelect, false));
+            return this;
+        }
+
+        public Builder packIdField(String id, String labelKey, @Nullable String hintKey, boolean required) {
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, true));
             return this;
         }
 

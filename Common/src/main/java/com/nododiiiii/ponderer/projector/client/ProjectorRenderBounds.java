@@ -35,6 +35,12 @@ public final class ProjectorRenderBounds {
         cachedLevel = null;
     }
 
+    static void clear(BlockPos pos) {
+        if (pos != null) {
+            CACHE.remove(pos.immutable());
+        }
+    }
+
     public static AABB estimate(ProjectorBlockEntity blockEntity) {
         Level level = Minecraft.getInstance().level;
         if (level != cachedLevel) {
@@ -42,7 +48,7 @@ public final class ProjectorRenderBounds {
             cachedLevel = level;
         }
 
-        AABB fallback = new AABB(blockEntity.getBlockPos()).inflate(CULL_PADDING);
+        AABB fallback = projectorBlockBounds(blockEntity).inflate(CULL_PADDING);
         if (!blockEntity.hasRenderableScene()) {
             return fallback;
         }
@@ -59,50 +65,93 @@ public final class ProjectorRenderBounds {
         String sceneKey = String.join("\n", sceneKeys);
         Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
         ProjectorKind kind = blockEntity.getProjectorKind();
-        BlockPos anchor = blockEntity.getAnchorPos();
+        BlockPos offset = blockEntity.getProjectionOffset();
+        float miniatureScale = blockEntity.getMiniatureScale();
 
         CachedBounds cached = CACHE.get(blockPos);
         if (cached != null
-            && cached.matches(sceneKey, kind, facing, anchor)) {
+            && cached.matches(sceneKey, kind, facing, offset, miniatureScale)) {
             return cached.bounds();
         }
 
-        ProjectorSceneBundle bundle = ProjectorSceneBundle.compile(sceneKeys);
+        ProjectorSceneBundle bundle = ProjectorPlaybackState.forBlock(blockEntity).bundleFor(sceneKeys);
         if (bundle != null) {
-            AABB estimated = toWorldBounds(blockEntity, bundle.combinedBounds()).inflate(CULL_PADDING);
-            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, estimated));
+            AABB estimated = renderBounds(blockEntity, bundle);
+            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, estimated));
             return estimated;
         }
 
         BoundingBox fallbackBounds = ProjectorSceneBounds.estimate(sceneKeys);
         if (fallbackBounds == null) {
-            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, fallback));
+            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, fallback));
             return fallback;
         }
 
-        AABB estimated = toWorldBounds(blockEntity, fallbackBounds).inflate(CULL_PADDING);
-        CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, anchor, estimated));
+        AABB estimated = renderBounds(blockEntity, fallbackBounds);
+        CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, estimated));
         return estimated;
     }
 
+    public static double distanceToRenderBoundsSqr(ProjectorBlockEntity blockEntity, Vec3 point) {
+        return distanceToSqr(estimate(blockEntity), point);
+    }
+
+    private static AABB renderBounds(ProjectorBlockEntity blockEntity, BoundingBox sceneBounds) {
+        return union(projectorBlockBounds(blockEntity), toWorldBounds(blockEntity, sceneBounds))
+            .inflate(CULL_PADDING);
+    }
+
+    private static AABB renderBounds(ProjectorBlockEntity blockEntity, ProjectorSceneBundle bundle) {
+        AABB sceneBounds = blockEntity.getProjectorKind() == ProjectorKind.MINIATURE
+            ? miniatureSegmentBounds(blockEntity, bundle)
+            : toWorldBounds(blockEntity, bundle.combinedBounds());
+        return union(projectorBlockBounds(blockEntity), sceneBounds)
+            .inflate(CULL_PADDING);
+    }
+
+    private static AABB miniatureSegmentBounds(ProjectorBlockEntity blockEntity, ProjectorSceneBundle bundle) {
+        AABB sceneBounds = null;
+        for (ProjectorSceneBundle.Segment segment : bundle.segments()) {
+            AABB segmentBounds = toWorldBounds(blockEntity, segment.scene().getBounds());
+            sceneBounds = sceneBounds == null ? segmentBounds : union(sceneBounds, segmentBounds);
+        }
+        return sceneBounds == null ? toWorldBounds(blockEntity, bundle.combinedBounds()) : sceneBounds;
+    }
+
+    private static AABB projectorBlockBounds(ProjectorBlockEntity blockEntity) {
+        return new AABB(blockEntity.getBlockPos());
+    }
+
+    private static AABB union(AABB first, AABB second) {
+        return new AABB(
+            Math.min(first.minX, second.minX),
+            Math.min(first.minY, second.minY),
+            Math.min(first.minZ, second.minZ),
+            Math.max(first.maxX, second.maxX),
+            Math.max(first.maxY, second.maxY),
+            Math.max(first.maxZ, second.maxZ));
+    }
+
+    private static double distanceToSqr(AABB bounds, Vec3 point) {
+        double dx = Math.max(Math.max(bounds.minX - point.x, 0.0D), point.x - bounds.maxX);
+        double dy = Math.max(Math.max(bounds.minY - point.y, 0.0D), point.y - bounds.maxY);
+        double dz = Math.max(Math.max(bounds.minZ - point.z, 0.0D), point.z - bounds.maxZ);
+        return dx * dx + dy * dy + dz * dz;
+    }
+
     private static AABB toWorldBounds(ProjectorBlockEntity blockEntity, BoundingBox bounds) {
-        Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
-        float rotationDegrees = switch (facing) {
-            case SOUTH -> 180.0F;
-            case EAST -> -90.0F;
-            case WEST -> 90.0F;
-            default -> 0.0F;
-        };
+        float rotationDegrees = blockEntity.getSceneRotationDegrees();
 
         Vec3 worldOrigin;
+        Vec3 rotationPivot;
         Vec3 sceneTranslate;
         float scale;
 
         if (blockEntity.getProjectorKind() == ProjectorKind.MINIATURE) {
             int spanX = Math.max(1, bounds.getXSpan());
-            int spanY = Math.max(1, bounds.getYSpan());
             int spanZ = Math.max(1, bounds.getZSpan());
-            scale = MINIATURE_FILL / Math.max(spanX, Math.max(spanY, spanZ));
+            float miniatureScale = blockEntity.getMiniatureScale();
+            scale = MINIATURE_FILL / Math.max(spanX, spanZ) * miniatureScale;
 
             double centerX = (bounds.minX() + bounds.maxX() + 1) * 0.5D;
             double centerY = bounds.minY();
@@ -113,12 +162,14 @@ public final class ProjectorRenderBounds {
                 blockPos.getX() + 0.5D,
                 blockPos.getY() + MINIATURE_Y_OFFSET,
                 blockPos.getZ() + 0.5D);
+            rotationPivot = Vec3.ZERO;
             sceneTranslate = new Vec3(-centerX, -centerY, -centerZ);
+            return toMiniatureRotationSweptBounds(bounds, worldOrigin, sceneTranslate, scale);
         } else {
-            BlockPos projectorPos = blockEntity.getBlockPos();
-            BlockPos anchor = blockEntity.getAnchorPos() == null ? projectorPos : blockEntity.getAnchorPos();
+            BlockPos anchor = blockEntity.getProjectionAnchor();
             worldOrigin = new Vec3(anchor.getX(), anchor.getY(), anchor.getZ());
-            sceneTranslate = Vec3.ZERO;
+            rotationPivot = new Vec3(0.5D, 0.0D, 0.5D);
+            sceneTranslate = new Vec3(-0.5D, 0.0D, -0.5D);
             scale = 1.0F;
         }
 
@@ -138,8 +189,8 @@ public final class ProjectorRenderBounds {
                 for (double z : zs) {
                     Vec3 translated = new Vec3(x, y, z).add(sceneTranslate);
                     Vec3 scaled = new Vec3(translated.x * scale, translated.y * scale, translated.z * scale);
-                    Vec3 rotated = rotateY(scaled, rotationDegrees);
-                    Vec3 world = worldOrigin.add(rotated);
+                    Vec3 rotated = ProjectorSceneRotation.rotateY(scaled, rotationDegrees);
+                    Vec3 world = worldOrigin.add(rotationPivot).add(rotated);
 
                     minX = Math.min(minX, world.x);
                     minY = Math.min(minY, world.y);
@@ -154,23 +205,41 @@ public final class ProjectorRenderBounds {
         return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
-    private static Vec3 rotateY(Vec3 vec, float rotationDegrees) {
-        double radians = Math.toRadians(rotationDegrees);
-        double sin = Math.sin(radians);
-        double cos = Math.cos(radians);
-        double x = vec.x * cos + vec.z * sin;
-        double z = vec.z * cos - vec.x * sin;
-        return new Vec3(x, vec.y, z);
+    private static AABB toMiniatureRotationSweptBounds(BoundingBox bounds, Vec3 worldOrigin,
+                                                       Vec3 sceneTranslate, float scale) {
+        double radius = 0.0D;
+        double[] xs = {bounds.minX(), bounds.maxX() + 1.0D};
+        double[] ys = {bounds.minY(), bounds.maxY() + 1.0D};
+        double[] zs = {bounds.minZ(), bounds.maxZ() + 1.0D};
+
+        for (double x : xs) {
+            for (double y : ys) {
+                for (double z : zs) {
+                    Vec3 translated = new Vec3(x, y, z).add(sceneTranslate);
+                    Vec3 scaled = new Vec3(translated.x * scale, translated.y * scale, translated.z * scale);
+                    radius = Math.max(radius, scaled.length());
+                }
+            }
+        }
+
+        return new AABB(
+            worldOrigin.x - radius,
+            worldOrigin.y - radius,
+            worldOrigin.z - radius,
+            worldOrigin.x + radius,
+            worldOrigin.y + radius,
+            worldOrigin.z + radius);
     }
 
     private record CachedBounds(String sceneKey, ProjectorKind kind, Direction facing,
-                                @Nullable BlockPos anchor, AABB bounds) {
+                                @Nullable BlockPos offset, float miniatureScale, AABB bounds) {
         boolean matches(String otherSceneKey, ProjectorKind otherKind, Direction otherFacing,
-                        @Nullable BlockPos otherAnchor) {
+                        @Nullable BlockPos otherOffset, float otherMiniatureScale) {
             return sceneKey.equals(otherSceneKey)
                 && kind == otherKind
                 && facing == otherFacing
-                && Objects.equals(anchor, otherAnchor);
+                && Objects.equals(offset, otherOffset)
+                && Math.abs(miniatureScale - otherMiniatureScale) < 0.001F;
         }
     }
 }

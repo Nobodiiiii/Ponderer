@@ -17,6 +17,7 @@ public class ModItems {
     /** Call from platform init to ensure static fields are loaded. */
     public static void init() {
         ModBlocks.init();
+        ModCreativeModeTabs.init();
         ModBlockEntities.init();
         ModMenuTypes.init();
     }

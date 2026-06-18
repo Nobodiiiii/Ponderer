@@ -2,8 +2,8 @@ package com.nododiiiii.ponderer.registry;
 
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.projector.ProjectorBlock;
+import com.nododiiiii.ponderer.projector.ProjectorBlockItem;
 import com.nododiiiii.ponderer.projector.ProjectorKind;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -23,10 +23,10 @@ public final class ModBlocks {
 
     public static final Supplier<Item> MINIATURE_PROJECTOR_ITEM = PondererServices.REGISTRATION.registerItem(
         "miniature_projector",
-        () -> new BlockItem(MINIATURE_PROJECTOR.get(), new Item.Properties()));
+        () -> new ProjectorBlockItem(MINIATURE_PROJECTOR.get(), new Item.Properties()));
     public static final Supplier<Item> LIFE_SIZE_PROJECTOR_ITEM = PondererServices.REGISTRATION.registerItem(
         "life_size_projector",
-        () -> new BlockItem(LIFE_SIZE_PROJECTOR.get(), new Item.Properties()));
+        () -> new ProjectorBlockItem(LIFE_SIZE_PROJECTOR.get(), new Item.Properties()));
 
     private ModBlocks() {
     }

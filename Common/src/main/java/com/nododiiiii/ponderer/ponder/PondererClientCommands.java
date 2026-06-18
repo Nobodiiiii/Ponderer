@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ponder;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.network.DownloadStructurePayload;
 import com.nododiiiii.ponderer.network.UploadScenePayload;
 import com.nododiiiii.ponderer.network.SyncRequestPayload;
@@ -23,15 +24,21 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.nododiiiii.ponderer.platform.PondererServices;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import javax.annotation.Nullable;
 
 public final class PondererClientCommands {
@@ -41,6 +48,12 @@ public final class PondererClientCommands {
             .create();
 
     private PondererClientCommands() {
+    }
+
+    private record SourcePackScene(DslScene scene) {
+    }
+
+    private record SourcePackContents(Map<String, SourcePackScene> scenes, Map<String, byte[]> structures) {
     }
 
     public static void register(CommandDispatcher<net.minecraft.commands.CommandSourceStack> dispatcher) {
@@ -202,36 +215,241 @@ public final class PondererClientCommands {
         return pushScene(scene, mode);
     }
 
+    public static int pushSourcePack(String packName, String mode) {
+        String targetPack = packName == null ? "" : packName.trim();
+        if (targetPack.isEmpty()) {
+            notifyClient(Component.translatable("ponderer.cmd.push.pack_not_found", ""));
+            return 0;
+        }
+
+        PonderPackInfo info = findSourcePack(targetPack);
+        if (info == null || info.sourcePath == null || !Files.exists(info.sourcePath)) {
+            notifyClient(Component.translatable("ponderer.cmd.push.pack_not_found", targetPack));
+            return 0;
+        }
+
+        SourcePackContents contents;
+        try {
+            contents = readSourcePackForUpload(info);
+        } catch (IOException e) {
+            notifyClient(Component.translatable("ponderer.cmd.push.pack_read_failed", info.name, e.getMessage()));
+            return 0;
+        }
+
+        if (contents.scenes().isEmpty()) {
+            notifyClient(Component.translatable("ponderer.cmd.push.pack_no_scenes", info.name));
+            return 0;
+        }
+
+        String pushMode = mode == null || mode.isBlank() ? "check" : mode;
+        int count = 0;
+        int structureCount = 0;
+        for (SourcePackScene sourceScene : contents.scenes().values()) {
+            DslScene scene = sourceScene.scene();
+            List<UploadScenePayload.StructureEntry> structures = sourcePackStructureEntries(
+                info.name, scene, contents.structures());
+            structureCount += structures.size();
+            PondererServices.NETWORK.sendToServer(
+                new UploadScenePayload(scene.id, info.name, GSON.toJson(scene), structures, pushMode, ""));
+            notifyClient(Component.translatable("ponderer.cmd.push.uploading",
+                SceneStore.displaySceneKey(scene.id, info.name), pushMode));
+            count++;
+        }
+
+        notifyClient(Component.translatable("ponderer.cmd.push.pack_done",
+            count, structureCount, info.name, pushMode));
+        return count;
+    }
+
+    @Nullable
+    private static PonderPackInfo findSourcePack(String packName) {
+        for (PonderPackInfo info : SceneStore.scanAvailableSourcePacks()) {
+            if (info != null && packName.equals(info.name)) {
+                return info;
+            }
+        }
+        return null;
+    }
+
+    private static SourcePackContents readSourcePackForUpload(PonderPackInfo info) throws IOException {
+        Map<String, SourcePackScene> scenes = new LinkedHashMap<>();
+        Map<String, byte[]> structures = new LinkedHashMap<>();
+
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(info.sourcePath), StandardCharsets.UTF_8)) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+
+                String name = normalizeZipEntryName(entry.getName());
+                if (name.startsWith("data/ponderer/scripts/") && name.endsWith(".json")) {
+                    DslScene scene = readSourcePackScene(zis, info.name);
+                    if (scene != null && scene.id != null && !scene.id.isBlank()) {
+                        scenes.put(scene.id, new SourcePackScene(scene));
+                    }
+                    continue;
+                }
+
+                if (name.startsWith("data/ponderer/structures/") && name.endsWith(".nbt")) {
+                    String fileName = name.substring("data/ponderer/structures/".length());
+                    ResourceLocation id = sourcePackStructureId(fileName);
+                    if (id != null) {
+                        structures.putIfAbsent(id.toString(), zis.readAllBytes());
+                    }
+                }
+            }
+        }
+
+        return new SourcePackContents(scenes, structures);
+    }
+
+    @Nullable
+    private static DslScene readSourcePackScene(InputStream input, String packName) throws IOException {
+        try {
+            String json = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            DslScene scene = GSON.fromJson(json, DslScene.class);
+            if (scene == null) {
+                return null;
+            }
+            scene.pack = packName;
+            return scene;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static List<UploadScenePayload.StructureEntry> sourcePackStructureEntries(String packName,
+                                                                                     DslScene scene,
+                                                                                     Map<String, byte[]> structures) {
+        List<UploadScenePayload.StructureEntry> entries = new ArrayList<>();
+        Set<String> refs = new HashSet<>();
+        SceneStore.collectStructureReferences(scene, refs);
+
+        for (String ref : refs) {
+            ResourceLocation id = sourcePackStructureRefId(ref);
+            if (id == null) {
+                continue;
+            }
+            String key = id.toString();
+            byte[] bytes = findSourcePackStructureBytes(structures, id);
+            if (bytes == null) {
+                notifyClient(Component.translatable("ponderer.cmd.push.structure_not_found", key));
+                continue;
+            }
+            entries.add(new UploadScenePayload.StructureEntry(key, packName, bytes));
+        }
+        return entries;
+    }
+
+    @Nullable
+    private static byte[] findSourcePackStructureBytes(Map<String, byte[]> structures, ResourceLocation id) {
+        byte[] bytes = structures.get(id.toString());
+        if (bytes != null) {
+            return bytes;
+        }
+        String fallbackKey = Ponderer.MODID + ":" + id.getPath();
+        bytes = structures.get(fallbackKey);
+        if (bytes != null) {
+            return bytes;
+        }
+        for (Map.Entry<String, byte[]> entry : structures.entrySet()) {
+            String key = entry.getKey();
+            if (key != null && key.endsWith(":" + id.getPath())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static ResourceLocation sourcePackStructureRefId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if (trimmed.matches("\\d+")) {
+            return null;
+        }
+        if (trimmed.endsWith(".nbt")) {
+            trimmed = trimmed.substring(0, trimmed.length() - ".nbt".length());
+        }
+        if (trimmed.contains(":")) {
+            return ResourceLocation.tryParse(trimmed);
+        }
+        return ResourceLocation.tryParse(Ponderer.MODID + ":" + trimmed);
+    }
+
+    @Nullable
+    private static ResourceLocation sourcePackStructureId(String fileName) {
+        String cleanName = normalizeZipEntryName(fileName);
+        if (cleanName.isBlank() || cleanName.endsWith("/") || !cleanName.endsWith(".nbt")) {
+            return null;
+        }
+        if (cleanName.equals("..") || cleanName.startsWith("../") || cleanName.contains("/../")) {
+            return null;
+        }
+
+        String idPath = cleanName.substring(0, cleanName.length() - ".nbt".length());
+        String namespace = Ponderer.MODID;
+        String path = idPath;
+        int slash = idPath.indexOf('/');
+        if (slash > 0) {
+            namespace = idPath.substring(0, slash);
+            path = idPath.substring(slash + 1);
+        }
+        if (namespace.isBlank() || path.isBlank()) {
+            return null;
+        }
+        return ResourceLocation.tryParse(namespace + ":" + path);
+    }
+
+    private static String normalizeZipEntryName(String name) {
+        if (name == null) {
+            return "";
+        }
+        String normalized = name.replace('\\', '/');
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        return normalized;
+    }
+
     private static int pushScene(DslScene scene, String mode) {
         List<UploadScenePayload.StructureEntry> structures = new ArrayList<>();
+        String sourcePack = scene.pack;
+        String uploadPack = null;
         DslScene uploadScene = GSON.fromJson(GSON.toJson(scene), DslScene.class);
-        remapStructuresForUpload(uploadScene, structures);
+        uploadScene.pack = uploadPack;
+        remapStructuresForUpload(uploadScene, sourcePack, uploadPack, structures);
         String json = GSON.toJson(uploadScene);
 
         // Compute lastSyncHash for conflict detection
-        String metaKey = SyncMeta.metaKey("scripts", scene.id, scene.pack);
+        String metaKey = SyncMeta.metaKey("scripts", scene.id, uploadPack);
         Map<String, String> meta = SyncMeta.load();
         String lastSyncHash = meta.getOrDefault(metaKey, "");
 
         PondererServices.NETWORK
-                .sendToServer(new UploadScenePayload(scene.id, scene.pack, json, structures, mode, lastSyncHash));
-        notifyClient(Component.translatable("ponderer.cmd.push.uploading", scene.sceneKey(), mode));
+                .sendToServer(new UploadScenePayload(scene.id, uploadPack, json, structures, mode, lastSyncHash));
+        notifyClient(Component.translatable("ponderer.cmd.push.uploading",
+                SceneStore.displaySceneKey(scene.id, uploadPack), mode));
         return 1;
     }
 
-    private static void remapStructuresForUpload(DslScene scene,
+    private static void remapStructuresForUpload(DslScene scene, @Nullable String sourcePack,
+            @Nullable String uploadPack,
             List<UploadScenePayload.StructureEntry> uploadEntries) {
         Map<String, String> remapped = new HashMap<>();
 
         if (scene.structures != null && !scene.structures.isEmpty()) {
             List<String> mapped = new ArrayList<>();
             for (String ref : scene.structures) {
-                String updated = remapStructureRef(ref, scene.pack, uploadEntries, remapped);
+                String updated = remapStructureRef(ref, sourcePack, uploadPack, uploadEntries, remapped);
                 mapped.add(updated == null ? ref : updated);
             }
             scene.structures = mapped;
         } else if (scene.structure != null && !scene.structure.isBlank()) {
-            String updated = remapStructureRef(scene.structure, scene.pack, uploadEntries, remapped);
+            String updated = remapStructureRef(scene.structure, sourcePack, uploadPack, uploadEntries, remapped);
             if (updated != null) {
                 scene.structure = updated;
             }
@@ -249,7 +467,7 @@ public final class PondererClientCommands {
                     if (isNumeric(step.structure.trim())) {
                         continue;
                     }
-                    String updated = remapStructureRef(step.structure, scene.pack, uploadEntries, remapped);
+                    String updated = remapStructureRef(step.structure, sourcePack, uploadPack, uploadEntries, remapped);
                     if (updated != null) {
                         step.structure = updated;
                     }
@@ -258,7 +476,7 @@ public final class PondererClientCommands {
         }
     }
 
-    private static String remapStructureRef(String ref, @Nullable String pack,
+    private static String remapStructureRef(String ref, @Nullable String sourcePack, @Nullable String uploadPack,
             List<UploadScenePayload.StructureEntry> uploadEntries,
             Map<String, String> remapped) {
         if (ref == null || ref.isBlank())
@@ -275,13 +493,13 @@ public final class PondererClientCommands {
         }
 
         ResourceLocation target = new ResourceLocation("ponderer", source.getPath());
-        Path sourcePath = findStructureSourcePath(source, pack);
+        Path sourcePath = findStructureSourcePath(source, sourcePack);
         if (sourcePath == null || !Files.exists(sourcePath)) {
             notifyClient(Component.translatable("ponderer.cmd.push.structure_not_found", source.toString()));
             return source.toString();
         }
 
-        Path targetPath = SceneStore.resolveLocalSyncStructurePath(target, pack);
+        Path targetPath = SceneStore.resolveLocalSyncStructurePath(target, uploadPack);
         if (targetPath == null) {
             notifyClient(Component.translatable("ponderer.cmd.push.copy_failed", source.toString(), target.toString()));
             return source.toString();
@@ -292,8 +510,8 @@ public final class PondererClientCommands {
             Files.write(targetPath, bytes);
 
             if (uploadEntries.stream().noneMatch(e -> e.id().equals(target.toString())
-                    && java.util.Objects.equals(e.pack(), pack))) {
-                uploadEntries.add(new UploadScenePayload.StructureEntry(target.toString(), pack, bytes));
+                    && java.util.Objects.equals(e.pack(), uploadPack))) {
+                uploadEntries.add(new UploadScenePayload.StructureEntry(target.toString(), uploadPack, bytes));
             }
 
             remapped.put(key, target.toString());

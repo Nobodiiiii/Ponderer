@@ -57,7 +57,10 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 "ponderer.ui.function_page.push.tooltip"),
             new ButtonDef("ponderer.ui.function_page.pull",
                 () -> Minecraft.getInstance().setScreen(buildPullPage()),
-                "ponderer.ui.function_page.pull.tooltip")
+                "ponderer.ui.function_page.pull.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.remote_browser",
+                () -> Minecraft.getInstance().setScreen(new RemoteBrowserScreen(this)),
+                "ponderer.ui.function_page.remote_browser.tooltip")
         )));
 
         sections.add(new Section("ponderer.ui.function_page.import_export", List.of(
@@ -70,15 +73,9 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
             new ButtonDef("ponderer.ui.function_page.import",
                 () -> Minecraft.getInstance().setScreen(new ImportPackScreen()),
                 "ponderer.ui.function_page.import.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.download",
-                () -> Minecraft.getInstance().setScreen(buildDownloadPage()),
-                "ponderer.ui.function_page.download.tooltip"),
             new ButtonDef("ponderer.ui.function_page.browse_modrinth",
                 () -> ResourcifyCompat.openBrowseScreen("[Ponderer]"),
-                "ponderer.ui.function_page.browse_modrinth.tooltip")
-        )));
-
-        sections.add(new Section("ponderer.ui.function_page.conversion", List.of(
+                "ponderer.ui.function_page.browse_modrinth.tooltip"),
             new ButtonDef("ponderer.ui.function_page.to_ponderjs",
                 () -> runOnPageStatus(PondererClientCommands::convertAllToPonderJs),
                 "ponderer.ui.function_page.to_ponderjs.tooltip"),
@@ -87,23 +84,15 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 "ponderer.ui.function_page.from_ponderjs.tooltip")
         )));
 
-        sections.add(new Section("ponderer.ui.function_page.settings", List.of(
-            new ButtonDef("ponderer.ui.function_page.permissions",
-                () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
-                "ponderer.ui.function_page.permissions.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.blueprint_item",
-                () -> Minecraft.getInstance().setScreen(new BlueprintItemConfigScreen(this)),
-                "ponderer.ui.function_page.blueprint_item.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.keybindings",
-                () -> Minecraft.getInstance().setScreen(new PondererKeyBindingsScreen(this)),
-                "ponderer.ui.function_page.keybindings.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.mod_config",
-                () -> Minecraft.getInstance().setScreen(new PondererConfigScreen(this)),
-                "ponderer.ui.function_page.mod_config.tooltip"),
-            new ButtonDef("ponderer.ui.function_page.ai_config",
-                () -> Minecraft.getInstance().setScreen(new AiConfigScreen(this)),
-                "ponderer.ui.function_page.ai_config.tooltip")
-        )));
+        sections.add(new Section(
+            "ponderer.ui.function_page.settings",
+            List.of(
+                new ButtonDef("ponderer.ui.function_page.permissions",
+                    () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
+                    "ponderer.ui.function_page.permissions.tooltip"),
+                new ButtonDef("ponderer.ui.function_page.mod_config",
+                    () -> Minecraft.getInstance().setScreen(new PondererConfigScreen(this)),
+                    "ponderer.ui.function_page.mod_config.tooltip"))));
     }
 
     @Override
@@ -159,8 +148,15 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 List.of("check", "force"))
             .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
                 "ponderer.ui.function_page.param.scene_id.hint", false, true)
+            .packIdField("pack_id", "ponderer.ui.function_page.param.pack_id",
+                "ponderer.ui.function_page.param.pack_id.hint", false)
             .onExecute(values -> {
                 String mode = values.get("mode");
+                String packId = values.get("pack_id");
+                if (packId != null && !packId.isEmpty()) {
+                    PondererClientCommands.pushSourcePack(packId, mode);
+                    return;
+                }
                 String sceneId = values.get("scene_id");
                 if (sceneId != null && !sceneId.isEmpty()) {
                     for (String part : sceneId.split(",")) {
@@ -330,19 +326,6 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
         screen.showFieldWhenValue("scene_id", "mode", "by_scene");
         screen.showFieldWhenValue("item_id", "mode", "by_item");
         return screen;
-    }
-
-    private static CommandParamScreen buildDownloadPage() {
-        return CommandParamScreen.builder("ponderer.ui.function_page.download.title")
-            .textField("structure_id", "ponderer.ui.function_page.param.structure_id",
-                "ponderer.ui.function_page.param.structure_id.hint", true)
-            .onExecute(values -> {
-                ResourceLocation rl = ResourceLocation.tryParse(values.get("structure_id"));
-                if (rl != null) {
-                    PondererClientCommands.requestStructureDownload(rl);
-                }
-            })
-            .build();
     }
 
 }

@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.projector.client;
 
+import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.mixin.InputWindowElementAccessor;
 import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
 import net.createmod.catnip.gui.element.ScreenElement;
@@ -17,6 +18,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -28,12 +30,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 public final class ProjectorOverlayExtractor {
-    private static final Set<String> SKIPPED_CLASSES = ConcurrentHashMap.newKeySet();
+    private static final Logger LOGGER = LogUtils.getLogger();
+    private static final Set<String> LOGGED_SKIPPED_CLASSES = ConcurrentHashMap.newKeySet();
 
     private ProjectorOverlayExtractor() {
     }
 
-    public static List<ProjectorSceneBundle.OverlayCue> extract(PonderScene scene, int localTick) {
+    public static List<ProjectorSceneBundle.OverlayCue> extract(PonderScene scene, int localTick, float partialTick,
+                                                                boolean compatibilityMode) {
         if (scene == null || scene.getElements().isEmpty()) {
             return List.of();
         }
@@ -44,12 +48,14 @@ public final class ProjectorOverlayExtractor {
             if (!(element instanceof PonderOverlayElement) || !element.isVisible()) {
                 continue;
             }
-            if (element instanceof AnimatedOverlayElement animated && animated.getFade(0) < 1.0F / 16.0F) {
+            if (element instanceof AnimatedOverlayElement animated
+                && animated.getFade(partialTick) < 1.0F / 16.0F) {
                 continue;
             }
 
             try {
-                ProjectorSceneBundle.OverlayCue cue = extractElement(element, localTick, fallbackLane);
+                ProjectorSceneBundle.OverlayCue cue = extractElement(element, localTick, fallbackLane,
+                    compatibilityMode);
                 if (cue == null) {
                     continue;
                 }
@@ -58,7 +64,7 @@ public final class ProjectorOverlayExtractor {
                     fallbackLane++;
                 }
             } catch (Throwable t) {
-                SKIPPED_CLASSES.add(element.getClass().getName());
+                logSkipped(element, t);
             }
         }
 
@@ -66,12 +72,17 @@ public final class ProjectorOverlayExtractor {
     }
 
     @Nullable
-    private static ProjectorSceneBundle.OverlayCue extractElement(PonderElement element, int localTick, int fallbackLane) {
+    private static ProjectorSceneBundle.OverlayCue extractElement(PonderElement element, int localTick,
+                                                                  int fallbackLane, boolean compatibilityMode) {
         if (element instanceof TextWindowElement) {
             return extractText((TextWindowElementAccessor) element, localTick, fallbackLane);
         }
         if (element instanceof InputWindowElement) {
             return extractInput((InputWindowElementAccessor) element, localTick);
+        }
+        if (!compatibilityMode) {
+            logSkipped(element, null);
+            return null;
         }
         return extractUnknown(element, localTick, fallbackLane);
     }
@@ -143,7 +154,7 @@ public final class ProjectorOverlayExtractor {
         }
 
         if (lines.isEmpty()) {
-            SKIPPED_CLASSES.add(element.getClass().getName());
+            logSkipped(element, null);
             return null;
         }
 
@@ -151,6 +162,18 @@ public final class ProjectorOverlayExtractor {
             return ProjectorSceneBundle.OverlayCue.runtimeWorld(localTick, point, distinct(lines), 0xD9F4FF);
         }
         return ProjectorSceneBundle.OverlayCue.runtimeFallback(localTick, fallbackLane, distinct(lines), 0xD9F4FF);
+    }
+
+    private static void logSkipped(PonderElement element, @Nullable Throwable cause) {
+        String className = element.getClass().getName();
+        if (!LOGGED_SKIPPED_CLASSES.add(className)) {
+            return;
+        }
+        if (cause == null) {
+            LOGGER.debug("Skipping unsupported projector overlay element {}", className);
+        } else {
+            LOGGER.debug("Skipping unsupported projector overlay element {}", className, cause);
+        }
     }
 
     private static int fallbackLaneForY(int y, int fallbackLane) {

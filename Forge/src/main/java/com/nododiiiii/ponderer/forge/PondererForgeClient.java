@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.forge;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ModKeyBindings;
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
@@ -13,11 +14,12 @@ import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.NbtPickState;
-import com.nododiiiii.ponderer.ui.ProjectorAnchorPickState;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
+import net.createmod.catnip.config.ui.BaseConfigScreen;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
@@ -29,14 +31,19 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
+import net.minecraftforge.fml.ModContainer;
+import net.minecraftforge.fml.ModList;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,12 +63,14 @@ public class PondererForgeClient {
 
         modEventBus.addListener(PondererForgeClient::onClientSetup);
         modEventBus.addListener(PondererForgeClient::onRegisterKeyMappings);
+        modEventBus.addListener(PondererForgeClient::onLoadComplete);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onRegisterClientCommands);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onPlayerLoggedIn);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onClientTick);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onBlueprintClientTick);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onMouseScrolled);
         MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onMouseInput);
+        MinecraftForge.EVENT_BUS.addListener(PondererForgeClient::onRenderLevelStage);
         // JEI click interception
         MinecraftForge.EVENT_BUS.addListener(EventPriority.HIGH, PondererForgeClient::onScreenMouseClick);
     }
@@ -98,6 +107,18 @@ public class PondererForgeClient {
         PondererClientCommands.register(event.getDispatcher());
     }
 
+    private static void onLoadComplete(FMLLoadCompleteEvent event) {
+        ModContainer modContainer = ModList.get()
+            .getModContainerById(Ponderer.MODID)
+            .orElseThrow(() -> new IllegalStateException("Ponderer mod container missing after loadComplete"));
+        modContainer.registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class,
+            () -> new ConfigScreenHandler.ConfigScreenFactory(
+                (minecraft, previousScreen) -> new BaseConfigScreen(previousScreen, Ponderer.MODID)));
+
+        BaseConfigScreen.setDefaultActionFor(Ponderer.MODID,
+            base -> base.withSpecs(Config.CLIENT_SPEC, null, Config.SERVER_SPEC));
+    }
+
     // --- Client tick for key bindings ---
     private static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
@@ -105,9 +126,6 @@ public class PondererForgeClient {
         if (mc.player == null || mc.screen != null) return;
         if (NbtPickState.isActive()) {
             mc.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
-        }
-        if (ProjectorAnchorPickState.isActive()) {
-            ProjectorAnchorPickState.onClientTick();
         }
         if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
             mc.setScreen(new FunctionScreen());
@@ -135,15 +153,20 @@ public class PondererForgeClient {
             return;
         }
 
-        if (ProjectorAnchorPickState.isActive() && event.getButton() == 2 && event.getAction() == 1) {
-            ProjectorAnchorPickState.handleMiddleClick();
-            event.setCanceled(true);
-            return;
-        }
-
         if (blueprintHandler.onMouseInput(event.getButton(), event.getAction() == 1)) {
             event.setCanceled(true);
         }
+    }
+
+    private static void onRenderLevelStage(RenderLevelStageEvent event) {
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_SKY) {
+            ProjectorWorldOverlayQueue.beginFrame();
+            return;
+        }
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+            return;
+        }
+        ProjectorWorldOverlayQueue.render();
     }
 
     // --- JEI click interception ---

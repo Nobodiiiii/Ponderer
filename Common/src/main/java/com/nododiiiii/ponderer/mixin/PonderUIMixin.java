@@ -524,24 +524,24 @@ public abstract class PonderUIMixin extends Screen {
     }
 
     /**
-     * Intercept ESC and Backspace to cancel pick mode and return to the editor.
+     * Intercept ESC to cancel pick mode and return to the editor.
      */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (InterfaceSlotEditState.isActive()) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 InterfaceSlotEditState.finishAndReopenEditor();
                 return true;
             }
         }
         if (PickState.isActive()) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 PickState.cancelPick();
                 return true;
             }
         }
         if (NbtExpandedPickState.isActive()) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 NbtExpandedPickState.cancelPick();
                 return true;
             }
@@ -602,7 +602,7 @@ public abstract class PonderUIMixin extends Screen {
             double ny = UiAnchorCoords.normalizeY(mouseY - viewport.top(), (int) Math.max(1, viewport.height()));
             String line1 = String.format("UI锚点 [%.3f, %.3f] 左键选取",
                 nx, ny);
-            String line2 = "ESC/Backspace 返回";
+            String line2 = "ESC 返回";
 
             int w1 = font.width(line1);
             int w2 = font.width(line2);
@@ -674,7 +674,7 @@ public abstract class PonderUIMixin extends Screen {
             graphics.drawString(font, line2, tx + 4, ty + 15, 0x66FF66);
         } else {
             // No block hovered: show minimal instruction above cursor
-            String hint = "ESC/Backspace 返回";
+            String hint = "ESC 返回";
             int textW = font.width(hint) + 8;
             int tx = mouseX + 10;
             int ty = mouseY - 31;
@@ -692,22 +692,6 @@ public abstract class PonderUIMixin extends Screen {
         }
 
         graphics.pose().popPose();
-    }
-
-    /**
-     * Force Ponder overlay elements (controls, text pointers, etc.) to render on
-     * top of the scene, even with large structures in front.
-     */
-    @Inject(method = "renderOverlay", at = @At("HEAD"), remap = false)
-    private void ponderer$overlayNoDepthPre(GuiGraphics graphics, int i, float partialTicks, CallbackInfo ci) {
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
-    }
-
-    @Inject(method = "renderOverlay", at = @At("RETURN"), remap = false)
-    private void ponderer$overlayNoDepthPost(GuiGraphics graphics, int i, float partialTicks, CallbackInfo ci) {
-        RenderSystem.depthMask(true);
-        RenderSystem.enableDepthTest();
     }
 
     /**

@@ -1,8 +1,12 @@
 package com.nododiiiii.ponderer.projector;
 
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
+import com.nododiiiii.ponderer.projector.client.ProjectorPlaybackState;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderBounds;
+import com.nododiiiii.ponderer.projector.client.ProjectorRenderDistances;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -20,8 +24,11 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
@@ -35,7 +42,8 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_SCENE_KEYS = "SceneKeys";
     private static final String TAG_SOURCE_ITEM = "SourceItem";
     private static final String TAG_TRIGGER_MODE = "TriggerMode";
-    private static final String TAG_ANCHOR = "AnchorPos";
+    private static final String TAG_OFFSET = "ProjectionOffset";
+    private static final String TAG_OFFSET_WORLD_SPACE = "ProjectionOffsetWorldSpace";
     private static final String TAG_REDSTONE = "RedstonePowered";
     private static final String TAG_PLAYING = "Playing";
     private static final String TAG_PLAYBACK_LOOPING = "PlaybackLooping";
@@ -43,13 +51,21 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_START_TIME = "PlaybackStartGameTime";
     private static final String TAG_REVISION = "PlaybackRevision";
     private static final String TAG_DURATION = "PlaybackDurationTicks";
+    private static final String TAG_INTERMISSION = "IntermissionTicks";
     private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
+    private static final String TAG_OVERLAY_ANTI_OCCLUSION = "OverlayAntiOcclusion";
+    private static final String TAG_COMPATIBILITY_MODE = "CompatibilityMode";
+    private static final String TAG_PROJECTION_MODE = "ProjectionMode";
+    private static final String TAG_MINIATURE_SCALE = "MiniatureScale";
+    private static final String TAG_TEXT_SCALE = "TextScale";
     private static final int FALLBACK_ONCE_DURATION_TICKS = 20 * 60;
+    public static final int DEFAULT_INTERMISSION_TICKS = 40;
+    public static final int FINAL_EXTRA_TICKS = 200;
 
     private ItemStack sourceItem = ItemStack.EMPTY;
     private List<String> sceneKeys = List.of();
     @Nullable
-    private BlockPos anchorPos;
+    private BlockPos projectionOffset;
     private ProjectorTriggerMode triggerMode = ProjectorTriggerMode.MANUAL_LOOP;
     private boolean redstonePowered;
     private boolean playing;
@@ -58,7 +74,13 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private long playbackStartGameTime;
     private int playbackRevision;
     private int playbackDurationTicks;
+    private int intermissionTicks = DEFAULT_INTERMISSION_TICKS;
     private boolean showBlueTint = true;
+    private boolean overlayAntiOcclusion = false;
+    private boolean compatibilityMode = true;
+    private ProjectorProjectionMode projectionMode = ProjectorProjectionMode.DEFAULT;
+    private float miniatureScale = 1.0F;
+    private float textScale = 1.0F;
 
     public ProjectorBlockEntity(BlockPos pos, BlockState state) {
         this(ModBlockEntities.PROJECTOR.get(), pos, state);
@@ -70,6 +92,11 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, ProjectorBlockEntity projector) {
         if (level.isClientSide) {
+            return;
+        }
+
+        if (!ProjectorFeature.isProjectorEnabled()) {
+            projector.convertToDisabledChest();
             return;
         }
 
@@ -88,18 +115,33 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
             changed = true;
         }
 
-        if (projector.playing && !projector.playbackLooping && projector.playbackDurationTicks > 0) {
-            long elapsed = Math.max(0L, level.getGameTime() - projector.playbackStartGameTime);
-            if (elapsed >= projector.playbackDurationTicks) {
-                projector.stopPlayback();
-                changed = true;
-            }
+        if (projector.hasPlaybackReachedEnd(level.getGameTime()) && !projector.shouldPersistAfterPlaybackEnd()) {
+            projector.stopPlayback();
+            changed = true;
         }
 
         if (changed) {
             projector.syncBlockState();
             projector.syncToClient();
         }
+    }
+
+    public static void clientTick(Level level, BlockPos pos, BlockState state, ProjectorBlockEntity projector) {
+        if (!level.isClientSide || !projector.isPlaying() || !projector.hasRenderableScene()) {
+            return;
+        }
+
+        if (level.players().isEmpty()) {
+            return;
+        }
+
+        Player player = level.players().get(0);
+        double distanceSqr = ProjectorRenderBounds.distanceToRenderBoundsSqr(projector, player.position());
+        if (distanceSqr > ProjectorRenderDistances.CLIENT_PRELOAD_DISTANCE_SQR) {
+            return;
+        }
+
+        ProjectorPlaybackState.prepareForTick(projector);
     }
 
     public ProjectorKind getProjectorKind() {
@@ -119,8 +161,62 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     }
 
     @Nullable
-    public BlockPos getAnchorPos() {
-        return anchorPos;
+    public BlockPos getProjectionOffset() {
+        return projectionOffset;
+    }
+
+    /**
+     * Returns the world-space offset from the projector block to the scene origin.
+     * If no explicit offset is stored yet, 1:1 projectors default to one block in front
+     * of their current facing direction.
+     */
+    public BlockPos getEffectiveProjectionOffset() {
+        if (projectionOffset != null) {
+            return projectionOffset;
+        }
+        if (!getProjectorKind().requiresAnchor()) {
+            return BlockPos.ZERO;
+        }
+        return defaultProjectionOffset(getBlockState().getValue(ProjectorBlock.FACING));
+    }
+
+    public static BlockPos defaultProjectionOffset(Direction facing) {
+        return new BlockPos(facing.getStepX(), 0, facing.getStepZ());
+    }
+
+    /**
+     * Rotates the scene so the projector facing points toward scene +X.
+     */
+    public float getSceneRotationDegrees() {
+        return sceneRotationDegrees(getBlockState().getValue(ProjectorBlock.FACING));
+    }
+
+    public static float sceneRotationDegrees(Direction facing) {
+        return switch (facing) {
+            case NORTH -> 90.0F;
+            case SOUTH -> -90.0F;
+            case WEST -> 180.0F;
+            case EAST -> 0.0F;
+            default -> 0.0F;
+        };
+    }
+
+    /**
+     * 获取场景在世界中的实际投影原点（投影仪位置 + 世界坐标偏移）。
+     * 仅对 1:1 投影仪有效。
+     */
+    public BlockPos getProjectionAnchor() {
+        return getBlockPos().offset(getEffectiveProjectionOffset());
+    }
+
+    private static BlockPos rotateLegacyOffsetByFacing(BlockPos offset, Direction facing) {
+        return switch (facing) {
+            case SOUTH -> new BlockPos(offset.getZ(), offset.getY(), offset.getX());
+            case NORTH -> new BlockPos(-offset.getZ(), offset.getY(), -offset.getX());
+            case EAST -> new BlockPos(offset.getX(), offset.getY(), -offset.getZ());
+            case WEST -> new BlockPos(-offset.getX(), offset.getY(), offset.getZ());
+            default -> offset;
+        };
     }
 
     public ProjectorTriggerMode getTriggerMode() {
@@ -151,8 +247,38 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return playbackDurationTicks;
     }
 
+    public int getIntermissionTicks() {
+        return intermissionTicks;
+    }
+
     public boolean showBlueTint() {
         return showBlueTint;
+    }
+
+    public boolean overlayAntiOcclusion() {
+        return overlayAntiOcclusion;
+    }
+
+    public boolean compatibilityMode() {
+        return compatibilityMode;
+    }
+
+    public ProjectorProjectionMode getProjectionMode() {
+        return projectionMode;
+    }
+
+    public float getMiniatureScale() {
+        return miniatureScale;
+    }
+
+    public float getTextScale() {
+        return textScale;
+    }
+
+    public void setTextScale(float textScale) {
+        this.textScale = Math.max(0.1F, Math.min(10.0F, textScale));
+        setChanged();
+        syncToClient();
     }
 
     public AABB getRenderBoundingBox() {
@@ -162,21 +288,45 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return new AABB(worldPosition).inflate(1.0D);
     }
 
+    @Override
+    public void setRemoved() {
+        if (level != null && level.isClientSide) {
+            ProjectorClientCaches.invalidate(worldPosition);
+        }
+        super.setRemoved();
+    }
+
     public boolean hasRenderableScene() {
         if (sourceItem.isEmpty() || sceneKeys.isEmpty()) {
             return false;
         }
-        return !getProjectorKind().requiresAnchor() || anchorPos != null;
+        return true;
     }
 
     public void applyConfig(List<String> newSceneKeys, ProjectorTriggerMode newMode,
-                            @Nullable BlockPos newAnchorPos, int newPlaybackDurationTicks,
-                            boolean newShowBlueTint) {
+                            @Nullable BlockPos newProjectionOffset, int newPlaybackDurationTicks,
+                            int newIntermissionTicks, boolean newShowBlueTint,
+                            boolean newOverlayAntiOcclusion, boolean newCompatibilityMode,
+                            ProjectorProjectionMode newProjectionMode,
+                            float newMiniatureScale, float newTextScale) {
         this.sceneKeys = sourceItem.isEmpty() ? List.of() : resolveSceneKeys(newSceneKeys);
         this.triggerMode = newMode == null ? ProjectorTriggerMode.MANUAL_LOOP : newMode;
-        this.anchorPos = getProjectorKind().requiresAnchor() ? newAnchorPos : null;
+
+        // 1:1 投影仪保存世界坐标偏移；null 表示继续使用“前方一格”的默认锚点。
+        if (getProjectorKind().requiresAnchor()) {
+            this.projectionOffset = newProjectionOffset;
+        } else {
+            this.projectionOffset = null;
+        }
+
         this.playbackDurationTicks = Math.max(0, newPlaybackDurationTicks);
+        this.intermissionTicks = sanitizeIntermissionTicks(newIntermissionTicks);
         this.showBlueTint = newShowBlueTint;
+        this.overlayAntiOcclusion = newOverlayAntiOcclusion;
+        this.compatibilityMode = newCompatibilityMode;
+        this.projectionMode = newProjectionMode == null ? ProjectorProjectionMode.DEFAULT : newProjectionMode;
+        this.miniatureScale = Math.max(0.1F, Math.min(5.0F, newMiniatureScale));
+        this.textScale = Math.max(0.1F, Math.min(10.0F, newTextScale));
         if (this.playbackDurationTicks <= 0 && !this.sceneKeys.isEmpty()) {
             this.playbackDurationTicks = estimateDurationOrFallback();
         }
@@ -196,6 +346,34 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         }
         suppressAutoLoop = true;
         startPlayback(level.getGameTime(), false);
+        syncBlockState();
+        syncToClient();
+    }
+
+    public void seekPlaybackToTick(int playbackTick) {
+        if (level == null || level.isClientSide || !hasRenderableScene()) {
+            return;
+        }
+
+        if (playbackDurationTicks <= 0) {
+            playbackDurationTicks = estimateDurationOrFallback();
+        }
+
+        int normalizedTick = ProjectorSceneTimeline.normalizePlaybackSeekTick(
+            playbackTick,
+            playbackDurationTicks,
+            playbackLooping,
+            shouldPersistAfterPlaybackEnd(),
+            FINAL_EXTRA_TICKS);
+        long newStartTime = Math.max(0L, level.getGameTime() - normalizedTick);
+        if (playing && playbackStartGameTime == newStartTime) {
+            return;
+        }
+
+        this.playing = true;
+        this.playbackStartGameTime = newStartTime;
+        this.playbackRevision++;
+        setChanged();
         syncBlockState();
         syncToClient();
     }
@@ -237,10 +415,16 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
 
         this.redstonePowered = powered;
 
-        if (triggerMode.startsOnRedstoneRisingEdge() && powered && hasRenderableScene()) {
-            playbackDurationTicks = estimateDurationOrFallback();
-            suppressAutoLoop = false;
-            startPlayback(gameTime, false);
+        if (triggerMode.startsOnRedstoneRisingEdge()) {
+            if (powered && hasRenderableScene()) {
+                playbackDurationTicks = estimateDurationOrFallback();
+                suppressAutoLoop = false;
+                startPlayback(gameTime, false);
+            } else if (!powered && hasPlaybackReachedEnd(gameTime)) {
+                stopPlayback();
+            } else {
+                setChanged();
+            }
         } else if (triggerMode.runsWhilePowered()) {
             if (powered && hasRenderableScene()) {
                 suppressAutoLoop = false;
@@ -255,6 +439,18 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return true;
     }
 
+    public boolean shouldPersistAfterPlaybackEnd() {
+        return triggerMode.startsOnRedstoneRisingEdge() && redstonePowered && hasRenderableScene();
+    }
+
+    private boolean hasPlaybackReachedEnd(long gameTime) {
+        if (!playing || playbackLooping || playbackDurationTicks <= 0) {
+            return false;
+        }
+        long elapsed = Math.max(0L, gameTime - playbackStartGameTime);
+        return elapsed >= playbackDurationTicks;
+    }
+
     private void startPlayback(long gameTime, boolean looping) {
         this.playing = true;
         this.playbackLooping = looping;
@@ -264,11 +460,12 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     }
 
     private int estimateDurationOrFallback() {
-        int total = 0;
-        for (String sceneKey : sceneKeys) {
-            total += Math.max(0, ProjectorSceneTimeline.estimateTotalTicks(sceneKey));
-        }
+        int total = ProjectorSceneTimeline.estimatePlaybackTicks(sceneKeys, intermissionTicks);
         return total > 0 ? total : FALLBACK_ONCE_DURATION_TICKS;
+    }
+
+    private static int sanitizeIntermissionTicks(int ticks) {
+        return Math.max(0, ticks);
     }
 
     private void stopPlayback() {
@@ -278,6 +475,32 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         }
         this.playing = false;
         setChanged();
+    }
+
+    private void convertToDisabledChest() {
+        if (level == null || level.isClientSide || getBlockState().getBlock() == Blocks.CHEST) {
+            return;
+        }
+
+        ItemStack recoveredSourceItem = sourceItem.copy();
+        ProjectorKind kind = getProjectorKind();
+        Direction facing = getBlockState().hasProperty(ProjectorBlock.FACING)
+            ? getBlockState().getValue(ProjectorBlock.FACING)
+            : Direction.NORTH;
+
+        sourceItem = ItemStack.EMPTY;
+        sceneKeys = List.of();
+        stopPlayback();
+
+        BlockState chestState = Blocks.CHEST.defaultBlockState().setValue(ChestBlock.FACING, facing);
+        level.setBlock(worldPosition, chestState, Block.UPDATE_ALL);
+        if (level.getBlockEntity(worldPosition) instanceof ChestBlockEntity chest) {
+            chest.setCustomName(Component.translatable(kind.translationKey()));
+            if (!recoveredSourceItem.isEmpty()) {
+                chest.setItem(13, recoveredSourceItem);
+            }
+            chest.setChanged();
+        }
     }
 
     private void syncBlockState() {
@@ -434,8 +657,9 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         }
         tag.put(TAG_SCENE_KEYS, keyList);
         tag.putString(TAG_TRIGGER_MODE, triggerMode.serializedName());
-        if (anchorPos != null) {
-            tag.putLong(TAG_ANCHOR, anchorPos.asLong());
+        if (projectionOffset != null) {
+            tag.putLong(TAG_OFFSET, projectionOffset.asLong());
+            tag.putBoolean(TAG_OFFSET_WORLD_SPACE, true);
         }
         tag.putBoolean(TAG_REDSTONE, redstonePowered);
         tag.putBoolean(TAG_PLAYING, playing);
@@ -444,7 +668,13 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         tag.putLong(TAG_START_TIME, playbackStartGameTime);
         tag.putInt(TAG_REVISION, playbackRevision);
         tag.putInt(TAG_DURATION, playbackDurationTicks);
+        tag.putInt(TAG_INTERMISSION, intermissionTicks);
         tag.putBoolean(TAG_SHOW_BLUE_TINT, showBlueTint);
+        tag.putBoolean(TAG_OVERLAY_ANTI_OCCLUSION, overlayAntiOcclusion);
+        tag.putBoolean(TAG_COMPATIBILITY_MODE, compatibilityMode);
+        tag.putString(TAG_PROJECTION_MODE, projectionMode.serializedName());
+        tag.putFloat(TAG_MINIATURE_SCALE, miniatureScale);
+        tag.putFloat(TAG_TEXT_SCALE, textScale);
     }
 
     @Override
@@ -455,7 +685,15 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
             : ItemStack.EMPTY;
         sceneKeys = loadSceneKeys(tag);
         triggerMode = ProjectorTriggerMode.byName(tag.getString(TAG_TRIGGER_MODE));
-        anchorPos = tag.contains(TAG_ANCHOR) ? BlockPos.of(tag.getLong(TAG_ANCHOR)) : null;
+        if (tag.contains(TAG_OFFSET)) {
+            BlockPos loadedOffset = BlockPos.of(tag.getLong(TAG_OFFSET));
+            if (getProjectorKind().requiresAnchor() && !tag.getBoolean(TAG_OFFSET_WORLD_SPACE)) {
+                loadedOffset = rotateLegacyOffsetByFacing(loadedOffset, getBlockState().getValue(ProjectorBlock.FACING));
+            }
+            projectionOffset = loadedOffset;
+        } else {
+            projectionOffset = null;
+        }
         redstonePowered = tag.getBoolean(TAG_REDSTONE);
         playing = tag.getBoolean(TAG_PLAYING);
         playbackLooping = tag.contains(TAG_PLAYBACK_LOOPING) ? tag.getBoolean(TAG_PLAYBACK_LOOPING) : triggerMode.loops();
@@ -463,7 +701,18 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         playbackStartGameTime = tag.getLong(TAG_START_TIME);
         playbackRevision = tag.getInt(TAG_REVISION);
         playbackDurationTicks = tag.getInt(TAG_DURATION);
+        intermissionTicks = tag.contains(TAG_INTERMISSION)
+            ? sanitizeIntermissionTicks(tag.getInt(TAG_INTERMISSION))
+            : DEFAULT_INTERMISSION_TICKS;
         showBlueTint = !tag.contains(TAG_SHOW_BLUE_TINT) || tag.getBoolean(TAG_SHOW_BLUE_TINT);
+        overlayAntiOcclusion = tag.contains(TAG_OVERLAY_ANTI_OCCLUSION)
+            && tag.getBoolean(TAG_OVERLAY_ANTI_OCCLUSION);
+        compatibilityMode = !tag.contains(TAG_COMPATIBILITY_MODE) || tag.getBoolean(TAG_COMPATIBILITY_MODE);
+        projectionMode = tag.contains(TAG_PROJECTION_MODE)
+            ? ProjectorProjectionMode.byName(tag.getString(TAG_PROJECTION_MODE))
+            : ProjectorProjectionMode.DEFAULT;
+        miniatureScale = tag.contains(TAG_MINIATURE_SCALE) ? tag.getFloat(TAG_MINIATURE_SCALE) : 1.0F;
+        textScale = tag.contains(TAG_TEXT_SCALE) ? tag.getFloat(TAG_TEXT_SCALE) : 1.0F;
     }
 
     private static List<String> loadSceneKeys(CompoundTag tag) {

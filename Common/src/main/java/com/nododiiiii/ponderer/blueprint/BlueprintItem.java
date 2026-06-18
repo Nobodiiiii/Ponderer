@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.blueprint;
 
+import com.nododiiiii.ponderer.DisabledFeatureUse;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.DoubleTag;
@@ -7,7 +8,13 @@ import net.minecraft.nbt.IntTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
@@ -21,6 +28,32 @@ public class BlueprintItem extends Item {
 
     public BlueprintItem(Properties properties) {
         super(properties);
+    }
+
+    @Override
+    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand usedHand) {
+        ItemStack stack = player.getItemInHand(usedHand);
+        if (!BlueprintFeature.isBuiltinBlueprintItemEnabled()) {
+            if (!level.isClientSide) {
+                DisabledFeatureUse.consumeOne(player, stack, "ponderer.message.disabled.blueprint");
+            }
+            return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
+        }
+        return super.use(level, player, usedHand);
+    }
+
+    @Override
+    public InteractionResult useOn(UseOnContext context) {
+        if (!BlueprintFeature.isBuiltinBlueprintItemEnabled()) {
+            if (!context.getLevel().isClientSide) {
+                DisabledFeatureUse.consumeOne(
+                    context.getPlayer(),
+                    context.getItemInHand(),
+                    "ponderer.message.disabled.blueprint");
+            }
+            return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
+        }
+        return super.useOn(context);
     }
 
     /** Replace structure void palette entries with air. */

@@ -27,6 +27,11 @@ public final class ConfigEntries {
         return screen -> requireConfigScreen(screen).addIntegerConfigEntry(labelKey, hintKey, tooltipKey, value);
     }
 
+    public static DeclarativeFormEntry doubleEntry(String labelKey, @Nullable String tooltipKey,
+                                                   ForgeConfigSpec.DoubleValue value) {
+        return screen -> requireConfigScreen(screen).addDoubleConfigEntry(labelKey, tooltipKey, value);
+    }
+
     public static DeclarativeFormEntry choiceEntry(String labelKey, @Nullable String tooltipKey,
                                                    ForgeConfigSpec.ConfigValue<String> value,
                                                    int buttonWidth,

@@ -1,20 +1,12 @@
 {
-  "variants": {
-    "facing=north,lit=false,powered=false": { "model": "ponderer:block/miniature_projector" },
-    "facing=east,lit=false,powered=false": { "model": "ponderer:block/miniature_projector", "y": 90 },
-    "facing=south,lit=false,powered=false": { "model": "ponderer:block/miniature_projector", "y": 180 },
-    "facing=west,lit=false,powered=false": { "model": "ponderer:block/miniature_projector", "y": 270 },
-    "facing=north,lit=false,powered=true": { "model": "ponderer:block/miniature_projector" },
-    "facing=east,lit=false,powered=true": { "model": "ponderer:block/miniature_projector", "y": 90 },
-    "facing=south,lit=false,powered=true": { "model": "ponderer:block/miniature_projector", "y": 180 },
-    "facing=west,lit=false,powered=true": { "model": "ponderer:block/miniature_projector", "y": 270 },
-    "facing=north,lit=true,powered=false": { "model": "ponderer:block/miniature_projector_lit" },
-    "facing=east,lit=true,powered=false": { "model": "ponderer:block/miniature_projector_lit", "y": 90 },
-    "facing=south,lit=true,powered=false": { "model": "ponderer:block/miniature_projector_lit", "y": 180 },
-    "facing=west,lit=true,powered=false": { "model": "ponderer:block/miniature_projector_lit", "y": 270 },
-    "facing=north,lit=true,powered=true": { "model": "ponderer:block/miniature_projector_lit" },
-    "facing=east,lit=true,powered=true": { "model": "ponderer:block/miniature_projector_lit", "y": 90 },
-    "facing=south,lit=true,powered=true": { "model": "ponderer:block/miniature_projector_lit", "y": 180 },
-    "facing=west,lit=true,powered=true": { "model": "ponderer:block/miniature_projector_lit", "y": 270 }
-  }
+  "multipart": [
+    { "when": { "facing": "north", "lit": "false" }, "apply": { "model": "ponderer:block/miniature_projector" } },
+    { "when": { "facing": "east", "lit": "false" }, "apply": { "model": "ponderer:block/miniature_projector", "y": 90 } },
+    { "when": { "facing": "south", "lit": "false" }, "apply": { "model": "ponderer:block/miniature_projector", "y": 180 } },
+    { "when": { "facing": "west", "lit": "false" }, "apply": { "model": "ponderer:block/miniature_projector", "y": 270 } },
+    { "when": { "facing": "north", "lit": "true" }, "apply": { "model": "ponderer:block/miniature_projector_lit" } },
+    { "when": { "facing": "east", "lit": "true" }, "apply": { "model": "ponderer:block/miniature_projector_lit", "y": 90 } },
+    { "when": { "facing": "south", "lit": "true" }, "apply": { "model": "ponderer:block/miniature_projector_lit", "y": 180 } },
+    { "when": { "facing": "west", "lit": "true" }, "apply": { "model": "ponderer:block/miniature_projector_lit", "y": 270 } }
+  ]
 }

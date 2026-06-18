@@ -17,7 +17,8 @@ public record ProjectorManualTriggerPayload(BlockPos projectorPos) {
     }
 
     public static void handle(ProjectorManualTriggerPayload payload, @Nullable ServerPlayer player) {
-        if (player == null || !player.serverLevel().hasChunkAt(payload.projectorPos())
+        if (player == null
+            || !player.serverLevel().hasChunkAt(payload.projectorPos())
             || player.distanceToSqr(payload.projectorPos().getCenter()) > 64.0D) {
             return;
         }

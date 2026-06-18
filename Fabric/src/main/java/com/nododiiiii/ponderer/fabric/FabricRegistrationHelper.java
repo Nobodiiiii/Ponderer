@@ -2,10 +2,14 @@ package com.nododiiiii.ponderer.fabric;
 
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.services.RegistrationHelper;
+import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.level.block.Block;
@@ -25,6 +29,18 @@ public class FabricRegistrationHelper implements RegistrationHelper {
         Item item = Registry.register(BuiltInRegistries.ITEM,
                 new ResourceLocation(Ponderer.MODID, id), itemSupplier.get());
         return () -> item;
+    }
+
+    @Override
+    public Supplier<CreativeModeTab> registerCreativeModeTab(String id, Component title, Supplier<ItemStack> iconSupplier,
+                                                             CreativeModeTab.DisplayItemsGenerator displayItems) {
+        CreativeModeTab tab = Registry.register(BuiltInRegistries.CREATIVE_MODE_TAB,
+                new ResourceLocation(Ponderer.MODID, id), FabricItemGroup.builder()
+                    .title(title)
+                    .icon(iconSupplier)
+                    .displayItems(displayItems)
+                    .build());
+        return () -> tab;
     }
 
     @Override

@@ -28,6 +28,11 @@ final class ProjectorGuiGraphicsBridge {
         return create(minecraft, poseStack, buffers);
     }
 
+    static GuiGraphics create(PoseStack poseStack, MultiBufferSource.BufferSource buffers) {
+        Minecraft minecraft = Minecraft.getInstance();
+        return create(minecraft, poseStack, buffers);
+    }
+
     private static GuiGraphics create(Minecraft minecraft, PoseStack poseStack, MultiBufferSource.BufferSource buffers) {
         try {
             return CONSTRUCTOR.newInstance(minecraft, poseStack, buffers);

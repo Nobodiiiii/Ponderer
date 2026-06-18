@@ -18,6 +18,7 @@
     "PonderSceneAccessor",
     "TextWindowElementAccessor",
     "InputWindowElementAccessor",
+    "RenderSystemShaderLightsAccessor",
     "PonderKeybindsAccessor",
     "PonderSceneViewOffsetMixin",
     "PonderSceneTextIndexMixin",
