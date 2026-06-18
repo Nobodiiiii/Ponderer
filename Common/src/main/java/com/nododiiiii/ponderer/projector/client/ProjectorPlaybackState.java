@@ -14,7 +14,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-final class ProjectorPlaybackState {
+public final class ProjectorPlaybackState {
+
+    private static final int MAX_TICK_CATCH_UP_TICKS = 4;
+    private static final int MAX_RENDER_CATCH_UP_TICKS = 0;
 
     record PreparedFrame(ProjectorSceneBundle bundle, ProjectorSceneBundle.Segment segment,
                          PonderScene activeScene, int globalTick, int localTick) {
@@ -51,8 +54,17 @@ final class ProjectorPlaybackState {
         }
     }
 
+    public static void prepareForTick(ProjectorBlockEntity blockEntity) {
+        forBlock(blockEntity).prepare(blockEntity, 0.0F, MAX_TICK_CATCH_UP_TICKS);
+    }
+
     @Nullable
-    PreparedFrame prepare(ProjectorBlockEntity blockEntity, float partialTick) {
+    static PreparedFrame prepareForRender(ProjectorBlockEntity blockEntity, float partialTick) {
+        return forBlock(blockEntity).prepare(blockEntity, partialTick, MAX_RENDER_CATCH_UP_TICKS);
+    }
+
+    @Nullable
+    private PreparedFrame prepare(ProjectorBlockEntity blockEntity, float partialTick, int maxCatchUpTicks) {
         if (!blockEntity.isPlaying() || !blockEntity.hasRenderableScene()) {
             return null;
         }
@@ -91,12 +103,12 @@ final class ProjectorPlaybackState {
         }
 
         ProjectorSceneBundle.Segment segment = cursor.segment();
-        int localTick = cursor.localTick();
+        int targetLocalTick = cursor.localTick();
         PonderScene activeScene = segment.scene();
 
         if (blockEntity.getPlaybackRevision() != lastRevision
             || activeSegmentStartTick != segment.startTick()
-            || localTick < activeLocalTick) {
+            || targetLocalTick < activeLocalTick) {
             ProjectorRenderContext.run(() -> {
                 resetSceneViewState(activeScene);
                 activeScene.begin();
@@ -105,12 +117,17 @@ final class ProjectorPlaybackState {
             activeLocalTick = -1;
         }
 
-        if (localTick != activeLocalTick) {
-            advanceScene(activeScene, localTick, segment.durationTicks());
+        int renderLocalTick = catchUpTargetLocalTick(targetLocalTick, maxCatchUpTicks);
+        if (renderLocalTick != activeLocalTick) {
+            advanceScene(activeScene, renderLocalTick, segment.durationTicks());
         }
 
         lastRevision = blockEntity.getPlaybackRevision();
-        return new PreparedFrame(preparedBundle, segment, activeScene, playbackTick, localTick);
+        if (activeLocalTick < 0) {
+            return null;
+        }
+        int preparedGlobalTick = segment.startTick() + activeLocalTick;
+        return new PreparedFrame(preparedBundle, segment, activeScene, preparedGlobalTick, activeLocalTick);
     }
 
     @Nullable
@@ -146,6 +163,18 @@ final class ProjectorPlaybackState {
         int lastDuration = Math.max(1, last.durationTicks());
         return new PlaybackCursor(last, extendPastPlaybackEnd ? lastDuration + Math.max(0, playbackTick - timeline)
             : Math.max(0, lastDuration - 1));
+    }
+
+    private int catchUpTargetLocalTick(int targetLocalTick, int maxCatchUpTicks) {
+        int safeTarget = Math.max(0, targetLocalTick);
+        int safeBudget = Math.max(0, maxCatchUpTicks);
+        if (activeLocalTick < 0) {
+            return Math.min(safeTarget, safeBudget);
+        }
+        if (safeTarget <= activeLocalTick) {
+            return safeTarget;
+        }
+        return Math.min(safeTarget, activeLocalTick + safeBudget);
     }
 
     private void advanceScene(PonderScene activeScene, int targetLocalTick, int segmentDuration) {

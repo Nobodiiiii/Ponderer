@@ -125,8 +125,8 @@ public class ProjectorBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return level.isClientSide ? null : createTickerHelper(type, ModBlockEntities.PROJECTOR.get(),
-            ProjectorBlockEntity::serverTick);
+        return createTickerHelper(type, ModBlockEntities.PROJECTOR.get(),
+            level.isClientSide ? ProjectorBlockEntity::clientTick : ProjectorBlockEntity::serverTick);
     }
 
     @Override

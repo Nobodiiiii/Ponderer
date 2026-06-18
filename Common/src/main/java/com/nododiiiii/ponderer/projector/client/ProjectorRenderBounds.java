@@ -48,7 +48,7 @@ public final class ProjectorRenderBounds {
             cachedLevel = level;
         }
 
-        AABB fallback = new AABB(blockEntity.getBlockPos()).inflate(CULL_PADDING);
+        AABB fallback = projectorBlockBounds(blockEntity).inflate(CULL_PADDING);
         if (!blockEntity.hasRenderableScene()) {
             return fallback;
         }
@@ -76,7 +76,7 @@ public final class ProjectorRenderBounds {
 
         ProjectorSceneBundle bundle = ProjectorPlaybackState.forBlock(blockEntity).bundleFor(sceneKeys);
         if (bundle != null) {
-            AABB estimated = toWorldBounds(blockEntity, bundle.combinedBounds()).inflate(CULL_PADDING);
+            AABB estimated = renderBounds(blockEntity, bundle);
             CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, estimated));
             return estimated;
         }
@@ -87,9 +87,56 @@ public final class ProjectorRenderBounds {
             return fallback;
         }
 
-        AABB estimated = toWorldBounds(blockEntity, fallbackBounds).inflate(CULL_PADDING);
+        AABB estimated = renderBounds(blockEntity, fallbackBounds);
         CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, estimated));
         return estimated;
+    }
+
+    public static double distanceToRenderBoundsSqr(ProjectorBlockEntity blockEntity, Vec3 point) {
+        return distanceToSqr(estimate(blockEntity), point);
+    }
+
+    private static AABB renderBounds(ProjectorBlockEntity blockEntity, BoundingBox sceneBounds) {
+        return union(projectorBlockBounds(blockEntity), toWorldBounds(blockEntity, sceneBounds))
+            .inflate(CULL_PADDING);
+    }
+
+    private static AABB renderBounds(ProjectorBlockEntity blockEntity, ProjectorSceneBundle bundle) {
+        AABB sceneBounds = blockEntity.getProjectorKind() == ProjectorKind.MINIATURE
+            ? miniatureSegmentBounds(blockEntity, bundle)
+            : toWorldBounds(blockEntity, bundle.combinedBounds());
+        return union(projectorBlockBounds(blockEntity), sceneBounds)
+            .inflate(CULL_PADDING);
+    }
+
+    private static AABB miniatureSegmentBounds(ProjectorBlockEntity blockEntity, ProjectorSceneBundle bundle) {
+        AABB sceneBounds = null;
+        for (ProjectorSceneBundle.Segment segment : bundle.segments()) {
+            AABB segmentBounds = toWorldBounds(blockEntity, segment.scene().getBounds());
+            sceneBounds = sceneBounds == null ? segmentBounds : union(sceneBounds, segmentBounds);
+        }
+        return sceneBounds == null ? toWorldBounds(blockEntity, bundle.combinedBounds()) : sceneBounds;
+    }
+
+    private static AABB projectorBlockBounds(ProjectorBlockEntity blockEntity) {
+        return new AABB(blockEntity.getBlockPos());
+    }
+
+    private static AABB union(AABB first, AABB second) {
+        return new AABB(
+            Math.min(first.minX, second.minX),
+            Math.min(first.minY, second.minY),
+            Math.min(first.minZ, second.minZ),
+            Math.max(first.maxX, second.maxX),
+            Math.max(first.maxY, second.maxY),
+            Math.max(first.maxZ, second.maxZ));
+    }
+
+    private static double distanceToSqr(AABB bounds, Vec3 point) {
+        double dx = Math.max(Math.max(bounds.minX - point.x, 0.0D), point.x - bounds.maxX);
+        double dy = Math.max(Math.max(bounds.minY - point.y, 0.0D), point.y - bounds.maxY);
+        double dz = Math.max(Math.max(bounds.minZ - point.z, 0.0D), point.z - bounds.maxZ);
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private static AABB toWorldBounds(ProjectorBlockEntity blockEntity, BoundingBox bounds) {

@@ -68,6 +68,7 @@ import org.lwjgl.opengl.GL30;
 
 import java.util.IdentityHashMap;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -119,14 +120,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      *  projected ponder scene (never occluded), while its own layers still sort among each other inside the
      *  window. Small enough to stay ahead of the scene, wide enough to avoid layer z-fighting. */
     private static final double PANEL_ITEM_DEPTH_FRONT = 0.05D;
-    private static final double OVERLAY_RENDER_DISTANCE = 32.0D;
-    private static final double PROJECTION_RENDER_DISTANCE = 64.0D;
-    private static final double OVERLAY_RENDER_DISTANCE_SQR = OVERLAY_RENDER_DISTANCE * OVERLAY_RENDER_DISTANCE;
-    private static final double PROJECTION_RENDER_DISTANCE_SQR = PROJECTION_RENDER_DISTANCE * PROJECTION_RENDER_DISTANCE;
     private static TextureTarget preservedWorldDepthTarget;
     private static int preservedWorldDepthWidth = -1;
     private static int preservedWorldDepthHeight = -1;
     private static boolean preservedWorldDepthCapturedThisFrame;
+    private static final Set<Long> RENDERED_THIS_FRAME = new HashSet<>();
 
     /**
      * Private, isolated buffer for the show_controls panel. Never the shared world buffer source, so
@@ -146,6 +144,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     static void beginFrame() {
         preservedWorldDepthCapturedThisFrame = false;
+        RENDERED_THIS_FRAME.clear();
     }
 
     @Override
@@ -156,12 +155,16 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return;
         }
 
-        double distanceSqr = distanceToProjectorSqr(blockEntity);
-        if (distanceSqr > PROJECTION_RENDER_DISTANCE_SQR) {
+        if (!RENDERED_THIS_FRAME.add(blockEntity.getBlockPos().asLong())) {
             return;
         }
 
-        ProjectorPlaybackState.PreparedFrame prepared = ProjectorPlaybackState.forBlock(blockEntity).prepare(blockEntity, partialTick);
+        double distanceSqr = distanceToRenderBoundsSqr(blockEntity);
+        if (distanceSqr > ProjectorRenderDistances.PROJECTION_RENDER_DISTANCE_SQR) {
+            return;
+        }
+
+        ProjectorPlaybackState.PreparedFrame prepared = ProjectorPlaybackState.prepareForRender(blockEntity, partialTick);
         if (prepared == null) {
             return;
         }
@@ -175,27 +178,32 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         ProjectorProjectionMode projectionMode = blockEntity.getProjectorKind().requiresAnchor()
             ? blockEntity.getProjectionMode()
             : ProjectorProjectionMode.DEFAULT;
-        captureWorldDepthIfNeeded();
+
+        boolean shouldRenderText = projectionMode.rendersText()
+            && distanceSqr <= ProjectorRenderDistances.OVERLAY_RENDER_DISTANCE_SQR;
+        DeferredOverlayBatch combinedOverlays = DeferredOverlayBatch.empty();
+        if (shouldRenderText) {
+            PoseSnapshot overlayBasePose = PoseSnapshot.capture(poseStack);
+            DeferredOverlayBatch deferredNativeOverlay = captureNativePonderOverlays(prepared.activeScene(), layout,
+                partialTick, overlayBasePose, antiOcclusion);
+            DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
+            if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
+                List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle()
+                    .activeCues(prepared.segment(), prepared.localTick(), partialTick,
+                        blockEntity.compatibilityMode());
+                deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose, antiOcclusion);
+            }
+            combinedOverlays = DeferredOverlayBatch.combine(deferredNativeOverlay, deferredCueOverlay);
+        }
+
+        if (!antiOcclusion && !combinedOverlays.isEmpty()) {
+            captureWorldDepthIfNeeded();
+        }
         enqueueProjectionGlow(blockEntity, layout, poseStack, partialTick);
         if (projectionMode.rendersScene()) {
             renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
         }
 
-        if (!projectionMode.rendersText() || distanceSqr > OVERLAY_RENDER_DISTANCE_SQR) {
-            return;
-        }
-
-        PoseSnapshot overlayBasePose = PoseSnapshot.capture(poseStack);
-        DeferredOverlayBatch deferredNativeOverlay = captureNativePonderOverlays(prepared.activeScene(), layout, partialTick,
-            overlayBasePose, antiOcclusion);
-        DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
-        if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
-            List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle()
-                .activeCues(prepared.segment(), prepared.localTick(), partialTick,
-                    blockEntity.compatibilityMode());
-            deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose, antiOcclusion);
-        }
-        DeferredOverlayBatch combinedOverlays = DeferredOverlayBatch.combine(deferredNativeOverlay, deferredCueOverlay);
         if (!combinedOverlays.isEmpty()) {
             ProjectorWorldOverlayQueue.enqueue(this, combinedOverlays);
         }
@@ -617,22 +625,15 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
         try {
             PoseStack poseStack = batch.poseSnapshot().createPoseStack();
+            if (!antiOcclusion) {
+                restorePreservedWorldDepth();
+                RenderSystem.enableDepthTest();
+                RenderSystem.depthMask(false);
+            }
             for (DeferredOverlay overlay : batch.overlays()) {
-                if (!antiOcclusion) {
-                    restorePreservedWorldDepth();
-                    RenderSystem.enableDepthTest();
-                    RenderSystem.depthMask(false);
-                }
                 renderDeferredOverlay(overlay, poseStack, bufferSource, antiOcclusion);
-                if (!antiOcclusion) {
-                    RenderSystem.enableDepthTest();
-                    RenderSystem.depthMask(false);
-                    bufferSource.endBatch();
-                }
             }
-            if (antiOcclusion) {
-                bufferSource.endBatch();
-            }
+            bufferSource.endBatch();
         } finally {
             RenderSystem.depthMask(true);
             RenderSystem.enableDepthTest();
@@ -1342,22 +1343,24 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     @Override
     public boolean shouldRenderOffScreen(ProjectorBlockEntity blockEntity) {
-        return false;
+        // The projected scene can be visible even when the projector block's chunk is outside the frustum.
+        return blockEntity.hasRenderableScene();
     }
 
     @Override
     public int getViewDistance() {
-        return (int) PROJECTION_RENDER_DISTANCE;
+        return (int) ProjectorRenderDistances.PROJECTION_RENDER_DISTANCE;
     }
 
     @Override
     public boolean shouldRender(ProjectorBlockEntity blockEntity, Vec3 cameraPos) {
-        return cameraPos.distanceToSqr(Vec3.atCenterOf(blockEntity.getBlockPos())) <= PROJECTION_RENDER_DISTANCE_SQR;
+        return ProjectorRenderBounds.distanceToRenderBoundsSqr(blockEntity, cameraPos)
+            <= ProjectorRenderDistances.PROJECTION_RENDER_DISTANCE_SQR;
     }
 
-    private static double distanceToProjectorSqr(ProjectorBlockEntity blockEntity) {
+    private static double distanceToRenderBoundsSqr(ProjectorBlockEntity blockEntity) {
         Vec3 cameraPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-        return cameraPos.distanceToSqr(Vec3.atCenterOf(blockEntity.getBlockPos()));
+        return ProjectorRenderBounds.distanceToRenderBoundsSqr(blockEntity, cameraPos);
     }
 
     record DeferredProjectionGlow(PoseSnapshot poseSnapshot, RenderLayout layout, Direction facing,

@@ -1,7 +1,9 @@
 package com.nododiiiii.ponderer.projector;
 
 import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
+import com.nododiiiii.ponderer.projector.client.ProjectorPlaybackState;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderBounds;
+import com.nododiiiii.ponderer.projector.client.ProjectorRenderDistances;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -122,6 +124,24 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
             projector.syncBlockState();
             projector.syncToClient();
         }
+    }
+
+    public static void clientTick(Level level, BlockPos pos, BlockState state, ProjectorBlockEntity projector) {
+        if (!level.isClientSide || !projector.isPlaying() || !projector.hasRenderableScene()) {
+            return;
+        }
+
+        if (level.players().isEmpty()) {
+            return;
+        }
+
+        Player player = level.players().get(0);
+        double distanceSqr = ProjectorRenderBounds.distanceToRenderBoundsSqr(projector, player.position());
+        if (distanceSqr > ProjectorRenderDistances.CLIENT_PRELOAD_DISTANCE_SQR) {
+            return;
+        }
+
+        ProjectorPlaybackState.prepareForTick(projector);
     }
 
     public ProjectorKind getProjectorKind() {
