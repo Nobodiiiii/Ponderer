@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.10.0
+
+### 新增功能 / New Features
+
+- **投影仪完整化**：新增微型投影仪与等身投影仪的物品、配方、模型、方块状态与配置界面，支持投影模式、触发模式、播放定位、文本缩放、蓝色光束与可视距离设置。
+  Added complete miniature and life-size projector support with items, recipes, models, blockstates, config UI, projection modes, trigger modes, seek controls, text scaling, blue-tint beams, and render-distance controls.
+
+- **远程工作区管理**：新增远程目录浏览、上传/拉取、删除、回滚、历史查看与命令侧交互，并补充对应网络载荷与服务端响应流程。
+  Added remote workspace browsing, upload/pull, delete, rollback, history viewing, command-side actions, and the supporting network payload/response flow.
+
+- **功能可用性同步**：新增服务端功能开关同步与功能配置页面，用于在多人环境中同步投影仪、蓝图等功能的可用状态。
+  Added server-synchronized feature availability and feature configuration screens for multiplayer control over projector, blueprint, and related functionality.
+
+### 改进 / Improvements
+
+- **投影渲染与 overlay 优化**：重构投影仪渲染管线，改进 show_controls、文本窗口、GUI 图层、3D 物品图标、深度抗遮挡、场景旋转与缓存距离判断。
+  Reworked projector rendering for show_controls, text windows, GUI layers, 3D item icons, depth anti-occlusion, scene rotation, and cached render-distance checks.
+
+- **跨加载器网络与注册整理**：整理 Common / Forge / Fabric 的注册与网络辅助接口，补齐 Fabric Mod Menu 集成，并改善配置同步后的投影仪状态一致性。
+  Refined Common / Forge / Fabric registration and networking helpers, added Fabric Mod Menu integration, and improved projector state consistency after config sync.
+
+### 修复 / Fixes
+
+- **投影仪同步与界面回归修复**：修复配置合并后的投影仪同步问题，并改进多个投影仪配置页、资源包选择页和动态列表控件的交互细节。
+  Fixed projector config sync after merges and polished projector config screens, pack selection, and dynamic list controls.
+
+---
+
 ## 1.9.0
 
 ### 新增功能 / New Features
