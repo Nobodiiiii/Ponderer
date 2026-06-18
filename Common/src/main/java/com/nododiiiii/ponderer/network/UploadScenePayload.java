@@ -2,6 +2,8 @@ package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
+
+import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
@@ -85,21 +87,13 @@ public record UploadScenePayload(String sceneId, @Nullable String pack, String j
             }
         }
 
-        boolean ok = SceneStore.saveToServer(player.server, payload.sceneId(), payload.pack(), payload.json());
-        if (ok && payload.structures() != null) {
-            for (StructureEntry entry : payload.structures()) {
-                if (entry == null || entry.id() == null || entry.id().isBlank() || entry.bytes() == null) {
-                    continue;
-                }
-                ok = SceneStore.saveStructureToServer(player.server, entry.id(), entry.pack(), entry.bytes()) && ok;
-            }
-        }
+        RemoteWorkspaceService.OperationResult result = RemoteWorkspaceService.uploadScene(player, payload);
+        boolean ok = result.success();
 
         if (ok) {
             player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_ok", displayId));
-            String newHash = computeServerSceneHash(player.server, payload.sceneId(), payload.pack());
             PondererServices.NETWORK.sendToPlayer(player,
-                    new UploadResponsePayload(payload.sceneId(), payload.pack(), "ok:" + newHash));
+                    new UploadResponsePayload(payload.sceneId(), payload.pack(), "ok:" + result.hash()));
         } else {
             player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_failed", displayId));
             PondererServices.NETWORK.sendToPlayer(player,

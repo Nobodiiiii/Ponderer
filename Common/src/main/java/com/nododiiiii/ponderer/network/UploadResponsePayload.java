@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.network;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
+import com.nododiiiii.ponderer.ui.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -49,9 +50,20 @@ public record UploadResponsePayload(String sceneId, @Nullable String pack, Strin
                     SyncMeta.save(meta);
                 }
             }
+            if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
+                screen.receiveUploadResult(true,
+                    "Uploaded " + SceneStore.displaySceneKey(payload.sceneId(), payload.pack()));
+            }
         } else if ("conflict".equals(payload.status())) {
-            notifyClient(Component.translatable("ponderer.cmd.push.conflict",
-                    SceneStore.displaySceneKey(payload.sceneId(), payload.pack())));
+            String display = SceneStore.displaySceneKey(payload.sceneId(), payload.pack());
+            if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
+                screen.receiveUploadResult(false, "Remote conflict: " + display);
+            } else {
+                notifyClient(Component.translatable("ponderer.cmd.push.conflict", display));
+            }
+        } else if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
+            screen.receiveUploadResult(false,
+                "Upload failed: " + SceneStore.displaySceneKey(payload.sceneId(), payload.pack()));
         }
     }
 

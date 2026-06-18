@@ -1,0 +1,12 @@
+{
+  "multipart": [
+    { "when": { "facing": "north", "lit": "false" }, "apply": { "model": "ponderer:block/life_size_projector" } },
+    { "when": { "facing": "east", "lit": "false" }, "apply": { "model": "ponderer:block/life_size_projector", "y": 90 } },
+    { "when": { "facing": "south", "lit": "false" }, "apply": { "model": "ponderer:block/life_size_projector", "y": 180 } },
+    { "when": { "facing": "west", "lit": "false" }, "apply": { "model": "ponderer:block/life_size_projector", "y": 270 } },
+    { "when": { "facing": "north", "lit": "true" }, "apply": { "model": "ponderer:block/life_size_projector_lit" } },
+    { "when": { "facing": "east", "lit": "true" }, "apply": { "model": "ponderer:block/life_size_projector_lit", "y": 90 } },
+    { "when": { "facing": "south", "lit": "true" }, "apply": { "model": "ponderer:block/life_size_projector_lit", "y": 180 } },
+    { "when": { "facing": "west", "lit": "true" }, "apply": { "model": "ponderer:block/life_size_projector_lit", "y": 270 } }
+  ]
+}

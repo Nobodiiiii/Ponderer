@@ -3,11 +3,11 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.PackStateStore;
 import com.nododiiiii.ponderer.ponder.PonderPackInfo;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
-import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -180,7 +180,7 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
 
         SceneStore.autoLoadPonderPacks();
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
         notifyUser(UIText.of(result.uiMessageKey(), result.uiMessageArgs()));
         Minecraft.getInstance().setScreen(new ImportPackScreen());
     }

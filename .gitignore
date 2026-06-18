@@ -45,6 +45,8 @@ libs/jars/
 tmp_inspect/
 tmp_inspect_langcheck/
 
+art/
+
 # Logs
 *.log
 

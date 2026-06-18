@@ -152,11 +152,6 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             return true;
         }
 
-        if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
-            attemptBackToParent();
-            return true;
-        }
-
         return false;
     }
 

@@ -7,10 +7,21 @@ public class Config {
 
     public static final ModConfigSpec.BooleanValue ENABLE_BLUEPRINT_ITEM = SERVER_BUILDER
         .comment("Enable Ponderer's built-in Blueprint item.",
-                 "This is a server-side setting synced to clients.",
+                 "This setting is captured when the server starts; restart the game/server for changes to take effect.",
                  "When disabled, clients may still use their configured carrier item,",
-                 "but ponderer:blueprint will not appear in creative tabs and cannot be used as the carrier.")
-        .define("enableBlueprintItem", false);
+                 "but ponderer:blueprint will not appear in creative tabs, cannot be used as the carrier,",
+                 "and existing built-in Blueprint items disappear when used.",
+                 "[@cui:RequiresReload:server]")
+        .define("enableBlueprintItem", true);
+
+    public static final ModConfigSpec.BooleanValue ENABLE_PROJECTOR = SERVER_BUILDER
+        .comment("Enable Ponderer's Projector blocks.",
+                 "This setting is captured when the server starts; restart the game/server for changes to take effect.",
+                 "When disabled, projector blocks will not appear in creative tabs and cannot be placed, configured, or played.",
+                 "Existing projector blocks turn into named chests containing their internal source item,",
+                 "and existing projector items disappear when used.",
+                 "[@cui:RequiresReload:server]")
+        .define("enableProjector", true);
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
 
@@ -32,6 +43,11 @@ public class Config {
         .define("defaultEditable", true);
 
     // -- AI Scene Generation --
+
+    public static final ModConfigSpec.ConfigValue<String> AI_CONFIG_SOURCE = CLIENT_BUILDER
+        .comment("AI configuration source: 'custom', 'codex', or 'claude_code'.",
+                 "Custom uses the fields below. Codex and Claude Code read local tool configuration.")
+        .define("ai.configSource", "custom");
 
     public static final ModConfigSpec.ConfigValue<String> AI_PROVIDER = CLIENT_BUILDER
         .comment("LLM provider type: 'anthropic' or 'openai' (OpenAI-compatible).",
@@ -89,6 +105,20 @@ public class Config {
                  "The prompt offers to unregister the pack from the registry.",
                  "Set to false to suppress these prompts.")
         .define("pack.orphanPrompt", true);
+
+    // -- Projector Text Scaling --
+
+    public static final ModConfigSpec.DoubleValue PROJECTOR_MINIATURE_TEXT_SCALE = CLIENT_BUILDER
+        .comment("Text scale multiplier for miniature projectors.",
+                 "Higher values make overlay text (text windows, input bubbles) larger.",
+                 "Default: 2.5. Range: 0.5-5.0.")
+        .defineInRange("projector.miniatureTextScale", 2.5D, 0.5D, 5.0D);
+
+    public static final ModConfigSpec.DoubleValue PROJECTOR_LIFE_SIZE_TEXT_SCALE = CLIENT_BUILDER
+        .comment("Text scale multiplier for life-size projectors.",
+                 "Higher values make overlay text (text windows, input bubbles) larger.",
+                 "Default: 1.25. Range: 0.5-5.0.")
+        .defineInRange("projector.lifeSizeTextScale", 1.25D, 0.5D, 5.0D);
 
     /** Resolve the effective base URL (use default if config is empty). */
     public static String getEffectiveBaseUrl() {

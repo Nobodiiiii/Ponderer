@@ -15,7 +15,12 @@ public class ModItems {
         () -> new BlueprintItem(new Item.Properties().stacksTo(1)));
 
     /** Call from platform init to ensure static fields are loaded. */
-    public static void init() {}
+    public static void init() {
+        ModBlocks.init();
+        ModCreativeModeTabs.init();
+        ModBlockEntities.init();
+        ModMenuTypes.init();
+    }
 
     private ModItems() {}
 }

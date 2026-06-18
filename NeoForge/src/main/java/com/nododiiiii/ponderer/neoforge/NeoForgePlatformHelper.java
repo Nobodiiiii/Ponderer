@@ -4,6 +4,8 @@ import com.nododiiiii.ponderer.neoforge.sticksnapshot.client.ClientInputHandler;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.client.NeoForgeShowInterfaceClient;
 import com.nododiiiii.ponderer.platform.services.PlatformHelper;
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLEnvironment;
@@ -72,5 +74,10 @@ public class NeoForgePlatformHelper implements PlatformHelper {
     @Override
     public boolean supportsEmbeddedInterfacePreview() {
         return true;
+    }
+
+    @Override
+    public void openProjectorMenu(ServerPlayer player, ProjectorBlockEntity projector) {
+        player.openMenu(projector, projector::writeMenuData);
     }
 }

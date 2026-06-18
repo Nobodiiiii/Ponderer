@@ -5,6 +5,8 @@ import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.projector.client.ProjectorCueMarkerInstruction;
+import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
@@ -1098,13 +1100,16 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
         }
 
-        PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
-        InterfaceSlotOverlayRenderer.clearRuntimeBindings();
+        if (!ProjectorRenderContext.isActive()) {
+            PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
+            InterfaceSlotOverlayRenderer.clearRuntimeBindings();
+        }
         // Build-time pointAt() conversion for UI-anchored overlays happens after this step.
         // Reset immediately so subsequent resolveOverlayPoint() uses a clean baseline.
         ponderer$resetSceneViewState(scene.getScene());
         // Keep a runtime reset as a safety net for replay/scene lifecycle paths.
         scene.addInstruction(this::ponderer$resetSceneViewState);
+        scene.addInstruction(new ProjectorCueMarkerInstruction(step));
         scene.addInstruction(new ShowInterfaceInstruction(step));
         context.uiAnchorMode = true;
     }
@@ -1232,7 +1237,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_structure");
+        if (!ProjectorRenderContext.isActive()) {
+            PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_structure");
+        }
         context.uiAnchorMode = false;
         Selection selection;
         boolean isEverywhere;
@@ -1540,6 +1547,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         SoundSource source = parseSoundSource(step.source);
 
         scene.addInstruction(ps -> {
+            if (ProjectorRenderContext.isActive()) {
+                return;
+            }
             if (Minecraft.getInstance().player == null) {
                 return;
             }

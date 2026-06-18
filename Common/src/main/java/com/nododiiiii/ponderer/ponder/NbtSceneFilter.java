@@ -351,6 +351,12 @@ public final class NbtSceneFilter {
         return null;
     }
 
+    @Nullable
+    private static RegistryAccess getRegistryAccess() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.level == null ? null : minecraft.level.registryAccess();
+    }
+
     /**
      * Recursive subset check: every key in subset must exist in superset with the same value.
      * For nested CompoundTags, recurse. For other tag types, use equals().
@@ -400,12 +406,5 @@ public final class NbtSceneFilter {
             LOGGER.warn("Failed to parse NBT filter: {}", snbt, e);
             return null;
         }
-    }
-
-    @Nullable
-    private static RegistryAccess getRegistryAccess() {
-        var mc = Minecraft.getInstance();
-        if (mc.level != null) return mc.level.registryAccess();
-        return null;
     }
 }

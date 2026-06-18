@@ -4,8 +4,8 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import net.createmod.catnip.gui.ConfirmationScreen;
-import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
@@ -446,7 +446,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         scene.triggerCoord2 = candidate.triggerCoord2;
 
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
         return true;
     }
 

@@ -1,0 +1,7 @@
+{
+	"parent": "ponderer:block/miniature_projector",
+	"textures": {
+		"particle": "ponderer:block/andesite_casing",
+		"0": "ponderer:block/miniature_projector_lit"
+	}
+}

@@ -1,8 +1,10 @@
 package com.nododiiiii.ponderer.neoforge;
 
 import com.nododiiiii.ponderer.Config;
+import com.nododiiiii.ponderer.FeatureAvailability;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
+import com.nododiiiii.ponderer.network.FeatureAvailabilityPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot.ReplayEventInterceptors;
@@ -17,6 +19,9 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
 import java.util.ArrayList;
@@ -43,6 +48,9 @@ public class PondererNeoForge {
         modEventBus.addListener(this::onBuildCreativeTab);
         NeoForge.EVENT_BUS.register(ReplaySessionManager.class);
         NeoForge.EVENT_BUS.register(ReplayEventInterceptors.class);
+        NeoForge.EVENT_BUS.addListener(this::onServerStarted);
+        NeoForge.EVENT_BUS.addListener(this::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
 
         if (FMLEnvironment.dist.isClient()) {
             // All client event registration is in a separate class to avoid
@@ -60,6 +68,20 @@ public class PondererNeoForge {
             if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
                 event.accept(new ItemStack(ModItems.BLUEPRINT.get()));
             }
+        }
+    }
+
+    private void onServerStarted(ServerStartedEvent event) {
+        FeatureAvailability.captureFromConfig();
+    }
+
+    private void onServerStopping(ServerStoppingEvent event) {
+        FeatureAvailability.reset();
+    }
+
+    private void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            FeatureAvailabilityPayload.sendTo(player);
         }
     }
 }

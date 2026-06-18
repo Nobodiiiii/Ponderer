@@ -27,8 +27,9 @@ public final class HttpClientFactory {
 
     /** Get or create an HttpClient matching current config. Rebuilds if settings changed. */
     public static HttpClient get() {
-        String proxy = Config.AI_PROXY.get().trim();
-        boolean trustAll = Config.AI_TRUST_ALL_SSL.get();
+        ClientSettings settings = readSettings();
+        String proxy = settings.proxy();
+        boolean trustAll = settings.trustAll();
 
         HttpClient existing = cachedClient;
         if (existing != null && proxy.equals(cachedProxy) && trustAll == cachedTrustAll) {
@@ -74,6 +75,18 @@ public final class HttpClientFactory {
             cachedTrustAll = trustAll;
             return cachedClient;
         }
+    }
+
+    private static ClientSettings readSettings() {
+        try {
+            return new ClientSettings(Config.AI_PROXY.get().trim(), Config.AI_TRUST_ALL_SSL.get());
+        } catch (RuntimeException | LinkageError e) {
+            LOGGER.warn("AI HttpClient config unavailable; using a default client", e);
+            return new ClientSettings("", false);
+        }
+    }
+
+    private record ClientSettings(String proxy, boolean trustAll) {
     }
 
     private static class TrustAllManager implements X509TrustManager {

@@ -52,6 +52,36 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
         registrar.playToServer(BlueprintConfigUpdatePayload.TYPE, BlueprintConfigUpdatePayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> BlueprintConfigUpdatePayload.handle(payload, (ServerPlayer) ctx.player()));
         });
+        registrar.playToServer(ProjectorConfigUpdatePayload.TYPE, ProjectorConfigUpdatePayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> ProjectorConfigUpdatePayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(ProjectorManualTriggerPayload.TYPE, ProjectorManualTriggerPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> ProjectorManualTriggerPayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(ProjectorSeekPayload.TYPE, ProjectorSeekPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> ProjectorSeekPayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(ProjectorFeatureConfigRequestPayload.TYPE, ProjectorFeatureConfigRequestPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> ProjectorFeatureConfigRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(ProjectorFeatureConfigUpdatePayload.TYPE, ProjectorFeatureConfigUpdatePayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> ProjectorFeatureConfigUpdatePayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(RemoteCatalogRequestPayload.TYPE, RemoteCatalogRequestPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> RemoteCatalogRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(RemotePullRequestPayload.TYPE, RemotePullRequestPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> RemotePullRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(RemoteDeleteRequestPayload.TYPE, RemoteDeleteRequestPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> RemoteDeleteRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(RemoteHistoryRequestPayload.TYPE, RemoteHistoryRequestPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> RemoteHistoryRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
+        registrar.playToServer(RemoteRollbackRequestPayload.TYPE, RemoteRollbackRequestPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> RemoteRollbackRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
         registrar.playToServer(SaveSnapshotPacket.TYPE, SaveSnapshotPacket.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> SaveSnapshotPacket.handle(payload, (ServerPlayer) ctx.player()));
         });
@@ -88,6 +118,21 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
         });
         registrar.playToClient(BlueprintConfigResponsePayload.TYPE, BlueprintConfigResponsePayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> BlueprintConfigResponsePayload.handle(payload));
+        });
+        registrar.playToClient(ProjectorFeatureConfigResponsePayload.TYPE, ProjectorFeatureConfigResponsePayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> ProjectorFeatureConfigResponsePayload.handle(payload));
+        });
+        registrar.playToClient(FeatureAvailabilityPayload.TYPE, FeatureAvailabilityPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> FeatureAvailabilityPayload.handle(payload));
+        });
+        registrar.playToClient(RemoteCatalogResponsePayload.TYPE, RemoteCatalogResponsePayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> RemoteCatalogResponsePayload.handle(payload));
+        });
+        registrar.playToClient(RemoteActionResponsePayload.TYPE, RemoteActionResponsePayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> RemoteActionResponsePayload.handle(payload));
+        });
+        registrar.playToClient(RemoteHistoryResponsePayload.TYPE, RemoteHistoryResponsePayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> RemoteHistoryResponsePayload.handle(payload));
         });
         registrar.playToClient(MirrorNeoForgeOpenPacket.TYPE, MirrorNeoForgeOpenPacket.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> MirrorNeoForgeOpenPacket.handle(payload));

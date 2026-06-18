@@ -5,10 +5,10 @@ import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import net.createmod.catnip.gui.ConfirmationScreen;
-import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -160,7 +160,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
 
         applySavedScene(candidate);
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
 
         syncStateFromScene();
         markStateSaved();

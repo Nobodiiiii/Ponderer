@@ -1,5 +1,126 @@
 # Changelog
 
+## 1.10.0
+
+### 新增功能 / New Features
+
+- **投影仪完整化**：新增微型投影仪与等身投影仪的物品、配方、模型、方块状态与配置界面，支持投影模式、触发模式、播放定位、文本缩放、蓝色光束与可视距离设置。
+  Added complete miniature and life-size projector support with items, recipes, models, blockstates, config UI, projection modes, trigger modes, seek controls, text scaling, blue-tint beams, and render-distance controls.
+
+- **远程工作区管理**：新增远程目录浏览、上传/拉取、删除、回滚、历史查看与命令侧交互，并补充对应网络载荷与服务端响应流程。
+  Added remote workspace browsing, upload/pull, delete, rollback, history viewing, command-side actions, and the supporting network payload/response flow.
+
+- **功能可用性同步**：新增服务端功能开关同步与功能配置页面，用于在多人环境中同步投影仪、蓝图等功能的可用状态。
+  Added server-synchronized feature availability and feature configuration screens for multiplayer control over projector, blueprint, and related functionality.
+
+### 改进 / Improvements
+
+- **投影渲染与 overlay 优化**：重构投影仪渲染管线，改进 show_controls、文本窗口、GUI 图层、3D 物品图标、深度抗遮挡、场景旋转与缓存距离判断。
+  Reworked projector rendering for show_controls, text windows, GUI layers, 3D item icons, depth anti-occlusion, scene rotation, and cached render-distance checks.
+
+- **跨加载器网络与注册整理**：整理 Common / NeoForge / Fabric 的注册与网络辅助接口，补齐 Fabric Mod Menu 集成，并改善配置同步后的投影仪状态一致性。
+  Refined Common / NeoForge / Fabric registration and networking helpers, added Fabric Mod Menu integration, and improved projector state consistency after config sync.
+
+### 修复 / Fixes
+
+- **投影仪同步与界面回归修复**：修复配置合并后的投影仪同步问题，并改进多个投影仪配置页、资源包选择页和动态列表控件的交互细节。
+  Fixed projector config sync after merges and polished projector config screens, pack selection, and dynamic list controls.
+
+---
+
+## 1.9.0
+
+### 新增功能 / New Features
+
+- **结构列表、预览与子结构步骤**：新增结构选择器与实时预览组件，`show_structure` / `show_extra_structure` 可直接浏览本地结构文件，并将额外结构作为子结构插入场景。
+  Added a structure picker with live previews, and expanded `show_structure` workflows with `show_extra_structure` so local structure files can be browsed and inserted as sub-structures in scenes.
+
+- **NBT 扩展编辑器**：新增可展开的大型 NBT 文本编辑器，支持路径 / 坐标识别、多行输入增强，以及方块实体、实体、掉落物等步骤的 NBT 编辑与选取流程。
+  Added an expanded NBT editor with path/coordinate detection, improved multi-line editing, and better NBT edit/pick flows for block entities, entities, and item entities.
+
+- **文本轨道与进度条**：新增场景文本列表与文本标记指令，支持在 Ponder 播放过程中展示进度条、同步文本步骤，并改进共享文本的悬浮定位。
+  Added a scene text list and marker instructions for progress bars and synchronized text playback, while also improving floating shared-text positioning.
+
+- **高级动画与界面回放**：扩展 `show_interface` 的客户端截图 / 回放能力，并为区段、实体、掉落物等步骤补充外部动画与更细致的移动动画配置。
+  Expanded `show_interface` with client-side screen capture/replay, and added richer movement/external animation controls for sections, entities, and item entities.
+
+### 改进 / Improvements
+
+- **导出与脚本生成优化**：重构 Java 导出模板与运行时支持代码，改进结构引用、导出结果反馈与清单生成，为复杂场景导出提供更稳定的产物。
+  Reworked Java export templates and runtime support generation, improving structure references, export feedback, and manifest output for more reliable complex-scene exports.
+
+- **编辑器交互与缩放适配**：新增 UI 缩放支持，优化长文本输入框、结构预览、旋转相机和多处步骤表单细节，提升大场景编辑体验。
+  Added dedicated UI scaling support and refined long text inputs, structure previews, rotate-camera controls, and multiple step forms for better large-scene editing.
+
+### 修复 / Fixes
+
+- **场景运行兼容性修复**：修复合并区段后 `hide_section` 清理错误、Ponder 原生界面层级 / 文本索引问题，以及若干 NBT 选取与边界框相关回归。
+  Fixed merged-section `hide_section` cleanup, vanilla Ponder UI layering/text-index issues, and several regressions around NBT picking and scene bounds.
+
+---
+
+## 1.8.3
+
+### 新增功能 / New Features
+
+- **Java 模组导出**：新增 Java 模组导出页面，可扫描目标工程并将选定场景导出为 `GeneratedPonderSupport`、注册代码与语言条目，方便将游戏内编辑的内容直接接入源码模组。
+  Added a Java module export screen that scans a target project and exports selected scenes as `GeneratedPonderSupport`, registration code, and language entries so in-game authored content can move straight into source-controlled mods.
+
+### 改进 / Improvements
+
+- **导出清单与覆盖策略**：导出流程会维护 manifest 并同步受管场景资源，减少重复生成与手动整理成本。
+  Export now maintains a manifest and updates managed scene resources incrementally, reducing duplicate generation and manual cleanup.
+
+---
+
+## 1.8.2
+
+### 新增功能 / New Features
+
+- **开发者模式与可编辑场景**：新增默认可编辑与开发者模式配置；场景可显式标记 `editable`，只读场景在尝试编辑时会提示并可直达模组配置。
+  Added `default editable` and `developer mode` config options. Scenes can now declare `editable`, and readonly scenes show a guided prompt that links directly to mod config before editing.
+
+- **权限管理界面**：新增服务端权限管理页面，支持按管理员 / 上传 / 拉取三类权限查看和调整白名单，并处理 OP 权限同步与只读视图。
+  Added a server-side permission management screen for admin/upload/pull roles, with operator synchronization and readonly viewer states.
+
+- **服务端蓝图物品配置**：新增蓝图物品配置页面，支持同步内置蓝图物品开关与载体物品设置。
+  Added a blueprint item config screen with synchronized server-side builtin blueprint toggles and carrier item settings.
+
+### 改进 / Improvements
+
+- **通用对话框与导航重构**：引入统一的对话框、返回状态与折叠分组列表组件，改进功能页面与权限页面的交互体验。
+  Introduced reusable dialog, navigation-state, and collapsible list components to improve Function Page and permission workflows.
+
+---
+
+## 1.8.1
+
+### 改进 / Improvements
+
+- **只读资源包导入提示**：编辑来自资源包的场景时，新增只读提示与一键导入为本地可编辑副本的流程，导入导出体验更清晰。
+  Added a readonly import prompt when editing resource-pack scenes, allowing one-click import to local editable copies with a clearer import/export flow.
+
+---
+
+## 1.8.0
+
+### 新增功能 / New Features
+
+- **界面型思索片段**：新增 `show_interface`、`change_interface_slot`、`click_interface` 步骤，可在思索中镜像 GUI、修改槽位并模拟点击。
+  Added `show_interface`, `change_interface_slot`, and `click_interface` steps for mirrored GUIs, slot changes, and simulated clicks inside Ponder scenes.
+
+- **片段类型选择**：新建片段时可直接选择结构片段或界面片段，界面型思索工作流更完整。
+  Added scene-segment type selection so new segments can start as either structure scenes or interface scenes.
+
+### 改进 / Improvements
+
+- **编辑器与预览重构**：重写大量 UI 基础设施，支持搜索、独立功能页面、按键设置，以及 Forge 侧的内嵌界面预览与 JEI 叠层处理。
+  Reworked major UI foundations with search, a dedicated function page, keybinding settings, and Forge-side embedded interface preview with JEI overlay handling.
+
+---
+
+## 1.7.1
+
 ## 1.6.0
 
 ### 改进 / Improvements

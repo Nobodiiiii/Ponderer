@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
@@ -14,6 +15,9 @@ public class ChangeInterfaceSlotInstruction extends TickingInstruction {
 
     @Override
     protected void firstTick(PonderScene scene) {
+        if (ProjectorRenderContext.isActive()) {
+            return;
+        }
         InterfaceSlotOverlayRenderer.applyStep(step);
     }
 }

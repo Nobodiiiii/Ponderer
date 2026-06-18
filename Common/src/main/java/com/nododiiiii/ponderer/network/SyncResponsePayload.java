@@ -6,7 +6,7 @@ import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
-import net.createmod.ponder.foundation.PonderIndex;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -135,7 +135,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         }
 
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
 
         notifyClient(Component.translatable("ponderer.cmd.pull.done", session.written, session.skipped, session.conflicts));
         if (session.conflicts > 0 && "check".equals(session.pullMode)) {

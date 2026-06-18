@@ -10,9 +10,14 @@ import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.StickSnapshotFeature;
+import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
+import com.nododiiiii.ponderer.registry.ModBlockEntities;
+import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
+import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
@@ -25,9 +30,12 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -50,9 +58,12 @@ public class PondererNeoForgeClient {
 
         modEventBus.addListener(PondererNeoForgeClient::onClientSetup);
         modEventBus.addListener(PondererNeoForgeClient::onRegisterKeyMappings);
+        modEventBus.addListener(PondererNeoForgeClient::onRegisterRenderers);
+        modEventBus.addListener(PondererNeoForgeClient::onRegisterMenuScreens);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onRegisterClientCommands);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onClientTick);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onBlueprintClientTick);
+        NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onRenderLevelStage);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseScrolled);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseInput);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onPlayerLoggedIn);
@@ -77,6 +88,14 @@ public class PondererNeoForgeClient {
             // for initial registration; calling reload() here causes duplicate scenes.
             PonderConfig.client().editingMode.set(false);
         });
+    }
+
+    private static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
+        event.register(ModMenuTypes.PROJECTOR.get(), ProjectorConfigScreen::new);
+    }
+
+    private static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerBlockEntityRenderer(ModBlockEntities.PROJECTOR.get(), ProjectorBlockEntityRenderer::new);
     }
 
     private static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
@@ -110,6 +129,14 @@ public class PondererNeoForgeClient {
     private static void onBlueprintClientTick(ClientTickEvent.Post event) {
         blueprintHandler.tick();
         TriggerManager.tick();
+    }
+
+    private static void onRenderLevelStage(RenderLevelStageEvent event) {
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_SKY) {
+            ProjectorWorldOverlayQueue.beginFrame();
+        } else if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_WEATHER) {
+            ProjectorWorldOverlayQueue.render();
+        }
     }
 
     private static void onMouseScrolled(InputEvent.MouseScrollingEvent event) {

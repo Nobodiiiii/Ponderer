@@ -122,7 +122,14 @@ public class RegistryMapper {
         });
 
         // --- All JEI ingredient types (items, fluids, chemicals, etc. — unified) ---
-        if (JeiCompat.isAvailable()) {
+        boolean jeiAvailable = false;
+        try {
+            jeiAvailable = JeiCompat.isAvailable();
+        } catch (Throwable ignored) {
+            jeiAvailable = false;
+        }
+
+        if (jeiAvailable) {
             for (String[] entry : JeiCompat.getAllExtraIngredientEntries()) {
                 // entry = {id, displayName, path, kind}
                 addEntry(allEntries, indexedIdKinds, displayIndex, pathIndex, entry[0], entry[1], entry[2], entry[3]);

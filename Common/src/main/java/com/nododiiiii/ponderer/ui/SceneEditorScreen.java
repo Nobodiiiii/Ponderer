@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
@@ -859,6 +860,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         com.nododiiiii.ponderer.ponder.SceneStore.LocalSaveResult result = com.nododiiiii.ponderer.ponder.SceneStore.saveSceneToLocalDetailed(scene);
         if (result.isSuccess()) {
             clearStatusMessages();
+            com.nododiiiii.ponderer.ponder.SceneStore.reloadFromDisk();
+            Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
             return true;
         }
         setErrorMessage(UIText.saveError(result));
@@ -922,7 +925,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         mc.setScreen(null);
         if (deleted) {
             com.nododiiiii.ponderer.ponder.SceneStore.reloadFromDisk();
-            mc.execute(net.createmod.ponder.foundation.PonderIndex::reload);
+            mc.execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
         }
     }
 
@@ -954,7 +957,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
         mc.execute(() -> {
             if (reloadFromDisk) {
-                net.createmod.ponder.foundation.PonderIndex.reload();
+                ProjectorClientCaches.reloadPonderIndexAndInvalidate();
             }
             if (reopenId != null && net.createmod.ponder.foundation.PonderIndex.getSceneAccess().doScenesExistForId(reopenId)) {
                 net.createmod.ponder.foundation.ui.PonderUI ui;

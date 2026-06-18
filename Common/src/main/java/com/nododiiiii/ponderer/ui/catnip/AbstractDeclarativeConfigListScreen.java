@@ -84,11 +84,24 @@ public abstract class AbstractDeclarativeConfigListScreen extends AbstractDeclar
         appendEntry(new LocalizedIntegerConfigEntry(labelKey, hintKey, tooltipKey, value, specOf(value)));
     }
 
+    protected final void addDoubleConfigEntry(String labelKey,
+                                              @Nullable String tooltipKey,
+                                              ModConfigSpec.DoubleValue value) {
+        appendEntry(new LocalizedDoubleConfigEntry(labelKey, tooltipKey, value, specOf(value)));
+    }
+
+    protected final void addChoiceConfigEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
+                                               ModConfigSpec.ConfigValue<String> value,
+                                               List<String> optionLabelKeys, List<String> optionValues) {
+        addChoiceConfigEntry(labelKey, tooltipKey, buttonWidth, value, optionLabelKeys, optionValues, null);
+    }
+
     protected final void addChoiceConfigEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                                               ModConfigSpec.ConfigValue<String> value,
-                                              List<String> optionLabelKeys, List<String> optionValues) {
+                                               List<String> optionLabelKeys, List<String> optionValues,
+                                               @Nullable Runnable onChanged) {
         appendEntry(new LocalizedChoiceConfigEntry(
-            labelKey, tooltipKey, buttonWidth, value, specOf(value), optionLabelKeys, optionValues));
+            labelKey, tooltipKey, buttonWidth, value, specOf(value), optionLabelKeys, optionValues, onChanged));
     }
 
     private <T> ModConfigSpec.ValueSpec specOf(ModConfigSpec.ConfigValue<T> value) {

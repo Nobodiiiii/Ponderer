@@ -31,7 +31,7 @@ public class BlueprintItemConfigScreen extends AbstractJeiAwareFormScreen {
     public BlueprintItemConfigScreen(Screen parent) {
         super(parent,
             "ponderer.ui.scope.blueprint",
-            "ponderer.ui.function_page.blueprint_item.title",
+            "ponderer.ui.mod_config.blueprint.title",
             UILayoutConstants.EDITOR_LIST_W,
             JeiCompat::setActiveScreen);
         this.enableBuiltinItem = readEnableBuiltinItem();
@@ -47,11 +47,13 @@ public class BlueprintItemConfigScreen extends AbstractJeiAwareFormScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(FieldSpecs.sectionHeader(() -> UIText.of("ponderer.ui.scope.server")));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.function_page.blueprint_item.use_builtin",
             "ponderer.ui.function_page.blueprint_item.use_builtin.tooltip",
             () -> enableBuiltinItem,
             this::toggleEnableBuiltinItem));
+        entries.add(FieldSpecs.sectionHeader(() -> UIText.of("ponderer.ui.scope.client")));
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(
                 () -> carrierItem,

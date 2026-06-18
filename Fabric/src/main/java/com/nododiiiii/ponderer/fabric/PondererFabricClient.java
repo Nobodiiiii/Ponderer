@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.fabric;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ModKeyBindings;
-import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
@@ -10,27 +10,32 @@ import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
-import com.nododiiiii.ponderer.registry.ModItems;
-import com.nododiiiii.ponderer.ui.FunctionScreen;
+import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
+import com.nododiiiii.ponderer.registry.ModBlockEntities;
+import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.ui.CoordPickState;
+import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.NbtPickState;
+import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
+import net.createmod.catnip.config.ui.BaseConfigScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-import net.minecraft.world.item.CreativeModeTabs;
-import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -75,19 +80,19 @@ public class PondererFabricClient implements ClientModInitializer {
         // for initial registration; calling reload() here causes duplicate scenes.
         PonderConfig.client().editingMode.set(false);
 
+        BlockEntityRendererRegistry.register(ModBlockEntities.PROJECTOR.get(), ctx -> new ProjectorBlockEntityRenderer());
+        MenuScreens.register(ModMenuTypes.PROJECTOR.get(), ProjectorConfigScreen::new);
+        WorldRenderEvents.START.register(context -> ProjectorWorldOverlayQueue.beginFrame());
+        WorldRenderEvents.LAST.register(context -> {
+            ProjectorWorldOverlayQueue.render();
+        });
+
         // Register client commands
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             PondererClientCommands.register(dispatcher);
         });
 
-        // Creative tab
-        if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
-            ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> {
-                entries.accept(new ItemStack(ModItems.BLUEPRINT.get()));
-            });
-        }
-
-        // Client tick: key bindings + blueprint handler + player join notifications
+        // Client tick: key bindings + blueprint handler + player join notifications + JEI interception
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null && client.screen == null && NbtPickState.isActive()) {
                 client.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
@@ -161,6 +166,16 @@ public class PondererFabricClient implements ClientModInitializer {
                         !PondererJeiPlugin.handleMouseClick(scr, mouseX, mouseY, button));
             }
         });
+
+        // Blueprint mouse events are handled via the tick method and client input directly
+        // Fabric doesn't have direct mouse scroll/click events at the same level as Forge's InputEvent
+        // The BlueprintHandler itself checks for key states in its tick() method
+        prepareNativeConfigUi();
+    }
+
+    private static void prepareNativeConfigUi() {
+        BaseConfigScreen.setDefaultActionFor(Ponderer.MODID,
+            base -> base.withSpecs(Config.CLIENT_SPEC, null, Config.SERVER_SPEC));
     }
 
     private void showPendingNotifications() {

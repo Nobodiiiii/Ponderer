@@ -2,8 +2,8 @@ package com.nododiiiii.ponderer.ponder;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.util.SafePaths;
-import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 
@@ -106,7 +106,7 @@ public final class PonderJsConversionService {
             return 0;
         }
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
         notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.from_done", count, id.toString()));
         return count;
     }
@@ -133,7 +133,7 @@ public final class PonderJsConversionService {
             return 0;
         }
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(PonderIndex::reload);
+        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
         notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.from_all_done", count));
         return count;
     }

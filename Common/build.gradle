@@ -37,4 +37,7 @@ java {
 tasks.withType(Test).configureEach {
     enabled = true
     useJUnitPlatform()
+    if (project.hasProperty("realLlm")) {
+        systemProperty "ponderer.realLlm", project.property("realLlm").toString()
+    }
 }

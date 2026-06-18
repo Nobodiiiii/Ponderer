@@ -42,6 +42,13 @@ public class WebPageFetcher {
      * Fetch a URL and extract text + images.
      */
     public static WebPageContent fetch(String url) throws IOException, InterruptedException {
+        return fetch(url, true);
+    }
+
+    /**
+     * Fetch a URL and extract text, optionally downloading images.
+     */
+    public static WebPageContent fetch(String url, boolean includeImages) throws IOException, InterruptedException {
         HttpClient client = getClient();
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(url))
@@ -61,7 +68,7 @@ public class WebPageFetcher {
             text = text.substring(0, MAX_TEXT_LENGTH) + "\n... (truncated)";
         }
 
-        List<ImageData> images = extractAndDownloadImages(html, url, client);
+        List<ImageData> images = includeImages ? extractAndDownloadImages(html, url, client) : List.of();
         return new WebPageContent(text, images);
     }
 
