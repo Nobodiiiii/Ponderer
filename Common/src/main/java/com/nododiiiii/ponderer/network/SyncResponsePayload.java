@@ -21,8 +21,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> structures, boolean finalChunk,
-                                  int serverSkippedCount) {
+public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> structures,
+                                  List<DeleteEntry> deletedScripts, List<DeleteEntry> deletedStructures,
+                                  boolean finalChunk, int serverSkippedCount, String mode, String reason) {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int MAX_SYNC_FILE_BYTES = 768 * 1024;
@@ -34,15 +35,31 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
     public record FileEntry(String id, @Nullable String pack, byte[] bytes) {
     }
 
+    public record DeleteEntry(String id, @Nullable String pack) {
+    }
+
+    public SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> structures, boolean finalChunk,
+                               int serverSkippedCount) {
+        this(scripts, structures, List.of(), List.of(), finalChunk, serverSkippedCount, "", "");
+    }
+
     private static final class PullSession {
         private final String pullMode;
+        private final String reason;
         private int written;
+        private int deleted;
         private int skipped;
         private int conflicts;
         private final Map<String, byte[]> syncedHashes = new HashMap<>();
+        private final List<String> deletedMetaKeys = new ArrayList<>();
 
-        private PullSession(String pullMode) {
+        private PullSession(String pullMode, String reason) {
             this.pullMode = pullMode;
+            this.reason = reason == null ? "" : reason;
+        }
+
+        private boolean automatic() {
+            return "auto".equals(reason) || "join".equals(reason);
         }
     }
 
@@ -55,8 +72,18 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         for (FileEntry entry : structures()) {
             writeEntry(buf, entry);
         }
+        buf.writeVarInt(deletedScripts().size());
+        for (DeleteEntry entry : deletedScripts()) {
+            writeDeleteEntry(buf, entry);
+        }
+        buf.writeVarInt(deletedStructures().size());
+        for (DeleteEntry entry : deletedStructures()) {
+            writeDeleteEntry(buf, entry);
+        }
         buf.writeBoolean(finalChunk());
         buf.writeVarInt(serverSkippedCount());
+        buf.writeUtf(mode() == null ? "" : mode());
+        buf.writeUtf(reason() == null ? "" : reason());
     }
 
     public static SyncResponsePayload decode(FriendlyByteBuf buf) {
@@ -70,9 +97,22 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         for (int i = 0; i < structuresSize; i++) {
             structures.add(readEntry(buf));
         }
+        int deletedScriptsSize = buf.readVarInt();
+        List<DeleteEntry> deletedScripts = new ArrayList<>(deletedScriptsSize);
+        for (int i = 0; i < deletedScriptsSize; i++) {
+            deletedScripts.add(readDeleteEntry(buf));
+        }
+        int deletedStructuresSize = buf.readVarInt();
+        List<DeleteEntry> deletedStructures = new ArrayList<>(deletedStructuresSize);
+        for (int i = 0; i < deletedStructuresSize; i++) {
+            deletedStructures.add(readDeleteEntry(buf));
+        }
         boolean finalChunk = buf.readBoolean();
         int serverSkippedCount = buf.readVarInt();
-        return new SyncResponsePayload(scripts, structures, finalChunk, serverSkippedCount);
+        String mode = buf.readUtf();
+        String reason = buf.readUtf();
+        return new SyncResponsePayload(scripts, structures, deletedScripts, deletedStructures, finalChunk,
+            serverSkippedCount, mode, reason);
     }
 
     public static void sendBatched(ServerPlayer player) {
@@ -105,12 +145,17 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
     public static void handle(SyncResponsePayload payload) {
         PullSession session = activeSession;
         if (session == null) {
-            session = new PullSession(PondererClientCommands.consumePullMode());
+            String pullMode = payload.mode() == null || payload.mode().isBlank()
+                ? PondererClientCommands.consumePullMode()
+                : payload.mode();
+            session = new PullSession(pullMode, payload.reason());
             activeSession = session;
         }
 
         applyEntries(payload.scripts(), "scripts", ".json", session);
         applyEntries(payload.structures(), "structures", ".nbt", session);
+        applyDeletes(payload.deletedScripts(), "scripts", ".json", session);
+        applyDeletes(payload.deletedStructures(), "structures", ".nbt", session);
         session.skipped += payload.serverSkippedCount();
 
         if (!payload.finalChunk()) {
@@ -120,17 +165,63 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         if (!session.syncedHashes.isEmpty()) {
             SyncMeta.recordHashes(session.syncedHashes);
         }
+        if (!session.deletedMetaKeys.isEmpty()) {
+            SyncMeta.removeHashes(session.deletedMetaKeys);
+        }
 
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
 
-        notifyClient(Component.translatable("ponderer.cmd.pull.done", session.written, session.skipped, session.conflicts));
-        if (session.conflicts > 0 && "check".equals(session.pullMode)) {
+        if (!session.automatic() || session.written > 0 || session.deleted > 0 || session.skipped > 0
+            || session.conflicts > 0) {
+            String key = session.automatic() ? "ponderer.cmd.pull.auto_done" : "ponderer.cmd.pull.done";
+            notifyClient(Component.translatable(key, session.written + session.deleted, session.skipped,
+                session.conflicts));
+        }
+        if (!session.automatic() && session.conflicts > 0 && "check".equals(session.pullMode)) {
             notifyClient(Component.translatable("ponderer.cmd.pull.hint_force"));
             notifyClient(Component.translatable("ponderer.cmd.pull.hint_keep"));
         }
 
         activeSession = null;
+    }
+
+    private static void applyDeletes(List<DeleteEntry> entries, String category, String ext, PullSession session) {
+        for (DeleteEntry entry : entries) {
+            Path localFile = resolveLocalPath(new FileEntry(entry.id(), entry.pack(), new byte[0]), ext);
+            String displayId = displayId(entry.id(), entry.pack());
+            if (localFile == null) {
+                LOGGER.warn("Rejected unsafe {} delete path from server: {} pack={}", category, entry.id(), entry.pack());
+                session.skipped++;
+                continue;
+            }
+
+            String metaKey = SyncMeta.metaKey(category, entry.id(), entry.pack());
+            String status = SyncMeta.checkDeleteConflict(metaKey, localFile);
+            if ("local_modified".equals(status)) {
+                session.conflicts++;
+                session.skipped++;
+                if (!session.automatic()) {
+                    notifyClient(Component.translatable("ponderer.cmd.pull.delete_conflict", displayId));
+                }
+                continue;
+            }
+
+            if (!Files.exists(localFile)) {
+                session.deletedMetaKeys.add(metaKey);
+                continue;
+            }
+
+            try {
+                Files.deleteIfExists(localFile);
+                session.deletedMetaKeys.add(metaKey);
+                session.deleted++;
+            } catch (Exception e) {
+                LOGGER.warn("Failed to delete synced file: {}", localFile, e);
+                session.skipped++;
+                notifyClient(Component.translatable("ponderer.cmd.pull.delete_failed", displayId));
+            }
+        }
     }
 
     private static void applyEntries(List<FileEntry> entries, String category, String ext, PullSession session) {
@@ -273,8 +364,17 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         buf.writeByteArray(entry.bytes());
     }
 
+    private static void writeDeleteEntry(FriendlyByteBuf buf, DeleteEntry entry) {
+        buf.writeUtf(entry.id());
+        writeOptionalUtf(buf, entry.pack());
+    }
+
     private static FileEntry readEntry(FriendlyByteBuf buf) {
         return new FileEntry(buf.readUtf(), readOptionalUtf(buf), buf.readByteArray());
+    }
+
+    private static DeleteEntry readDeleteEntry(FriendlyByteBuf buf) {
+        return new DeleteEntry(buf.readUtf(), readOptionalUtf(buf));
     }
 
     private static void writeOptionalUtf(FriendlyByteBuf buf, @Nullable String value) {

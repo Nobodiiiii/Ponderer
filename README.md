@@ -15,17 +15,17 @@ Ponderer 是一个 Minecraft 模组，提供数据驱动的 Ponder 场景编写�
 
 ### 运行要求
 
-| | Forge 1.20.1 | Fabric 1.20.1 |
-|---|---|---|
-| Minecraft | 1.20.1 | 1.20.1 |
+|            | Forge 1.20.1  | Fabric 1.20.1         |
+| ---------- | ------------- | --------------------- |
+| Minecraft  | 1.20.1        | 1.20.1                |
 | 模组加载器 | Forge 47.2.6+ | Fabric Loader 0.16.9+ |
-| Fabric API | - | 0.92.3+1.20.1 |
-| Java | 17 | 17 |
+| Fabric API | -             | 0.92.3+1.20.1         |
+| Java       | 17            | 17                    |
 
 ### 思索的游戏内编辑
 
-- **可视化场景编辑**：在游戏内创建、编辑、删除和排序 Ponder 步骤，支持 **复制粘贴**、**撤销重做** 与 **坐标选点**（默认 `V`）。
-- **丰富步骤类型**：覆盖 **结构展示/叠加结构**、**文本/共享文本**、**实体与掉落物**、**镜头旋转/缩放**、**高亮区域**、**控制提示**、**声音**、**方块修改**、**区段移动/旋转**、**红石提示** 等常用教程动作。
+- **可视化场景编辑**：在游戏内创建、编辑、删除和排序 Ponder 思索，支持 **热重载**。
+- **丰富步骤类型**：覆盖 结构展示/叠加结构、文本、实体与掉落物、镜头旋转/缩放、高亮区域、控制提示、声音、方块修改、区段移动/旋转 等绝大部分常用教程动作。
 - **界面化表单编辑**：为不同步骤提供专用配置界面，支持 ID、坐标、NBT、时长、方向、选区等字段校验，减少手写 JSON 的出错成本。
 - **结构与蓝图素材**：使用蓝图工具保存选区结构，并从 `config/ponderer/structures/` 加载自定义结构素材。
 - **JSON DSL 存储**：场景以 **数据驱动 JSON** 存放在 `config/ponderer/scripts/`，便于版本管理、手动调整和工具链处理。
@@ -43,22 +43,17 @@ Ponderer 是一个 Minecraft 模组，提供数据驱动的 Ponder 场景编写�
 - **多提供商支持**：可配置 **Claude / ChatGPT** 等 LLM 提供商，用自然语言生成 Ponder 场景草稿。
 - **结构感知生成**：结合结构描述、注册表映射和用户提示词，让 AI 更容易引用正确方块、物品、坐标与演示步骤。
 - **游戏内生成流程**：在游戏内填写需求、生成草稿并继续进入编辑器微调，避免在外部文件和游戏之间反复切换。
-- **热重载联动**：生成或保存后可刷新本地思索索引，快速在 Ponder 预览中检查结果。
 
 ### 思索投影仪
 
-- **两种投影仪方块**：提供 **微缩投影仪** `ponderer:miniature_projector` 与 **实景投影仪** `ponderer:life_size_projector`，将源物品对应的 Ponder 场景投射到世界中。
-- **仅渲染播放**：投影会解析物品绑定的场景并播放教程画面，不打开真实界面，也不改动玩家实际交互状态。
-- **播放与触发控制**：支持 **手动循环**、**手动单次**、**红石脉冲单次**、**红石持续循环**，并提供播放定位、场景切换和远程思索拉取。
-- **投影表现配置**：可调整微缩/实景展示、投影偏移、投影模式（默认/仅场景/仅文本）、文本缩放、幕间间隔、蓝色投影效果、文本防遮与兼容模式。
-- **多人服务器管理**：服务端可同步并管控投影仪功能开关，关闭后投影仪不再可放置、配置或播放，已有投影仪按配置逻辑转换/失效。
+- **两种投影仪方块**：提供 **微缩投影仪** 与 **实景投影仪** ，将源物品对应的 Ponder 场景投射到世界中。
+- **播放与触发控制**：支持非常丰富的可配置项，满足各场景需求。
+- **多人服务器管理**：服务端可同步并管控投影仪功能开关，关闭后投影仪不再可放置、配置或播放，适合纯原版服务器。
 
 ### 思索内体验优化
 
-- **文本进度条**：在思索播放过程中逐步推进说明文本，适合多阶段提示、节奏控制和长教程拆分。
+- **文本进度条**：在思索显示文本进度板，解决思索不能手动拖动进度条的拖沓问题。
 - **界面思索**：支持展示界面、修改槽位和模拟点击流程，用于演示容器、菜单、物品栏或自定义 UI 的交互逻辑。
-- **控制提示增强**：可展示左键、右键、滚轮、按键修饰符和物品/流体材料提示，让操作教学更直观。
-- **JEI 辅助填充**：可选集成 **JEI**，通过点击或拖放物品填入 ID 字段，减少手动输入。
 - **内置引导与配置**：包含内置示例场景、快捷键设置、界面缩放与模组配置页，便于上手和按需调整体验。
 
 ### 项目结构（多平台）
@@ -84,14 +79,6 @@ Ponderer 是一个 Minecraft 模组，提供数据驱动的 Ponder 场景编写�
     ├── data/ponderer/             # 默认脚本与结构
     └── ponderer.mixins.json       # Mixin 配置
 ```
-
-### 常用命令
-
-- `/ponderer reload`：重载本地场景脚本
-- `/ponderer pull [force|keep_local]`：从服务端拉取场景
-- `/ponderer push [force] [<id>]`：推送场景到服务端
-- `/ponderer convert to_ponderjs|from_ponderjs all|<id>`：PonderJS 转换
-- `/ponderer export` / `/ponderer import`：场景包导入导出
 
 ### 构建与运行
 
@@ -129,12 +116,12 @@ Ponderer is a Minecraft mod for data-driven Ponder authoring, in-game visual edi
 
 ### Requirements
 
-| | Forge 1.20.1 | Fabric 1.20.1 |
-|---|---|---|
-| Minecraft | 1.20.1 | 1.20.1 |
+|            | Forge 1.20.1  | Fabric 1.20.1         |
+| ---------- | ------------- | --------------------- |
+| Minecraft  | 1.20.1        | 1.20.1                |
 | Mod Loader | Forge 47.2.6+ | Fabric Loader 0.16.9+ |
-| Fabric API | - | 0.92.3+1.20.1 |
-| Java | 17 | 17 |
+| Fabric API | -             | 0.92.3+1.20.1         |
+| Java       | 17            | 17                    |
 
 ### In-Game Ponder Editing
 
@@ -176,6 +163,7 @@ Ponderer is a Minecraft mod for data-driven Ponder authoring, in-game visual edi
 - **Built-in guidance and config**: Includes a built-in guide scene, keybinding settings, UI scaling, and mod configuration screens for easier onboarding and tuning.
 
 ### Project Structure
+
 ```
 ├── Common/src/main/java/com/nododiiiii/ponderer/   # Cross-platform shared code
 │   ├── Ponderer.java              # Mod entry point

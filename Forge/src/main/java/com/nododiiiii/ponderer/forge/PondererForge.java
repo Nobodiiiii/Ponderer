@@ -6,6 +6,7 @@ import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
 import com.nododiiiii.ponderer.network.FeatureAvailabilityPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ponder.AutoRemoteSyncService;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.minecraft.resources.ResourceLocation;
@@ -13,6 +14,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
@@ -69,6 +71,8 @@ public class PondererForge {
         MinecraftForge.EVENT_BUS.addListener(this::onServerStarted);
         MinecraftForge.EVENT_BUS.addListener(this::onServerStopping);
         MinecraftForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
+        MinecraftForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
+        MinecraftForge.EVENT_BUS.addListener(this::onServerTick);
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
             // All client event registration is in a separate class to avoid
@@ -89,11 +93,25 @@ public class PondererForge {
 
     private void onServerStopping(ServerStoppingEvent event) {
         FeatureAvailability.reset();
+        AutoRemoteSyncService.reset();
     }
 
     private void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             FeatureAvailabilityPayload.sendTo(player);
+            AutoRemoteSyncService.onPlayerJoined(player);
+        }
+    }
+
+    private void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            AutoRemoteSyncService.onPlayerLeft(player.getUUID());
+        }
+    }
+
+    private void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase == TickEvent.Phase.END) {
+            AutoRemoteSyncService.onServerTick(event.getServer());
         }
     }
 

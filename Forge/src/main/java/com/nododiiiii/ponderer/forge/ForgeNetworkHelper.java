@@ -15,7 +15,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public class ForgeNetworkHelper implements NetworkHelper {
 
-    private static final String VERSION = "4";
+    private static final String VERSION = "5";
     private static SimpleChannel CHANNEL;
     private static int id = 0;
 

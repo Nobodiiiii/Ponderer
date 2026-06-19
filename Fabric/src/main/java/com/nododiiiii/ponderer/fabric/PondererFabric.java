@@ -5,10 +5,12 @@ import com.nododiiiii.ponderer.FeatureAvailability;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.network.FeatureAvailabilityPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ponder.AutoRemoteSyncService;
 import com.nododiiiii.ponderer.registry.ModItems;
 import fuzs.forgeconfigapiport.api.config.v2.ForgeConfigRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.chat.Component;
@@ -37,7 +39,11 @@ public class PondererFabric implements ModInitializer {
         PondererServices.NETWORK.registerPackets();
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> FeatureAvailability.captureFromConfig());
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> FeatureAvailability.reset());
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            FeatureAvailability.reset();
+            AutoRemoteSyncService.reset();
+        });
+        ServerTickEvents.END_SERVER_TICK.register(AutoRemoteSyncService::onServerTick);
 
         // If server has this mod, connecting clients must expose our clientbound channel.
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
@@ -47,6 +53,9 @@ public class PondererFabric implements ModInitializer {
                 return;
             }
             FeatureAvailabilityPayload.sendTo(handler.player);
+            AutoRemoteSyncService.onPlayerJoined(handler.player);
         });
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+            AutoRemoteSyncService.onPlayerLeft(handler.player.getUUID()));
     }
 }
