@@ -10,6 +10,7 @@ public class Config {
                  "This setting is captured when the server starts; restart the game/server for changes to take effect.",
                  "When disabled, clients may still use their configured carrier item,",
                  "but ponderer:blueprint will not appear in creative tabs, cannot be used as the carrier,",
+                 "its recipe will not load,",
                  "and existing built-in Blueprint items disappear when used.",
                  "[@cui:RequiresReload:server]")
         .define("enableBlueprintItem", true);
@@ -18,6 +19,7 @@ public class Config {
         .comment("Enable Ponderer's Projector blocks.",
                  "This setting is captured when the server starts; restart the game/server for changes to take effect.",
                  "When disabled, projector blocks will not appear in creative tabs and cannot be placed, configured, or played.",
+                 "Their recipes will not load.",
                  "Existing projector blocks turn into named chests containing their internal source item,",
                  "and existing projector items disappear when used.",
                  "[@cui:RequiresReload:server]")

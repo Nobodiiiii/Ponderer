@@ -40,6 +40,7 @@ public class PondererNeoForge {
         ModItems.init();
         NeoForgeRegistrationHelper.modEventBus = modEventBus;
         PondererServices.REGISTRATION.init();
+        NeoForgeRecipeConditions.register(modEventBus);
 
         modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);

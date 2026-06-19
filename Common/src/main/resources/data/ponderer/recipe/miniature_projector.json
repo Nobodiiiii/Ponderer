@@ -1,11 +1,17 @@
 {
-  "conditions": [
+  "neoforge:conditions": [
     {
-      "type": "forge:item_exists",
-      "item": "create:andesite_casing"
+      "type": "ponderer:projector_enabled"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "create"
     }
   ],
   "fabric:load_conditions": [
+    {
+      "condition": "ponderer:projector_enabled"
+    },
     {
       "condition": "fabric:registry_contains",
       "values": [
@@ -32,6 +38,7 @@
     }
   },
   "result": {
-    "item": "ponderer:miniature_projector"
+    "count": 1,
+    "id": "ponderer:miniature_projector"
   }
 }

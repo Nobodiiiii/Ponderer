@@ -20,8 +20,10 @@ import com.nododiiiii.ponderer.projector.client.ProjectorClientSceneResolver;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneBundle;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneCompiler;
 import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
+import com.nododiiiii.ponderer.registry.ModBlocks;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
+import net.createmod.catnip.gui.element.GuiGameElement;
 import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -69,7 +71,9 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int PLAYER_INVENTORY_HEIGHT = 108;
     private static final int PLAYER_INVENTORY_TEXTURE_SIZE = 256;
     private static final int PLAYER_INVENTORY_X = ProjectorMenu.INVENTORY_PANEL_X;
-    private static final int SCREEN_WIDTH = ProjectorMenu.SCREEN_WIDTH;
+    private static final int MAIN_PANEL_TEXTURE_WIDTH = 288;
+    private static final int PROJECTOR_MODEL_SCALE = 3;
+    private static final int PROJECTOR_MODEL_BOTTOM_OFFSET = 40;
     private static final int MINIATURE_PLAYER_INVENTORY_Y = 195;
     private static final int LIFE_SIZE_PLAYER_INVENTORY_Y = 214;
     private static final int MINIATURE_MAIN_PANEL_HEIGHT = 195;
@@ -199,13 +203,17 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private int manualSceneSelectionHoldTicks;
     private Component statusMessage = Component.empty();
     private int statusColor = 0x606060;
+    private final ItemStack renderedProjector;
 
     public ProjectorConfigScreen(ProjectorMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        imageWidth = SCREEN_WIDTH;
+        imageWidth = MAIN_PANEL_TEXTURE_WIDTH;
         imageHeight = playerInventoryY() + PLAYER_INVENTORY_HEIGHT;
         inventoryLabelX = INVENTORY_LABEL_X;
         inventoryLabelY = playerInventoryY() + 6;
+        renderedProjector = new ItemStack(menu.projectorKind().requiresAnchor()
+            ? ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get()
+            : ModBlocks.MINIATURE_PROJECTOR_ITEM.get());
     }
 
     private boolean isLifeSizeProjector() {
@@ -422,12 +430,22 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         int panelTextureY = menu.projectorKind().requiresAnchor()
             ? LIFE_SIZE_PANEL_TEXTURE_Y
             : MINIATURE_PANEL_TEXTURE_Y;
-        graphics.blit(BACKGROUND, x, y, 0, panelTextureY, SCREEN_WIDTH, mainPanelHeight(),
+        graphics.blit(BACKGROUND, x, y, 0, panelTextureY, MAIN_PANEL_TEXTURE_WIDTH, mainPanelHeight(),
             PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
         graphics.blit(PLAYER_INVENTORY, x + PLAYER_INVENTORY_X, y + playerInventoryY(),
             0, 0, PLAYER_INVENTORY_WIDTH, PLAYER_INVENTORY_HEIGHT,
             PLAYER_INVENTORY_TEXTURE_SIZE, PLAYER_INVENTORY_TEXTURE_SIZE);
+        renderProjectorModel(graphics, x, y);
         renderSceneTimeline(graphics, mouseX, mouseY, partialTick);
+    }
+
+    private void renderProjectorModel(GuiGraphics graphics, int x, int y) {
+        GuiGameElement.of(renderedProjector).<GuiGameElement.GuiRenderBuilder>at(
+                x + MAIN_PANEL_TEXTURE_WIDTH,
+                y + mainPanelHeight() - PROJECTOR_MODEL_BOTTOM_OFFSET,
+                -200)
+            .scale(PROJECTOR_MODEL_SCALE)
+            .render(graphics);
     }
 
     @Override
@@ -585,8 +603,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             sceneSelectionDirty = false;
         }
         selectSceneAfterRefresh(previousSelectedSceneKey);
-        remotePullButton.active = !menu.sourceItem().isEmpty();
-        playButton.active = !resolveSceneKeysToSave().isEmpty();
+        refreshActionButtonStates();
         refreshScenePreview(true);
         refreshSceneButtons();
         tryAutoSyncResolvedScenes();
@@ -661,6 +678,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void triggerManualOnce() {
+        if (menu.sourceItem().isEmpty()) {
+            promptInsertSourceItem();
+            return;
+        }
         if (resolveSceneKeysToSave().isEmpty()) {
             status(Component.translatable("ponderer.ui.projector.scene.required"), 0xA03030);
             return;
@@ -1002,7 +1023,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         refreshSceneButtons(clampedIndex);
         suppressSceneButtonHoverOnce();
         manualSceneSelectionHoldTicks = 3;
-        playButton.active = !resolveSceneKeysToSave().isEmpty();
+        refreshActionButtonStates();
 
         if (!isConfigDirty()) {
             seekSelectedSceneTimeline(previewTick);
@@ -1644,7 +1665,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private void pullRemoteScenesForSource() {
         ItemStack source = menu.sourceItem();
         if (source.isEmpty()) {
-            status(Component.translatable("ponderer.ui.projector.insert_item"), STATUS_TEXT);
+            promptInsertSourceItem();
             return;
         }
 
@@ -1657,6 +1678,15 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         PondererServices.NETWORK.sendToServer(new RemotePullRequestPayload(
             RemoteWorkspaceService.KIND_ITEM_SCENES, itemId.toString(), null, true));
         status(Component.translatable("ponderer.ui.projector.remote_pull.requesting", itemId), STATUS_TEXT);
+    }
+
+    private void refreshActionButtonStates() {
+        remotePullButton.active = true;
+        playButton.active = menu.sourceItem().isEmpty() || !resolveSceneKeysToSave().isEmpty();
+    }
+
+    private void promptInsertSourceItem() {
+        status(Component.translatable("ponderer.ui.projector.source_item.required"), 0xA03030);
     }
 
     public void receiveRemoteAction(RemoteActionResponsePayload payload) {

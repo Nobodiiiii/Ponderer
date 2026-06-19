@@ -1,0 +1,29 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "ponderer:blueprint_enabled"
+    }
+  ],
+  "fabric:load_conditions": [
+    {
+      "condition": "ponderer:blueprint_enabled"
+    }
+  ],
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:paper"
+    },
+    {
+      "item": "minecraft:light_blue_dye"
+    },
+    {
+      "item": "minecraft:feather"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "ponderer:blueprint"
+  }
+}

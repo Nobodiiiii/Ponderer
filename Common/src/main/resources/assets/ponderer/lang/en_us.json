@@ -1227,6 +1227,7 @@
   "ponderer.ui.projector.saved": "Projector settings saved",
   "ponderer.ui.projector.play_once.sent": "Playback pulse sent",
   "ponderer.ui.projector.save_before_play": "Save the current edits before triggering playback",
+  "ponderer.ui.projector.source_item.required": "Insert an item first",
   "ponderer.ui.projector.scene.required": "Insert an item with scenes first",
   "ponderer.ui.projector.offset.required": "Life-size projection needs an integer world-space offset",
   "ponderer.ui.projector.overlay.missing_shared_text": "Missing shared text",

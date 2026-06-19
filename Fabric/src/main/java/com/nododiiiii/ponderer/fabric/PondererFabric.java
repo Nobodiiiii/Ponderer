@@ -24,6 +24,7 @@ public class PondererFabric implements ModInitializer {
     public void onInitialize() {
         // Trigger static init of ModItems (registration via Fabric Registry)
         ModItems.init();
+        FabricRecipeConditions.register();
 
         // Register config via ForgeConfigAPIPort
         NeoForgeConfigRegistry.INSTANCE.register(Ponderer.MODID, ModConfig.Type.CLIENT, Config.CLIENT_SPEC);

@@ -1,14 +1,20 @@
 {
-  "conditions": [
+  "neoforge:conditions": [
     {
-      "type": "forge:not",
+      "type": "ponderer:projector_enabled"
+    },
+    {
+      "type": "neoforge:not",
       "value": {
-        "type": "forge:item_exists",
-        "item": "create:andesite_casing"
+        "type": "neoforge:mod_loaded",
+        "modid": "create"
       }
     }
   ],
   "fabric:load_conditions": [
+    {
+      "condition": "ponderer:projector_enabled"
+    },
     {
       "condition": "fabric:not",
       "value": {
@@ -38,6 +44,7 @@
     }
   },
   "result": {
-    "item": "ponderer:miniature_projector"
+    "count": 1,
+    "id": "ponderer:miniature_projector"
   }
 }
