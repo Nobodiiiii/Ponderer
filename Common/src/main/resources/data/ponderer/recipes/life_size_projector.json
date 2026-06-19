@@ -1,11 +1,17 @@
 {
   "conditions": [
     {
+      "type": "ponderer:projector_enabled"
+    },
+    {
       "type": "forge:item_exists",
       "item": "create:andesite_casing"
     }
   ],
   "fabric:load_conditions": [
+    {
+      "condition": "ponderer:projector_enabled"
+    },
     {
       "condition": "fabric:registry_contains",
       "values": [

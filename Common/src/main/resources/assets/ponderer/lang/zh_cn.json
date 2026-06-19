@@ -1221,6 +1221,7 @@
   "ponderer.ui.projector.saved": "投影仪设置已保存",
   "ponderer.ui.projector.play_once.sent": "已发送一次播放触发",
   "ponderer.ui.projector.save_before_play": "请先保存当前修改再触发播放",
+  "ponderer.ui.projector.source_item.required": "请先放入物品",
   "ponderer.ui.projector.scene.required": "请先放入有场景的物品",
   "ponderer.ui.projector.offset.required": "1:1 投影必须填写整数偏移",
   "ponderer.ui.projector.overlay.missing_shared_text": "缺少共享文本",

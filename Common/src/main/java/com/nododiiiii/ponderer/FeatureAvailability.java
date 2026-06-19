@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer;
 
+import java.util.function.BooleanSupplier;
+
 /**
  * Captures server feature toggles at server start.
  * Server config changes are intentionally not applied during the same run.
@@ -35,8 +37,24 @@ public final class FeatureAvailability {
         return captured ? blueprintEnabled : readBlueprintConfig();
     }
 
+    public static boolean isBlueprintEnabled(BooleanSupplier uncapturedReader) {
+        return captured ? blueprintEnabled : readUncaptured(uncapturedReader);
+    }
+
     public static boolean isProjectorEnabled() {
         return captured ? projectorEnabled : readProjectorConfig();
+    }
+
+    public static boolean isProjectorEnabled(BooleanSupplier uncapturedReader) {
+        return captured ? projectorEnabled : readUncaptured(uncapturedReader);
+    }
+
+    private static boolean readUncaptured(BooleanSupplier reader) {
+        try {
+            return reader.getAsBoolean();
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     private static boolean readBlueprintConfig() {

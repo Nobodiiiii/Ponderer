@@ -588,8 +588,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             sceneSelectionDirty = false;
         }
         selectSceneAfterRefresh(previousSelectedSceneKey);
-        remotePullButton.active = !menu.sourceItem().isEmpty();
-        playButton.active = !resolveSceneKeysToSave().isEmpty();
+        refreshActionButtonStates();
         refreshScenePreview(true);
         refreshSceneButtons();
         tryAutoSyncResolvedScenes();
@@ -664,6 +663,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void triggerManualOnce() {
+        if (menu.sourceItem().isEmpty()) {
+            promptInsertSourceItem();
+            return;
+        }
         if (resolveSceneKeysToSave().isEmpty()) {
             status(Component.translatable("ponderer.ui.projector.scene.required"), 0xA03030);
             return;
@@ -1005,7 +1008,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         refreshSceneButtons(clampedIndex);
         suppressSceneButtonHoverOnce();
         manualSceneSelectionHoldTicks = 3;
-        playButton.active = !resolveSceneKeysToSave().isEmpty();
+        refreshActionButtonStates();
 
         if (!isConfigDirty()) {
             seekSelectedSceneTimeline(previewTick);
@@ -1644,7 +1647,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private void pullRemoteScenesForSource() {
         ItemStack source = menu.sourceItem();
         if (source.isEmpty()) {
-            status(Component.translatable("ponderer.ui.projector.insert_item"), STATUS_TEXT);
+            promptInsertSourceItem();
             return;
         }
 
@@ -1657,6 +1660,15 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         PondererServices.NETWORK.sendToServer(new RemotePullRequestPayload(
             RemoteWorkspaceService.KIND_ITEM_SCENES, itemId.toString(), null, true));
         status(Component.translatable("ponderer.ui.projector.remote_pull.requesting", itemId), STATUS_TEXT);
+    }
+
+    private void refreshActionButtonStates() {
+        remotePullButton.active = true;
+        playButton.active = menu.sourceItem().isEmpty() || !resolveSceneKeysToSave().isEmpty();
+    }
+
+    private void promptInsertSourceItem() {
+        status(Component.translatable("ponderer.ui.projector.source_item.required"), 0xA03030);
     }
 
     public void receiveRemoteAction(RemoteActionResponsePayload payload) {

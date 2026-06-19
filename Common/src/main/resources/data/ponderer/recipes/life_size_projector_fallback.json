@@ -1,6 +1,9 @@
 {
   "conditions": [
     {
+      "type": "ponderer:projector_enabled"
+    },
+    {
       "type": "forge:not",
       "value": {
         "type": "forge:item_exists",
@@ -9,6 +12,9 @@
     }
   ],
   "fabric:load_conditions": [
+    {
+      "condition": "ponderer:projector_enabled"
+    },
     {
       "condition": "fabric:not",
       "value": {
