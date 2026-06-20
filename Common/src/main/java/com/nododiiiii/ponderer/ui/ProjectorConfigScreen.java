@@ -4,8 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
 import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
 import com.nododiiiii.ponderer.network.ProjectorConfigUpdatePayload;
-import com.nododiiiii.ponderer.network.ProjectorManualTriggerPayload;
-import com.nododiiiii.ponderer.network.ProjectorSeekPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
@@ -675,7 +673,11 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             status(Component.translatable("ponderer.ui.projector.save_before_play"), 0xA03030);
             return;
         }
-        PondererServices.NETWORK.sendToServer(new ProjectorManualTriggerPayload(menu.projectorPos()));
+        ProjectorBlockEntity projector = menu.projector();
+        if (projector == null) {
+            return;
+        }
+        projector.triggerClientManualOnce();
         status(Component.translatable("ponderer.ui.projector.play_once.sent"), 0x2E6E2E);
     }
 
@@ -1267,7 +1269,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         int playbackTick = safeTick >= scenePreview.totalTicks()
             ? window.activeEndTick()
             : window.startTick() + safeTick;
-        PondererServices.NETWORK.sendToServer(new ProjectorSeekPayload(menu.projectorPos(), Math.max(0, playbackTick)));
+        projector.seekClientPlaybackToTick(Math.max(0, playbackTick));
     }
 
     private List<String> currentProjectorSceneKeys() {
@@ -1447,12 +1449,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             }
         }
 
-        int playbackTick = ProjectorSceneTimeline.resolvePlaybackTick(
-            Math.max(0L, level.getGameTime() - projector.getPlaybackStartGameTime()),
-            totalDuration,
-            projector.isPlaybackLooping(),
-            projector.shouldPersistAfterPlaybackEnd(),
-            ProjectorBlockEntity.FINAL_EXTRA_TICKS);
+        int playbackTick = projector.resolveDisplayPlaybackTick(totalDuration, true);
         return playbackTick == ProjectorSceneTimeline.NO_PLAYBACK_TICK ? null : playbackTick;
     }
 

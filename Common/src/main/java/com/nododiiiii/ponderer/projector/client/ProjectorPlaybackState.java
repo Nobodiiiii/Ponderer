@@ -16,9 +16,6 @@ import java.util.Map;
 
 public final class ProjectorPlaybackState {
 
-    private static final int MAX_TICK_CATCH_UP_TICKS = 4;
-    private static final int MAX_RENDER_CATCH_UP_TICKS = 0;
-
     record PreparedFrame(ProjectorSceneBundle bundle, ProjectorSceneBundle.Segment segment,
                          PonderScene activeScene, int globalTick, int localTick) {
     }
@@ -55,16 +52,16 @@ public final class ProjectorPlaybackState {
     }
 
     public static void prepareForTick(ProjectorBlockEntity blockEntity) {
-        forBlock(blockEntity).prepare(blockEntity, 0.0F, MAX_TICK_CATCH_UP_TICKS);
+        forBlock(blockEntity).prepare(blockEntity, 0.0F, false);
     }
 
     @Nullable
     static PreparedFrame prepareForRender(ProjectorBlockEntity blockEntity, float partialTick) {
-        return forBlock(blockEntity).prepare(blockEntity, partialTick, MAX_RENDER_CATCH_UP_TICKS);
+        return forBlock(blockEntity).prepare(blockEntity, partialTick, true);
     }
 
     @Nullable
-    private PreparedFrame prepare(ProjectorBlockEntity blockEntity, float partialTick, int maxCatchUpTicks) {
+    private PreparedFrame prepare(ProjectorBlockEntity blockEntity, float partialTick, boolean advanceClientClock) {
         if (!blockEntity.isPlaying() || !blockEntity.hasRenderableScene()) {
             return null;
         }
@@ -79,23 +76,17 @@ public final class ProjectorPlaybackState {
             return null;
         }
 
-        long elapsed = Math.max(0L, blockEntity.getLevel().getGameTime() - blockEntity.getPlaybackStartGameTime());
         int totalDuration = ProjectorSceneTimeline.withIntermissions(
             preparedBundle.totalDurationTicks(),
             preparedBundle.segments().size(),
             blockEntity.getIntermissionTicks(),
             blockEntity.isPlaybackLooping());
-        boolean persistAfterEnd = blockEntity.shouldPersistAfterPlaybackEnd();
-        int playbackTick = ProjectorSceneTimeline.resolvePlaybackTick(
-            elapsed,
-            totalDuration,
-            blockEntity.isPlaybackLooping(),
-            persistAfterEnd,
-            ProjectorBlockEntity.FINAL_EXTRA_TICKS);
+        int playbackTick = blockEntity.resolveDisplayPlaybackTick(totalDuration, advanceClientClock);
         if (playbackTick == ProjectorSceneTimeline.NO_PLAYBACK_TICK) {
             return null;
         }
 
+        boolean persistAfterEnd = blockEntity.shouldPersistAfterPlaybackEnd();
         PlaybackCursor cursor = cursorAt(preparedBundle, playbackTick,
             blockEntity.getIntermissionTicks(), blockEntity.isPlaybackLooping(), persistAfterEnd);
         if (cursor == null) {
@@ -117,9 +108,8 @@ public final class ProjectorPlaybackState {
             activeLocalTick = -1;
         }
 
-        int renderLocalTick = catchUpTargetLocalTick(targetLocalTick, maxCatchUpTicks);
-        if (renderLocalTick != activeLocalTick) {
-            advanceScene(activeScene, renderLocalTick, segment.durationTicks());
+        if (targetLocalTick != activeLocalTick) {
+            advanceScene(activeScene, targetLocalTick, segment.durationTicks());
         }
 
         lastRevision = blockEntity.getPlaybackRevision();
@@ -163,18 +153,6 @@ public final class ProjectorPlaybackState {
         int lastDuration = Math.max(1, last.durationTicks());
         return new PlaybackCursor(last, extendPastPlaybackEnd ? lastDuration + Math.max(0, playbackTick - timeline)
             : Math.max(0, lastDuration - 1));
-    }
-
-    private int catchUpTargetLocalTick(int targetLocalTick, int maxCatchUpTicks) {
-        int safeTarget = Math.max(0, targetLocalTick);
-        int safeBudget = Math.max(0, maxCatchUpTicks);
-        if (activeLocalTick < 0) {
-            return Math.min(safeTarget, safeBudget);
-        }
-        if (safeTarget <= activeLocalTick) {
-            return safeTarget;
-        }
-        return Math.min(safeTarget, activeLocalTick + safeBudget);
     }
 
     private void advanceScene(PonderScene activeScene, int targetLocalTick, int segmentDuration) {

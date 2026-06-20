@@ -51,6 +51,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private static final String TAG_START_TIME = "PlaybackStartGameTime";
     private static final String TAG_REVISION = "PlaybackRevision";
     private static final String TAG_DURATION = "PlaybackDurationTicks";
+    private static final String TAG_PLAYBACK_TICK_SNAPSHOT = "PlaybackTickSnapshot";
     private static final String TAG_INTERMISSION = "IntermissionTicks";
     private static final String TAG_SHOW_BLUE_TINT = "ShowBlueTint";
     private static final String TAG_OVERLAY_ANTI_OCCLUSION = "OverlayAntiOcclusion";
@@ -74,6 +75,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private long playbackStartGameTime;
     private int playbackRevision;
     private int playbackDurationTicks;
+    private int playbackTickSnapshot;
     private int intermissionTicks = DEFAULT_INTERMISSION_TICKS;
     private boolean showBlueTint = true;
     private boolean overlayAntiOcclusion = false;
@@ -81,6 +83,10 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     private ProjectorProjectionMode projectionMode = ProjectorProjectionMode.DEFAULT;
     private float miniatureScale = 1.0F;
     private float textScale = 1.0F;
+    private transient int clientPlaybackTick;
+    private transient long clientPlaybackGameTime;
+    private transient int clientPlaybackRevision = Integer.MIN_VALUE;
+    private transient boolean clientPlaybackInitialized;
 
     public ProjectorBlockEntity(BlockPos pos, BlockState state) {
         this(ModBlockEntities.PROJECTOR.get(), pos, state);
@@ -247,6 +253,32 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return playbackDurationTicks;
     }
 
+    public int resolveDisplayPlaybackTick(int totalDurationTicks, boolean advanceClientClock) {
+        if (!playing) {
+            return ProjectorSceneTimeline.NO_PLAYBACK_TICK;
+        }
+
+        int safeTotalDuration = Math.max(0, totalDurationTicks);
+        if (level == null) {
+            return normalizePlaybackTick(playbackTickSnapshot, safeTotalDuration);
+        }
+        if (!level.isClientSide) {
+            long elapsed = Math.max(0L, level.getGameTime() - playbackStartGameTime);
+            return ProjectorSceneTimeline.resolvePlaybackTick(
+                elapsed,
+                safeTotalDuration,
+                playbackLooping,
+                shouldPersistAfterPlaybackEnd(),
+                FINAL_EXTRA_TICKS);
+        }
+
+        initializeClientPlaybackClock(level.getGameTime(), safeTotalDuration);
+        if (advanceClientClock) {
+            advanceClientPlaybackClock(level.getGameTime(), safeTotalDuration);
+        }
+        return clientPlaybackTick;
+    }
+
     public int getIntermissionTicks() {
         return intermissionTicks;
     }
@@ -350,6 +382,16 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         syncToClient();
     }
 
+    public void triggerClientManualOnce() {
+        if (level == null || !level.isClientSide || !hasRenderableScene()) {
+            return;
+        }
+        if (playbackDurationTicks <= 0) {
+            playbackDurationTicks = estimateDurationOrFallback();
+        }
+        beginClientPlayback(0, false);
+    }
+
     public void seekPlaybackToTick(int playbackTick) {
         if (level == null || level.isClientSide || !hasRenderableScene()) {
             return;
@@ -371,11 +413,30 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         }
 
         this.playing = true;
+        this.playbackTickSnapshot = normalizedTick;
         this.playbackStartGameTime = newStartTime;
         this.playbackRevision++;
         setChanged();
         syncBlockState();
         syncToClient();
+    }
+
+    public void seekClientPlaybackToTick(int playbackTick) {
+        if (level == null || !level.isClientSide || !hasRenderableScene()) {
+            return;
+        }
+
+        if (playbackDurationTicks <= 0) {
+            playbackDurationTicks = estimateDurationOrFallback();
+        }
+
+        int normalizedTick = ProjectorSceneTimeline.normalizePlaybackSeekTick(
+            playbackTick,
+            playbackDurationTicks,
+            playbackLooping,
+            shouldPersistAfterPlaybackEnd(),
+            FINAL_EXTRA_TICKS);
+        beginClientPlayback(normalizedTick, playbackLooping);
     }
 
     public void refreshRedstoneState(boolean powered) {
@@ -455,6 +516,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         this.playing = true;
         this.playbackLooping = looping;
         this.playbackStartGameTime = gameTime;
+        this.playbackTickSnapshot = 0;
         this.playbackRevision++;
         setChanged();
     }
@@ -472,6 +534,9 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         if (!this.playing) {
             setChanged();
             return;
+        }
+        if (suppressAutoLoop && triggerMode == ProjectorTriggerMode.MANUAL_LOOP && !playbackLooping) {
+            suppressAutoLoop = false;
         }
         this.playing = false;
         setChanged();
@@ -668,6 +733,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         tag.putLong(TAG_START_TIME, playbackStartGameTime);
         tag.putInt(TAG_REVISION, playbackRevision);
         tag.putInt(TAG_DURATION, playbackDurationTicks);
+        tag.putInt(TAG_PLAYBACK_TICK_SNAPSHOT, playbackTickSnapshot);
         tag.putInt(TAG_INTERMISSION, intermissionTicks);
         tag.putBoolean(TAG_SHOW_BLUE_TINT, showBlueTint);
         tag.putBoolean(TAG_OVERLAY_ANTI_OCCLUSION, overlayAntiOcclusion);
@@ -701,6 +767,9 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         playbackStartGameTime = tag.getLong(TAG_START_TIME);
         playbackRevision = tag.getInt(TAG_REVISION);
         playbackDurationTicks = tag.getInt(TAG_DURATION);
+        playbackTickSnapshot = tag.contains(TAG_PLAYBACK_TICK_SNAPSHOT)
+            ? tag.getInt(TAG_PLAYBACK_TICK_SNAPSHOT)
+            : 0;
         intermissionTicks = tag.contains(TAG_INTERMISSION)
             ? sanitizeIntermissionTicks(tag.getInt(TAG_INTERMISSION))
             : DEFAULT_INTERMISSION_TICKS;
@@ -713,6 +782,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
             : ProjectorProjectionMode.DEFAULT;
         miniatureScale = tag.contains(TAG_MINIATURE_SCALE) ? tag.getFloat(TAG_MINIATURE_SCALE) : 1.0F;
         textScale = tag.contains(TAG_TEXT_SCALE) ? tag.getFloat(TAG_TEXT_SCALE) : 1.0F;
+        resetClientPlaybackClock();
     }
 
     private static List<String> loadSceneKeys(CompoundTag tag) {
@@ -746,5 +816,107 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     @Override
     public Packet<ClientGamePacketListener> getUpdatePacket() {
         return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    private void initializeClientPlaybackClock(long currentGameTime, int totalDurationTicks) {
+        if (clientPlaybackInitialized && clientPlaybackRevision == playbackRevision) {
+            return;
+        }
+
+        clientPlaybackTick = normalizePlaybackTick(playbackTickSnapshot, totalDurationTicks);
+        clientPlaybackGameTime = currentGameTime;
+        clientPlaybackRevision = playbackRevision;
+        clientPlaybackInitialized = true;
+    }
+
+    private void advanceClientPlaybackClock(long currentGameTime, int totalDurationTicks) {
+        long delta = Math.max(0L, currentGameTime - clientPlaybackGameTime);
+        if (delta <= 0L) {
+            return;
+        }
+
+        int currentTick = clientPlaybackTick;
+        if (currentTick == ProjectorSceneTimeline.NO_PLAYBACK_TICK) {
+            clientPlaybackGameTime = currentGameTime;
+            return;
+        }
+
+        if (playbackLooping) {
+            long total = Math.max(1L, totalDurationTicks);
+            long advanced = ((long) currentTick + delta) % total;
+            clientPlaybackTick = normalizePlaybackTick((int) advanced, totalDurationTicks);
+            clientPlaybackGameTime = currentGameTime;
+            return;
+        }
+
+        long advanced = (long) currentTick + delta;
+        int maxTick = shouldPersistAfterPlaybackEnd()
+            ? totalDurationTicks + Math.max(0, FINAL_EXTRA_TICKS) - 1
+            : totalDurationTicks - 1;
+        if (!shouldPersistAfterPlaybackEnd() && advanced >= Math.max(0, totalDurationTicks)) {
+            clientPlaybackTick = ProjectorSceneTimeline.NO_PLAYBACK_TICK;
+        } else if (maxTick < 0) {
+            clientPlaybackTick = ProjectorSceneTimeline.NO_PLAYBACK_TICK;
+        } else {
+            clientPlaybackTick = Math.max(0, Math.min((int) Math.min(Integer.MAX_VALUE, advanced), maxTick));
+        }
+        clientPlaybackGameTime = currentGameTime;
+    }
+
+    private int resolvePlaybackTotalDurationTicks() {
+        int totalDuration = playbackDurationTicks;
+        if (totalDuration <= 0 && !sceneKeys.isEmpty()) {
+            totalDuration = ProjectorSceneTimeline.estimatePlaybackTicks(sceneKeys, intermissionTicks);
+        }
+        if (playbackLooping && totalDuration > 0 && estimateSceneSegmentCount() > 0) {
+            totalDuration += Math.max(0, intermissionTicks);
+        }
+        return Math.max(0, totalDuration);
+    }
+
+    private int estimateSceneSegmentCount() {
+        if (sceneKeys.isEmpty()) {
+            return 0;
+        }
+
+        int segments = 0;
+        for (String sceneKey : sceneKeys) {
+            segments += Math.max(0, ProjectorSceneTimeline.estimateSegmentCount(sceneKey));
+        }
+        return segments;
+    }
+
+    private int normalizePlaybackTick(int playbackTick, int totalDurationTicks) {
+        int normalized = ProjectorSceneTimeline.normalizePlaybackSeekTick(
+            playbackTick,
+            totalDurationTicks,
+            playbackLooping,
+            shouldPersistAfterPlaybackEnd(),
+            FINAL_EXTRA_TICKS);
+        if (!playbackLooping && !shouldPersistAfterPlaybackEnd() && totalDurationTicks <= 0) {
+            return ProjectorSceneTimeline.NO_PLAYBACK_TICK;
+        }
+        return normalized;
+    }
+
+    private void resetClientPlaybackClock() {
+        clientPlaybackTick = 0;
+        clientPlaybackGameTime = 0L;
+        clientPlaybackRevision = Integer.MIN_VALUE;
+        clientPlaybackInitialized = false;
+    }
+
+    private void beginClientPlayback(int playbackTick, boolean looping) {
+        if (level == null || !level.isClientSide) {
+            return;
+        }
+
+        this.playing = true;
+        this.playbackLooping = looping;
+        this.playbackTickSnapshot = Math.max(0, playbackTick);
+        this.playbackStartGameTime = Math.max(0L, level.getGameTime() - playbackTick);
+        this.playbackRevision++;
+        resetClientPlaybackClock();
+        initializeClientPlaybackClock(level.getGameTime(), resolvePlaybackTotalDurationTicks());
     }
 }
