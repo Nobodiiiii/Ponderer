@@ -6,6 +6,7 @@ import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.network.FeatureAvailabilityPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ponder.AutoRemoteSyncService;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot.ReplayEventInterceptors;
 import com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot.ReplaySessionManager;
@@ -23,6 +24,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +54,8 @@ public class PondererNeoForge {
         NeoForge.EVENT_BUS.addListener(this::onServerStarted);
         NeoForge.EVENT_BUS.addListener(this::onServerStopping);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
+        NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
+        NeoForge.EVENT_BUS.addListener(this::onServerTick);
 
         if (FMLEnvironment.dist.isClient()) {
             // All client event registration is in a separate class to avoid
@@ -78,11 +82,23 @@ public class PondererNeoForge {
 
     private void onServerStopping(ServerStoppingEvent event) {
         FeatureAvailability.reset();
+        AutoRemoteSyncService.reset();
     }
 
     private void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
             FeatureAvailabilityPayload.sendTo(player);
+            AutoRemoteSyncService.onPlayerJoined(player);
         }
+    }
+
+    private void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            AutoRemoteSyncService.onPlayerLeft(player.getUUID());
+        }
+    }
+
+    private void onServerTick(ServerTickEvent.Post event) {
+        AutoRemoteSyncService.onServerTick(event.getServer());
     }
 }

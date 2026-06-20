@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ponder.AutoRemoteSyncService;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import com.nododiiiii.ponderer.util.SafePaths;
@@ -79,6 +80,7 @@ public record DownloadStructurePayload(String sourceId) implements CustomPacketP
             }
 
             SyncResponsePayload.sendBatched(player);
+            AutoRemoteSyncService.onRemoteWorkspaceChanged(player.server);
 
             PondererServices.NETWORK.sendToPlayer(player, new DownloadStructureResultPayload(source.toString(), target.toString(), true,
                     "OK"));

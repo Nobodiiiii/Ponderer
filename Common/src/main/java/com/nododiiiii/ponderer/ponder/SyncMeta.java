@@ -88,6 +88,19 @@ public final class SyncMeta {
         save(meta);
     }
 
+    public static void removeHashes(Iterable<String> keys) {
+        Map<String, String> meta = load();
+        boolean changed = false;
+        for (String key : keys) {
+            if (key != null && meta.remove(key) != null) {
+                changed = true;
+            }
+        }
+        if (changed) {
+            save(meta);
+        }
+    }
+
     public static String sha256(byte[] data) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -141,5 +154,17 @@ public final class SyncMeta {
             return "local_modified";
         }
         return "none"; // Server changed or nothing changed
+    }
+
+    public static String checkDeleteConflict(String metaKey, Path localFile) {
+        if (!Files.exists(localFile)) {
+            return "none";
+        }
+        String lastSyncHash = load().getOrDefault(metaKey, "");
+        if (lastSyncHash.isBlank()) {
+            return "local_modified";
+        }
+        String localHash = hashLocalFile(localFile);
+        return localHash.equals(lastSyncHash) ? "none" : "local_modified";
     }
 }

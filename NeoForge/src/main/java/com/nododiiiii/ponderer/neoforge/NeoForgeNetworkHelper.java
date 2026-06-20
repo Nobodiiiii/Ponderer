@@ -20,7 +20,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  */
 public class NeoForgeNetworkHelper implements NetworkHelper {
 
-    public static final String VERSION = "1";
+    public static final String VERSION = "2";
 
     /**
      * Called from PondererNeoForge when RegisterPayloadHandlersEvent fires.

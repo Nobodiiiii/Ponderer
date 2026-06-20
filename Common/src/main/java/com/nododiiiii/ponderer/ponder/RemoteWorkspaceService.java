@@ -243,6 +243,7 @@ public final class RemoteWorkspaceService {
         if (!ok) {
             return OperationResult.fail("Failed to upload " + displayKey(payload.sceneId(), payload.pack()));
         }
+        AutoRemoteSyncService.onRemoteWorkspaceChanged(actor.server);
         return OperationResult.ok(
             "Uploaded " + displayKey(payload.sceneId(), payload.pack()),
             true,
@@ -260,7 +261,11 @@ public final class RemoteWorkspaceService {
                 return OperationResult.fail("Remote scene not found: " + displayKey(id, pack));
             }
             snapshotCurrent(server, kind, id, pack, "delete", actorName(actor));
-            return deletePath(path, "Deleted remote scene " + displayKey(id, pack));
+            OperationResult result = deletePath(path, "Deleted remote scene " + displayKey(id, pack));
+            if (result.success()) {
+                AutoRemoteSyncService.onRemoteWorkspaceChanged(server);
+            }
+            return result;
         }
 
         if (KIND_STRUCTURE.equals(kind)) {
@@ -274,7 +279,11 @@ public final class RemoteWorkspaceService {
                 return OperationResult.fail("Remote structure not found: " + displayKey(id, pack));
             }
             snapshotCurrent(server, kind, id, pack, "delete", actorName(actor));
-            return deletePath(path, "Deleted remote structure " + displayKey(id, pack));
+            OperationResult result = deletePath(path, "Deleted remote structure " + displayKey(id, pack));
+            if (result.success()) {
+                AutoRemoteSyncService.onRemoteWorkspaceChanged(server);
+            }
+            return result;
         }
 
         return OperationResult.fail("Unsupported delete target: " + kind);
@@ -315,6 +324,7 @@ public final class RemoteWorkspaceService {
             Files.createDirectories(currentPath.getParent());
             Files.copy(historyFile, currentPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             snapshotCurrent(server, kind, id, pack, "rollback:" + revision, actorName(actor));
+            AutoRemoteSyncService.onRemoteWorkspaceChanged(server);
             return OperationResult.ok("Rolled back " + displayKey(id, pack) + " to revision " + revision, true);
         } catch (Exception e) {
             LOGGER.warn("Failed to roll back remote resource {} {}", kind, displayKey(id, pack), e);
