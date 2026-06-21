@@ -177,7 +177,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             ? prepared.segment().scene().getBounds()
             : prepared.bundle().combinedBounds();
         RenderLayout layout = RenderLayout.from(blockEntity, layoutBounds,
-            prepared.activeScene(), partialTick);
+            prepared.activeScene(), prepared.renderPartialTick());
         boolean antiOcclusion = blockEntity.overlayAntiOcclusion();
         ProjectorProjectionMode projectionMode = blockEntity.getProjectorKind().requiresAnchor()
             ? blockEntity.getProjectionMode()
@@ -189,11 +189,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         if (shouldRenderText) {
             PoseSnapshot overlayBasePose = PoseSnapshot.capture(poseStack);
             DeferredOverlayBatch deferredNativeOverlay = captureNativePonderOverlays(prepared.activeScene(), layout,
-                partialTick, overlayBasePose, antiOcclusion);
+                prepared.renderPartialTick(), overlayBasePose, antiOcclusion);
             DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
             if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
                 List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle()
-                    .activeCues(prepared.segment(), prepared.localTick(), partialTick,
+                    .activeCues(prepared.segment(), prepared.localTick(), prepared.renderPartialTick(),
                         blockEntity.compatibilityMode());
                 deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose, antiOcclusion);
             }
@@ -205,7 +205,8 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
         enqueueProjectionGlow(blockEntity, layout, poseStack, partialTick);
         if (projectionMode.rendersScene()) {
-            renderProjectedScene(prepared.activeScene(), layout, poseStack, prepared.localTick(), partialTick);
+            renderProjectedScene(prepared.activeScene(), layout, poseStack,
+                prepared.localTick(), prepared.renderPartialTick());
         }
 
         if (!combinedOverlays.isEmpty()) {

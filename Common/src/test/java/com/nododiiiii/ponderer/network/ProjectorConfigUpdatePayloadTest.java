@@ -7,8 +7,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ProjectorConfigUpdatePayloadTest {
@@ -17,10 +15,8 @@ class ProjectorConfigUpdatePayloadTest {
     void roundTripsOverlayAntiOcclusionFlag() {
         ProjectorConfigUpdatePayload payload = new ProjectorConfigUpdatePayload(
             new BlockPos(3, 64, -8),
-            List.of("ponderer:test_scene"),
             ProjectorTriggerMode.REDSTONE_POWERED_LOOP,
             new BlockPos(1, 2, 3),
-            240,
             30,
             false,
             false,

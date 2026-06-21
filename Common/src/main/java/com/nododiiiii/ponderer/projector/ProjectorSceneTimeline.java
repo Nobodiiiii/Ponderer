@@ -70,7 +70,7 @@ public final class ProjectorSceneTimeline {
         if (looping) {
             return safePlaybackTick(safeElapsed % safeTotalDuration);
         }
-        if (!persistAfterPlaybackEnd && safeElapsed >= safeTotalDuration) {
+        if (shouldStopPlayback(safeElapsed, safeTotalDuration, false, persistAfterPlaybackEnd, finalExtraTicks)) {
             return NO_PLAYBACK_TICK;
         }
         if (persistAfterPlaybackEnd) {
@@ -79,6 +79,37 @@ public final class ProjectorSceneTimeline {
             return safePlaybackTick(Math.min(safeElapsed, frozenPlaybackTick));
         }
         return safePlaybackTick(Math.min(safeElapsed, Math.max(0L, safeTotalDuration - 1L)));
+    }
+
+    public static boolean shouldStopPlayback(long elapsedTicks, int totalDurationTicks,
+                                             boolean looping, boolean persistAfterPlaybackEnd,
+                                             int finalExtraTicks) {
+        int safeTotalDuration = Math.max(0, totalDurationTicks);
+        long safeElapsed = Math.max(0L, elapsedTicks);
+        if (looping) {
+            return false;
+        }
+        if (safeTotalDuration <= 0) {
+            return !persistAfterPlaybackEnd;
+        }
+        if (persistAfterPlaybackEnd) {
+            return false;
+        }
+        return safeElapsed >= safeTotalDuration;
+    }
+
+    public static boolean isPlaybackFrozen(long elapsedTicks, int totalDurationTicks,
+                                           boolean looping, boolean persistAfterPlaybackEnd,
+                                           int finalExtraTicks) {
+        int safeTotalDuration = Math.max(0, totalDurationTicks);
+        long safeElapsed = Math.max(0L, elapsedTicks);
+        if (looping || !persistAfterPlaybackEnd || safeTotalDuration <= 0) {
+            return false;
+        }
+
+        long frozenPlaybackTick = Math.max(0L,
+            (long) safeTotalDuration + Math.max(0, finalExtraTicks) - 1L);
+        return safeElapsed > frozenPlaybackTick;
     }
 
     public static int normalizePlaybackSeekTick(int playbackTick, int totalDurationTicks,

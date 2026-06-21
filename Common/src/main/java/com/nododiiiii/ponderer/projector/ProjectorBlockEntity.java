@@ -218,7 +218,25 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         if (level == null || !level.isClientSide) {
             return ProjectorSceneTimeline.NO_PLAYBACK_TICK;
         }
-        return resolveClientPlaybackTick(level.getGameTime(), safeTotalDuration);
+        long currentGameTime = level.getGameTime();
+        if (shouldStopClientPlayback(currentGameTime, safeTotalDuration)) {
+            stopClientPlayback();
+            return ProjectorSceneTimeline.NO_PLAYBACK_TICK;
+        }
+        return resolveClientPlaybackTick(currentGameTime, safeTotalDuration);
+    }
+
+    public float resolveDisplayPartialTick(int totalDurationTicks, float partialTick) {
+        if (!isPlaying()) {
+            return 0.0F;
+        }
+
+        int safeTotalDuration = Math.max(0, totalDurationTicks);
+        if (level == null || !level.isClientSide) {
+            return 0.0F;
+        }
+        long currentGameTime = level.getGameTime();
+        return isClientPlaybackFrozen(currentGameTime, safeTotalDuration) ? 0.0F : partialTick;
     }
 
     public int getIntermissionTicks() {
@@ -571,14 +589,38 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     }
 
     private int resolveClientPlaybackTick(long currentGameTime, int totalDurationTicks) {
-        long elapsed = Math.max(0L, currentGameTime - clientPlaybackStartGameTime);
-        long absoluteTick = Math.max(0L, (long) clientPlaybackTickSnapshot + elapsed);
+        long absoluteTick = resolveAbsoluteClientPlaybackTick(currentGameTime);
         return ProjectorSceneTimeline.resolvePlaybackTick(
             absoluteTick,
             totalDurationTicks,
             clientPlaybackLooping,
             shouldPersistAfterPlaybackEnd(),
             FINAL_EXTRA_TICKS);
+    }
+
+    private boolean shouldStopClientPlayback(long currentGameTime, int totalDurationTicks) {
+        long absoluteTick = resolveAbsoluteClientPlaybackTick(currentGameTime);
+        return ProjectorSceneTimeline.shouldStopPlayback(
+            absoluteTick,
+            totalDurationTicks,
+            clientPlaybackLooping,
+            shouldPersistAfterPlaybackEnd(),
+            FINAL_EXTRA_TICKS);
+    }
+
+    private boolean isClientPlaybackFrozen(long currentGameTime, int totalDurationTicks) {
+        long absoluteTick = resolveAbsoluteClientPlaybackTick(currentGameTime);
+        return ProjectorSceneTimeline.isPlaybackFrozen(
+            absoluteTick,
+            totalDurationTicks,
+            clientPlaybackLooping,
+            shouldPersistAfterPlaybackEnd(),
+            FINAL_EXTRA_TICKS);
+    }
+
+    private long resolveAbsoluteClientPlaybackTick(long currentGameTime) {
+        long elapsed = Math.max(0L, currentGameTime - clientPlaybackStartGameTime);
+        return Math.max(0L, (long) clientPlaybackTickSnapshot + elapsed);
     }
 
     public void startClientPlaybackFromServerSignal(boolean looping) {
@@ -624,6 +666,9 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         clientPlaying = false;
         clientAutoplayActive = false;
         clientAutoplayKey = "";
+        if (level != null && level.isClientSide) {
+            ProjectorPlaybackState.clear(worldPosition);
+        }
     }
 
     private void markClientPlaybackStateDirty(boolean sourceChanged, boolean triggerModeChanged,

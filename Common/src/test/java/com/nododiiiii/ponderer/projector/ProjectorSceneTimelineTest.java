@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProjectorSceneTimelineTest {
 
@@ -43,6 +45,7 @@ class ProjectorSceneTimelineTest {
         assertEquals(5, ProjectorSceneTimeline.resolvePlaybackTick(105, 100, true, false, 200));
         assertEquals(ProjectorSceneTimeline.NO_PLAYBACK_TICK,
             ProjectorSceneTimeline.resolvePlaybackTick(105, 100, false, false, 200));
+        assertEquals(150, ProjectorSceneTimeline.resolvePlaybackTick(150, 100, false, true, 200));
         assertEquals(299, ProjectorSceneTimeline.resolvePlaybackTick(350, 100, false, true, 200));
     }
 
@@ -51,6 +54,24 @@ class ProjectorSceneTimelineTest {
         assertEquals(5, ProjectorSceneTimeline.normalizePlaybackSeekTick(105, 100, true, false, 200));
         assertEquals(99, ProjectorSceneTimeline.normalizePlaybackSeekTick(350, 100, false, false, 200));
         assertEquals(299, ProjectorSceneTimeline.normalizePlaybackSeekTick(350, 100, false, true, 200));
+    }
+
+    @Test
+    void stopsSingleRunsOnlyAfterPersistenceEnds() {
+        assertFalse(ProjectorSceneTimeline.shouldStopPlayback(50, 100, false, false, 200));
+        assertTrue(ProjectorSceneTimeline.shouldStopPlayback(150, 100, false, false, 200));
+        assertFalse(ProjectorSceneTimeline.shouldStopPlayback(150, 100, false, true, 200));
+        assertFalse(ProjectorSceneTimeline.shouldStopPlayback(350, 100, false, true, 200));
+        assertTrue(ProjectorSceneTimeline.shouldStopPlayback(350, 100, false, false, 200));
+    }
+
+    @Test
+    void freezesPersistedPlaybackOnlyAfterFinalExtraTicks() {
+        assertFalse(ProjectorSceneTimeline.isPlaybackFrozen(150, 100, false, true, 200));
+        assertFalse(ProjectorSceneTimeline.isPlaybackFrozen(299, 100, false, true, 200));
+        assertTrue(ProjectorSceneTimeline.isPlaybackFrozen(300, 100, false, true, 200));
+        assertFalse(ProjectorSceneTimeline.isPlaybackFrozen(300, 100, true, true, 200));
+        assertFalse(ProjectorSceneTimeline.isPlaybackFrozen(300, 100, false, false, 200));
     }
 
     @Test

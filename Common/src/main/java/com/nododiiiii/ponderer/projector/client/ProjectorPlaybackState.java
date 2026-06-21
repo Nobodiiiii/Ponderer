@@ -17,7 +17,7 @@ import java.util.Map;
 public final class ProjectorPlaybackState {
 
     record PreparedFrame(ProjectorSceneBundle bundle, ProjectorSceneBundle.Segment segment,
-                         PonderScene activeScene, int globalTick, int localTick) {
+                         PonderScene activeScene, int globalTick, int localTick, float renderPartialTick) {
     }
 
     private static final Map<BlockPos, ProjectorPlaybackState> STATES = new HashMap<>();
@@ -45,7 +45,7 @@ public final class ProjectorPlaybackState {
         cachedLevel = null;
     }
 
-    static void clear(BlockPos pos) {
+    public static void clear(BlockPos pos) {
         if (pos != null) {
             STATES.remove(pos.immutable());
         }
@@ -78,6 +78,7 @@ public final class ProjectorPlaybackState {
             preparedBundle.segments().size(),
             blockEntity.getIntermissionTicks(),
             blockEntity.isPlaybackLooping());
+        float renderPartialTick = blockEntity.resolveDisplayPartialTick(totalDuration, partialTick);
         int playbackTick = blockEntity.resolveDisplayPlaybackTick(totalDuration, advanceClientClock);
         if (playbackTick == ProjectorSceneTimeline.NO_PLAYBACK_TICK) {
             return null;
@@ -114,7 +115,8 @@ public final class ProjectorPlaybackState {
             return null;
         }
         int preparedGlobalTick = segment.startTick() + activeLocalTick;
-        return new PreparedFrame(preparedBundle, segment, activeScene, preparedGlobalTick, activeLocalTick);
+        return new PreparedFrame(preparedBundle, segment, activeScene,
+            preparedGlobalTick, activeLocalTick, renderPartialTick);
     }
 
     @Nullable
