@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(RenderSystem.class)
 public interface RenderSystemShaderLightsAccessor {
 
-    @Accessor("shaderLightDirections")
+    @Accessor(value = "shaderLightDirections", remap = false)
     static Vector3f[] ponderer$getShaderLightDirections() {
         throw new AssertionError();
     }

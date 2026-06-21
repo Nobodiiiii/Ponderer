@@ -22,14 +22,10 @@ public class AnimationTickHolderMixin {
     }
 
     @Inject(
-        method = {
-            "getTicks(Lnet/minecraft/world/level/LevelAccessor;)I",
-            "getTicks(Lnet/minecraft/class_1936;)I"
-        },
+        method = "getTicks(Lnet/minecraft/world/level/LevelAccessor;)I",
         at = @At("HEAD"),
         cancellable = true,
-        require = 0,
-        remap = false)
+        require = 0)
     private static void ponderer$getTicksForLevel(LevelAccessor level, CallbackInfoReturnable<Integer> cir) {
         setFrameTick(cir);
     }
@@ -40,14 +36,10 @@ public class AnimationTickHolderMixin {
     }
 
     @Inject(
-        method = {
-            "getPartialTicks(Lnet/minecraft/world/level/LevelAccessor;)F",
-            "getPartialTicks(Lnet/minecraft/class_1936;)F"
-        },
+        method = "getPartialTicks(Lnet/minecraft/world/level/LevelAccessor;)F",
         at = @At("HEAD"),
         cancellable = true,
-        require = 0,
-        remap = false)
+        require = 0)
     private static void ponderer$getPartialTicksForLevel(LevelAccessor level, CallbackInfoReturnable<Float> cir) {
         setPartialTick(cir);
     }
@@ -58,14 +50,10 @@ public class AnimationTickHolderMixin {
     }
 
     @Inject(
-        method = {
-            "getRenderTime(Lnet/minecraft/world/level/LevelAccessor;)F",
-            "getRenderTime(Lnet/minecraft/class_1936;)F"
-        },
+        method = "getRenderTime(Lnet/minecraft/world/level/LevelAccessor;)F",
         at = @At("HEAD"),
         cancellable = true,
-        require = 0,
-        remap = false)
+        require = 0)
     private static void ponderer$getRenderTimeForLevel(LevelAccessor level, CallbackInfoReturnable<Float> cir) {
         setRenderTime(cir);
     }

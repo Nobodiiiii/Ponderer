@@ -4,20 +4,18 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import net.createmod.catnip.animation.AnimationTickHolder;
 import net.createmod.ponder.foundation.PonderScene;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PonderScene.SceneTransform.class)
 public class SceneTransformOffsetMixinFabric {
 
-    @Shadow(remap = false)
-    @Final
-    private PonderScene this$0;
+    @Unique
+    private PonderScene ponderer$scene;
 
     @Unique
     private boolean ponderer$handledTwoArgApply;
@@ -25,10 +23,15 @@ public class SceneTransformOffsetMixinFabric {
     @Unique
     private float ponderer$storedBaseScale = Float.NaN;
 
+    @Inject(method = "<init>", at = @At("RETURN"), remap = false)
+    private void ponderer$captureScene(PonderScene scene, CallbackInfo ci) {
+        this.ponderer$scene = scene;
+    }
+
     @Inject(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;)Lcom/mojang/blaze3d/vertex/PoseStack;", at = @At("HEAD"), require = 0, remap = false)
     private void ponderer$beginOneArgApply(PoseStack ms, CallbackInfoReturnable<PoseStack> cir) {
         ponderer$handledTwoArgApply = false;
-        ponderer$applyScaleOverride(AnimationTickHolder.getPartialTicks(this$0.getWorld()));
+        ponderer$applyScaleOverride(AnimationTickHolder.getPartialTicks(ponderer$scene.getWorld()));
     }
 
     @Inject(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;)Lcom/mojang/blaze3d/vertex/PoseStack;", at = @At("TAIL"), require = 0, remap = false)
@@ -36,11 +39,11 @@ public class SceneTransformOffsetMixinFabric {
         if (ponderer$handledTwoArgApply) {
             return;
         }
-        float pt = AnimationTickHolder.getPartialTicks(this$0.getWorld());
+        float pt = AnimationTickHolder.getPartialTicks(ponderer$scene.getWorld());
         ponderer$applyViewOffsetCommon(ms, pt);
     }
 
-    @Inject(method = "apply(Lnet/minecraft/class_4587;F)Lnet/minecraft/class_4587;", at = @At("TAIL"), require = 0, remap = false)
+    @Inject(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;", at = @At("TAIL"), require = 0, remap = false)
     private void ponderer$applyViewOffsetTwoArg(PoseStack ms, float pt, CallbackInfoReturnable<PoseStack> cir) {
         ponderer$handledTwoArgApply = true;
         ponderer$applyScaleOverride(pt);
@@ -53,8 +56,8 @@ public class SceneTransformOffsetMixinFabric {
     }
 
     private void ponderer$applyScaleOverride(float pt) {
-        PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) this$0;
-        PonderSceneAccessor scene = (PonderSceneAccessor) this$0;
+        PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) ponderer$scene;
+        PonderSceneAccessor scene = (PonderSceneAccessor) ponderer$scene;
         if (access.ponderer$isScaleOverrideActive()) {
             if (Float.isNaN(ponderer$storedBaseScale)) {
                 ponderer$storedBaseScale = scene.ponderer$getScaleFactor();
@@ -69,7 +72,7 @@ public class SceneTransformOffsetMixinFabric {
     }
 
     private void ponderer$applyViewOffsetCommon(PoseStack ms, float pt) {
-        PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) this$0;
+        PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) ponderer$scene;
         float ox = access.ponderer$getViewOffsetX().getValue(pt);
         float oy = access.ponderer$getViewOffsetY().getValue(pt);
         float oz = access.ponderer$getViewOffsetZ().getValue(pt);

@@ -164,6 +164,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final float MODEL_RENDER_SCALE = 40.0F;
     private static final float MODEL_RENDER_X_ROT = -22.0F;
     private static final float MODEL_RENDER_Y_ROT = 243.0F;
+    private static boolean projectorModelPreviewAvailable = true;
 
     private Button redstoneModeButton;
     private Button loopModeButton;
@@ -1746,17 +1747,40 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void renderProjectorModel(GuiGraphics graphics, int x, int y) {
-        PoseStack pose = graphics.pose();
-        pose.pushPose();
-        TransformStack.of(pose)
-            .pushPose()
-            .translate(x + MODEL_RENDER_X, y + modelRenderY(), 100)
-            .scale(MODEL_RENDER_SCALE)
-            .rotateXDegrees(MODEL_RENDER_X_ROT)
-            .rotateYDegrees(MODEL_RENDER_Y_ROT);
-        GuiGameElement.of(projectorDisplayState())
-            .render(graphics);
-        pose.popPose();
+        if (!projectorModelPreviewAvailable) {
+            renderProjectorItemFallback(graphics, x, y);
+            return;
+        }
+
+        boolean renderFallback = false;
+        var transform = TransformStack.of(graphics.pose());
+        transform.pushPose();
+        try {
+            transform.translate(x + MODEL_RENDER_X, y + modelRenderY(), 100)
+                .scale(MODEL_RENDER_SCALE)
+                .rotateXDegrees(MODEL_RENDER_X_ROT)
+                .rotateYDegrees(MODEL_RENDER_Y_ROT);
+            GuiGameElement.of(projectorDisplayState())
+                .render(graphics);
+        } catch (RuntimeException e) {
+            projectorModelPreviewAvailable = false;
+            renderFallback = true;
+        } finally {
+            transform.popPose();
+        }
+
+        if (renderFallback) {
+            renderProjectorItemFallback(graphics, x, y);
+        }
+    }
+
+    private void renderProjectorItemFallback(GuiGraphics graphics, int x, int y) {
+        ItemStack stack = new ItemStack(isLifeSizeProjector()
+            ? ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get()
+            : ModBlocks.MINIATURE_PROJECTOR_ITEM.get());
+        int iconX = x + MODEL_AREA_X + (MODEL_AREA_WIDTH - 16) / 2;
+        int iconY = y + modelAreaY() + (MODEL_AREA_HEIGHT - 16) / 2;
+        graphics.renderItem(stack, iconX, iconY);
     }
 
     private net.minecraft.world.level.block.state.BlockState projectorDisplayState() {

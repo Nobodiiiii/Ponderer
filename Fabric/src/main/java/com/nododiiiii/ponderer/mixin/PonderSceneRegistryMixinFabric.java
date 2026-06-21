@@ -25,15 +25,30 @@ public class PonderSceneRegistryMixinFabric {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     @Inject(
-        method = "loadSchematic(Lnet/minecraft/class_3300;Lnet/minecraft/class_2960;)Lnet/minecraft/class_3499;",
+        method = "loadSchematic(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate;",
         at = @At("HEAD"),
         cancellable = true,
-        remap = false,
         require = 0
     )
-    private static void ponderer$loadLocalSchematicFabric(ResourceManager resourceManager,
-                                                           ResourceLocation location,
-                                                           CallbackInfoReturnable<StructureTemplate> cir) {
+    private static void ponderer$loadLocalSchematicFabric(ResourceLocation location,
+                                                          CallbackInfoReturnable<StructureTemplate> cir) {
+        ponderer$loadLocalSchematicImpl(location, cir);
+    }
+
+    @Inject(
+        method = "loadSchematic(Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate;",
+        at = @At("HEAD"),
+        cancellable = true,
+        require = 0
+    )
+    private static void ponderer$loadLocalSchematicWithManagerFabric(ResourceManager resourceManager,
+                                                                     ResourceLocation location,
+                                                                     CallbackInfoReturnable<StructureTemplate> cir) {
+        ponderer$loadLocalSchematicImpl(location, cir);
+    }
+
+    private static void ponderer$loadLocalSchematicImpl(ResourceLocation location,
+                                                        CallbackInfoReturnable<StructureTemplate> cir) {
         if (Ponderer.MODID.equals(location.getNamespace())) {
             Path path = SceneStore.resolveStructurePath(location.getPath(), null);
             if (path != null && Files.exists(path)) {

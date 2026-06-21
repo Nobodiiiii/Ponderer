@@ -1,6 +1,6 @@
 plugins {
     id("java-gradle-plugin")
-    kotlin("jvm") version "1.9.23"
+    kotlin("jvm") version "1.9.22"
     `kotlin-dsl`
 }
 

@@ -15,10 +15,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class PonderTooltipNbtMixinFabric {
 
     @Inject(
-        method = "updateHovered(Lnet/minecraft/class_1799;)V",
+        method = "updateHovered(Lnet/minecraft/world/item/ItemStack;)V",
         at = @At("HEAD"),
         cancellable = true,
-        remap = false,
         require = 0
     )
     private static void ponderer$checkNbtFilterFabric(ItemStack stack, CallbackInfo ci) {

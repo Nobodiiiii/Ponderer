@@ -1,5 +1,7 @@
 plugins {
     id "idea"
+    id "eclipse"
+    id "com.diffplug.eclipse.apt" version "4.4.1"
     id "net.minecraftforge.gradle" version "[6.0, 6.2)"
     id "org.spongepowered.mixin" version "0.7-SNAPSHOT"
     id "org.parchmentmc.librarian.forgegradle" version "${librarian_version}"
