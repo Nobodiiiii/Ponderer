@@ -25,8 +25,8 @@ public final class ProjectorPlaybackState {
     private static Level cachedLevel;
 
     @Nullable
-    private ProjectorSceneBundle bundle;
-    private String bundleKey = "";
+    private ProjectorSceneBundle playbackBundle;
+    private int playbackBundleRevision = Integer.MIN_VALUE;
     private int lastRevision = Integer.MIN_VALUE;
     private int activeSegmentStartTick = -1;
     private int activeLocalTick = -1;
@@ -63,14 +63,11 @@ public final class ProjectorPlaybackState {
     @Nullable
     private PreparedFrame prepare(ProjectorBlockEntity blockEntity, float partialTick, boolean advanceClientClock) {
         if (!blockEntity.isPlaying() || !blockEntity.hasRenderableScene()) {
+            clearPlaybackSession();
             return null;
         }
 
-        List<String> desiredSceneKeys = blockEntity.getSceneKeys();
-        if (desiredSceneKeys.isEmpty()) {
-            desiredSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(blockEntity.getSourceItem());
-        }
-        ProjectorSceneBundle preparedBundle = bundleFor(desiredSceneKeys);
+        ProjectorSceneBundle preparedBundle = playbackBundleFor(blockEntity);
 
         if (preparedBundle == null || preparedBundle.totalDurationTicks() <= 0 || blockEntity.getLevel() == null) {
             return null;
@@ -195,20 +192,25 @@ public final class ProjectorPlaybackState {
     }
 
     @Nullable
-    ProjectorSceneBundle bundleFor(List<String> desiredSceneKeys) {
-        if (desiredSceneKeys == null || desiredSceneKeys.isEmpty()) {
-            return null;
-        }
-
-        String desiredBundleKey = String.join("\n", desiredSceneKeys);
-        if (!desiredBundleKey.equals(bundleKey) || bundle == null) {
-            bundleKey = desiredBundleKey;
-            bundle = ProjectorSceneBundle.compile(desiredSceneKeys);
+    ProjectorSceneBundle playbackBundleFor(ProjectorBlockEntity blockEntity) {
+        int revision = blockEntity.getPlaybackRevision();
+        if (playbackBundleRevision != revision) {
+            List<String> desiredSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(blockEntity.getSourceItem());
+            playbackBundle = desiredSceneKeys.isEmpty() ? null : ProjectorSceneBundle.compile(desiredSceneKeys);
+            playbackBundleRevision = revision;
             lastRevision = Integer.MIN_VALUE;
             activeSegmentStartTick = -1;
             activeLocalTick = -1;
         }
-        return bundle;
+        return playbackBundle;
+    }
+
+    private void clearPlaybackSession() {
+        playbackBundle = null;
+        playbackBundleRevision = Integer.MIN_VALUE;
+        lastRevision = Integer.MIN_VALUE;
+        activeSegmentStartTick = -1;
+        activeLocalTick = -1;
     }
 
     private record PlaybackCursor(ProjectorSceneBundle.Segment segment, int localTick) {

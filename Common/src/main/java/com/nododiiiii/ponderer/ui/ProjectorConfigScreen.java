@@ -236,7 +236,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         titleLabelX = 18;
         titleLabelY = TITLE_Y;
         loadProjectorState();
-        configuredSceneKeys = menu.projector() == null ? List.of() : List.copyOf(menu.projector().getSceneKeys());
+        configuredSceneKeys = List.of();
 
         remotePullButton = addRenderableWidget(new ProjectorTextureButton(
             leftPos + REMOTE_PULL_BUTTON_X,
@@ -577,11 +577,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         sourceFingerprint = fingerprint(menu.sourceItem());
         resolvedSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(menu.sourceItem());
         displaySceneSegments = buildDisplaySceneSegments(resolvedSceneKeys);
-        List<String> projectorSceneKeys = currentProjectorSceneKeys();
-        if (!projectorSceneKeys.isEmpty()) {
-            configuredSceneKeys = List.copyOf(projectorSceneKeys);
-        }
-        if (!resolvedSceneKeys.containsAll(configuredSceneKeys)) {
+        if (configuredSceneKeys.isEmpty() || !resolvedSceneKeys.containsAll(configuredSceneKeys)) {
             configuredSceneKeys = List.copyOf(resolvedSceneKeys);
             sceneSelectionDirty = false;
         }
@@ -589,34 +585,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         refreshActionButtonStates();
         refreshScenePreview(true);
         refreshSceneButtons();
-        tryAutoSyncResolvedScenes();
-    }
-
-    /**
-     * Native Java ponder scenes are discovered on the client. When the projector slot changes,
-     * sync those resolved keys back to the server immediately so playback starts without needing
-     * a manual scene-switch click.
-     */
-    private void tryAutoSyncResolvedScenes() {
-        ProjectorBlockEntity projector = menu.projector();
-        if (projector == null || menu.sourceItem().isEmpty() || resolvedSceneKeys.isEmpty()) {
-            return;
-        }
-        if (!projector.getSceneKeys().isEmpty()) {
-            return;
-        }
-
-        List<String> sceneKeysToSave = resolveSceneKeysToSave();
-        if (sceneKeysToSave.isEmpty()) {
-            return;
-        }
-
-        sendConfigUpdate(sceneKeysToSave, projector.getTriggerMode(), projector.getProjectionOffset(),
-            projector.getIntermissionTicks(), projector.showBlueTint(), projector.overlayAntiOcclusion(),
-            projector.compatibilityMode(), projector.getProjectionMode(), projector.getMiniatureScale(),
-            projector.getTextScale());
-        configuredSceneKeys = List.copyOf(sceneKeysToSave);
-        sceneSelectionDirty = false;
     }
 
     private boolean applyConfig(boolean showStatus) {
@@ -630,7 +598,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         float scale = parseScale();
         float resolvedTextScale = parseTextScale();
         int resolvedIntermissionTicks = parseIntermissionTicks();
-        sendConfigUpdate(sceneKeysToSave, ProjectorTriggerMode.fromFields(redstoneMode, loopMode), offset,
+        sendConfigUpdate(ProjectorTriggerMode.fromFields(redstoneMode, loopMode), offset,
             resolvedIntermissionTicks, showBlueTint, overlayAntiOcclusion, compatibilityMode,
             projectionMode, scale, resolvedTextScale);
         configuredSceneKeys = List.copyOf(sceneKeysToSave);
@@ -641,16 +609,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return true;
     }
 
-    private void sendConfigUpdate(List<String> sceneKeys, ProjectorTriggerMode triggerMode, @Nullable BlockPos offset,
+    private void sendConfigUpdate(ProjectorTriggerMode triggerMode, @Nullable BlockPos offset,
                                   int intermissionTicks, boolean blueTint, boolean resolvedOverlayAntiOcclusion,
                                   boolean resolvedCompatibilityMode, ProjectorProjectionMode resolvedProjectionMode,
                                   float scale, float resolvedTextScale) {
         PondererServices.NETWORK.sendToServer(new ProjectorConfigUpdatePayload(
             menu.projectorPos(),
-            sceneKeys,
             triggerMode,
             offset,
-            estimateDuration(sceneKeys, intermissionTicks),
             intermissionTicks,
             blueTint,
             resolvedOverlayAntiOcclusion,
@@ -1024,7 +990,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         List<String> sceneKeysToSave = resolveSceneKeysToSave();
-        sendConfigUpdate(sceneKeysToSave, projector.getTriggerMode(), projector.getProjectionOffset(),
+        sendConfigUpdate(projector.getTriggerMode(), projector.getProjectionOffset(),
             projector.getIntermissionTicks(), projector.showBlueTint(), projector.overlayAntiOcclusion(),
             projector.compatibilityMode(), projector.getProjectionMode(), projector.getMiniatureScale(),
             projector.getTextScale());
@@ -1273,10 +1239,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private List<String> currentProjectorSceneKeys() {
-        ProjectorBlockEntity projector = menu.projector();
-        if (projector != null && !projector.getSceneKeys().isEmpty()) {
-            return List.copyOf(projector.getSceneKeys());
-        }
         if (!configuredSceneKeys.isEmpty()) {
             return configuredSceneKeys;
         }
@@ -1434,7 +1396,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         List<String> sceneKeys = currentProjectorSceneKeys();
-        int totalDuration = projector.getPlaybackDurationTicks();
+        int totalDuration = 0;
         ProjectorSceneBundle compiled = ProjectorSceneBundle.compile(sceneKeys);
         if (compiled != null && compiled.totalDurationTicks() > 0) {
             totalDuration = ProjectorSceneTimeline.withIntermissions(

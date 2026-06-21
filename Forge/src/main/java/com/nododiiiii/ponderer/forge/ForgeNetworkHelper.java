@@ -15,7 +15,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public class ForgeNetworkHelper implements NetworkHelper {
 
-    private static final String VERSION = "5";
+    private static final String VERSION = "7";
     private static SimpleChannel CHANNEL;
     private static int id = 0;
 
@@ -117,26 +117,6 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .consumerMainThread((msg, ctx) -> {
                     ServerPlayer player = ctx.get().getSender();
                     ProjectorConfigUpdatePayload.handle(msg, player);
-                    ctx.get().setPacketHandled(true);
-                })
-                .add();
-
-        CHANNEL.messageBuilder(ProjectorManualTriggerPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(ProjectorManualTriggerPayload::encode)
-                .decoder(ProjectorManualTriggerPayload::decode)
-                .consumerMainThread((msg, ctx) -> {
-                    ServerPlayer player = ctx.get().getSender();
-                    ProjectorManualTriggerPayload.handle(msg, player);
-                    ctx.get().setPacketHandled(true);
-                })
-                .add();
-
-        CHANNEL.messageBuilder(ProjectorSeekPayload.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(ProjectorSeekPayload::encode)
-                .decoder(ProjectorSeekPayload::decode)
-                .consumerMainThread((msg, ctx) -> {
-                    ServerPlayer player = ctx.get().getSender();
-                    ProjectorSeekPayload.handle(msg, player);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();
@@ -271,6 +251,15 @@ public class ForgeNetworkHelper implements NetworkHelper {
                 .decoder(ProjectorFeatureConfigResponsePayload::decode)
                 .consumerMainThread((msg, ctx) -> {
                     ProjectorFeatureConfigResponsePayload.handle(msg);
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
+
+        CHANNEL.messageBuilder(ProjectorPlaybackStartPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(ProjectorPlaybackStartPayload::encode)
+                .decoder(ProjectorPlaybackStartPayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ProjectorPlaybackStartPayload.handle(msg);
                     ctx.get().setPacketHandled(true);
                 })
                 .add();

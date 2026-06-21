@@ -155,6 +155,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return;
         }
 
+        if (!blockEntity.isPlaying()) {
+            return;
+        }
+
         if (!RENDERED_THIS_FRAME.add(blockEntity.getBlockPos().asLong())) {
             return;
         }
@@ -1344,7 +1348,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     @Override
     public boolean shouldRenderOffScreen(ProjectorBlockEntity blockEntity) {
         // The projected scene can be visible even when the projector block's chunk is outside the frustum.
-        return blockEntity.hasRenderableScene();
+        return blockEntity.isPlaying() && blockEntity.hasRenderableScene();
     }
 
     @Override
@@ -1354,6 +1358,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     @Override
     public boolean shouldRender(ProjectorBlockEntity blockEntity, Vec3 cameraPos) {
+        if (!blockEntity.isPlaying()) {
+            return false;
+        }
         return ProjectorRenderBounds.distanceToRenderBoundsSqr(blockEntity, cameraPos)
             <= ProjectorRenderDistances.PROJECTION_RENDER_DISTANCE_SQR;
     }
