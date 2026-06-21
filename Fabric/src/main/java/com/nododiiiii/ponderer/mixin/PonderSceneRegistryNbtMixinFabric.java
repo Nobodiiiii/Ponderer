@@ -16,10 +16,9 @@ import java.util.List;
 public class PonderSceneRegistryNbtMixinFabric {
 
     @Inject(
-        method = "compile(Lnet/minecraft/class_2960;)Ljava/util/List;",
+        method = "compile(Lnet/minecraft/resources/ResourceLocation;)Ljava/util/List;",
         at = @At("RETURN"),
         cancellable = true,
-        remap = false,
         require = 0
     )
     private void ponderer$filterByNbtFabric(ResourceLocation id, CallbackInfoReturnable<List<PonderScene>> cir) {

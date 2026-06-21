@@ -156,6 +156,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             return;
         }
 
+        if (!blockEntity.isPlaying()) {
+            return;
+        }
+
         if (!RENDERED_THIS_FRAME.add(blockEntity.getBlockPos().asLong())) {
             return;
         }
@@ -174,7 +178,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             ? prepared.segment().scene().getBounds()
             : prepared.bundle().combinedBounds();
         RenderLayout layout = RenderLayout.from(blockEntity, layoutBounds,
-            prepared.activeScene(), partialTick);
+            prepared.activeScene(), prepared.renderPartialTick());
         boolean antiOcclusion = blockEntity.overlayAntiOcclusion();
         ProjectorProjectionMode projectionMode = blockEntity.getProjectorKind().requiresAnchor()
             ? blockEntity.getProjectionMode()
@@ -186,11 +190,11 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         if (shouldRenderText) {
             PoseSnapshot overlayBasePose = PoseSnapshot.capture(poseStack);
             DeferredOverlayBatch deferredNativeOverlay = captureNativePonderOverlays(prepared.activeScene(), layout,
-                partialTick, overlayBasePose, antiOcclusion);
+                prepared.renderPartialTick(), overlayBasePose, antiOcclusion);
             DeferredOverlayBatch deferredCueOverlay = DeferredOverlayBatch.empty();
             if (!prepared.segment().extractRuntimeOverlays() || deferredNativeOverlay.isEmpty()) {
                 List<ProjectorSceneBundle.OverlayCue> cues = prepared.bundle()
-                    .activeCues(prepared.segment(), prepared.localTick(), partialTick,
+                    .activeCues(prepared.segment(), prepared.localTick(), prepared.renderPartialTick(),
                         blockEntity.compatibilityMode());
                 deferredCueOverlay = captureOverlayCues(cues, layout, overlayBasePose, antiOcclusion);
             }
@@ -206,7 +210,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                 prepared.activeScene(),
                 layout,
                 prepared.localTick(),
-                partialTick));
+                prepared.renderPartialTick()));
         }
         enqueueProjectionGlow(blockEntity, layout, poseStack, partialTick);
 
@@ -1360,7 +1364,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     @Override
     public boolean shouldRenderOffScreen(ProjectorBlockEntity blockEntity) {
         // The projected scene can be visible even when the projector block's chunk is outside the frustum.
-        return blockEntity.hasRenderableScene();
+        return blockEntity.isPlaying() && blockEntity.hasRenderableScene();
     }
 
     @Override
@@ -1370,6 +1374,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     @Override
     public boolean shouldRender(ProjectorBlockEntity blockEntity, Vec3 cameraPos) {
+        if (!blockEntity.isPlaying()) {
+            return false;
+        }
         return ProjectorRenderBounds.distanceToRenderBoundsSqr(blockEntity, cameraPos)
             <= ProjectorRenderDistances.PROJECTION_RENDER_DISTANCE_SQR;
     }

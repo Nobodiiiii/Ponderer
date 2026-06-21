@@ -13,9 +13,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class PonderUINbtMixinFabric {
 
     @Inject(
-        method = "of(Lnet/minecraft/class_1799;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
+        method = "of(Lnet/minecraft/world/item/ItemStack;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
         at = @At("HEAD"),
-        remap = false,
         require = 0
     )
     private static void ponderer$captureStackHeadFabric(ItemStack item, CallbackInfoReturnable<PonderUI> cir) {
@@ -23,9 +22,8 @@ public class PonderUINbtMixinFabric {
     }
 
     @Inject(
-        method = "of(Lnet/minecraft/class_1799;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
+        method = "of(Lnet/minecraft/world/item/ItemStack;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
         at = @At("RETURN"),
-        remap = false,
         require = 0
     )
     private static void ponderer$clearStackReturnFabric(ItemStack item, CallbackInfoReturnable<PonderUI> cir) {
@@ -33,9 +31,8 @@ public class PonderUINbtMixinFabric {
     }
 
     @Inject(
-        method = "of(Lnet/minecraft/class_1799;Lnet/createmod/ponder/foundation/PonderTag;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
+        method = "of(Lnet/minecraft/world/item/ItemStack;Lnet/createmod/ponder/foundation/PonderTag;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
         at = @At("HEAD"),
-        remap = false,
         require = 0
     )
     private static void ponderer$captureStackTagHeadFabric(ItemStack item, PonderTag tag, CallbackInfoReturnable<PonderUI> cir) {
@@ -43,9 +40,8 @@ public class PonderUINbtMixinFabric {
     }
 
     @Inject(
-        method = "of(Lnet/minecraft/class_1799;Lnet/createmod/ponder/foundation/PonderTag;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
+        method = "of(Lnet/minecraft/world/item/ItemStack;Lnet/createmod/ponder/foundation/PonderTag;)Lnet/createmod/ponder/foundation/ui/PonderUI;",
         at = @At("RETURN"),
-        remap = false,
         require = 0
     )
     private static void ponderer$clearStackTagReturnFabric(ItemStack item, PonderTag tag, CallbackInfoReturnable<PonderUI> cir) {

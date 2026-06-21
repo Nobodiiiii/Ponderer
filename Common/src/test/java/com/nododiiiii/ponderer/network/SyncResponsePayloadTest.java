@@ -4,13 +4,20 @@ import io.netty.buffer.Unpooled;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SyncResponsePayloadTest {
+    @TempDir
+    Path tempDir;
 
     @Test
     void roundTripsModeReasonAndDeletes() {
@@ -40,5 +47,23 @@ class SyncResponsePayloadTest {
         assertEquals(payload.serverSkippedCount(), decoded.serverSkippedCount());
         assertEquals(payload.mode(), decoded.mode());
         assertEquals(payload.reason(), decoded.reason());
+    }
+
+    @Test
+    void detectsIdenticalLocalContent() throws Exception {
+        Path file = tempDir.resolve("scene.json");
+        byte[] bytes = new byte[] {1, 2, 3, 4};
+        Files.write(file, bytes);
+
+        assertTrue(SyncResponsePayload.hasSameLocalContent(file, bytes));
+    }
+
+    @Test
+    void rejectsDifferentOrMissingLocalContent() throws Exception {
+        Path file = tempDir.resolve("scene.json");
+        Files.write(file, new byte[] {1, 2, 3, 4});
+
+        assertFalse(SyncResponsePayload.hasSameLocalContent(file, new byte[] {4, 3, 2, 1}));
+        assertFalse(SyncResponsePayload.hasSameLocalContent(tempDir.resolve("missing.json"), new byte[] {1}));
     }
 }

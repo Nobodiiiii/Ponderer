@@ -11,9 +11,11 @@ import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.PonderUiInteractionHelper;
+import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.gui.handlers.IGuiContainerHandler;
 import mezz.jei.api.gui.handlers.IGuiProperties;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.registration.IGuiHandlerRegistration;
@@ -32,6 +34,7 @@ import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -100,6 +103,8 @@ public class PondererJeiPlugin implements IModPlugin {
                 AiGenerateScreen.class,
                 new JeiAwareGhostHandler<>()
         );
+
+        registration.addGuiContainerHandler(ProjectorConfigScreen.class, new ProjectorGuiContainerHandler());
 
         registration.addGuiScreenHandler(PonderUI.class, screen -> {
             if (!InterfaceSlotEditState.isActive()) {
@@ -400,6 +405,13 @@ public class PondererJeiPlugin implements IModPlugin {
     private static class PonderUiGuiProperties extends ViewportGuiProperties {
         private PonderUiGuiProperties(PonderUI screen, UiAnchorViewport.Rect viewport) {
             super(screen, viewport);
+        }
+    }
+
+    private static class ProjectorGuiContainerHandler implements IGuiContainerHandler<ProjectorConfigScreen> {
+        @Override
+        public List<net.minecraft.client.renderer.Rect2i> getGuiExtraAreas(ProjectorConfigScreen containerScreen) {
+            return containerScreen.getJeiExtraAreas();
         }
     }
 

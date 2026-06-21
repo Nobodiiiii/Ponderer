@@ -4,8 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
 import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
 import com.nododiiiii.ponderer.network.ProjectorConfigUpdatePayload;
-import com.nododiiiii.ponderer.network.ProjectorManualTriggerPayload;
-import com.nododiiiii.ponderer.network.ProjectorSeekPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
@@ -21,6 +19,7 @@ import com.nododiiiii.ponderer.projector.client.ProjectorSceneBundle;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneCompiler;
 import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
 import com.nododiiiii.ponderer.registry.ModBlocks;
+import dev.engine_room.flywheel.lib.transform.TransformStack;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.catnip.gui.element.GuiGameElement;
@@ -35,6 +34,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -67,13 +67,13 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int STATUS_TEXT = 0x606060;
     private static final int PROJECTOR_TEXTURE_WIDTH = 320;
     private static final int PROJECTOR_TEXTURE_HEIGHT = 480;
+    private static final int MAIN_PANEL_WIDTH = 288;
+    private static final int RIGHT_TIP_WIDTH = MAIN_PANEL_WIDTH - ProjectorMenu.SCREEN_WIDTH;
     private static final int PLAYER_INVENTORY_WIDTH = 176;
     private static final int PLAYER_INVENTORY_HEIGHT = 108;
     private static final int PLAYER_INVENTORY_TEXTURE_SIZE = 256;
     private static final int PLAYER_INVENTORY_X = ProjectorMenu.INVENTORY_PANEL_X;
     private static final int MAIN_PANEL_TEXTURE_WIDTH = 288;
-    private static final int PROJECTOR_MODEL_SCALE = 3;
-    private static final int PROJECTOR_MODEL_BOTTOM_OFFSET = 40;
     private static final int MINIATURE_PLAYER_INVENTORY_Y = 195;
     private static final int LIFE_SIZE_PLAYER_INVENTORY_Y = 214;
     private static final int MINIATURE_MAIN_PANEL_HEIGHT = 195;
@@ -153,6 +153,17 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int ACTION_ICON_OFFSET = 0;
     private static final int PLAY_TEXT_START_X = ACTION_ICON_OFFSET + ACTION_ICON_SIZE + 2;
     private static final int PLAY_TEXT_RIGHT_PADDING = 4;
+    private static final int MODEL_AREA_X = MAIN_PANEL_WIDTH + 4;
+    private static final int MODEL_AREA_WIDTH = 64;
+    private static final int MODEL_AREA_HEIGHT = 56;
+    private static final int MINIATURE_MODEL_AREA_Y = MINIATURE_MAIN_PANEL_HEIGHT - 44;
+    private static final int LIFE_SIZE_MODEL_AREA_Y = LIFE_SIZE_MAIN_PANEL_HEIGHT - 44;
+    private static final int MODEL_RENDER_X = MODEL_AREA_X + MODEL_AREA_WIDTH / 2 + 20;
+    private static final int MINIATURE_MODEL_RENDER_Y = MINIATURE_MAIN_PANEL_HEIGHT + 4;
+    private static final int LIFE_SIZE_MODEL_RENDER_Y = LIFE_SIZE_MAIN_PANEL_HEIGHT + 4;
+    private static final float MODEL_RENDER_SCALE = 40.0F;
+    private static final float MODEL_RENDER_X_ROT = -22.0F;
+    private static final float MODEL_RENDER_Y_ROT = 243.0F;
 
     private Button redstoneModeButton;
     private Button loopModeButton;
@@ -203,7 +214,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private int manualSceneSelectionHoldTicks;
     private Component statusMessage = Component.empty();
     private int statusColor = 0x606060;
-    private final ItemStack renderedProjector;
 
     public ProjectorConfigScreen(ProjectorMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -211,9 +221,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         imageHeight = playerInventoryY() + PLAYER_INVENTORY_HEIGHT;
         inventoryLabelX = INVENTORY_LABEL_X;
         inventoryLabelY = playerInventoryY() + 6;
-        renderedProjector = new ItemStack(menu.projectorKind().requiresAnchor()
-            ? ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get()
-            : ModBlocks.MINIATURE_PROJECTOR_ITEM.get());
     }
 
     private boolean isLifeSizeProjector() {
@@ -240,13 +247,28 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return isLifeSizeProjector() ? LIFE_SIZE_BOTTOM_ACTION_Y : MINIATURE_BOTTOM_ACTION_Y;
     }
 
+    private int modelAreaY() {
+        return isLifeSizeProjector() ? LIFE_SIZE_MODEL_AREA_Y : MINIATURE_MODEL_AREA_Y;
+    }
+
+    private int modelRenderY() {
+        return isLifeSizeProjector() ? LIFE_SIZE_MODEL_RENDER_Y : MINIATURE_MODEL_RENDER_Y;
+    }
+
+    public List<Rect2i> getJeiExtraAreas() {
+        return List.of(
+            new Rect2i(leftPos + ProjectorMenu.SCREEN_WIDTH, topPos + modelAreaY(), RIGHT_TIP_WIDTH, mainPanelHeight() - modelAreaY()),
+            new Rect2i(leftPos + MODEL_AREA_X, topPos + modelAreaY(), MODEL_AREA_WIDTH, MODEL_AREA_HEIGHT)
+        );
+    }
+
     @Override
     protected void init() {
         super.init();
         titleLabelX = 18;
         titleLabelY = TITLE_Y;
         loadProjectorState();
-        configuredSceneKeys = menu.projector() == null ? List.of() : List.copyOf(menu.projector().getSceneKeys());
+        configuredSceneKeys = List.of();
 
         remotePullButton = addRenderableWidget(new ProjectorTextureButton(
             leftPos + REMOTE_PULL_BUTTON_X,
@@ -439,15 +461,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         renderSceneTimeline(graphics, mouseX, mouseY, partialTick);
     }
 
-    private void renderProjectorModel(GuiGraphics graphics, int x, int y) {
-        GuiGameElement.of(renderedProjector).<GuiGameElement.GuiRenderBuilder>at(
-                x + MAIN_PANEL_TEXTURE_WIDTH,
-                y + mainPanelHeight() - PROJECTOR_MODEL_BOTTOM_OFFSET,
-                -200)
-            .scale(PROJECTOR_MODEL_SCALE)
-            .render(graphics);
-    }
-
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         Component projectorKind = Component.translatable(menu.projectorKind().translationKey());
@@ -594,11 +607,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         sourceFingerprint = fingerprint(menu.sourceItem());
         resolvedSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(menu.sourceItem());
         displaySceneSegments = buildDisplaySceneSegments(resolvedSceneKeys);
-        List<String> projectorSceneKeys = currentProjectorSceneKeys();
-        if (!projectorSceneKeys.isEmpty()) {
-            configuredSceneKeys = List.copyOf(projectorSceneKeys);
-        }
-        if (!resolvedSceneKeys.containsAll(configuredSceneKeys)) {
+        if (configuredSceneKeys.isEmpty() || !resolvedSceneKeys.containsAll(configuredSceneKeys)) {
             configuredSceneKeys = List.copyOf(resolvedSceneKeys);
             sceneSelectionDirty = false;
         }
@@ -606,34 +615,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         refreshActionButtonStates();
         refreshScenePreview(true);
         refreshSceneButtons();
-        tryAutoSyncResolvedScenes();
-    }
-
-    /**
-     * Native Java ponder scenes are discovered on the client. When the projector slot changes,
-     * sync those resolved keys back to the server immediately so playback starts without needing
-     * a manual scene-switch click.
-     */
-    private void tryAutoSyncResolvedScenes() {
-        ProjectorBlockEntity projector = menu.projector();
-        if (projector == null || menu.sourceItem().isEmpty() || resolvedSceneKeys.isEmpty()) {
-            return;
-        }
-        if (!projector.getSceneKeys().isEmpty()) {
-            return;
-        }
-
-        List<String> sceneKeysToSave = resolveSceneKeysToSave();
-        if (sceneKeysToSave.isEmpty()) {
-            return;
-        }
-
-        sendConfigUpdate(sceneKeysToSave, projector.getTriggerMode(), projector.getProjectionOffset(),
-            projector.getIntermissionTicks(), projector.showBlueTint(), projector.overlayAntiOcclusion(),
-            projector.compatibilityMode(), projector.getProjectionMode(), projector.getMiniatureScale(),
-            projector.getTextScale());
-        configuredSceneKeys = List.copyOf(sceneKeysToSave);
-        sceneSelectionDirty = false;
     }
 
     private boolean applyConfig(boolean showStatus) {
@@ -647,7 +628,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         float scale = parseScale();
         float resolvedTextScale = parseTextScale();
         int resolvedIntermissionTicks = parseIntermissionTicks();
-        sendConfigUpdate(sceneKeysToSave, ProjectorTriggerMode.fromFields(redstoneMode, loopMode), offset,
+        sendConfigUpdate(ProjectorTriggerMode.fromFields(redstoneMode, loopMode), offset,
             resolvedIntermissionTicks, showBlueTint, overlayAntiOcclusion, compatibilityMode,
             projectionMode, scale, resolvedTextScale);
         configuredSceneKeys = List.copyOf(sceneKeysToSave);
@@ -658,16 +639,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return true;
     }
 
-    private void sendConfigUpdate(List<String> sceneKeys, ProjectorTriggerMode triggerMode, @Nullable BlockPos offset,
+    private void sendConfigUpdate(ProjectorTriggerMode triggerMode, @Nullable BlockPos offset,
                                   int intermissionTicks, boolean blueTint, boolean resolvedOverlayAntiOcclusion,
                                   boolean resolvedCompatibilityMode, ProjectorProjectionMode resolvedProjectionMode,
                                   float scale, float resolvedTextScale) {
         PondererServices.NETWORK.sendToServer(new ProjectorConfigUpdatePayload(
             menu.projectorPos(),
-            sceneKeys,
             triggerMode,
             offset,
-            estimateDuration(sceneKeys, intermissionTicks),
             intermissionTicks,
             blueTint,
             resolvedOverlayAntiOcclusion,
@@ -690,7 +669,11 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             status(Component.translatable("ponderer.ui.projector.save_before_play"), 0xA03030);
             return;
         }
-        PondererServices.NETWORK.sendToServer(new ProjectorManualTriggerPayload(menu.projectorPos()));
+        ProjectorBlockEntity projector = menu.projector();
+        if (projector == null) {
+            return;
+        }
+        projector.triggerClientManualOnce();
         status(Component.translatable("ponderer.ui.projector.play_once.sent"), 0x2E6E2E);
     }
 
@@ -1037,7 +1020,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         List<String> sceneKeysToSave = resolveSceneKeysToSave();
-        sendConfigUpdate(sceneKeysToSave, projector.getTriggerMode(), projector.getProjectionOffset(),
+        sendConfigUpdate(projector.getTriggerMode(), projector.getProjectionOffset(),
             projector.getIntermissionTicks(), projector.showBlueTint(), projector.overlayAntiOcclusion(),
             projector.compatibilityMode(), projector.getProjectionMode(), projector.getMiniatureScale(),
             projector.getTextScale());
@@ -1248,6 +1231,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             hoveredDistance = startDistance;
         }
 
+        if (!scenePreview.keyframes().contains(segmentEnd)) {
+            int endDistance = Math.abs(keyframeMouseX - timelineKeyframePosition(segmentDuration, segmentDuration));
+            if (endDistance <= SCENE_KEYFRAME_HIT_RADIUS && endDistance < hoveredDistance) {
+                hoveredKeyframe = segmentEnd;
+                hoveredDistance = endDistance;
+            }
+        }
+
         for (int keyframeTick : scenePreview.keyframes()) {
             if (keyframeTick < segmentStart || keyframeTick > segmentEnd) {
                 continue;
@@ -1282,14 +1273,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         int playbackTick = safeTick >= scenePreview.totalTicks()
             ? window.activeEndTick()
             : window.startTick() + safeTick;
-        PondererServices.NETWORK.sendToServer(new ProjectorSeekPayload(menu.projectorPos(), Math.max(0, playbackTick)));
+        projector.seekClientPlaybackToTick(Math.max(0, playbackTick));
     }
 
     private List<String> currentProjectorSceneKeys() {
-        ProjectorBlockEntity projector = menu.projector();
-        if (projector != null && !projector.getSceneKeys().isEmpty()) {
-            return List.copyOf(projector.getSceneKeys());
-        }
         if (!configuredSceneKeys.isEmpty()) {
             return configuredSceneKeys;
         }
@@ -1447,7 +1434,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
 
         List<String> sceneKeys = currentProjectorSceneKeys();
-        int totalDuration = projector.getPlaybackDurationTicks();
+        int totalDuration = 0;
         ProjectorSceneBundle compiled = ProjectorSceneBundle.compile(sceneKeys);
         if (compiled != null && compiled.totalDurationTicks() > 0) {
             totalDuration = ProjectorSceneTimeline.withIntermissions(
@@ -1462,12 +1449,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             }
         }
 
-        int playbackTick = ProjectorSceneTimeline.resolvePlaybackTick(
-            Math.max(0L, level.getGameTime() - projector.getPlaybackStartGameTime()),
-            totalDuration,
-            projector.isPlaybackLooping(),
-            projector.shouldPersistAfterPlaybackEnd(),
-            ProjectorBlockEntity.FINAL_EXTRA_TICKS);
+        int playbackTick = projector.resolveDisplayPlaybackTick(totalDuration, true);
         return playbackTick == ProjectorSceneTimeline.NO_PLAYBACK_TICK ? null : playbackTick;
     }
 
@@ -1622,6 +1604,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             UIRenderHelper.drawGradientRect(poseStack.last().pose(), 320, keyframePos, 0f,
                 keyframePos + 2f, 9f, passedColors.getFirst(), passedColors.getSecond());
         }
+        if (hoveredKeyframe != null && hoveredKeyframe == segmentStart + segmentDuration
+            && !scenePreview.keyframes().contains(segmentStart + segmentDuration)) {
+            int keyframePos = timelineKeyframePosition(segmentDuration, segmentDuration);
+            UIRenderHelper.drawGradientRect(poseStack.last().pose(), 320, keyframePos, 0f,
+                keyframePos + 2f, 9f, passedColors.getFirst(), passedColors.getSecond());
+        }
         for (int keyframeTick : scenePreview.keyframes()) {
             if (keyframeTick < segmentStart || keyframeTick > segmentStart + segmentDuration) {
                 continue;
@@ -1755,6 +1743,34 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private void drawLabel(GuiGraphics graphics, String key, int x, int y) {
         Component label = trimToWidth(Component.translatable(key), LABEL_TEXT_MAX_WIDTH);
         graphics.drawString(font, label, x + (LABEL_TEXT_MAX_WIDTH - font.width(label)) / 2, y, LABEL_TEXT, false);
+    }
+
+    private void renderProjectorModel(GuiGraphics graphics, int x, int y) {
+        PoseStack pose = graphics.pose();
+        pose.pushPose();
+        TransformStack.of(pose)
+            .pushPose()
+            .translate(x + MODEL_RENDER_X, y + modelRenderY(), 100)
+            .scale(MODEL_RENDER_SCALE)
+            .rotateXDegrees(MODEL_RENDER_X_ROT)
+            .rotateYDegrees(MODEL_RENDER_Y_ROT);
+        GuiGameElement.of(projectorDisplayState())
+            .render(graphics);
+        pose.popPose();
+    }
+
+    private net.minecraft.world.level.block.state.BlockState projectorDisplayState() {
+        ProjectorBlockEntity projector = menu.projector();
+        if (projector != null) {
+            return projector.getBlockState();
+        }
+
+        Direction facing = projectorFacing();
+        return (menu.projectorKind().requiresAnchor()
+            ? ModBlocks.LIFE_SIZE_PROJECTOR.get()
+            : ModBlocks.MINIATURE_PROJECTOR.get())
+            .defaultBlockState()
+            .setValue(ProjectorBlock.FACING, facing);
     }
 
     private static void renderControlOverlay(GuiGraphics graphics, int x, int y, int width, int height,

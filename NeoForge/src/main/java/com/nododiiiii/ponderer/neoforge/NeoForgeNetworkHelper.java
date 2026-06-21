@@ -20,7 +20,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  */
 public class NeoForgeNetworkHelper implements NetworkHelper {
 
-    public static final String VERSION = "2";
+    public static final String VERSION = "3";
 
     /**
      * Called from PondererNeoForge when RegisterPayloadHandlersEvent fires.
@@ -54,12 +54,6 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
         });
         registrar.playToServer(ProjectorConfigUpdatePayload.TYPE, ProjectorConfigUpdatePayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> ProjectorConfigUpdatePayload.handle(payload, (ServerPlayer) ctx.player()));
-        });
-        registrar.playToServer(ProjectorManualTriggerPayload.TYPE, ProjectorManualTriggerPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> ProjectorManualTriggerPayload.handle(payload, (ServerPlayer) ctx.player()));
-        });
-        registrar.playToServer(ProjectorSeekPayload.TYPE, ProjectorSeekPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> ProjectorSeekPayload.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(ProjectorFeatureConfigRequestPayload.TYPE, ProjectorFeatureConfigRequestPayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> ProjectorFeatureConfigRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
@@ -121,6 +115,9 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
         });
         registrar.playToClient(ProjectorFeatureConfigResponsePayload.TYPE, ProjectorFeatureConfigResponsePayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> ProjectorFeatureConfigResponsePayload.handle(payload));
+        });
+        registrar.playToClient(ProjectorPlaybackStartPayload.TYPE, ProjectorPlaybackStartPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> ProjectorPlaybackStartPayload.handle(payload));
         });
         registrar.playToClient(FeatureAvailabilityPayload.TYPE, FeatureAvailabilityPayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> FeatureAvailabilityPayload.handle(payload));

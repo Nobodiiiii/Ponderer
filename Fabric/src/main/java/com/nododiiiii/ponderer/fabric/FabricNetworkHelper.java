@@ -27,8 +27,6 @@ public class FabricNetworkHelper implements NetworkHelper {
         PayloadTypeRegistry.playC2S().register(BlueprintConfigRequestPayload.TYPE, BlueprintConfigRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(BlueprintConfigUpdatePayload.TYPE, BlueprintConfigUpdatePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ProjectorConfigUpdatePayload.TYPE, ProjectorConfigUpdatePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ProjectorManualTriggerPayload.TYPE, ProjectorManualTriggerPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ProjectorSeekPayload.TYPE, ProjectorSeekPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ProjectorFeatureConfigRequestPayload.TYPE, ProjectorFeatureConfigRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ProjectorFeatureConfigUpdatePayload.TYPE, ProjectorFeatureConfigUpdatePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(RemoteCatalogRequestPayload.TYPE, RemoteCatalogRequestPayload.CODEC);
@@ -44,6 +42,7 @@ public class FabricNetworkHelper implements NetworkHelper {
         PayloadTypeRegistry.playS2C().register(PermissionListResponsePayload.TYPE, PermissionListResponsePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(BlueprintConfigResponsePayload.TYPE, BlueprintConfigResponsePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(ProjectorFeatureConfigResponsePayload.TYPE, ProjectorFeatureConfigResponsePayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(ProjectorPlaybackStartPayload.TYPE, ProjectorPlaybackStartPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(FeatureAvailabilityPayload.TYPE, FeatureAvailabilityPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(RemoteCatalogResponsePayload.TYPE, RemoteCatalogResponsePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(RemoteActionResponsePayload.TYPE, RemoteActionResponsePayload.CODEC);
@@ -91,14 +90,6 @@ public class FabricNetworkHelper implements NetworkHelper {
         ServerPlayNetworking.registerGlobalReceiver(ProjectorConfigUpdatePayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
             context.player().server.execute(() -> ProjectorConfigUpdatePayload.handle(payload, player));
-        });
-        ServerPlayNetworking.registerGlobalReceiver(ProjectorManualTriggerPayload.TYPE, (payload, context) -> {
-            ServerPlayer player = context.player();
-            context.player().server.execute(() -> ProjectorManualTriggerPayload.handle(payload, player));
-        });
-        ServerPlayNetworking.registerGlobalReceiver(ProjectorSeekPayload.TYPE, (payload, context) -> {
-            ServerPlayer player = context.player();
-            context.player().server.execute(() -> ProjectorSeekPayload.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(ProjectorFeatureConfigRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
@@ -152,6 +143,9 @@ public class FabricNetworkHelper implements NetworkHelper {
         });
         ClientPlayNetworking.registerGlobalReceiver(ProjectorFeatureConfigResponsePayload.TYPE, (payload, context) -> {
             context.client().execute(() -> ProjectorFeatureConfigResponsePayload.handle(payload));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(ProjectorPlaybackStartPayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> ProjectorPlaybackStartPayload.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(FeatureAvailabilityPayload.TYPE, (payload, context) -> {
             context.client().execute(() -> FeatureAvailabilityPayload.handle(payload));

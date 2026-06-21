@@ -21,8 +21,60 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+UTF8_JVM_ARGS = (
+    "-Dfile.encoding=UTF-8",
+    "-Dsun.stdout.encoding=UTF-8",
+    "-Dsun.stderr.encoding=UTF-8",
+)
+
+
+def configure_output_encoding() -> None:
+    if platform.system() == "Windows":
+        try:
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32
+            kernel32.SetConsoleCP(65001)
+            kernel32.SetConsoleOutputCP(65001)
+        except (AttributeError, OSError):
+            pass
+
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+    )
+
+
+def append_missing_jvm_args(existing: str) -> str:
+    combined = existing.strip()
+    for arg in UTF8_JVM_ARGS:
+        if arg not in combined:
+            combined = f"{combined} {arg}".strip()
+    return combined
+
+
+def gradle_subprocess_env() -> dict[str, str] | None:
+    if platform.system() != "Windows":
+        return None
+
+    env = os.environ.copy()
+    env["GRADLE_OPTS"] = append_missing_jvm_args(env.get("GRADLE_OPTS", ""))
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    return env
+
+
+def gradle_encoding_args() -> list[str]:
+    if platform.system() != "Windows":
+        return []
+
+    props = read_gradle_properties()
+    jvmargs = append_missing_jvm_args(props.get("org.gradle.jvmargs", ""))
+    return [f"-Dorg.gradle.jvmargs={jvmargs}"]
+
+
+configure_output_encoding()
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DOT_MINECRAFT = PROJECT_ROOT / ".minecraft"
@@ -331,10 +383,11 @@ def run_build(targets: list[PlatformSpec], offline: bool) -> None:
     command = [str(gradlew)]
     if offline:
         command.append("--offline")
+    command.extend(gradle_encoding_args())
     command.extend(tasks)
 
     print(f"[BUILD] {' '.join(command[1:])}")
-    subprocess.run(command, cwd=PROJECT_ROOT, check=True)
+    subprocess.run(command, cwd=PROJECT_ROOT, env=gradle_subprocess_env(), check=True)
 
 
 def find_mod_jar(spec: PlatformSpec, props: dict[str, str]) -> Path:

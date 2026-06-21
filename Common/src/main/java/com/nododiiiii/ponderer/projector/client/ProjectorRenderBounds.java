@@ -3,10 +3,10 @@ package com.nododiiiii.ponderer.projector.client;
 import com.nododiiiii.ponderer.projector.ProjectorBlock;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorKind;
-import com.nododiiiii.ponderer.projector.ProjectorSceneBounds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.AABB;
@@ -14,7 +14,6 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -53,16 +52,8 @@ public final class ProjectorRenderBounds {
             return fallback;
         }
 
-        List<String> sceneKeys = blockEntity.getSceneKeys();
-        if (sceneKeys.isEmpty()) {
-            sceneKeys = ProjectorClientSceneResolver.sceneKeysFor(blockEntity.getSourceItem());
-        }
-        if (sceneKeys.isEmpty()) {
-            return fallback;
-        }
-
+        ItemStack sourceItem = blockEntity.getSourceItem();
         BlockPos blockPos = blockEntity.getBlockPos().immutable();
-        String sceneKey = String.join("\n", sceneKeys);
         Direction facing = blockEntity.getBlockState().getValue(ProjectorBlock.FACING);
         ProjectorKind kind = blockEntity.getProjectorKind();
         BlockPos offset = blockEntity.getProjectionOffset();
@@ -70,25 +61,22 @@ public final class ProjectorRenderBounds {
 
         CachedBounds cached = CACHE.get(blockPos);
         if (cached != null
-            && cached.matches(sceneKey, kind, facing, offset, miniatureScale)) {
+            && cached.matches(sourceItem, kind, facing, offset, miniatureScale)) {
             return cached.bounds();
         }
 
-        ProjectorSceneBundle bundle = ProjectorPlaybackState.forBlock(blockEntity).bundleFor(sceneKeys);
-        if (bundle != null) {
-            AABB estimated = renderBounds(blockEntity, bundle);
-            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, estimated));
-            return estimated;
-        }
-
-        BoundingBox fallbackBounds = ProjectorSceneBounds.estimate(sceneKeys);
-        if (fallbackBounds == null) {
-            CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, fallback));
+        if (!blockEntity.isPlaying()) {
             return fallback;
         }
 
-        AABB estimated = renderBounds(blockEntity, fallbackBounds);
-        CACHE.put(blockPos, new CachedBounds(sceneKey, kind, facing, offset, miniatureScale, estimated));
+        ProjectorSceneBundle bundle = ProjectorPlaybackState.forBlock(blockEntity).playbackBundleFor(blockEntity);
+        if (bundle == null) {
+            CACHE.put(blockPos, new CachedBounds(sourceItem.copy(), kind, facing, offset, miniatureScale, fallback));
+            return fallback;
+        }
+
+        AABB estimated = renderBounds(blockEntity, bundle);
+        CACHE.put(blockPos, new CachedBounds(sourceItem.copy(), kind, facing, offset, miniatureScale, estimated));
         return estimated;
     }
 
@@ -231,11 +219,11 @@ public final class ProjectorRenderBounds {
             worldOrigin.z + radius);
     }
 
-    private record CachedBounds(String sceneKey, ProjectorKind kind, Direction facing,
+    private record CachedBounds(ItemStack sourceItem, ProjectorKind kind, Direction facing,
                                 @Nullable BlockPos offset, float miniatureScale, AABB bounds) {
-        boolean matches(String otherSceneKey, ProjectorKind otherKind, Direction otherFacing,
+        boolean matches(ItemStack otherSourceItem, ProjectorKind otherKind, Direction otherFacing,
                         @Nullable BlockPos otherOffset, float otherMiniatureScale) {
-            return sceneKey.equals(otherSceneKey)
+            return ItemStack.isSameItemSameComponents(sourceItem, otherSourceItem)
                 && kind == otherKind
                 && facing == otherFacing
                 && Objects.equals(offset, otherOffset)
