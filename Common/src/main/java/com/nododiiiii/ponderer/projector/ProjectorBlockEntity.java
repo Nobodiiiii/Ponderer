@@ -642,8 +642,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
             return;
         }
 
-        boolean shouldAutoplay = triggerMode == ProjectorTriggerMode.MANUAL_LOOP
-            || (triggerMode.runsWhilePowered() && redstonePowered);
+        boolean shouldAutoplay = shouldClientAutoplay(triggerMode, redstonePowered);
         if (!shouldAutoplay) {
             if (clientAutoplayActive) {
                 stopClientPlayback();
@@ -651,7 +650,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
             return;
         }
 
-        String desiredAutoplayKey = triggerMode.serializedName() + ":" + redstonePowered + ":" + clientPlaybackStateToken;
+        String desiredAutoplayKey = clientAutoplayStateKey(triggerMode, clientPlaybackStateToken);
         if (!clientAutoplayActive
             || !desiredAutoplayKey.equals(clientAutoplayKey)
             || !clientPlaying
@@ -671,9 +670,28 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         }
     }
 
+    static boolean shouldClientAutoplay(@Nullable ProjectorTriggerMode triggerMode, boolean redstonePowered) {
+        ProjectorTriggerMode resolvedTriggerMode = triggerMode == null ? ProjectorTriggerMode.MANUAL_LOOP : triggerMode;
+        return resolvedTriggerMode == ProjectorTriggerMode.MANUAL_LOOP
+            || (resolvedTriggerMode.runsWhilePowered() && redstonePowered);
+    }
+
+    static String clientAutoplayStateKey(@Nullable ProjectorTriggerMode triggerMode, int clientPlaybackStateToken) {
+        ProjectorTriggerMode resolvedTriggerMode = triggerMode == null ? ProjectorTriggerMode.MANUAL_LOOP : triggerMode;
+        return resolvedTriggerMode.serializedName() + ":" + clientPlaybackStateToken;
+    }
+
+    static boolean shouldBumpClientPlaybackStateToken(boolean sourceChanged, boolean triggerModeChanged,
+                                                      boolean redstoneChanged, boolean intermissionChanged) {
+        // Redstone-only sync should stop/start redstone-driven autoplay without rewinding manual playback.
+        return sourceChanged || triggerModeChanged || intermissionChanged;
+    }
+
     private void markClientPlaybackStateDirty(boolean sourceChanged, boolean triggerModeChanged,
                                               boolean redstoneChanged, boolean intermissionChanged) {
-        clientPlaybackStateToken++;
+        if (shouldBumpClientPlaybackStateToken(sourceChanged, triggerModeChanged, redstoneChanged, intermissionChanged)) {
+            clientPlaybackStateToken++;
+        }
         if ((sourceChanged || triggerModeChanged) && clientPlaying && !clientAutoplayActive) {
             stopClientPlayback();
         }

@@ -255,6 +255,11 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
                 }
             }
 
+            if (hasSameLocalContent(localFile, entry.bytes())) {
+                session.syncedHashes.put(metaKey, entry.bytes());
+                continue;
+            }
+
             if (writeFile(localFile, entry.bytes())) {
                 session.syncedHashes.put(metaKey, entry.bytes());
                 session.written++;
@@ -263,6 +268,14 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
                 notifyClient(Component.translatable("ponderer.cmd.pull.write_failed", displayId));
             }
         }
+    }
+
+    static boolean hasSameLocalContent(@Nullable Path localFile, byte[] remoteBytes) {
+        if (localFile == null || !Files.exists(localFile)) {
+            return false;
+        }
+        String localHash = SyncMeta.hashLocalFile(localFile);
+        return !localHash.isEmpty() && localHash.equals(SyncMeta.sha256(remoteBytes));
     }
 
     @Nullable

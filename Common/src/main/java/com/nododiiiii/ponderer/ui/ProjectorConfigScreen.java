@@ -18,8 +18,11 @@ import com.nododiiiii.ponderer.projector.client.ProjectorClientSceneResolver;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneBundle;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneCompiler;
 import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
+import com.nododiiiii.ponderer.registry.ModBlocks;
+import dev.engine_room.flywheel.lib.transform.TransformStack;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
+import net.createmod.catnip.gui.element.GuiGameElement;
 import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -31,6 +34,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -63,6 +67,8 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int STATUS_TEXT = 0x606060;
     private static final int PROJECTOR_TEXTURE_WIDTH = 320;
     private static final int PROJECTOR_TEXTURE_HEIGHT = 480;
+    private static final int MAIN_PANEL_WIDTH = 288;
+    private static final int RIGHT_TIP_WIDTH = MAIN_PANEL_WIDTH - ProjectorMenu.SCREEN_WIDTH;
     private static final int PLAYER_INVENTORY_WIDTH = 176;
     private static final int PLAYER_INVENTORY_HEIGHT = 108;
     private static final int PLAYER_INVENTORY_TEXTURE_SIZE = 256;
@@ -147,6 +153,17 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int ACTION_ICON_OFFSET = 0;
     private static final int PLAY_TEXT_START_X = ACTION_ICON_OFFSET + ACTION_ICON_SIZE + 2;
     private static final int PLAY_TEXT_RIGHT_PADDING = 4;
+    private static final int MODEL_AREA_X = MAIN_PANEL_WIDTH + 4;
+    private static final int MODEL_AREA_WIDTH = 64;
+    private static final int MODEL_AREA_HEIGHT = 56;
+    private static final int MINIATURE_MODEL_AREA_Y = MINIATURE_MAIN_PANEL_HEIGHT - 44;
+    private static final int LIFE_SIZE_MODEL_AREA_Y = LIFE_SIZE_MAIN_PANEL_HEIGHT - 44;
+    private static final int MODEL_RENDER_X = MODEL_AREA_X + MODEL_AREA_WIDTH / 2 + 20;
+    private static final int MINIATURE_MODEL_RENDER_Y = MINIATURE_MAIN_PANEL_HEIGHT + 4;
+    private static final int LIFE_SIZE_MODEL_RENDER_Y = LIFE_SIZE_MAIN_PANEL_HEIGHT + 4;
+    private static final float MODEL_RENDER_SCALE = 40.0F;
+    private static final float MODEL_RENDER_X_ROT = -22.0F;
+    private static final float MODEL_RENDER_Y_ROT = 243.0F;
 
     private Button redstoneModeButton;
     private Button loopModeButton;
@@ -228,6 +245,21 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
     private int bottomActionY() {
         return isLifeSizeProjector() ? LIFE_SIZE_BOTTOM_ACTION_Y : MINIATURE_BOTTOM_ACTION_Y;
+    }
+
+    private int modelAreaY() {
+        return isLifeSizeProjector() ? LIFE_SIZE_MODEL_AREA_Y : MINIATURE_MODEL_AREA_Y;
+    }
+
+    private int modelRenderY() {
+        return isLifeSizeProjector() ? LIFE_SIZE_MODEL_RENDER_Y : MINIATURE_MODEL_RENDER_Y;
+    }
+
+    public List<Rect2i> getJeiExtraAreas() {
+        return List.of(
+            new Rect2i(leftPos + ProjectorMenu.SCREEN_WIDTH, topPos + modelAreaY(), RIGHT_TIP_WIDTH, mainPanelHeight() - modelAreaY()),
+            new Rect2i(leftPos + MODEL_AREA_X, topPos + modelAreaY(), MODEL_AREA_WIDTH, MODEL_AREA_HEIGHT)
+        );
     }
 
     @Override
@@ -420,11 +452,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         int panelTextureY = menu.projectorKind().requiresAnchor()
             ? LIFE_SIZE_PANEL_TEXTURE_Y
             : MINIATURE_PANEL_TEXTURE_Y;
-        graphics.blit(BACKGROUND, x, y, 0, panelTextureY, SCREEN_WIDTH, mainPanelHeight(),
+        graphics.blit(BACKGROUND, x, y, 0, panelTextureY, MAIN_PANEL_WIDTH, mainPanelHeight(),
             PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
         graphics.blit(PLAYER_INVENTORY, x + PLAYER_INVENTORY_X, y + playerInventoryY(),
             0, 0, PLAYER_INVENTORY_WIDTH, PLAYER_INVENTORY_HEIGHT,
             PLAYER_INVENTORY_TEXTURE_SIZE, PLAYER_INVENTORY_TEXTURE_SIZE);
+        renderProjectorModel(graphics, x, y);
         renderSceneTimeline(graphics, mouseX, mouseY, partialTick);
     }
 
@@ -1201,6 +1234,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             hoveredDistance = startDistance;
         }
 
+        if (!scenePreview.keyframes().contains(segmentEnd)) {
+            int endDistance = Math.abs(keyframeMouseX - timelineKeyframePosition(segmentDuration, segmentDuration));
+            if (endDistance <= SCENE_KEYFRAME_HIT_RADIUS && endDistance < hoveredDistance) {
+                hoveredKeyframe = segmentEnd;
+                hoveredDistance = endDistance;
+            }
+        }
+
         for (int keyframeTick : scenePreview.keyframes()) {
             if (keyframeTick < segmentStart || keyframeTick > segmentEnd) {
                 continue;
@@ -1566,6 +1607,12 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             UIRenderHelper.drawGradientRect(poseStack.last().pose(), 320, keyframePos, 0f,
                 keyframePos + 2f, 9f, passedColors.getFirst(), passedColors.getSecond());
         }
+        if (hoveredKeyframe != null && hoveredKeyframe == segmentStart + segmentDuration
+            && !scenePreview.keyframes().contains(segmentStart + segmentDuration)) {
+            int keyframePos = timelineKeyframePosition(segmentDuration, segmentDuration);
+            UIRenderHelper.drawGradientRect(poseStack.last().pose(), 320, keyframePos, 0f,
+                keyframePos + 2f, 9f, passedColors.getFirst(), passedColors.getSecond());
+        }
         for (int keyframeTick : scenePreview.keyframes()) {
             if (keyframeTick < segmentStart || keyframeTick > segmentStart + segmentDuration) {
                 continue;
@@ -1696,6 +1743,34 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private void drawLabel(GuiGraphics graphics, String key, int x, int y) {
         Component label = trimToWidth(Component.translatable(key), LABEL_TEXT_MAX_WIDTH);
         graphics.drawString(font, label, x + (LABEL_TEXT_MAX_WIDTH - font.width(label)) / 2, y, LABEL_TEXT, false);
+    }
+
+    private void renderProjectorModel(GuiGraphics graphics, int x, int y) {
+        PoseStack pose = graphics.pose();
+        pose.pushPose();
+        TransformStack.of(pose)
+            .pushPose()
+            .translate(x + MODEL_RENDER_X, y + modelRenderY(), 100)
+            .scale(MODEL_RENDER_SCALE)
+            .rotateXDegrees(MODEL_RENDER_X_ROT)
+            .rotateYDegrees(MODEL_RENDER_Y_ROT);
+        GuiGameElement.of(projectorDisplayState())
+            .render(graphics);
+        pose.popPose();
+    }
+
+    private net.minecraft.world.level.block.state.BlockState projectorDisplayState() {
+        ProjectorBlockEntity projector = menu.projector();
+        if (projector != null) {
+            return projector.getBlockState();
+        }
+
+        Direction facing = projectorFacing();
+        return (menu.projectorKind().requiresAnchor()
+            ? ModBlocks.LIFE_SIZE_PROJECTOR.get()
+            : ModBlocks.MINIATURE_PROJECTOR.get())
+            .defaultBlockState()
+            .setValue(ProjectorBlock.FACING, facing);
     }
 
     private static void renderControlOverlay(GuiGraphics graphics, int x, int y, int width, int height,
