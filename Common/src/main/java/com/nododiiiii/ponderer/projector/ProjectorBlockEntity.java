@@ -292,6 +292,15 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         return !sourceItem.isEmpty();
     }
 
+    @Override
+    public void setChanged() {
+        normalizeSourceItem();
+        super.setChanged();
+        if (level != null && !level.isClientSide) {
+            syncBlockState();
+        }
+    }
+
     public void applyConfig(ProjectorTriggerMode newMode,
                             @Nullable BlockPos newProjectionOffset,
                             int newIntermissionTicks, boolean newShowBlueTint,
@@ -397,25 +406,41 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         }
     }
 
-    private void syncBlockState() {
+    private boolean syncBlockState() {
         if (level == null) {
-            return;
+            return false;
         }
+        normalizeSourceItem();
         BlockState state = getBlockState();
+        if (!state.hasProperty(ProjectorBlock.POWERED) || !state.hasProperty(ProjectorBlock.LIT)) {
+            return false;
+        }
         boolean desiredPowered = redstonePowered;
         boolean desiredLit = !sourceItem.isEmpty();
         if (state.getValue(ProjectorBlock.POWERED) == desiredPowered && state.getValue(ProjectorBlock.LIT) == desiredLit) {
-            return;
+            return false;
         }
-        level.setBlock(worldPosition,
+        return level.setBlock(worldPosition,
             state.setValue(ProjectorBlock.POWERED, desiredPowered).setValue(ProjectorBlock.LIT, desiredLit),
-            Block.UPDATE_CLIENTS);
+            Block.UPDATE_ALL);
     }
 
     private void syncToClient() {
         setChanged();
         if (level != null && !level.isClientSide) {
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_ALL);
+        }
+    }
+
+    private void normalizeSourceItem() {
+        if (sourceItem == null || sourceItem.isEmpty()) {
+            sourceItem = ItemStack.EMPTY;
+            return;
+        }
+        if (sourceItem.getCount() != 1) {
+            ItemStack normalized = sourceItem.copy();
+            normalized.setCount(1);
+            sourceItem = normalized;
         }
     }
 

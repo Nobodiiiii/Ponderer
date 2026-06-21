@@ -105,14 +105,14 @@ MIT
 
 ## English
 
-Ponderer is a Minecraft mod for data-driven Ponder authoring, in-game visual editing, AI-assisted generation, hot reload, and client/server sync.
+Ponderer is a Minecraft mod for data-driven Ponder scene authoring, in-game visual editing, AI-assisted generation, hot reload, and client/server synchronization.
 
 ### Branch and platform status
 
 - Active branch: `1.20.1`
-- Active target: **Minecraft 1.20.1**
-- Loaders: **Forge 47.2.6+** and **Fabric Loader 0.16.9+**
-- Legacy branch: `1.20.1forge` (Forge-only, now being deprecated)
+- Currently maintained target: **Minecraft 1.20.1**
+- Loader support: **Forge 47.2.6+** and **Fabric Loader 0.16.9+**
+- Legacy branch: `1.20.1forge` (Forge-only, has entered deprecation)
 
 ### Requirements
 
@@ -125,42 +125,37 @@ Ponderer is a Minecraft mod for data-driven Ponder authoring, in-game visual edi
 
 ### In-Game Ponder Editing
 
-- **Visual scene editing**: Create, edit, delete, and reorder Ponder steps in game, with **copy-paste**, **undo-redo**, and **coordinate picking** (`V` by default).
-- **Rich step coverage**: Supports **structures/extra structures**, **text/shared text**, **entities and item entities**, **camera rotation/zoom**, **section highlights**, **control hints**, **sounds**, **block edits**, **section movement/rotation**, and **redstone indicators**.
-- **Form-based configuration**: Dedicated screens validate IDs, coordinates, NBT, durations, directions, and selections so fewer scenes need hand-written JSON.
-- **Structures and blueprints**: Save selected areas with the blueprint tool and load custom structure assets from `config/ponderer/structures/`.
-- **JSON DSL storage**: Scenes are stored as **data-driven JSON** under `config/ponderer/scripts/`, making them friendly to version control and external tooling.
+- **Visual scene editing**: Create, edit, delete, and reorder Ponder scenes in-game, with **hot reload** support.
+- **Rich step types**: Covers most common tutorial actions, including structure display/overlay structures, text, entities and dropped items, camera rotation/zoom, highlighted areas, control hints, sounds, block edits, and section movement/rotation.
+- **Form-based editing**: Dedicated configuration screens for different steps validate fields such as IDs, coordinates, NBT, durations, directions, and selections, reducing the error cost of hand-written JSON.
+- **Structures and blueprint assets**: Save selected areas with the blueprint tool and load custom structure assets from `config/ponderer/structures/`.
+- **JSON DSL storage**: Scenes are stored as **data-driven JSON** under `config/ponderer/scripts/`, making them easy to version, adjust manually, and process with toolchains.
 
 ### Import/Export & Multiplayer Sync
 
 - **Client/server sync**: Use `/ponderer pull` and `/ponderer push` to sync scenes between client and server, with **conflict handling** and force/keep-local strategies.
-- **Remote workspace management**: Browse, pull, delete, inspect history, and roll back remote scenes or structures for server and modpack collaboration.
-- **Scene pack import/export**: Bundle scenes and structures as **resource-pack-format ZIPs** with version metadata and auto-loading for easy distribution.
-- **Bidirectional PonderJS conversion**: Convert between Ponderer JSON and **PonderJS** formats when moving between script-first and in-game workflows.
-- **Permissions and feature sync**: Servers can sync feature availability and use permission management for uploads, edits, and selected feature toggles.
+- **Remote workspace management**: Browse, pull, delete, inspect history, and roll back remote scenes or structures, making it suitable for server and modpack teams to maintain content together.
+- **Scene pack import/export**: Bundle scenes and structures into **resource-pack-format ZIP files** with version information and auto-loading, making distribution to Modrinth, CurseForge, or modpacks easier.
+- **Bidirectional PonderJS conversion**: Import and export between Ponderer JSON and **PonderJS** formats, so you can switch between script workflows and in-game editing.
+- **Permissions and feature sync**: Servers can synchronize feature availability and use permission management to control uploads, editing, and selected feature toggles.
 
 ### AI Scene Generation
 
 - **Multi-provider support**: Configure LLM providers such as **Claude / ChatGPT** and generate draft Ponder scenes from natural-language prompts.
-- **Structure-aware generation**: Uses structure descriptions, registry mapping, and user instructions to help the model reference the right blocks, items, coordinates, and steps.
-- **In-game workflow**: Describe what you want in game, generate a draft, then continue polishing it in the scene editor.
-- **Hot-reload friendly**: Generated or saved scenes can refresh the local Ponder index for quick preview and iteration.
+- **Structure-aware generation**: Combines structure descriptions, registry mappings, and user prompts so AI can more easily reference the correct blocks, items, coordinates, and demonstration steps.
+- **In-game generation flow**: Fill in your request in-game, generate a draft, and continue refining it in the editor without repeatedly switching between external files and Minecraft.
 
 ### Ponder Projectors
 
-- **Two projector blocks**: **Miniature Projector** `ponderer:miniature_projector` and **Life-Size Projector** `ponderer:life_size_projector` project the Ponder scenes for a source item into the world.
-- **Render-only playback**: Projectors resolve item-bound scenes and play tutorial visuals without opening real UI screens or mutating the player's actual interaction state.
-- **Playback and triggers**: Supports **manual loop**, **manual once**, **redstone pulse**, and **redstone hold**, plus seek controls, scene switching, and remote Ponder pull.
-- **Projection configuration**: Tune miniature/life-size display, projection offset, projection mode (default/scene only/text only), text scale, intervals, blue projection effects, text anti-occlusion, and compatibility mode.
-- **Server management**: Servers can sync and control projector availability; when disabled, projector blocks can no longer be placed, configured, or played, and existing projectors follow the configured conversion/disable behavior.
+- **Two projector blocks**: Provides a **Miniature Projector** and a **Life-Size Projector**, projecting the Ponder scene associated with a source item into the world.
+- **Playback and trigger controls**: Supports a rich set of configurable options for different scene needs.
+- **Multiplayer server management**: Servers can synchronize and control projector feature toggles. When disabled, projectors can no longer be placed, configured, or played, making this suitable for servers that want a more vanilla-focused experience.
 
 ### In-Ponder Experience Improvements
 
-- **Text progress bars**: Advance explanations during Ponder playback for multi-stage hints, pacing, and long tutorial breakdowns.
-- **Interface Pondering**: Show interfaces, modify slots, and simulate click flows for containers, menus, inventories, or custom UI demonstrations.
-- **Enhanced control hints**: Display left click, right click, scroll, modifier keys, and item/fluid material hints for clearer operation tutorials.
-- **JEI-assisted fields**: Optional **JEI** integration can fill ID fields by clicking or drag-dropping items from JEI.
-- **Built-in guidance and config**: Includes a built-in guide scene, keybinding settings, UI scaling, and mod configuration screens for easier onboarding and tuning.
+- **Text progress bar**: Shows a text progress panel inside Ponders, easing the slow pacing caused by not being able to drag the progress bar manually.
+- **UI Ponders**: Supports showing interfaces, modifying slots, and simulating click flows to demonstrate containers, menus, inventories, or custom UI interactions.
+- **Built-in guidance and configuration**: Includes built-in example scenes, keybinding settings, UI scaling, and mod configuration pages for easier onboarding and tuning.
 
 ### Project Structure
 
@@ -189,9 +184,14 @@ Ponderer is a Minecraft mod for data-driven Ponder authoring, in-game visual edi
 ### Build & run
 
 ```bash
+# Build all modules
 ./gradlew build
+
+# Build Fabric / Forge only
 ./gradlew :Fabric:build
 ./gradlew :Forge:build
+
+# Development runs
 ./gradlew :Fabric:runClient
 ./gradlew :Forge:runClient
 ```

@@ -73,55 +73,73 @@ Ponderer 的目标是：
 
 # Ponderer Mod Introduction
 
-The Create team spun Ponder off into a standalone module in version 6.0. Unfortunately, its steep learning curve has kept this brilliant feature hidden from much of the community — and that's exactly the problem Ponderer aims to solve.
+In Create 6.0, the Create team split Ponder into a standalone mod. However, the high barrier to using it has kept this excellent feature from reaching more players. Ponderer was created for this very reason.
 
-Ponderer is an in-game Ponder authoring tool for players and modpack creators.
-You can build, edit, and iterate tutorial scenes directly in Minecraft without leaving the game or writing scripts first.
+Ponderer is an "in-game Ponder authoring tool" for players and modpack authors.
+You do not need to leave the game or write scripts first. You can build, record, and adjust Ponder tutorial flows directly in the world.
 
-Supports both **Forge 1.20.1** and **NeoForge 1.21.1**.
+## What You Can Do With It
 
-## What you can do with it
+### In-Game Ponder Editing
 
-- **Create scenes in-game**: Quickly create Ponder entries from your held item or a specified item (supports different NBT for separate scenes, e.g. signed books with different authors).
-- **Edit steps visually**: GUI editor for text, camera, block changes, entity spawning, control hints, sounds, and more, with copy-paste, undo-redo, and coordinate picking.
-- **In-game scene editor**: GUI for adding/editing/deleting/reordering steps, with copy-paste, undo-redo, coordinate picking, and rich step types (press V to open by default)
-- **AI scene generation (Beta)**: Automatically generate complete scenes from structures and natural language descriptions via LLMs (Claude / ChatGPT, etc.), with multi-provider support.
-- **Blueprint selection and structure saving**: Use the blueprint tool to select areas and save structures for reuse and iterating demo content.
-- **Multiplayer collaboration sync**: Pull from and push to server-side scene data, making it easy for teams to collaboratively maintain tutorials.
-- **Format conversion & scene packs**: Convert to/from PonderJS; bundle scenes and structures as resource-pack-format ZIPs with versioning and auto-loading for sharing.
-- **JEI integration**: Click or drag-drop from JEI to fill in ID fields (optional dependency).
-- **Works out of the box**: Built-in guide scene; hold a **writable_book** to view the demo.
+- **Visual scene editing**: Create, edit, delete, and reorder Ponder scenes in-game, with **hot reload** support. **Press V in-game to open the mod menu**.
+- **Rich step types**: Covers most common tutorial actions, including structure display/overlay structures, text, entities and dropped items, camera rotation/zoom, highlighted areas, control hints, sounds, block edits, and section movement/rotation.
+- **Structures and blueprint assets**: Save selected areas with the blueprint tool and load custom structure assets from `config/ponderer/structures/`.
+- **JSON DSL storage**: Scenes are stored as **data-driven JSON** under `config/ponderer/scripts/`, making them easy to version, adjust manually, and process with toolchains.
 
-## Command Reference (Purpose + Usage)
+### Import/Export and Multiplayer Sync
 
-- `/ponderer reload`: Reload local scene files and refresh the ponder index.
-- `/ponderer pull [force|keep_local]`: Pull scenes from server.
-- `/ponderer push [force] [<id>]`: Push scenes to server.
-- `/ponderer download <id>`: Import a specific structure.
-- `/ponderer new hand [use_held_nbt|<nbt>]`: Create a new scene from main-hand item.
-- `/ponderer new <item> [<nbt>]`: Create a new scene for the specified item.
-- `/ponderer copy <id> <target_item>`: Copy a scene and retarget it.
-- `/ponderer delete <id>` / `delete item <item_id>`: Delete scenes.
-- `/ponderer list`: Open the ponder item list UI.
-- `/ponderer convert to_ponderjs|from_ponderjs all|<id>`: PonderJS conversion.
-- `/ponderer export`: Open the export screen to bundle scenes as a resource pack.
-- `/ponderer import`: Open the import screen to load scenes from a resource pack.
+- **Client/server sync**: Use `/ponderer pull` and `/ponderer push` to sync scenes between client and server, with **conflict handling** and force/keep-local strategies.
+- **Remote workspace management**: Browse, pull, delete, inspect history, and roll back remote scenes or structures, making it suitable for server and modpack teams to maintain content together.
+- **Scene pack import/export**: Bundle scenes and structures into **resource-pack-format ZIP files** with version information and auto-loading, making distribution to Modrinth, CurseForge, or modpacks easier.
+- **Bidirectional PonderJS conversion**: Import and export between Ponderer JSON and **PonderJS** formats, so you can switch between script workflows and in-game editing.
+- **Permissions and feature sync**: Servers can synchronize feature availability and use permission management to control uploads, editing, and selected feature toggles.
 
-## Who this is for
+### AI Scene Generation
+
+- **Multi-provider support**: Configure LLM providers such as **Claude / ChatGPT** and generate draft Ponder scenes from natural-language prompts.
+- **Structure-aware generation**: Combines structure descriptions, registry mappings, and user prompts so AI can more easily reference the correct blocks, items, coordinates, and demonstration steps.
+- **In-game generation flow**: Fill in your request in-game, generate a draft, and continue refining it in the editor without repeatedly switching between external files and Minecraft.
+
+### Ponder Projectors
+
+- **Two projector blocks**: Provides a **Miniature Projector** and a **Life-Size Projector**, projecting the Ponder scene associated with a source item into the world.
+- **Playback and trigger controls**: Supports a rich set of configurable options for different scene needs.
+- **Multiplayer server management**: Servers can synchronize and control projector feature toggles. When disabled, projectors can no longer be placed, configured, or played, making this suitable for servers that want a more vanilla-focused experience.
+
+### In-Ponder Experience Improvements
+
+- **Text progress bar**: Shows a text progress panel inside Ponders, easing the slow pacing caused by not being able to drag the progress bar manually.
+- **UI Ponders**: Supports showing interfaces, modifying slots, and simulating click flows to demonstrate containers, menus, inventories, or custom UI interactions.
+- **Built-in guidance and configuration**: Includes built-in example scenes, keybinding settings, UI scaling, and mod configuration pages for easier onboarding and tuning.
+
+## Who This Is For
 
 - Modpack authors who want in-game onboarding tutorials
 - Server admins who want player-friendly guidance content
-- Players who prefer visual scene editing over script-first workflows
+- Regular players who want a more visual way to maintain and experience Ponder content
 
-## Core experience
+## Core Experience
 
-Ponderer is built around one goal:
+Ponderer's goal is:
 **Turn "writing tutorials" into "building tutorials directly in-game."**
 
-From creation and editing to preview and sync, the workflow stays inside Minecraft as much as possible, making Ponder content creation faster and more intuitive.
+From creation, editing, and previewing to synchronization, the whole workflow stays inside Minecraft as much as possible, making Ponder content faster and more intuitive to create.
 
-## Q&A: Why not use PonderJS directly?
+## Q&A
 
-PonderJS does not provide hot-reload in this workflow, which makes iteration feedback slower. Also, directly transmitting JS scripts introduces additional security risks.
+### 1. What is the version support plan?
 
-Ponderer uses a safer data-transfer approach and still provides bidirectional conversion with PonderJS, so you can switch between workflows when needed (with a few APIs that are not natively supported by PonderJS).
+| Game Version | Forge                  | NeoForge               | Fabric                 |
+| ------------ | ---------------------- | ---------------------- | ---------------------- |
+| **26.1**     | **No support planned** | **Coming soon**        | **Coming soon**        |
+| **1.21.1**   | **No support planned** | **Maintained**         | **Maintained**         |
+| **1.20.1**   | **Maintained**         | **No support planned** | **Maintained**         |
+| **1.12.2**   | **Planned**            | **No support planned** | **No support planned** |
+| **1.7.10**   | **Planned**            | **No support planned** | **No support planned** |
+
+### 2. Why not use PonderJS directly?
+
+This mod provides client/server synchronization for Ponder content, and directly transmitting JS scripts would introduce additional security risks.
+
+Ponderer uses a safer data-transfer approach and provides bidirectional conversion with PonderJS, so you can switch between workflows as needed. At the same time, Ponderer provides many APIs that PonderJS does not natively support yet.
