@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../Common/src/main/resources/logo.png" alt="Ponderer logo">
+</p>
+
 # Ponderer 模组介绍
 
 Create 制作组在 6.0 版本将 Ponder 拆分为独立模组，然而较高的使用门槛使这一优秀功能未能被更多玩家所体验。Ponderer 正是为此而生。
@@ -52,6 +56,41 @@ Ponderer 的目标是：
 **把"写教程"变成"在游戏里直接搭教程"**。
 
 从创建、编辑、预览到同步，整个流程尽量保持在 Minecraft 内完成，让思索内容的制作更快、更直观。
+
+## 画廊
+
+<div style="max-width: 100%; overflow-x: auto;">
+  <div style="width: 100%; min-width: 960px; text-align: center;">
+    <div style="margin-bottom: 12px;">
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/3-built-in-steps.gif" alt="丰富的内置步骤" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">丰富的内置步骤</div>
+      </div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/5-blueprint-structures.gif" alt="使用蓝图保存结构并在思索中使用" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">使用蓝图保存结构并在思索中使用</div>
+      </div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/6-ai-scene-generation.gif" alt="AI驱动的思索自动生成" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">AI驱动的思索自动生成</div>
+      </div>
+    </div>
+    <div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/1-miniature-projector.gif" alt="微缩思索投影仪" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">微缩思索投影仪</div>
+      </div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/2-life-size-projector.gif" alt="实景思索投影仪" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">实景思索投影仪</div>
+      </div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/4-sync-and-remote-management.gif" alt="服务器多端同步与远程管理" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">服务器多端同步与远程管理</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 ## Q&A
 
@@ -125,6 +164,41 @@ Ponderer's goal is:
 **Turn "writing tutorials" into "building tutorials directly in-game."**
 
 From creation, editing, and previewing to synchronization, the whole workflow stays inside Minecraft as much as possible, making Ponder content faster and more intuitive to create.
+
+## Gallery
+
+<div style="max-width: 100%; overflow-x: auto;">
+  <div style="width: 100%; min-width: 960px; text-align: center;">
+    <div style="margin-bottom: 12px;">
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/3-built-in-steps.gif" alt="Rich built-in steps" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">Rich built-in steps</div>
+      </div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/5-blueprint-structures.gif" alt="Save structures with blueprints and reuse them in Ponder" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">Save structures with blueprints and reuse them in Ponder</div>
+      </div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/6-ai-scene-generation.gif" alt="AI-driven automatic Ponder generation" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">AI-driven automatic Ponder generation</div>
+      </div>
+    </div>
+    <div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/1-miniature-projector.gif" alt="Miniature Ponder Projector" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">Miniature Ponder Projector</div>
+      </div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/2-life-size-projector.gif" alt="Life-Size Ponder Projector" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">Life-Size Ponder Projector</div>
+      </div>
+      <div style="display: inline-block; width: 32%; vertical-align: top;">
+        <img src="gallery/4-sync-and-remote-management.gif" alt="Multi-client sync and remote management" style="display: block; width: 100%; height: auto;">
+        <div style="margin-top: 8px; font-size: 12px; color: #808080;">Multi-client sync and remote management</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 ## Q&A
 

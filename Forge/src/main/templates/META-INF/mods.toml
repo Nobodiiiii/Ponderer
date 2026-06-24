@@ -8,6 +8,7 @@ version="${mod_version}"
 displayName="${mod_name}"
 displayTest="IGNORE_SERVER_VERSION"
 authors="${mod_authors}"
+logoFile="logo.png"
 description='''${mod_description}'''
 
 [[dependencies.${mod_id}]]

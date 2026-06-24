@@ -8,6 +8,7 @@
     "${mod_authors}"
   ],
   "license": "${mod_license}",
+  "icon": "logo.png",
   "environment": "*",
   "mixins": [
     "ponderer.mixins.json"

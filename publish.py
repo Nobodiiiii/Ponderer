@@ -28,7 +28,7 @@ except ImportError:
 
 PROJECT_ROOT = Path(__file__).parent.resolve()
 GRADLE_PROPS = PROJECT_ROOT / "gradle.properties"
-CHANGELOG_FILE = PROJECT_ROOT / "CHANGELOG.md"
+CHANGELOG_FILE = PROJECT_ROOT / "docs" / "CHANGELOG.md"
 ENV_FILE = PROJECT_ROOT / ".env"
 
 MODRINTH_API = "https://api.modrinth.com/v2"
@@ -143,9 +143,9 @@ def read_gradle_properties():
 
 
 def extract_changelog(version: str) -> str:
-    """从 CHANGELOG.md 提取指定版本的更新日志"""
+    """从 docs/CHANGELOG.md 提取指定版本的更新日志"""
     if not CHANGELOG_FILE.exists():
-        print(f"警告: 未找到 CHANGELOG.md，将使用空 changelog")
+        print(f"警告: 未找到 docs/CHANGELOG.md，将使用空 changelog")
         return ""
 
     content = CHANGELOG_FILE.read_text(encoding="utf-8")
@@ -155,7 +155,7 @@ def extract_changelog(version: str) -> str:
     if match:
         return match.group(1).strip()
 
-    print(f"警告: CHANGELOG.md 中未找到版本 {version} 的内容")
+    print(f"警告: docs/CHANGELOG.md 中未找到版本 {version} 的内容")
     return ""
 
 
