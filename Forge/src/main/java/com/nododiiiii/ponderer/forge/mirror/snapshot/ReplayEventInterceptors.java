@@ -1,6 +1,6 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.snapshot;
+package com.nododiiiii.ponderer.forge.mirror.snapshot;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.entity.player.AdvancementEvent;
 import net.minecraftforge.event.entity.player.EntityItemPickupEvent;

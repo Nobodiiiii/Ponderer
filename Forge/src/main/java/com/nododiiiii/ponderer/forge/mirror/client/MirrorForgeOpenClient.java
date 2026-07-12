@@ -1,7 +1,7 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.client;
+package com.nododiiiii.ponderer.forge.mirror.client;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.MirrorForgeOpenPacket;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
+import com.nododiiiii.ponderer.forge.mirror.network.MirrorForgeOpenPacket;
 import io.netty.buffer.Unpooled;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
@@ -42,7 +42,7 @@ public class MirrorForgeOpenClient {
             MenuType<?> menuType = BuiltInRegistries.MENU.byId(msg.menuTypeId());
             String menuKey = String.valueOf(menuType == null ? null : BuiltInRegistries.MENU.getKey(menuType));
             if (menuType == null) {
-                StickSnapshotFeature.LOGGER.warn("forge-open failed: unknown menuTypeId={}", msg.menuTypeId());
+                ForgeMirrorFeature.LOGGER.warn("forge-open failed: unknown menuTypeId={}", msg.menuTypeId());
                 return;
             }
 
@@ -53,7 +53,7 @@ public class MirrorForgeOpenClient {
                 Inventory shadowInventory = createShadowInventory(mc);
                 AbstractContainerMenu menu = menuType.create(msg.windowId(), shadowInventory, extraData);
                 if (menu == null) {
-                    StickSnapshotFeature.LOGGER.warn(
+                    ForgeMirrorFeature.LOGGER.warn(
                             "forge-open failed: menu factory returned null windowId={} key={}",
                             msg.windowId(), menuKey);
                     return;
@@ -68,14 +68,14 @@ public class MirrorForgeOpenClient {
                 } else {
                     mc.setScreen(screen);
                 }
-            }, () -> StickSnapshotFeature.LOGGER.warn(
+            }, () -> ForgeMirrorFeature.LOGGER.warn(
                     "forge-open failed: no screen factory windowId={} key={}",
                     msg.windowId(), menuKey));
         } catch (Exception ex) {
             Minecraft mc = Minecraft.getInstance();
             BlockPos requestedPos = readFirstBlockPos(msg.extraData());
             BlockEntity be = mc.level != null && requestedPos != null ? mc.level.getBlockEntity(requestedPos) : null;
-            StickSnapshotFeature.LOGGER.warn(
+            ForgeMirrorFeature.LOGGER.warn(
                     "forge-open client exception for menuTypeId={} requestedPos={} bePresent={} state={}",
                     msg.menuTypeId(), requestedPos, be != null,
                     mc.level != null && requestedPos != null ? mc.level.getBlockState(requestedPos) : null,
@@ -106,7 +106,7 @@ public class MirrorForgeOpenClient {
                 mc.level.removeBlockEntity(injectedClientBlock.pos);
             }
         } catch (Exception ex) {
-            StickSnapshotFeature.LOGGER.warn("restore injected client block failed", ex);
+            ForgeMirrorFeature.LOGGER.warn("restore injected client block failed", ex);
         } finally {
             injectedClientBlock = null;
         }

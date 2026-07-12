@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.snapshot;
+package com.nododiiiii.ponderer.forge.mirror.snapshot;
 
 import net.minecraft.server.level.ServerPlayer;
 

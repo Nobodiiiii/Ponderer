@@ -1,6 +1,6 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.snapshot;
+package com.nododiiiii.ponderer.forge.mirror.snapshot;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -80,7 +80,7 @@ public class ReplaySessionManager {
                 field.setBoolean(menu, false);
             }
         } catch (ReflectiveOperationException ex) {
-            StickSnapshotFeature.LOGGER.warn("Failed to disable menu reachability check for {}",
+            ForgeMirrorFeature.LOGGER.warn("Failed to disable menu reachability check for {}",
                     menu.getClass().getName(), ex);
         }
     }

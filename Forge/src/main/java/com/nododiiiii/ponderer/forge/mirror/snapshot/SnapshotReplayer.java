@@ -1,8 +1,8 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.snapshot;
+package com.nododiiiii.ponderer.forge.mirror.snapshot;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.MirrorForgeOpenPacket;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
+import com.nododiiiii.ponderer.forge.mirror.network.MirrorForgeOpenPacket;
+import com.nododiiiii.ponderer.forge.mirror.network.MirrorNetworking;
 import com.mojang.authlib.GameProfile;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
@@ -52,6 +52,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SnapshotReplayer {
+    private static final String MIRROR_PROFILE_SEED_PREFIX = "ponderer:mirror:";
+    private static final String MIRROR_PROFILE_NAME = "ponderer_mirror_virtual";
     private static final AtomicInteger MIRROR_CONTAINER_COUNTER = new AtomicInteger(100);
 
     private SnapshotReplayer() {
@@ -97,7 +99,7 @@ public class SnapshotReplayer {
             CapturedPackets capturedPackets = runVirtualUse(level, player, snapshotState, hitResult, sandboxHit);
             if (capturedPackets != null && !capturedPackets.packets.isEmpty()) {
                 mirrorCapturedPacketsToRealPlayer(player, level, capturedPackets, snapshot);
-                StickSnapshotFeature.LOGGER.info("Opened mirrored interface for player={} block={} title={} packetCount={}",
+                ForgeMirrorFeature.LOGGER.info("Opened mirrored interface for player={} block={} title={} packetCount={}",
                         player.getScoreboardName(), snapshot.getBlockId(), menuTitle.getString(),
                         capturedPackets.packets.size());
             }
@@ -123,7 +125,7 @@ public class SnapshotReplayer {
 
         Item item = BuiltInRegistries.ITEM.get(snapshot.getItemId());
         if (item == null) {
-            StickSnapshotFeature.LOGGER.warn("replayItem unknown item id: {}", snapshot.getItemId());
+            ForgeMirrorFeature.LOGGER.warn("replayItem unknown item id: {}", snapshot.getItemId());
             return;
         }
 
@@ -137,10 +139,10 @@ public class SnapshotReplayer {
             CapturedPackets capturedPackets = runVirtualItemUse(level, player, stack, sandboxPos, snapshot);
             if (capturedPackets != null && !capturedPackets.packets.isEmpty()) {
                 mirrorCapturedPacketsToRealPlayer(player, level, capturedPackets, null);
-                StickSnapshotFeature.LOGGER.info("Opened mirrored item interface for player={} item={} packetCount={}",
+                ForgeMirrorFeature.LOGGER.info("Opened mirrored item interface for player={} item={} packetCount={}",
                         player.getScoreboardName(), snapshot.getItemId(), capturedPackets.packets.size());
             } else {
-                StickSnapshotFeature.LOGGER.info(
+                ForgeMirrorFeature.LOGGER.info(
                         "replayItem produced no GUI packets for item={} (item.use likely returned PASS or has no GUI)",
                         snapshot.getItemId());
             }
@@ -155,9 +157,8 @@ public class SnapshotReplayer {
     private static CapturedPackets runVirtualItemUse(ServerLevel level, ServerPlayer realPlayer, ItemStack stack,
             BlockPos sandboxPos, ItemSnapshot snapshot) {
         try {
-            UUID fakeId = UUID
-                    .nameUUIDFromBytes(("sticksnapshot:" + realPlayer.getUUID()).getBytes(StandardCharsets.UTF_8));
-            GameProfile profile = new GameProfile(fakeId, "stick_snapshot_virtual");
+            UUID fakeId = createMirrorPlayerId(realPlayer);
+            GameProfile profile = new GameProfile(fakeId, MIRROR_PROFILE_NAME);
             try (ReplayGuard.Scope ignored = ReplayGuard.begin(realPlayer, fakeId, "virtual-item-use")) {
                 FakePlayer fakePlayer = new ReplayGuardedFakePlayer(level, profile);
                 if (fakePlayer.containerMenu != fakePlayer.inventoryMenu) {
@@ -191,7 +192,7 @@ public class SnapshotReplayer {
 
                     List<Packet<?>> packets = captureConnection.snapshot();
                     if (fakeMenu == null || packets.isEmpty()) {
-                        StickSnapshotFeature.LOGGER.info(
+                        ForgeMirrorFeature.LOGGER.info(
                                 "runVirtualItemUse: no container opened for item={} (use returned non-success or GUI is client-only)",
                                 snapshot.getItemId());
                         return null;
@@ -209,7 +210,7 @@ public class SnapshotReplayer {
                 }
             }
         } catch (Exception ex) {
-            StickSnapshotFeature.LOGGER.warn("Virtual item use replay failed for player={} item={}",
+            ForgeMirrorFeature.LOGGER.warn("Virtual item use replay failed for player={} item={}",
                     realPlayer.getScoreboardName(), snapshot.getItemId(), ex);
             return null;
         }
@@ -224,7 +225,7 @@ public class SnapshotReplayer {
 
         net.minecraft.world.inventory.MenuType<?> menuType = BuiltInRegistries.MENU.get(menuTypeId);
         if (menuType == null) {
-            StickSnapshotFeature.LOGGER.warn("replayUiId unknown menu type: {}", menuTypeId);
+            ForgeMirrorFeature.LOGGER.warn("replayUiId unknown menu type: {}", menuTypeId);
             return;
         }
 
@@ -233,10 +234,10 @@ public class SnapshotReplayer {
             CapturedPackets capturedPackets = runVirtualMenuOpen(level, player, menuType, sandboxPos);
             if (capturedPackets != null && !capturedPackets.packets.isEmpty()) {
                 mirrorCapturedPacketsToRealPlayer(player, level, capturedPackets, null);
-                StickSnapshotFeature.LOGGER.info("Opened mirrored UI by id for player={} menu={} packetCount={}",
+                ForgeMirrorFeature.LOGGER.info("Opened mirrored UI by id for player={} menu={} packetCount={}",
                         player.getScoreboardName(), menuTypeId, capturedPackets.packets.size());
             } else {
-                StickSnapshotFeature.LOGGER.info(
+                ForgeMirrorFeature.LOGGER.info(
                         "replayUiId produced no GUI packets for menu={} (factory likely requires extra context)",
                         menuTypeId);
             }
@@ -251,9 +252,8 @@ public class SnapshotReplayer {
     private static CapturedPackets runVirtualMenuOpen(ServerLevel level, ServerPlayer realPlayer,
             net.minecraft.world.inventory.MenuType<?> menuType, BlockPos sandboxPos) {
         try {
-            UUID fakeId = UUID
-                    .nameUUIDFromBytes(("sticksnapshot:" + realPlayer.getUUID()).getBytes(StandardCharsets.UTF_8));
-            GameProfile profile = new GameProfile(fakeId, "stick_snapshot_virtual");
+            UUID fakeId = createMirrorPlayerId(realPlayer);
+            GameProfile profile = new GameProfile(fakeId, MIRROR_PROFILE_NAME);
             try (ReplayGuard.Scope ignored = ReplayGuard.begin(realPlayer, fakeId, "virtual-ui-open")) {
                 FakePlayer fakePlayer = new ReplayGuardedFakePlayer(level, profile);
                 if (fakePlayer.containerMenu != fakePlayer.inventoryMenu) {
@@ -284,7 +284,7 @@ public class SnapshotReplayer {
                         try {
                             return menuType.create(windowId, inv);
                         } catch (Exception ex) {
-                            StickSnapshotFeature.LOGGER.warn(
+                            ForgeMirrorFeature.LOGGER.warn(
                                     "menuType.create failed for {} (likely requires extraData)", menuId, ex);
                             return null;
                         }
@@ -311,7 +311,7 @@ public class SnapshotReplayer {
                 }
             }
         } catch (Exception ex) {
-            StickSnapshotFeature.LOGGER.warn("Virtual menu open failed for player={} menu={}",
+            ForgeMirrorFeature.LOGGER.warn("Virtual menu open failed for player={} menu={}",
                     realPlayer.getScoreboardName(), BuiltInRegistries.MENU.getKey(menuType), ex);
             return null;
         }
@@ -401,9 +401,8 @@ public class SnapshotReplayer {
             BlockState snapshotState, BlockHitResult hitResult, Vec3 sandboxHit) {
         try {
             // Keep fake UUID tied to real player for mod-side security checks that key off player identity.
-            UUID fakeId = UUID
-                    .nameUUIDFromBytes(("sticksnapshot:" + realPlayer.getUUID()).getBytes(StandardCharsets.UTF_8));
-            GameProfile profile = new GameProfile(fakeId, "stick_snapshot_virtual");
+            UUID fakeId = createMirrorPlayerId(realPlayer);
+            GameProfile profile = new GameProfile(fakeId, MIRROR_PROFILE_NAME);
             try (ReplayGuard.Scope ignored = ReplayGuard.begin(realPlayer, fakeId, "virtual-use")) {
                 FakePlayer fakePlayer = new ReplayGuardedFakePlayer(level, profile);
                 if (fakePlayer.containerMenu != fakePlayer.inventoryMenu) {
@@ -443,7 +442,7 @@ public class SnapshotReplayer {
                 }
             }
         } catch (Exception ex) {
-            StickSnapshotFeature.LOGGER.warn("Virtual UI replay failed for player={} block={}",
+            ForgeMirrorFeature.LOGGER.warn("Virtual UI replay failed for player={} block={}",
                     realPlayer.getScoreboardName(), snapshotState.getBlock(), ex);
             return null;
         }
@@ -467,7 +466,7 @@ public class SnapshotReplayer {
                 MirrorForgeOpenPacket forgeOpenPacket = decodeForgeOpenPacket(level, customPayload, snapshot,
                         clientVirtualPos);
                 if (forgeOpenPacket != null) {
-                    ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> realPlayer), forgeOpenPacket);
+                    MirrorNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> realPlayer), forgeOpenPacket);
                     mirrored++;
                     continue;
                 }
@@ -477,7 +476,7 @@ public class SnapshotReplayer {
                 int mappedWindowId = remapContainerId(openPacket.getContainerId(), sourceContainerId, targetContainerId);
                 MirrorForgeOpenPacket vanillaMirrorOpen = createVanillaMirrorOpenPacket(openPacket, snapshot,
                         clientVirtualPos, mappedWindowId);
-                ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> realPlayer), vanillaMirrorOpen);
+                MirrorNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> realPlayer), vanillaMirrorOpen);
                 mirrored++;
                 continue;
             }
@@ -760,6 +759,11 @@ public class SnapshotReplayer {
             }
         }
         return -1;
+    }
+
+    private static UUID createMirrorPlayerId(ServerPlayer realPlayer) {
+        return UUID.nameUUIDFromBytes(
+                (MIRROR_PROFILE_SEED_PREFIX + realPlayer.getUUID()).getBytes(StandardCharsets.UTF_8));
     }
 
     private static class CapturedPackets {

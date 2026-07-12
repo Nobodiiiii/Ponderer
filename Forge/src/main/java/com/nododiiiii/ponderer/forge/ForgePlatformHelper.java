@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.forge;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
-import com.nododiiiii.ponderer.forge.sticksnapshot.client.ForgeShowInterfaceClient;
+import com.nododiiiii.ponderer.forge.mirror.client.ForgeShowInterfaceClient;
 import com.nododiiiii.ponderer.platform.services.PlatformHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
@@ -72,7 +72,7 @@ public class ForgePlatformHelper implements PlatformHelper {
     @Override
     public void closeInterfaceStep(String reason) {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-            () -> () -> com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler.closeEmbeddedMirrorFromPonder(reason));
+            () -> () -> com.nododiiiii.ponderer.forge.mirror.client.ClientInputHandler.closeEmbeddedMirrorFromPonder(reason));
     }
 
     @Override

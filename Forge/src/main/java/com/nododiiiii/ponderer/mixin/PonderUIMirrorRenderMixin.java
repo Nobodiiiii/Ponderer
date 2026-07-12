@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.mixin;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
-import com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler;
+import com.nododiiiii.ponderer.forge.mirror.client.ClientInputHandler;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;

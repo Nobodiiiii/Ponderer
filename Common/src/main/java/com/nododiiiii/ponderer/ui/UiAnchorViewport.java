@@ -94,12 +94,12 @@ public final class UiAnchorViewport {
     @Nullable
     public static Screen getEmbeddedMirrorScreen() {
         Screen mirror = queryEmbeddedMirror(
-            "com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler");
+            "com.nododiiiii.ponderer.forge.mirror.client.ClientInputHandler");
         if (mirror != null) {
             return mirror;
         }
         return queryEmbeddedMirror(
-            "com.nododiiiii.ponderer.neoforge.sticksnapshot.client.ClientInputHandler");
+            "com.nododiiiii.ponderer.neoforge.mirror.client.ClientInputHandler");
     }
 
     @Nullable

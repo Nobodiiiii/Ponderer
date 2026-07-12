@@ -1,14 +1,14 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.client;
+package com.nododiiiii.ponderer.forge.mirror.client;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplayItemSnapshotPacket;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplaySnapshotPacket;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplayUiIdPacket;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.SaveItemSnapshotPacket;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.SaveSnapshotPacket;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.BlockSnapshot;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ItemSnapshot;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
+import com.nododiiiii.ponderer.forge.mirror.network.MirrorNetworking;
+import com.nododiiiii.ponderer.forge.mirror.network.ReplayItemSnapshotPacket;
+import com.nododiiiii.ponderer.forge.mirror.network.ReplaySnapshotPacket;
+import com.nododiiiii.ponderer.forge.mirror.network.ReplayUiIdPacket;
+import com.nododiiiii.ponderer.forge.mirror.network.SaveItemSnapshotPacket;
+import com.nododiiiii.ponderer.forge.mirror.network.SaveSnapshotPacket;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.BlockSnapshot;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.ItemSnapshot;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -52,13 +52,13 @@ public final class ForgeShowInterfaceClient {
 
         BlockPos pos = parseBlockPos(step.blockPos);
         if (pos == null) {
-            StickSnapshotFeature.LOGGER.warn("show_interface skipped: missing blockPos context");
+            ForgeMirrorFeature.LOGGER.warn("show_interface skipped: missing blockPos context");
             return;
         }
 
         BlockState state = resolveSnapshotState(step);
         if (state == null) {
-            StickSnapshotFeature.LOGGER.warn("show_interface skipped: invalid block state for block={}", step.block);
+            ForgeMirrorFeature.LOGGER.warn("show_interface skipped: invalid block state for block={}", step.block);
             return;
         }
         ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
@@ -79,8 +79,8 @@ public final class ForgeShowInterfaceClient {
             Boolean.TRUE.equals(step.whileSneaking));
 
         ClientInputHandler.prepareMirrorReplay(-1, true);
-        ModNetworking.CHANNEL.sendToServer(new SaveSnapshotPacket(snapshot));
-        ModNetworking.CHANNEL.sendToServer(new ReplaySnapshotPacket());
+        MirrorNetworking.CHANNEL.sendToServer(new SaveSnapshotPacket(snapshot));
+        MirrorNetworking.CHANNEL.sendToServer(new ReplaySnapshotPacket());
     }
 
     private static void showHeldItemInterfaceStep(DslScene.DslStep step) {
@@ -89,12 +89,12 @@ public final class ForgeShowInterfaceClient {
             return;
         }
         if (step.item == null || step.item.isBlank()) {
-            StickSnapshotFeature.LOGGER.warn("show_interface(held_item) skipped: missing item id");
+            ForgeMirrorFeature.LOGGER.warn("show_interface(held_item) skipped: missing item id");
             return;
         }
         ResourceLocation itemId = ResourceLocation.tryParse(step.item);
         if (itemId == null) {
-            StickSnapshotFeature.LOGGER.warn("show_interface(held_item) skipped: invalid item id={}", step.item);
+            ForgeMirrorFeature.LOGGER.warn("show_interface(held_item) skipped: invalid item id={}", step.item);
             return;
         }
 
@@ -122,8 +122,8 @@ public final class ForgeShowInterfaceClient {
             mc.player.getXRot());
 
         ClientInputHandler.prepareMirrorReplay(-1, true);
-        ModNetworking.CHANNEL.sendToServer(new SaveItemSnapshotPacket(snapshot));
-        ModNetworking.CHANNEL.sendToServer(new ReplayItemSnapshotPacket());
+        MirrorNetworking.CHANNEL.sendToServer(new SaveItemSnapshotPacket(snapshot));
+        MirrorNetworking.CHANNEL.sendToServer(new ReplayItemSnapshotPacket());
     }
 
     private static boolean tryClientSideOpen(Minecraft mc, ResourceLocation itemId, @Nullable CompoundTag itemTag) {
@@ -141,7 +141,7 @@ public final class ForgeShowInterfaceClient {
         try {
             stack.use(mc.level, mc.player, net.minecraft.world.InteractionHand.MAIN_HAND);
         } catch (Exception ex) {
-            StickSnapshotFeature.LOGGER.warn("show_interface(held_item) client-side use threw for item={}",
+            ForgeMirrorFeature.LOGGER.warn("show_interface(held_item) client-side use threw for item={}",
                     itemId, ex);
             com.nododiiiii.ponderer.ui.ClientScreenCapture.end();
             return false;
@@ -170,17 +170,17 @@ public final class ForgeShowInterfaceClient {
             return;
         }
         if (step.uiId == null || step.uiId.isBlank()) {
-            StickSnapshotFeature.LOGGER.warn("show_interface(ui_id) skipped: missing uiId");
+            ForgeMirrorFeature.LOGGER.warn("show_interface(ui_id) skipped: missing uiId");
             return;
         }
         ResourceLocation menuTypeId = ResourceLocation.tryParse(step.uiId);
         if (menuTypeId == null) {
-            StickSnapshotFeature.LOGGER.warn("show_interface(ui_id) skipped: invalid uiId={}", step.uiId);
+            ForgeMirrorFeature.LOGGER.warn("show_interface(ui_id) skipped: invalid uiId={}", step.uiId);
             return;
         }
 
         ClientInputHandler.prepareMirrorReplay(-1, true);
-        ModNetworking.CHANNEL.sendToServer(new ReplayUiIdPacket(menuTypeId));
+        MirrorNetworking.CHANNEL.sendToServer(new ReplayUiIdPacket(menuTypeId));
     }
 
     @Nullable
@@ -191,19 +191,19 @@ public final class ForgeShowInterfaceClient {
         try {
             return TagParser.parseTag(rawNbt);
         } catch (CommandSyntaxException ex) {
-            StickSnapshotFeature.LOGGER.warn("show_interface(held_item) invalid item NBT ignored: {}", ex.getMessage());
+            ForgeMirrorFeature.LOGGER.warn("show_interface(held_item) invalid item NBT ignored: {}", ex.getMessage());
             return null;
         }
     }
 
     public static void clickInterfaceStep(DslScene.DslStep step) {
         if (step.pos == null || step.pos.size() < 2) {
-            StickSnapshotFeature.LOGGER.warn("click_interface skipped: missing point");
+            ForgeMirrorFeature.LOGGER.warn("click_interface skipped: missing point");
             return;
         }
         Integer clickButton = parseClickButton(step.action);
         if (clickButton == null) {
-            StickSnapshotFeature.LOGGER.warn("click_interface skipped: unsupported action={} ", step.action);
+            ForgeMirrorFeature.LOGGER.warn("click_interface skipped: unsupported action={} ", step.action);
             return;
         }
 
@@ -298,7 +298,7 @@ public final class ForgeShowInterfaceClient {
             parsed.putInt("z", pos.getZ());
             return parsed;
         } catch (CommandSyntaxException ex) {
-            StickSnapshotFeature.LOGGER.warn("show_interface invalid block entity NBT ignored: {}", ex.getMessage());
+            ForgeMirrorFeature.LOGGER.warn("show_interface invalid block entity NBT ignored: {}", ex.getMessage());
             return null;
         }
     }

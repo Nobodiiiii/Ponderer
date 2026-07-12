@@ -1,11 +1,12 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.snapshot;
+package com.nododiiiii.ponderer.forge.mirror.snapshot;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 public class SnapshotStorage {
-    private static final String ROOT = "StickSnapshotData";
+    private static final String ROOT = "PondererMirrorData";
+    private static final String LEGACY_ROOT = "StickSnapshotData";
     private static final String SNAPSHOT = "Snapshot";
 
     private SnapshotStorage() {
@@ -21,7 +22,8 @@ public class SnapshotStorage {
 
     public static BlockSnapshot load(ServerPlayer player) {
         CompoundTag root = player.getPersistentData();
-        if (!root.contains(ROOT) || !root.contains(SNAPSHOT)) {
+        // Accept the legacy standalone-mod marker so existing snapshots still replay after migration.
+        if (!(root.contains(ROOT) || root.contains(LEGACY_ROOT)) || !root.contains(SNAPSHOT)) {
             return null;
         }
         return fromTag(root.getCompound(SNAPSHOT));

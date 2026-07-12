@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler;
+import com.nododiiiii.ponderer.forge.mirror.client.ClientInputHandler;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;

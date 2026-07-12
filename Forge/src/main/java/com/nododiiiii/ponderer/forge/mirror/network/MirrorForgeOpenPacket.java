@@ -1,6 +1,6 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.network;
+package com.nododiiiii.ponderer.forge.mirror.network;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.client.MirrorForgeOpenClient;
+import com.nododiiiii.ponderer.forge.mirror.client.MirrorForgeOpenClient;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.nbt.CompoundTag;

@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.client;
+package com.nododiiiii.ponderer.forge.mirror.client;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;

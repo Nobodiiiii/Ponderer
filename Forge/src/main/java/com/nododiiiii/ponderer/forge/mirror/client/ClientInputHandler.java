@@ -1,14 +1,14 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.client;
+package com.nododiiiii.ponderer.forge.mirror.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderProgressBarAccessorMixin;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.MirrorClosePacket;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.ModNetworking;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.ReplaySnapshotPacket;
-import com.nododiiiii.ponderer.forge.sticksnapshot.network.SaveSnapshotPacket;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.BlockSnapshot;
+import com.nododiiiii.ponderer.forge.mirror.network.MirrorClosePacket;
+import com.nododiiiii.ponderer.forge.mirror.network.MirrorNetworking;
+import com.nododiiiii.ponderer.forge.mirror.network.ReplaySnapshotPacket;
+import com.nododiiiii.ponderer.forge.mirror.network.SaveSnapshotPacket;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.BlockSnapshot;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -240,7 +240,7 @@ public class ClientInputHandler {
                 hit.getLocation(),
                 hit.isInside()
         );
-        ModNetworking.CHANNEL.sendToServer(new SaveSnapshotPacket(localSnapshot));
+        MirrorNetworking.CHANNEL.sendToServer(new SaveSnapshotPacket(localSnapshot));
         // Cancel vanilla pick block behavior while using stick.
         event.setCanceled(true);
     }
@@ -268,7 +268,7 @@ public class ClientInputHandler {
 
         event.setCanceled(true);
         prepareMirrorReplay(-1);
-        ModNetworking.CHANNEL.sendToServer(new ReplaySnapshotPacket());
+        MirrorNetworking.CHANNEL.sendToServer(new ReplaySnapshotPacket());
     }
 
     @SubscribeEvent
@@ -403,7 +403,7 @@ public class ClientInputHandler {
         embeddedMirrorScreen = null;
         restorePlayerMenu();
         MirrorForgeOpenClient.restoreInjectedBlock();
-        ModNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
+        MirrorNetworking.CHANNEL.sendToServer(new MirrorClosePacket());
     }
 
     private static void restorePlayerMenu() {
@@ -578,7 +578,7 @@ public class ClientInputHandler {
             replay.setAccessible(true);
             replay.invoke(ponder);
         } catch (Throwable t) {
-            StickSnapshotFeature.LOGGER.warn("show_interface delayed replay invoke failed", t);
+            ForgeMirrorFeature.LOGGER.warn("show_interface delayed replay invoke failed", t);
         }
     }
 

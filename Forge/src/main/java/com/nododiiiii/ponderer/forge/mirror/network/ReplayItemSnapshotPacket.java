@@ -1,10 +1,10 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.network;
+package com.nododiiiii.ponderer.forge.mirror.network;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ItemSnapshot;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ItemSnapshotStorage;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ReplayAsyncGuard;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.SnapshotReplayer;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.ItemSnapshot;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.ItemSnapshotStorage;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.ReplayAsyncGuard;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.SnapshotReplayer;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
@@ -30,7 +30,7 @@ public class ReplayItemSnapshotPacket {
             if (snapshot != null) {
                 SnapshotReplayer.replayItem(player, snapshot);
             } else {
-                StickSnapshotFeature.LOGGER.warn("item replay skipped: no item snapshot saved for player={}",
+                ForgeMirrorFeature.LOGGER.warn("item replay skipped: no item snapshot saved for player={}",
                         player.getScoreboardName());
             }
         }));

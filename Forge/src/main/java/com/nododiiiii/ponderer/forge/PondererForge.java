@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.forge;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.FeatureAvailability;
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
 import com.nododiiiii.ponderer.network.FeatureAvailabilityPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.AutoRemoteSyncService;
@@ -83,7 +83,7 @@ public class PondererForge {
 
     private void onCommonSetup(FMLCommonSetupEvent event) {
         PondererServices.NETWORK.registerPackets();
-        StickSnapshotFeature.onCommonSetup(event);
+        ForgeMirrorFeature.onCommonSetup(event);
     }
 
     private void onServerStarted(ServerStartedEvent event) {

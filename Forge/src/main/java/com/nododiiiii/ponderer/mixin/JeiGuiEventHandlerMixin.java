@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
-import com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler;
+import com.nododiiiii.ponderer.forge.mirror.client.ClientInputHandler;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;

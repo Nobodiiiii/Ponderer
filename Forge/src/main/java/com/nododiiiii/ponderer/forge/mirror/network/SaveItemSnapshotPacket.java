@@ -1,8 +1,8 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.network;
+package com.nododiiiii.ponderer.forge.mirror.network;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ItemSnapshot;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ReplayAsyncGuard;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ItemSnapshotStorage;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.ItemSnapshot;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.ReplayAsyncGuard;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.ItemSnapshotStorage;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;

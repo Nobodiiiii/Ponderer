@@ -1,14 +1,13 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.network;
+package com.nododiiiii.ponderer.forge.mirror.network;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
-import net.minecraft.resources.ResourceLocation;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
-public class ModNetworking {
+public class MirrorNetworking {
     private static final String PROTOCOL = "1";
     public static final SimpleChannel CHANNEL = NetworkRegistry.ChannelBuilder
-            .named(new ResourceLocation(StickSnapshotFeature.MOD_ID, "main"))
+            .named(ForgeMirrorFeature.CHANNEL_ID)
             .networkProtocolVersion(() -> PROTOCOL)
             .clientAcceptedVersions(PROTOCOL::equals)
             .serverAcceptedVersions(PROTOCOL::equals)
@@ -16,7 +15,7 @@ public class ModNetworking {
 
     private static int nextId = 0;
 
-    private ModNetworking() {
+    private MirrorNetworking() {
     }
 
     public static void register() {

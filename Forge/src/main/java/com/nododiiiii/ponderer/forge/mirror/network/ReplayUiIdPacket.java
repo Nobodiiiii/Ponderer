@@ -1,8 +1,8 @@
-package com.nododiiiii.ponderer.forge.sticksnapshot.network;
+package com.nododiiiii.ponderer.forge.mirror.network;
 
-import com.nododiiiii.ponderer.forge.sticksnapshot.StickSnapshotFeature;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.ReplayAsyncGuard;
-import com.nododiiiii.ponderer.forge.sticksnapshot.snapshot.SnapshotReplayer;
+import com.nododiiiii.ponderer.forge.mirror.ForgeMirrorFeature;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.ReplayAsyncGuard;
+import com.nododiiiii.ponderer.forge.mirror.snapshot.SnapshotReplayer;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -35,7 +35,7 @@ public class ReplayUiIdPacket {
             try {
                 SnapshotReplayer.replayUiId(player, msg.menuTypeId);
             } catch (Exception ex) {
-                StickSnapshotFeature.LOGGER.warn("replayUiId threw for player={} menu={}",
+                ForgeMirrorFeature.LOGGER.warn("replayUiId threw for player={} menu={}",
                         player.getScoreboardName(), msg.menuTypeId, ex);
             }
         }));
