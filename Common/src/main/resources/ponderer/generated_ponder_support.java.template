@@ -1704,7 +1704,8 @@ public final class GeneratedPonderSupport {
             try {
                 CompoundTag tag = TagParser.parseTag(finalNbt);
                 if (!tag.isEmpty()) {
-                    stack.setTag(tag);
+                    stack.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                        net.minecraft.world.item.component.CustomData.of(tag));
                 }
             } catch (Exception ignored) {
             }
@@ -1724,7 +1725,13 @@ public final class GeneratedPonderSupport {
             }
         }
         if (!itemPatch.isEmpty()) {
-            copy.getOrCreateTag().merge(itemPatch.copy());
+            net.minecraft.world.item.component.CustomData existing = copy.getOrDefault(
+                net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                net.minecraft.world.item.component.CustomData.EMPTY);
+            CompoundTag stackTag = existing.copyTag();
+            stackTag.merge(itemPatch.copy());
+            copy.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                net.minecraft.world.item.component.CustomData.of(stackTag));
         }
         return copy;
     }
@@ -1788,7 +1795,7 @@ public final class GeneratedPonderSupport {
             try (InputStream is = resourceOpt.get().open()) {
                 root = NbtIo.read(
                     new DataInputStream(new BufferedInputStream(new GZIPInputStream(is))),
-                    new NbtAccounter(0x20000000L));
+                    NbtAccounter.create(0x20000000L));
             }
         } catch (Exception e) {
             LOGGER.warn("show_extra_structure failed to read {}: {}", structureAssetId, e.getMessage());

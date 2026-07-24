@@ -306,20 +306,27 @@ public final class JavaModuleExportService {
         if (!Files.isRegularFile(forgeMetadata)) {
             forgeMetadata = resourcesRoot.resolve("META-INF/mods.toml").normalize();
         }
+        Path neoForgeMetadata = normalizedRoot.resolve("src/main/templates/META-INF/neoforge.mods.toml").normalize();
+        if (!Files.isRegularFile(neoForgeMetadata)) {
+            neoForgeMetadata = resourcesRoot.resolve("META-INF/neoforge.mods.toml").normalize();
+        }
 
         boolean hasFabric = Files.isRegularFile(fabricMetadata);
         boolean hasForge = Files.isRegularFile(forgeMetadata);
-        if (hasFabric == hasForge) {
+        boolean hasNeoForge = Files.isRegularFile(neoForgeMetadata);
+        int detectedLoaders = (hasFabric ? 1 : 0) + (hasForge ? 1 : 0) + (hasNeoForge ? 1 : 0);
+        if (detectedLoaders != 1) {
             addFinding(fatals, "fatal", null, null, null, null,
-                hasFabric
-                    ? "Target root contains both Fabric and Forge metadata. Select a single loader module root."
-                    : "Unable to detect Fabric or Forge metadata in the target module.");
+                detectedLoaders > 1
+                    ? "Target root contains metadata for multiple loaders. Select a single Fabric, Forge, or NeoForge module root."
+                    : "Unable to detect Fabric, Forge, or NeoForge metadata in the target module.");
             return null;
         }
 
         Properties properties = loadGradleProperties(normalizedRoot);
-        String loader = hasFabric ? "fabric" : "forge";
-        String modId = hasFabric ? parseFabricModId(fabricMetadata, properties) : parseForgeModId(forgeMetadata, properties);
+        String loader = hasFabric ? "fabric" : hasNeoForge ? "neoforge" : "forge";
+        Path metadataPath = hasFabric ? fabricMetadata : hasNeoForge ? neoForgeMetadata : forgeMetadata;
+        String modId = hasFabric ? parseFabricModId(fabricMetadata, properties) : parseTomlModId(metadataPath, properties);
         if (modId == null || modId.isBlank()) {
             addFinding(fatals, "fatal", null, null, null, null, "Unable to detect the target mod id.");
             return null;
@@ -350,7 +357,7 @@ public final class JavaModuleExportService {
         project.targetRoot = normalizedRoot;
         project.javaRoot = javaRoot;
         project.resourcesRoot = resourcesRoot;
-        project.metadataPath = hasFabric ? fabricMetadata : forgeMetadata;
+        project.metadataPath = metadataPath;
         return project;
     }
 
@@ -747,12 +754,17 @@ public final class JavaModuleExportService {
         writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderSupport.java",
             buildSupportSource(target)));
         writes.addAll(buildLangWrites(target, manifest, currentSceneIds, staleManagedLangKeys));
-        if ("fabric".equals(target.loader)) {
-            writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderFabricClient.java",
+        switch (target.loader) {
+            case "fabric" -> writes.add(new TextFile(
+                "src/main/java/" + generatedPackagePath + "/GeneratedPonderFabricClient.java",
                 buildFabricClientSource(target)));
-        } else {
-            writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderForgeClient.java",
+            case "neoforge" -> writes.add(new TextFile(
+                "src/main/java/" + generatedPackagePath + "/GeneratedPonderNeoForgeClient.java",
+                buildNeoForgeClientSource(target)));
+            case "forge" -> writes.add(new TextFile(
+                "src/main/java/" + generatedPackagePath + "/GeneratedPonderForgeClient.java",
                 buildForgeClientSource(target)));
+            default -> throw new IllegalArgumentException("Unsupported target loader: " + target.loader);
         }
         return writes;
     }
@@ -1093,7 +1105,30 @@ public final class JavaModuleExportService {
             """.formatted(target.generatedPackage, escapeJava(target.modId));
     }
 
-    private static String buildAttributionSource(JavaModuleScanResult.TargetProject target) {
+    static String buildNeoForgeClientSource(JavaModuleScanResult.TargetProject target) {
+        return GENERATED_NOTICE_BLOCK + """
+            package %s;
+
+            import net.createmod.ponder.foundation.PonderIndex;
+            import net.neoforged.api.distmarker.Dist;
+            import net.neoforged.bus.api.SubscribeEvent;
+            import net.neoforged.fml.common.EventBusSubscriber;
+            import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+
+            @EventBusSubscriber(modid = "%s", value = Dist.CLIENT)
+            public final class GeneratedPonderNeoForgeClient {
+                private GeneratedPonderNeoForgeClient() {
+                }
+
+                @SubscribeEvent
+                public static void onClientSetup(FMLClientSetupEvent event) {
+                    event.enqueueWork(() -> PonderIndex.addPlugin(new GeneratedPonderPlugin()));
+                }
+            }
+            """.formatted(target.generatedPackage, escapeJava(target.modId));
+    }
+
+    static String buildAttributionSource(JavaModuleScanResult.TargetProject target) {
         return GENERATED_NOTICE_BLOCK + """
             package %s;
 
@@ -1102,7 +1137,7 @@ public final class JavaModuleExportService {
             import net.minecraft.world.item.Items;
 
             public final class GeneratedPonderAttribution {
-                private static final ResourceLocation TAG = new ResourceLocation(%s, %s);
+                private static final ResourceLocation TAG = ResourceLocation.fromNamespaceAndPath(%s, %s);
 
                 private GeneratedPonderAttribution() {
                 }
@@ -1588,7 +1623,7 @@ public final class JavaModuleExportService {
     }
 
     @Nullable
-    private static String parseForgeModId(Path modsToml, Properties properties) {
+    private static String parseTomlModId(Path modsToml, Properties properties) {
         try {
             String content = Files.readString(modsToml, StandardCharsets.UTF_8);
             Matcher matcher = MOD_ID_PATTERN.matcher(content);
@@ -1879,12 +1914,13 @@ public final class JavaModuleExportService {
         return "new ResourceLocation[]{" + combined.stream().map(JavaModuleExportService::resourceLocationExpr).collect(Collectors.joining(", ")) + "}";
     }
 
-    private static String resourceLocationExpr(String id) {
+    static String resourceLocationExpr(String id) {
         ResourceLocation loc = ResourceLocation.tryParse(id);
         if (loc == null) {
-            return "new ResourceLocation(\"minecraft\", \"air\")";
+            return "ResourceLocation.fromNamespaceAndPath(\"minecraft\", \"air\")";
         }
-        return "new ResourceLocation(" + stringExpr(loc.getNamespace()) + ", " + stringExpr(loc.getPath()) + ")";
+        return "ResourceLocation.fromNamespaceAndPath(" + stringExpr(loc.getNamespace()) + ", "
+            + stringExpr(loc.getPath()) + ")";
     }
 
     private static String localizedTextExpr(@Nullable LocalizedText text, String fallback) {
