@@ -29,4 +29,15 @@ public interface LlmProvider {
      */
     CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
                                         String baseUrl, String apiKey, String model);
+
+    /**
+     * Cancellable generation overload. Custom providers can rely on this default;
+     * built-in HTTP providers override it so the underlying request is cancelled too.
+     */
+    default CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
+                                                String baseUrl, String apiKey, String model,
+                                                AiCancellationScope cancellation) {
+        cancellation.throwIfCancelled();
+        return cancellation.track(generate(systemPrompt, userContent, baseUrl, apiKey, model));
+    }
 }

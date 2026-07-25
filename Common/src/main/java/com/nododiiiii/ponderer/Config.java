@@ -100,6 +100,12 @@ public class Config {
                  "Default: 16384. Range: 1024-65536. Adjust based on your model limits.")
         .defineInRange("ai.maxTokens", 16384, 1024, 65536);
 
+    public static final ForgeConfigSpec.IntValue AI_MAX_AGENT_TURNS = CLIENT_BUILDER
+        .comment("Maximum number of LLM turns in one AI scene-agent run.",
+                 "Read-only tools may be batched within a turn.",
+                 "Default: 6. Range: 2-12.")
+        .defineInRange("ai.maxAgentTurns", 6, 2, 12);
+
     // -- Pack Management --
 
     public static final ForgeConfigSpec.BooleanValue PACK_ORPHAN_PROMPT = CLIENT_BUILDER

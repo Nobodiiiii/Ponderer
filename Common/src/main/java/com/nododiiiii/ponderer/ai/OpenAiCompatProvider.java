@@ -35,6 +35,22 @@ public class OpenAiCompatProvider implements LlmProvider {
     @Override
     public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
                                                String baseUrl, String apiKey, String model) {
+        return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, null);
+    }
+
+    @Override
+    public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
+                                               String baseUrl, String apiKey, String model,
+                                               AiCancellationScope cancellation) {
+        return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, cancellation);
+    }
+
+    private CompletableFuture<String> generateInternal(String systemPrompt, List<ContentBlock> userContent,
+                                                       String baseUrl, String apiKey, String model,
+                                                       AiCancellationScope cancellation) {
+        if (cancellation != null) {
+            cancellation.throwIfCancelled();
+        }
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
         body.addProperty("max_tokens", maxTokens);
@@ -95,7 +111,12 @@ public class OpenAiCompatProvider implements LlmProvider {
             .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
             .build();
 
-        return HttpClientFactory.get().sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        CompletableFuture<HttpResponse<String>> requestFuture =
+            HttpClientFactory.get().sendAsync(request, HttpResponse.BodyHandlers.ofString());
+        if (cancellation != null) {
+            cancellation.track(requestFuture);
+        }
+        CompletableFuture<String> result = requestFuture
             .thenApply(response -> {
                 if (response.statusCode() != 200) {
                     throw new RuntimeException("OpenAI API error " + response.statusCode() + ": " + response.body());
@@ -122,5 +143,6 @@ public class OpenAiCompatProvider implements LlmProvider {
                         + "\nResponse: " + response.body().substring(0, Math.min(500, response.body().length())), e);
                 }
             });
+        return cancellation == null ? result : cancellation.track(result);
     }
 }

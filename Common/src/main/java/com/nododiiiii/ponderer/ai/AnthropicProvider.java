@@ -34,8 +34,29 @@ public class AnthropicProvider implements LlmProvider {
     @Override
     public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
                                                String baseUrl, String apiKey, String model) {
+        return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, null);
+    }
+
+    @Override
+    public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
+                                               String baseUrl, String apiKey, String model,
+                                               AiCancellationScope cancellation) {
+        return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, cancellation);
+    }
+
+    private CompletableFuture<String> generateInternal(String systemPrompt, List<ContentBlock> userContent,
+                                                       String baseUrl, String apiKey, String model,
+                                                       AiCancellationScope cancellation) {
+        if (cancellation != null) {
+            cancellation.throwIfCancelled();
+        }
+        String requestedModel = model == null ? "" : model.trim();
+        boolean oneMillionContext = requestedModel.toLowerCase(java.util.Locale.ROOT).endsWith("[1m]");
+        String apiModel = oneMillionContext
+            ? requestedModel.substring(0, requestedModel.length() - "[1m]".length()).trim()
+            : requestedModel;
         JsonObject body = new JsonObject();
-        body.addProperty("model", model);
+        body.addProperty("model", apiModel);
         body.addProperty("max_tokens", maxTokens);
         body.addProperty("system", systemPrompt);
 
@@ -71,6 +92,9 @@ public class AnthropicProvider implements LlmProvider {
             .header("anthropic-version", "2023-06-01")
             .timeout(Duration.ofSeconds(120))
             .POST(HttpRequest.BodyPublishers.ofString(body.toString()));
+        if (oneMillionContext) {
+            requestBuilder.header("anthropic-beta", "context-1m-2025-08-07");
+        }
         if (apiKey.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
             requestBuilder.header("Authorization", apiKey);
         } else {
@@ -78,7 +102,12 @@ public class AnthropicProvider implements LlmProvider {
         }
         HttpRequest request = requestBuilder.build();
 
-        return HttpClientFactory.get().sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        CompletableFuture<HttpResponse<String>> requestFuture =
+            HttpClientFactory.get().sendAsync(request, HttpResponse.BodyHandlers.ofString());
+        if (cancellation != null) {
+            cancellation.track(requestFuture);
+        }
+        CompletableFuture<String> result = requestFuture
             .thenApply(response -> {
                 String responseBody = response.body();
                 if (response.statusCode() != 200) {
@@ -109,5 +138,6 @@ public class AnthropicProvider implements LlmProvider {
                         + "\nResponse: " + responseBody.substring(0, Math.min(500, responseBody.length())), e);
                 }
             });
+        return cancellation == null ? result : cancellation.track(result);
     }
 }

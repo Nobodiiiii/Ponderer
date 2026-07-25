@@ -1,12 +1,19 @@
 package com.nododiiiii.ponderer.ai;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.properties.Property;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Deterministic checks used by the multi-round agent loop before a scene is saved.
@@ -44,23 +51,36 @@ public final class AiSceneValidator {
             issues.add(new Issue("$.items", "at least one carrier item is required"));
         } else {
             for (int i = 0; i < scene.items.size(); i++) {
-                requireResourceId(issues, "$.items[" + i + "]", scene.items.get(i), "item id");
+                String path = "$.items[" + i + "]";
+                requireResourceId(issues, path, scene.items.get(i), "item id");
+                validateRegisteredItem(issues, path, scene.items.get(i));
             }
         }
+        List<String> declaredStructures = validateDeclaredStructures(
+            issues, scene.structures, structureNames);
         if (scene.scenes == null || scene.scenes.isEmpty()) {
             issues.add(new Issue("$.scenes", "at least one scene segment is required"));
             return issues;
         }
 
+        Set<String> segmentIds = new HashSet<>();
         for (int i = 0; i < scene.scenes.size(); i++) {
-            validateSegment(issues, "$.scenes[" + i + "]", scene.scenes.get(i), structures, structureNames);
+            DslScene.SceneSegment segment = scene.scenes.get(i);
+            if (segment == null || segment.id == null || segment.id.isBlank()) {
+                issues.add(new Issue("$.scenes[" + i + "].id", "segment id is required"));
+            } else if (!segmentIds.add(segment.id)) {
+                issues.add(new Issue("$.scenes[" + i + "].id", "segment id must be unique"));
+            }
+            validateSegment(issues, "$.scenes[" + i + "]", scene.scenes.get(i),
+                structures, structureNames, declaredStructures);
         }
         return issues;
     }
 
     private static void validateSegment(List<Issue> issues, String path, DslScene.SceneSegment segment,
                                         List<StructureDescriber.StructureInfo> structures,
-                                        List<String> structureNames) {
+                                        List<String> structureNames,
+                                        List<String> declaredStructures) {
         if (segment == null) {
             issues.add(new Issue(path, "segment must not be null"));
             return;
@@ -82,8 +102,21 @@ public final class AiSceneValidator {
         StructureDescriber.StructureInfo currentBounds = firstStructure(structures);
         for (int i = 0; i < segment.steps.size(); i++) {
             DslScene.DslStep step = segment.steps.get(i);
-            if (step != null && "show_structure".equals(lower(step.type))) {
-                currentBounds = resolveStructureBounds(step.structure, structures, structureNames, currentBounds);
+            String stepType = step == null ? "" : lower(step.type);
+            if ("show_structure".equals(stepType) || "show_extra_structure".equals(stepType)) {
+                if (!isKnownStructureReference(
+                    step.structure, declaredStructures.size(), declaredStructures)) {
+                    issues.add(new Issue(path + ".steps[" + i + "].structure",
+                        "structure is not declared in the scene's structures list"));
+                } else if (!structureNames.isEmpty()
+                    && !isKnownStructureReference(step.structure, structures.size(), structureNames)) {
+                    issues.add(new Issue(path + ".steps[" + i + "].structure",
+                        "structure is not available in this generation request"));
+                }
+                if ("show_structure".equals(stepType)) {
+                    currentBounds = resolveStructureBounds(
+                        step.structure, structures, structureNames, currentBounds);
+                }
             }
             validateStep(issues, path + ".steps[" + i + "]", step, currentBounds);
         }
@@ -122,6 +155,7 @@ public final class AiSceneValidator {
             case "show_controls" -> {
                 requirePoint(issues, path + ".point", step.point, bounds, true);
                 requireResourceId(issues, path + ".item", step.item, "item id");
+                validateIngredient(issues, path + ".item", step.item);
             }
             case "show_structure" -> {
                 // Whole-structure reveal; no block positions are required.
@@ -132,10 +166,12 @@ public final class AiSceneValidator {
             }
             case "set_block" -> {
                 requireResourceId(issues, path + ".block", step.block, "block id");
+                validateBlock(issues, path, step.block, step.blockProperties);
                 requireBlockPos(issues, path + ".blockPos", step.blockPos, bounds);
             }
             case "replace_blocks" -> {
                 requireResourceId(issues, path + ".block", step.block, "block id");
+                validateBlock(issues, path, step.block, step.blockProperties);
                 requireBlockPos(issues, path + ".blockPos", step.blockPos, bounds);
                 requireBlockPos(issues, path + ".blockPos2", step.blockPos2, bounds);
             }
@@ -143,10 +179,13 @@ public final class AiSceneValidator {
                 requireBlockPos(issues, path + ".blockPos", step.blockPos, bounds);
             case "create_item_entity" -> {
                 requireResourceId(issues, path + ".item", step.item, "item id");
+                validateRegisteredItem(issues, path + ".item", step.item);
                 requirePoint(issues, path + ".pos", step.pos != null ? step.pos : step.point, bounds, false);
             }
             case "create_entity" -> {
                 requireResourceId(issues, path + ".entity", step.entity, "entity id");
+                validateRegisteredId(issues, path + ".entity", step.entity, "entity",
+                    id -> BuiltInRegistries.ENTITY_TYPE.getOptional(id).isPresent());
                 requirePoint(issues, path + ".pos", step.pos != null ? step.pos : step.point, bounds, false);
             }
             case "move_section" -> {
@@ -154,7 +193,11 @@ public final class AiSceneValidator {
                 requireDoubleVector(issues, path + ".offset", step.offset, "offset");
             }
             case "rotate_section" -> requireString(issues, path + ".linkId", step.linkId, "linkId is required");
-            case "play_sound" -> requireString(issues, path + ".sound", step.sound, "sound id is required");
+            case "play_sound" -> {
+                requireString(issues, path + ".sound", step.sound, "sound id is required");
+                validateRegisteredId(issues, path + ".sound", step.sound, "sound",
+                    id -> BuiltInRegistries.SOUND_EVENT.getOptional(id).isPresent());
+            }
             default -> {
                 // Unknown step types are allowed by the runtime more often than this validator knows.
                 // The required type check above still catches malformed empty steps.
@@ -232,6 +275,124 @@ public final class AiSceneValidator {
         if (value == null || value.size() != 3) {
             issues.add(new Issue(path, label + " must be [x,y,z]"));
         }
+    }
+
+    private static void validateBlock(List<Issue> issues, String path, @Nullable String blockId,
+                                      @Nullable Map<String, String> properties) {
+        ResourceLocation id = blockId == null ? null : ResourceLocation.tryParse(blockId);
+        if (id == null) {
+            return;
+        }
+        Block block = BuiltInRegistries.BLOCK.getOptional(id).orElse(null);
+        if (block == null) {
+            issues.add(new Issue(path + ".block", "block id is not registered"));
+            return;
+        }
+        if (properties == null || properties.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : properties.entrySet()) {
+            Property<?> property = block.getStateDefinition().getProperty(entry.getKey());
+            if (property == null) {
+                issues.add(new Issue(path + ".blockProperties." + entry.getKey(),
+                    "property is not valid for " + blockId));
+            } else if (property.getValue(entry.getValue()).isEmpty()) {
+                issues.add(new Issue(path + ".blockProperties." + entry.getKey(),
+                    "value '" + entry.getValue() + "' is not valid for " + blockId));
+            }
+        }
+    }
+
+    private static void validateRegisteredId(List<Issue> issues, String path, @Nullable String value,
+                                             String label,
+                                             java.util.function.Predicate<ResourceLocation> exists) {
+        ResourceLocation id = value == null ? null : ResourceLocation.tryParse(value);
+        if (id != null && !exists.test(id)) {
+            issues.add(new Issue(path, label + " id is not registered"));
+        }
+    }
+
+    private static List<String> validateDeclaredStructures(
+        List<Issue> issues, @Nullable List<String> declared, List<String> available) {
+        if (declared == null || declared.isEmpty()) {
+            issues.add(new Issue("$.structures", "at least one structure must be declared"));
+            return List.of();
+        }
+        List<String> valid = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < declared.size(); i++) {
+            String value = declared.get(i);
+            String path = "$.structures[" + i + "]";
+            if (value == null || value.isBlank() || ResourceLocation.tryParse(value) == null) {
+                issues.add(new Issue(path, "structure id must be a valid resource location"));
+                continue;
+            }
+            String normalized = value.toLowerCase(Locale.ROOT);
+            if (!seen.add(normalized)) {
+                issues.add(new Issue(path, "structure id must be unique"));
+            }
+            if (available != null && !available.isEmpty()
+                && available.stream().noneMatch(value::equalsIgnoreCase)) {
+                issues.add(new Issue(path, "structure is not available in this generation request"));
+            }
+            valid.add(value);
+        }
+        return List.copyOf(valid);
+    }
+
+    private static void validateRegisteredItem(
+        List<Issue> issues, String path, @Nullable String value) {
+        ResourceLocation id = value == null ? null : ResourceLocation.tryParse(value);
+        if (id != null && BuiltInRegistries.ITEM.getOptional(id).isEmpty()) {
+            issues.add(new Issue(path, "item id is not registered"));
+        }
+    }
+
+    private static void validateIngredient(
+        List<Issue> issues, String path, @Nullable String value) {
+        if (ingredientStatus(value) == IngredientStatus.MISSING) {
+            issues.add(new Issue(path, "ingredient id is not registered"));
+        }
+    }
+
+    static IngredientStatus ingredientStatus(@Nullable String value) {
+        ResourceLocation id = value == null ? null : ResourceLocation.tryParse(value);
+        if (id == null) {
+            return IngredientStatus.MISSING;
+        }
+        if (BuiltInRegistries.ITEM.getOptional(id).isPresent()
+            || BuiltInRegistries.FLUID.getOptional(id).isPresent()) {
+            return IngredientStatus.PRESENT;
+        }
+        try {
+            if (!JeiCompat.isAvailable()) {
+                return IngredientStatus.UNKNOWN_WITHOUT_JEI;
+            }
+            boolean present = JeiCompat.getAllExtraIngredientEntries().stream()
+                .anyMatch(entry -> entry.length > 0 && value.equalsIgnoreCase(entry[0]));
+            return present ? IngredientStatus.PRESENT : IngredientStatus.MISSING;
+        } catch (Throwable ignored) {
+            return IngredientStatus.UNKNOWN_WITHOUT_JEI;
+        }
+    }
+
+    enum IngredientStatus {
+        PRESENT,
+        MISSING,
+        UNKNOWN_WITHOUT_JEI
+    }
+
+    private static boolean isKnownStructureReference(@Nullable String requested, int structureCount,
+                                                     List<String> structureNames) {
+        if (requested == null || requested.isBlank()) {
+            return structureCount == 1;
+        }
+        if (parseStructureIndex(requested.trim(), structureCount) != null) {
+            return true;
+        }
+        String normalized = requested.contains(":") ? requested : "ponderer:" + requested;
+        return structureNames.stream().anyMatch(name ->
+            requested.equalsIgnoreCase(name) || normalized.equalsIgnoreCase(name));
     }
 
     @Nullable

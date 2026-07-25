@@ -1,6 +1,9 @@
 package com.nododiiiii.ponderer.ai;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import net.minecraft.SharedConstants;
+import net.minecraft.server.Bootstrap;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -11,9 +14,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AiSceneAgentPipelineTest {
@@ -21,47 +28,175 @@ class AiSceneAgentPipelineTest {
     @TempDir
     Path tempDir;
 
+    @BeforeAll
+    static void bootstrapMinecraft() {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+    }
+
     @Test
-    void repairsInvalidDraftUntilSceneParsesAndValidates() {
+    void queriesStructureRepairsInvalidSubmissionAndAcceptsValidScene() {
         FakeLlm llm = new FakeLlm(List.of(
             """
-                Segment 1: introduce the block.
-                REQUIRED_ELEMENTS: Paper
+                {"tool_calls":[{"id":"structure","name":"query_structure","arguments":{"mode":"summary"}}]}
                 """,
             """
-                {"id":"","items":[],"scenes":[{"steps":[{"type":"text","text":"broken","point":[99,99,99]}]}]}
+                {"tool_calls":[{"id":"bad","name":"submit_scene","arguments":{"scene":{"id":"","items":[],"scenes":[]}}}]}
                 """,
-            validSceneJson()
+            submit(validSceneJson())
+        ));
+        List<String> statuses = new ArrayList<>();
+
+        AiSceneAgentPipeline.Result result = run(llm, 6, statuses, new AiCancellationScope());
+
+        assertEquals("test-run", result.runId());
+        assertEquals("ponderer:test_agent", result.scene().id);
+        assertEquals(3, result.turnCount());
+        assertEquals(3, result.toolCallCount());
+        assertEquals(2, result.validationAttempts());
+        assertEquals(3, result.trace().size());
+        assertTrue(statuses.stream().anyMatch(status -> status.startsWith("Agent turn 3/")));
+        assertTrue(llm.calls.get(2).userText().contains("Last validation")
+            || llm.calls.get(2).userText().contains("\"errors\""));
+    }
+
+    @Test
+    void protocolErrorIsFedBackAndCanRecover() {
+        FakeLlm llm = new FakeLlm(List.of(
+            "not json",
+            """
+                {"tool_calls":[{"id":"structure","name":"query_structure","arguments":{"mode":"summary"}}]}
+                """,
+            submit(validSceneJson())
         ));
 
-        AiRuntimeConfig config = new AiRuntimeConfig(
-            "openai", "chat", "https://example.test", "test-key", "test-model", 4096, "test");
-        AiSceneAgentPipeline.Request request = new AiSceneAgentPipeline.Request(
-            List.of(),
-            "minecraft:paper",
-            "Generate a tiny parseable scene",
-            List.of(),
-            null,
-            false,
-            false
-        );
+        AiSceneAgentPipeline.Result result = run(
+            llm, 4, new ArrayList<>(), new AiCancellationScope());
 
-        List<String> statuses = new ArrayList<>();
-        AiSceneAgentPipeline.Result result = AiSceneAgentPipeline.run(
-            request,
-            llm,
-            config,
-            2,
-            statuses::add,
-            (requiredElements, structureBlockIds) -> "Display Name -> Registry ID mapping:\n  Paper -> minecraft:paper [item]\n");
+        assertEquals(3, result.turnCount());
+        assertTrue(result.trace().get(0).protocolError().contains("parse"));
+        assertTrue(llm.calls.get(1).userText().contains("protocol_error"));
+    }
 
-        assertEquals("ponderer:test_agent", result.scene().id);
-        assertEquals(1, result.repairAttempts());
-        assertEquals(3, llm.calls.size());
-        assertTrue(result.validationIssues().isEmpty());
-        assertTrue(result.finalJson().contains("\"ponderer:test_agent\""));
-        assertTrue(statuses.stream().anyMatch(status -> status.startsWith("Repairing scene JSON")));
-        assertTrue(llm.calls.get(2).userText().contains("VALIDATOR REPAIR REQUEST"));
+    @Test
+    void batchesReadOnlyToolsAndKeepsToolResultsByCallId() {
+        FakeLlm llm = new FakeLlm(List.of(
+            """
+                {"tool_calls":[
+                  {"id":"structure","name":"query_structure","arguments":{"mode":"summary"}},
+                  {"id":"schemas","name":"get_step_schema","arguments":{"types":["show_structure","text"]}}
+                ]}
+                """,
+            submit(validSceneJson())
+        ));
+
+        AiSceneAgentPipeline.Result result = run(
+            llm, 4, new ArrayList<>(), new AiCancellationScope());
+
+        assertEquals(2, result.turnCount());
+        assertEquals(3, result.toolCallCount());
+        assertTrue(llm.calls.get(1).userText().contains("\"id\": \"structure\""));
+        assertTrue(llm.calls.get(1).userText().contains("\"id\": \"schemas\""));
+    }
+
+    @Test
+    void duplicateCallIdAcrossTurnsIsARecoverableProtocolError() {
+        FakeLlm llm = new FakeLlm(List.of(
+            """
+                {"tool_calls":[{"id":"same","name":"query_structure","arguments":{"mode":"summary"}}]}
+                """,
+            """
+                {"tool_calls":[{"id":"same","name":"get_step_schema","arguments":{"types":["text"]}}]}
+                """,
+            submit(validSceneJson())
+        ));
+
+        AiSceneAgentPipeline.Result result = run(
+            llm, 4, new ArrayList<>(), new AiCancellationScope());
+
+        assertEquals(3, result.turnCount());
+        assertTrue(result.trace().get(1).protocolError().contains("across turns"));
+        assertTrue(llm.calls.get(2).userText().contains("Duplicate tool call id"));
+    }
+
+    @Test
+    void rejectsMixedSubmitBatchAndThenRecovers() {
+        FakeLlm llm = new FakeLlm(List.of(
+            """
+                {"tool_calls":[
+                  {"id":"query","name":"query_structure","arguments":{"mode":"summary"}},
+                  {"id":"submit","name":"submit_scene","arguments":{"scene":{}}}
+                ]}
+                """,
+            """
+                {"tool_calls":[{"id":"query2","name":"query_structure","arguments":{"mode":"summary"}}]}
+                """,
+            submit(validSceneJson())
+        ));
+
+        AiSceneAgentPipeline.Result result = run(
+            llm, 4, new ArrayList<>(), new AiCancellationScope());
+
+        assertEquals(3, result.turnCount());
+        assertTrue(result.trace().get(0).protocolError().contains("only tool call"));
+    }
+
+    @Test
+    void toolCallBudgetStopsBeforeAnUnboundedLoop() {
+        List<String> responses = new ArrayList<>();
+        for (int turn = 0; turn < 4; turn++) {
+            responses.add(fourStructureQueries(turn));
+        }
+        FakeLlm llm = new FakeLlm(responses);
+
+        RuntimeException error = assertThrows(RuntimeException.class,
+            () -> run(llm, 6, new ArrayList<>(), new AiCancellationScope()));
+
+        assertTrue(error.getMessage().contains("16-call tool budget"));
+        assertTrue(error.getMessage().contains("tool calls executed: 16"));
+    }
+
+    @Test
+    void turnLimitReportsLastValidationErrors() {
+        FakeLlm llm = new FakeLlm(List.of(
+            """
+                {"tool_calls":[{"id":"structure","name":"query_structure","arguments":{"mode":"summary"}}]}
+                """,
+            """
+                {"tool_calls":[{"id":"bad","name":"submit_scene","arguments":{"scene":{"id":"","items":[],"scenes":[]}}}]}
+                """
+        ));
+
+        RuntimeException error = assertThrows(RuntimeException.class,
+            () -> run(llm, 2, new ArrayList<>(), new AiCancellationScope()));
+
+        assertTrue(error.getMessage().contains("exhausted 2 turns"));
+        assertTrue(error.getMessage().contains("$.id"));
+    }
+
+    @Test
+    void cancellationStopsPendingModelCall() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CompletableFuture<String> pending = new CompletableFuture<>();
+        LlmProvider llm = new LlmProvider() {
+            @Override
+            public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
+                                                       String baseUrl, String apiKey, String model) {
+                entered.countDown();
+                return pending;
+            }
+        };
+        AiCancellationScope cancellation = new AiCancellationScope();
+        CompletableFuture<AiSceneAgentPipeline.Result> run = CompletableFuture.supplyAsync(() ->
+            AiSceneAgentPipeline.run(
+                "cancel-run", request(), llm, config(), 6, ignored -> {
+                }, (name, content) -> {
+                }, cancellation));
+
+        assertTrue(entered.await(5, TimeUnit.SECONDS));
+        assertTrue(cancellation.cancel());
+        assertThrows(CompletionException.class, run::join);
+        assertTrue(pending.isCancelled());
     }
 
     @Test
@@ -155,24 +290,60 @@ class AiSceneAgentPipelineTest {
         assertTrue(issues.isEmpty(), () -> "Unexpected issues: " + issues);
     }
 
-    private static String validSceneJson() {
+    private static AiSceneAgentPipeline.Result run(FakeLlm llm, int turns, List<String> statuses,
+                                                   AiCancellationScope cancellation) {
+        return AiSceneAgentPipeline.run(
+            "test-run", request(), llm, config(), turns, statuses::add,
+            (name, content) -> {
+            }, cancellation);
+    }
+
+    private static AiSceneAgentPipeline.Request request() {
+        return new AiSceneAgentPipeline.Request(
+            List.of(), "minecraft:paper", "Generate a tiny parseable scene",
+            List.of(), null, false, false);
+    }
+
+    private static AiRuntimeConfig config() {
+        return new AiRuntimeConfig(
+            "openai", "chat", "https://example.test", "test-key", "test-model", 4096, "test");
+    }
+
+    private static String submit(String sceneJson) {
+        return "{\"tool_calls\":[{\"id\":\"submit\",\"name\":\"submit_scene\",\"arguments\":{\"scene\":"
+            + sceneJson + "}}]}";
+    }
+
+    private static String fourStructureQueries(int turn) {
+        StringBuilder calls = new StringBuilder("{\"tool_calls\":[");
+        for (int call = 0; call < 4; call++) {
+            if (call > 0) {
+                calls.append(',');
+            }
+            calls.append("{\"id\":\"query_").append(turn).append('_').append(call)
+                .append("\",\"name\":\"query_structure\",\"arguments\":{\"mode\":\"summary\"}}");
+        }
+        return calls.append("]}").toString();
+    }
+
+    static String validSceneJson() {
         return """
             {
               "id": "ponderer:test_agent",
               "items": ["minecraft:paper"],
-              "title": {"en_us": "Agent Test", "zh_cn": "Agent Test"},
+              "title": {"en_us": "Agent Test", "zh_cn": "Agent 测试"},
               "structures": ["ponderer:basic"],
               "steps": [],
               "scenes": [
                 {
                   "id": "main",
-                  "title": {"en_us": "Main", "zh_cn": "Main"},
+                  "title": {"en_us": "Main", "zh_cn": "主要"},
                   "steps": [
                     {"type": "show_structure", "structure": "ponderer:basic"},
                     {
                       "type": "text",
                       "duration": 20,
-                      "text": {"en_us": "Parsed successfully.", "zh_cn": "Parsed successfully."},
+                      "text": {"en_us": "Parsed successfully.", "zh_cn": "解析成功。"},
                       "point": [0.5, 0.5, 0.5],
                       "placeNearTarget": true
                     }
