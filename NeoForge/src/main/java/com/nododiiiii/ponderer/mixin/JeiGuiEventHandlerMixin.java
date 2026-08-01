@@ -20,16 +20,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(targets = "mezz.jei.gui.events.GuiEventHandler")
 public abstract class JeiGuiEventHandlerMixin {
 
-    @Group(name = "ponderer$skipEmbeddedMirrorJeiDraw", min = 1, max = 3)
-    @Inject(method = "onDrawBackgroundPost", at = @At("HEAD"), cancellable = true, remap = false, require = 0)
+    @Group(name = "ponderer$skipEmbeddedMirrorJeiDraw", min = 1)
+    @Inject(method = "onDrawBackgroundPost", at = @At("HEAD"), cancellable = true, require = 0)
     private void ponderer$skipJeiBackgroundDraw(Screen screen, GuiGraphics guiGraphics, CallbackInfo ci) {
         if (ponderer$shouldSkipDefaultJeiDraw(screen)) {
             ci.cancel();
         }
     }
 
-    @Group(name = "ponderer$skipEmbeddedMirrorJeiDraw", min = 1, max = 3)
-    @Inject(method = "onDrawForeground", at = @At("HEAD"), cancellable = true, remap = false, require = 0)
+    @Group(name = "ponderer$skipEmbeddedMirrorJeiDraw", min = 1)
+    @Inject(method = "onDrawForeground", at = @At("HEAD"), cancellable = true, require = 0)
     private void ponderer$skipJeiForegroundDraw(AbstractContainerScreen<?> screen, GuiGraphics guiGraphics,
             int mouseX, int mouseY, CallbackInfo ci) {
         if (ponderer$shouldSkipDefaultJeiDraw(screen)) {
@@ -37,9 +37,27 @@ public abstract class JeiGuiEventHandlerMixin {
         }
     }
 
-    @Group(name = "ponderer$skipEmbeddedMirrorJeiDraw", min = 1, max = 3)
-    @Inject(method = "onDrawScreenPost", at = @At("HEAD"), cancellable = true, remap = false, require = 0)
+    @Group(name = "ponderer$skipEmbeddedMirrorJeiDraw", min = 1)
+    @Inject(method = "onDrawScreenPost", at = @At("HEAD"), cancellable = true, require = 0)
     private void ponderer$skipJeiScreenDraw(Screen screen, GuiGraphics guiGraphics,
+            int mouseX, int mouseY, CallbackInfo ci) {
+        if (ponderer$shouldSkipDefaultJeiDraw(screen)) {
+            ci.cancel();
+        }
+    }
+
+    @Group(name = "ponderer$skipEmbeddedMirrorJeiDraw", min = 1)
+    @Inject(method = "drawForScreen", at = @At("HEAD"), cancellable = true, require = 0)
+    private void ponderer$skipModernJeiScreenDraw(Screen screen, GuiGraphics guiGraphics,
+            int mouseX, int mouseY, CallbackInfo ci) {
+        if (ponderer$shouldSkipDefaultJeiDraw(screen)) {
+            ci.cancel();
+        }
+    }
+
+    @Group(name = "ponderer$skipEmbeddedMirrorJeiDraw", min = 1)
+    @Inject(method = "drawForContainerScreen", at = @At("HEAD"), cancellable = true, require = 0)
+    private void ponderer$skipModernJeiContainerDraw(AbstractContainerScreen<?> screen, GuiGraphics guiGraphics,
             int mouseX, int mouseY, CallbackInfo ci) {
         if (ponderer$shouldSkipDefaultJeiDraw(screen)) {
             ci.cancel();

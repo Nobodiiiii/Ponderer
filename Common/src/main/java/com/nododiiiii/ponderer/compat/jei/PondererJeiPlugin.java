@@ -35,8 +35,8 @@ import org.slf4j.Logger;
 import javax.annotation.Nullable;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Set;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 @JeiPlugin
@@ -52,6 +52,21 @@ public class PondererJeiPlugin implements IModPlugin {
     private static IJeiRuntime runtime = null;
 
     private static boolean eventRegistered = false;
+    private static boolean overlayRenderFailureLogged = false;
+
+    private static final ClassValue<OverlayMethods> OVERLAY_METHODS = new ClassValue<>() {
+        @Override
+        protected OverlayMethods computeValue(Class<?> type) {
+            return new OverlayMethods(type);
+        }
+    };
+
+    private static final ClassValue<UpdaterMethods> UPDATER_METHODS = new ClassValue<>() {
+        @Override
+        protected UpdaterMethods computeValue(Class<?> type) {
+            return new UpdaterMethods(type);
+        }
+    };
 
     @Override
     public ResourceLocation getPluginUid() {
@@ -61,6 +76,7 @@ public class PondererJeiPlugin implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         runtime = jeiRuntime;
+        overlayRenderFailureLogged = false;
         if (!eventRegistered) {
             eventRegistered = true;
             // Platform-specific event registration is done in Forge/Fabric modules
@@ -73,6 +89,7 @@ public class PondererJeiPlugin implements IModPlugin {
         runtime = null;
         activeScreen = null;
         activeMode = null;
+        overlayRenderFailureLogged = false;
     }
 
     @Override
@@ -174,12 +191,9 @@ public class PondererJeiPlugin implements IModPlugin {
             pushed = true;
             graphics.pose().translate(0, 0, PonderRuntimeZLayers.JEI_OVERLAY_LAYER);
             RenderSystem.disableDepthTest();
-            invokeDrawOnForeground(runtime.getBookmarkOverlay(), graphics, mouseX, mouseY);
-            invokeDrawOnForeground(runtime.getIngredientListOverlay(), graphics, mouseX, mouseY);
-            invokeDrawScreen(runtime.getIngredientListOverlay(), mc, graphics, mouseX, mouseY, partialTicks);
-            invokeDrawScreen(runtime.getBookmarkOverlay(), mc, graphics, mouseX, mouseY, partialTicks);
+            drawPonderUiOverlays(mc, graphics, mouseX, mouseY, partialTicks);
         } catch (Throwable t) {
-            LOGGER.debug("[jei] ponder ui overlay render failed: {}", t.toString());
+            logOverlayRenderFailure("overlay", t);
         } finally {
             if (pushed) {
                 graphics.pose().popPose();
@@ -206,7 +220,7 @@ public class PondererJeiPlugin implements IModPlugin {
             invokeDrawTooltips(runtime.getIngredientListOverlay(), mc, graphics, mouseX, mouseY);
             invokeDrawTooltips(runtime.getBookmarkOverlay(), mc, graphics, mouseX, mouseY);
         } catch (Throwable t) {
-            LOGGER.debug("[jei] ponder ui tooltip render failed: {}", t.toString());
+            logOverlayRenderFailure("tooltip", t);
         } finally {
             if (pushed) {
                 graphics.pose().popPose();
@@ -299,37 +313,134 @@ public class PondererJeiPlugin implements IModPlugin {
                 Minecraft.getInstance());
     }
 
-    private static void syncOverlayState(Object overlay, Screen screen) throws Exception {
-        Method getUpdater = overlay.getClass().getMethod("getScreenPropertiesUpdater");
-        Object updater = getUpdater.invoke(overlay);
-        updater.getClass().getMethod("updateScreen", Screen.class).invoke(updater, screen);
-        updater.getClass().getMethod("updateExclusionAreas", Set.class).invoke(updater, Set.of());
-        updater.getClass().getMethod("update").invoke(updater);
+    private static void syncOverlayState(Object overlay, Screen screen, IGuiProperties guiProperties) throws Exception {
+        OverlayMethods overlayMethods = OVERLAY_METHODS.get(overlay.getClass());
+        Object updater = overlayMethods.getScreenPropertiesUpdater.invoke(overlay);
+        UPDATER_METHODS.get(updater.getClass()).update(updater, screen, guiProperties);
     }
 
     private static void syncPonderUiOverlayState(Screen screen) throws Exception {
-        syncOverlayState(runtime.getIngredientListOverlay(), screen);
-        syncOverlayState(runtime.getBookmarkOverlay(), screen);
+        UiAnchorViewport.Rect viewport = resolvePonderUiViewport();
+        if (!(screen instanceof PonderUI ponderUi) || viewport == null) {
+            throw new IllegalStateException("PonderUI JEI overlay state is unavailable");
+        }
+
+        IGuiProperties guiProperties = new PonderUiGuiProperties(ponderUi, viewport);
+        syncOverlayState(runtime.getIngredientListOverlay(), screen, guiProperties);
+        syncOverlayState(runtime.getBookmarkOverlay(), screen, guiProperties);
     }
 
-    private static void invokeDrawOnForeground(Object overlay, GuiGraphics graphics, int mouseX, int mouseY) throws Exception {
-        overlay.getClass()
-            .getMethod("drawOnForeground", GuiGraphics.class, int.class, int.class)
-            .invoke(overlay, graphics, mouseX, mouseY);
-    }
+    private static void drawPonderUiOverlays(Minecraft mc, GuiGraphics graphics,
+                                              int mouseX, int mouseY, float partialTicks) throws Exception {
+        Object ingredientOverlay = runtime.getIngredientListOverlay();
+        Object bookmarkOverlay = runtime.getBookmarkOverlay();
+        OverlayMethods ingredientMethods = OVERLAY_METHODS.get(ingredientOverlay.getClass());
+        OverlayMethods bookmarkMethods = OVERLAY_METHODS.get(bookmarkOverlay.getClass());
 
-    private static void invokeDrawScreen(Object overlay, Minecraft mc, GuiGraphics graphics,
-                                         int mouseX, int mouseY, float partialTicks) throws Exception {
-        overlay.getClass()
-            .getMethod("drawScreen", Minecraft.class, GuiGraphics.class, int.class, int.class, float.class)
-            .invoke(overlay, mc, graphics, mouseX, mouseY, partialTicks);
+        if (ingredientMethods.hasSplitDrawPass() && bookmarkMethods.hasSplitDrawPass()) {
+            ingredientMethods.drawBackground.invoke(ingredientOverlay, graphics);
+            bookmarkMethods.drawBackground.invoke(bookmarkOverlay, graphics);
+            bookmarkMethods.drawOnForeground.invoke(bookmarkOverlay, graphics, mouseX, mouseY);
+            ingredientMethods.drawOnForeground.invoke(ingredientOverlay, graphics, mouseX, mouseY);
+            ingredientMethods.drawForeground.invoke(
+                ingredientOverlay, mc, graphics, mouseX, mouseY, partialTicks
+            );
+            bookmarkMethods.drawForeground.invoke(
+                bookmarkOverlay, mc, graphics, mouseX, mouseY, partialTicks
+            );
+            return;
+        }
+
+        bookmarkMethods.drawOnForeground.invoke(bookmarkOverlay, graphics, mouseX, mouseY);
+        ingredientMethods.drawOnForeground.invoke(ingredientOverlay, graphics, mouseX, mouseY);
+        ingredientMethods.drawScreen.invoke(ingredientOverlay, mc, graphics, mouseX, mouseY, partialTicks);
+        bookmarkMethods.drawScreen.invoke(bookmarkOverlay, mc, graphics, mouseX, mouseY, partialTicks);
     }
 
     private static void invokeDrawTooltips(Object overlay, Minecraft mc, GuiGraphics graphics,
                                            int mouseX, int mouseY) throws Exception {
-        overlay.getClass()
-            .getMethod("drawTooltips", Minecraft.class, GuiGraphics.class, int.class, int.class)
+        OVERLAY_METHODS.get(overlay.getClass()).drawTooltips
             .invoke(overlay, mc, graphics, mouseX, mouseY);
+    }
+
+    private static void logOverlayRenderFailure(String phase, Throwable error) {
+        if (overlayRenderFailureLogged) {
+            return;
+        }
+        overlayRenderFailureLogged = true;
+        LOGGER.warn("[jei] PonderUI {} render failed; disabling repeated error reports", phase, error);
+    }
+
+    private static Method optionalMethod(Class<?> type, String name, Class<?>... parameterTypes) {
+        try {
+            return type.getMethod(name, parameterTypes);
+        } catch (NoSuchMethodException ignored) {
+            return null;
+        }
+    }
+
+    private static final class OverlayMethods {
+        private final Method getScreenPropertiesUpdater;
+        private final Method drawOnForeground;
+        private final Method drawScreen;
+        @Nullable
+        private final Method drawBackground;
+        @Nullable
+        private final Method drawForeground;
+        private final Method drawTooltips;
+
+        private OverlayMethods(Class<?> type) {
+            try {
+                getScreenPropertiesUpdater = type.getMethod("getScreenPropertiesUpdater");
+                drawOnForeground = type.getMethod(
+                    "drawOnForeground", GuiGraphics.class, int.class, int.class
+                );
+                drawScreen = type.getMethod(
+                    "drawScreen", Minecraft.class, GuiGraphics.class, int.class, int.class, float.class
+                );
+                drawTooltips = type.getMethod(
+                    "drawTooltips", Minecraft.class, GuiGraphics.class, int.class, int.class
+                );
+                drawBackground = optionalMethod(type, "drawBackground", GuiGraphics.class);
+                drawForeground = optionalMethod(
+                    type, "drawForeground", Minecraft.class, GuiGraphics.class, int.class, int.class, float.class
+                );
+            } catch (NoSuchMethodException error) {
+                throw new IllegalStateException("Unsupported JEI overlay implementation: " + type.getName(), error);
+            }
+        }
+
+        private boolean hasSplitDrawPass() {
+            return drawBackground != null && drawForeground != null;
+        }
+    }
+
+    private static final class UpdaterMethods {
+        private final Method updateScreen;
+        @Nullable
+        private final Method updateGuiProperties;
+        private final Method updateExclusionAreas;
+        private final Method update;
+
+        private UpdaterMethods(Class<?> type) {
+            try {
+                updateScreen = type.getMethod("updateScreen", Screen.class);
+                updateGuiProperties = optionalMethod(type, "updateGuiProperties", IGuiProperties.class);
+                updateExclusionAreas = type.getMethod("updateExclusionAreas", Set.class);
+                update = type.getMethod("update");
+            } catch (NoSuchMethodException error) {
+                throw new IllegalStateException("Unsupported JEI screen updater: " + type.getName(), error);
+            }
+        }
+
+        private void update(Object updater, Screen screen, IGuiProperties guiProperties) throws Exception {
+            updateScreen.invoke(updater, screen);
+            if (updateGuiProperties != null) {
+                updateGuiProperties.invoke(updater, guiProperties);
+            }
+            updateExclusionAreas.invoke(updater, Set.of());
+            update.invoke(updater);
+        }
     }
 
     private static class JeiAwareGuiProperties implements IGuiProperties {
