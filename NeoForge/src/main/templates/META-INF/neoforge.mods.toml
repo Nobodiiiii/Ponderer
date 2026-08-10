@@ -92,7 +92,7 @@ side = "CLIENT"
 [[dependencies."${mod_id}"]]
 modId = "jei"
 type = "optional"
-versionRange = "[19.21.0.243,19.43)"
+versionRange = "[19.21.0.243,)"
 ordering = "AFTER"
 side = "CLIENT"
 
