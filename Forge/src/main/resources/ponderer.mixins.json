@@ -33,7 +33,9 @@
     "PonderUIMirrorRenderMixin",
     "JeiGuiEventHandlerMixin",
     "EmbeddedMirrorContainerScreenMixin",
-    "PonderProgressBarAccessorMixin"
+    "PonderProgressBarAccessorMixin",
+    "StringEntryAccessor",
+    "StringEntryMaxLengthMixin"
   ],
   "server": [],
   "injectors": {
