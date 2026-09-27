@@ -12,6 +12,7 @@
   "mixins": [
     "ponderer.mixins.json"
   ],
+  "accessWidener": "ponderer.accesswidener",
   "entrypoints": {
     "main": [
       "com.nododiiiii.ponderer.fabric.PondererFabric"

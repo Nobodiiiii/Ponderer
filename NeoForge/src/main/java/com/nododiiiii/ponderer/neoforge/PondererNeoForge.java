@@ -8,8 +8,6 @@ import com.nododiiiii.ponderer.network.FeatureAvailabilityPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.AutoRemoteSyncService;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot.ReplayEventInterceptors;
-import com.nododiiiii.ponderer.neoforge.sticksnapshot.snapshot.ReplaySessionManager;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
@@ -49,8 +47,6 @@ public class PondererNeoForge {
 
         modEventBus.addListener(this::onRegisterPayloads);
         modEventBus.addListener(this::onBuildCreativeTab);
-        NeoForge.EVENT_BUS.register(ReplaySessionManager.class);
-        NeoForge.EVENT_BUS.register(ReplayEventInterceptors.class);
         NeoForge.EVENT_BUS.addListener(this::onServerStarted);
         NeoForge.EVENT_BUS.addListener(this::onServerStopping);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);

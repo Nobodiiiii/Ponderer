@@ -226,6 +226,12 @@ public class DslScene {
          * e.g. "minecraft:crafting" or "tetra:workbench".
          */
         public String uiId;
+        /**
+         * show_interface only: schema 2 interface descriptor. When present it takes precedence
+         * over the legacy interface fields above.
+         */
+        @com.google.gson.annotations.SerializedName("interface")
+        public com.google.gson.JsonObject interfaceSpec;
 
         public int durationOrDefault(int fallback) {
             return duration == null ? fallback : Math.max(duration, 0);

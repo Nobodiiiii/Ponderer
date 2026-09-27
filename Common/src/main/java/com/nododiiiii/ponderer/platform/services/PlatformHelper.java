@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.platform.services;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -32,34 +31,6 @@ public interface PlatformHelper {
 
     /** Execute a runnable only on the client side (avoids class-loading issues). */
     void executeOnClient(Supplier<Runnable> runnable);
-
-    /**
-     * Open a mirrored block interface for a scene step on the client.
-     * Default is no-op for platforms without this feature.
-     */
-    default void showInterfaceStep(DslScene.DslStep step) {
-    }
-
-    /**
-     * Simulate a click on the mirrored interface for a scene step.
-     * Default is no-op for platforms without this feature.
-     */
-    default void clickInterfaceStep(DslScene.DslStep step) {
-    }
-
-    /**
-     * Close the currently mirrored interface, if any.
-     * Default is no-op for platforms without this feature.
-     */
-    default void closeInterfaceStep(String reason) {
-    }
-
-    /**
-     * Whether this platform can render the live mirrored GUI preview inside PonderUI.
-     */
-    default boolean supportsEmbeddedInterfacePreview() {
-        return false;
-    }
 
     /**
      * Open the projector's server-backed menu.

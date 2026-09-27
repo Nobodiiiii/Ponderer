@@ -1,16 +1,15 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import javax.annotation.Nullable;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 
 /**
- * Resolve the UI viewport used by embedded mirror screens in Ponder.
- * Falls back to a centered container viewport when mirror bounds are unavailable.
+ * Resolve the UI viewport of the interface shown in Ponder.
+ * Falls back to a centered container viewport when no interface is visible.
  */
 public final class UiAnchorViewport {
 
@@ -27,32 +26,30 @@ public final class UiAnchorViewport {
     }
 
     public static Rect resolve(Minecraft mc) {
-        return resolveForScreen(mc, getEmbeddedMirrorScreen());
+        int[] rect = InterfaceHost.activeRect();
+        if (rect != null && rect[2] > 1 && rect[3] > 1) {
+            return new Rect(rect[0], rect[1], rect[2], rect[3]);
+        }
+        return centeredContainerFallback(mc);
     }
 
-    public static Rect resolveForScreen(Minecraft mc, @Nullable Screen mirror) {
-        int guiW = Math.max(1, mc.getWindow().getGuiScaledWidth());
-        int guiH = Math.max(1, mc.getWindow().getGuiScaledHeight());
-
-        if (mirror instanceof AbstractContainerScreen<?> container) {
-            Rect rect = readContainerRect(container, guiW, guiH);
-            if (rect != null && rect.isValid()) {
-                return rect;
+    public static Rect resolveForScreen(Minecraft mc, @Nullable Screen screen) {
+        if (screen != null) {
+            int[] rect = InterfacePlatform.get().containerRect(screen);
+            if (rect != null && rect[2] > 1 && rect[3] > 1) {
+                return new Rect(rect[0], rect[1], rect[2], rect[3]);
             }
         }
-
-        return centeredContainerFallback(guiW, guiH);
+        return centeredContainerFallback(mc);
     }
 
-    public static Rect resolveJeiForScreen(Minecraft mc, @Nullable Screen mirror) {
-        if (mirror instanceof AbstractContainerScreen<?> container) {
-            InterfaceSlotOverlayRenderer.ContainerBounds bounds = InterfaceSlotOverlayRenderer.readContainerBounds(container);
-            return new Rect(bounds.left(), bounds.top(), bounds.width(), bounds.height());
-        }
-        return resolveForScreen(mc, mirror);
+    public static Rect resolveJeiForScreen(Minecraft mc, @Nullable Screen screen) {
+        return resolveForScreen(mc, screen);
     }
 
-    private static Rect centeredContainerFallback(int guiW, int guiH) {
+    private static Rect centeredContainerFallback(Minecraft mc) {
+        int guiW = Math.max(1, mc.getWindow().getGuiScaledWidth());
+        int guiH = Math.max(1, mc.getWindow().getGuiScaledHeight());
         double width = Math.min(guiW, DEFAULT_CONTAINER_WIDTH);
         double height = Math.min(guiH, DEFAULT_CONTAINER_HEIGHT);
         double left = Math.floor((guiW - width) * 0.5);
@@ -60,59 +57,9 @@ public final class UiAnchorViewport {
         return new Rect(left, top, width, height);
     }
 
-    @Nullable
-    private static Rect readContainerRect(AbstractContainerScreen<?> container, int guiW, int guiH) {
-        try {
-            Field leftPos = AbstractContainerScreen.class.getDeclaredField("leftPos");
-            Field topPos = AbstractContainerScreen.class.getDeclaredField("topPos");
-            Field imageWidth = AbstractContainerScreen.class.getDeclaredField("imageWidth");
-            Field imageHeight = AbstractContainerScreen.class.getDeclaredField("imageHeight");
-            leftPos.setAccessible(true);
-            topPos.setAccessible(true);
-            imageWidth.setAccessible(true);
-            imageHeight.setAccessible(true);
-
-            double width = imageWidth.getInt(container);
-            double height = imageHeight.getInt(container);
-            if (width <= 1 || height <= 1) {
-                return null;
-            }
-
-            double left = leftPos.getInt(container);
-            double top = topPos.getInt(container);
-
-            if (left == 0.0 && top == 0.0 && (guiW > width || guiH > height)) {
-                left = Math.floor((guiW - width) * 0.5);
-                top = Math.floor((guiH - height) * 0.5);
-            }
-            return new Rect(left, top, width, height);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
+    /** The interface screen currently embedded in PonderUI, if any. */
     @Nullable
     public static Screen getEmbeddedMirrorScreen() {
-        Screen mirror = queryEmbeddedMirror(
-            "com.nododiiiii.ponderer.forge.sticksnapshot.client.ClientInputHandler");
-        if (mirror != null) {
-            return mirror;
-        }
-        return queryEmbeddedMirror(
-            "com.nododiiiii.ponderer.neoforge.sticksnapshot.client.ClientInputHandler");
-    }
-
-    @Nullable
-    private static Screen queryEmbeddedMirror(String className) {
-        try {
-            Class<?> clazz = Class.forName(className);
-            Method getter = clazz.getMethod("getEmbeddedMirrorScreen");
-            Object value = getter.invoke(null);
-            if (value instanceof Screen screen) {
-                return screen;
-            }
-        } catch (Throwable ignored) {
-        }
-        return null;
+        return InterfaceHost.activeScreen();
     }
 }

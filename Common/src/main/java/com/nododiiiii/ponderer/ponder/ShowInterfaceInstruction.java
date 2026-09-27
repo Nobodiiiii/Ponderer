@@ -1,17 +1,23 @@
 package com.nododiiiii.ponderer.ponder;
 
-import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
+import com.nododiiiii.ponderer.interfaces.model.LegacyInterfaceMigrator;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
 
+/**
+ * Opens the step's interface in a client-side sandbox and adds it to the scene as an overlay
+ * element. Seeking replays the timeline from 0, so the session is rebuilt deterministically.
+ */
 public class ShowInterfaceInstruction extends TickingInstruction {
 
-    private final DslScene.DslStep step;
+    private final InterfaceDescriptor descriptor;
 
     public ShowInterfaceInstruction(DslScene.DslStep step) {
         super(true, 1);
-        this.step = step;
+        this.descriptor = LegacyInterfaceMigrator.fromStep(step);
     }
 
     @Override
@@ -19,6 +25,6 @@ public class ShowInterfaceInstruction extends TickingInstruction {
         if (ProjectorRenderContext.isActive()) {
             return;
         }
-        PondererServices.PLATFORM.showInterfaceStep(step);
+        InterfaceHost.open(scene, descriptor);
     }
 }

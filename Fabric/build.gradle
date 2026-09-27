@@ -54,6 +54,7 @@ loom {
     }
 
     mixin.setDefaultRefmapName("${mod_id}.refmap.json")
+    accessWidenerPath = file("src/main/resources/ponderer.accesswidener")
 }
 
 // Merge Common source into Fabric compilation

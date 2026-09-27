@@ -12,7 +12,8 @@
     "PonderLevelModelDataMixin",
     "MinecraftNbtPickMixin",
     "MinecraftCoordPickScrollMixin",
-    "MinecraftSetScreenCaptureMixin",
+    "SandboxScreenGateMixin",
+    "SandboxNetworkFirewallMixin",
     "WorldSectionElementImplMixin",
     "PonderSceneAccessor",
     "TextWindowElementAccessor",
@@ -22,17 +23,12 @@
     "PonderSceneViewOffsetMixin",
     "PonderSceneTextIndexMixin",
     "SceneTransformOffsetMixin",
-    "AbstractContainerScreenAccessor",
     "MultiLineEditBoxAccessor",
     "MultilineTextFieldAccessor",
     "PonderUIAccessor",
     "PonderUIMixin",
     "PonderUINbtMixin",
-    "PonderTooltipNbtMixin",
-    "PonderUIMirrorRenderMixin",
-    "JeiGuiEventHandlerMixin",
-    "EmbeddedMirrorContainerScreenMixin",
-    "PonderProgressBarAccessorMixin"
+    "PonderTooltipNbtMixin"
   ],
   "server": [],
   "injectors": {

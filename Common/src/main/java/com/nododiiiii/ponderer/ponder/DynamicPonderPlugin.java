@@ -4,10 +4,9 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
-import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.projector.client.ProjectorCueMarkerInstruction;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
-import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
+import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import net.createmod.catnip.math.Pointing;
@@ -1067,43 +1066,33 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowInterface(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        String source = step.interfaceSource == null ? "block" : step.interfaceSource.toLowerCase(java.util.Locale.ROOT);
-        switch (source) {
-            case "block" -> {
-                if (step.block == null || step.block.isBlank()) {
-                    LOGGER.warn("show_interface missing block id");
-                    return;
+        if (step.interfaceSpec == null) {
+            String source = step.interfaceSource == null ? "block" : step.interfaceSource.toLowerCase(java.util.Locale.ROOT);
+            switch (source) {
+                case "held_item" -> {
+                    if (step.item == null || step.item.isBlank()) {
+                        LOGGER.warn("show_interface missing item id for held_item source");
+                        return;
+                    }
                 }
-                if (step.blockPos == null || step.blockPos.size() < 3) {
-                    LOGGER.warn("show_interface missing block context position");
-                    return;
+                case "ui_id" -> {
+                    if (step.uiId == null || step.uiId.isBlank()) {
+                        LOGGER.warn("show_interface missing uiId for ui_id source");
+                        return;
+                    }
                 }
-            }
-            case "held_item" -> {
-                if (step.item == null || step.item.isBlank()) {
-                    LOGGER.warn("show_interface missing item id for held_item source");
-                    return;
-                }
-            }
-            case "ui_id" -> {
-                if (step.uiId == null || step.uiId.isBlank()) {
-                    LOGGER.warn("show_interface missing uiId for ui_id source");
-                    return;
-                }
-            }
-            default -> {
-                LOGGER.warn("show_interface unknown interfaceSource '{}', treating as block", step.interfaceSource);
-                if (step.block == null || step.block.isBlank()
-                    || step.blockPos == null || step.blockPos.size() < 3) {
-                    return;
+                default -> {
+                    if (!"block".equals(source)) {
+                        LOGGER.warn("show_interface unknown interfaceSource '{}', treating as block", step.interfaceSource);
+                    }
+                    if (step.block == null || step.block.isBlank()) {
+                        LOGGER.warn("show_interface missing block id");
+                        return;
+                    }
                 }
             }
         }
 
-        if (!ProjectorRenderContext.isActive()) {
-            PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
-            InterfaceSlotOverlayRenderer.clearRuntimeBindings();
-        }
         // Build-time pointAt() conversion for UI-anchored overlays happens after this step.
         // Reset immediately so subsequent resolveOverlayPoint() uses a clean baseline.
         ponderer$resetSceneViewState(scene.getScene());
@@ -1237,8 +1226,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        if (!ProjectorRenderContext.isActive()) {
-            PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_structure");
+        if (context.uiAnchorMode) {
+            scene.addInstruction(InterfaceHost::hide);
         }
         context.uiAnchorMode = false;
         Selection selection;

@@ -94,6 +94,12 @@ SUCCESS_PATTERNS = (
     re.compile(r"\[Server thread/INFO\](?: \[[^\]]+\])?: .+加入了游戏"),
 )
 
+INTERFACE_SMOKE_PASS = re.compile(r"\[PondererSmoke\] interfaces PASS")
+INTERFACE_SMOKE_FAIL = re.compile(r"\[PondererSmoke\] interfaces FAIL")
+
+# Extra JVM system properties for the launched client (set from command-line flags).
+EXTRA_JVM_ARGS: list[str] = []
+
 ERROR_PATTERN = re.compile(
     r"\b(ERROR|FATAL)\b|Exception|Caused by:|Mixin apply failed|Crash|Failed to|Unable to",
     re.IGNORECASE,
@@ -484,6 +490,17 @@ def entered_world(log_text: str) -> bool:
     return any(pattern.search(log_text) for pattern in SUCCESS_PATTERNS)
 
 
+def smoke_outcome(log_text: str, interfaces: bool) -> bool | None:
+    """True/False once the smoke outcome is known from the log, None while still pending."""
+    if not interfaces:
+        return True if entered_world(log_text) else None
+    if INTERFACE_SMOKE_FAIL.search(log_text):
+        return False
+    if INTERFACE_SMOKE_PASS.search(log_text):
+        return True
+    return None
+
+
 def extract_error_excerpt(log_text: str, max_lines: int) -> str:
     lines = log_text.splitlines()
     if not lines:
@@ -549,6 +566,7 @@ def build_launch_command(spec: PlatformSpec, mc_version: str, world: str, width:
     command = [
         find_java(),
         *build_jvm_args(version_data, instance, classpath),
+        *EXTRA_JVM_ARGS,
         version_data["mainClass"],
         *build_game_args(version_data, instance, world, width, height),
     ]
@@ -590,6 +608,7 @@ def smoke_target(
     timeout: int,
     max_log_lines: int,
     dry_run: bool,
+    interfaces: bool = False,
 ) -> SmokeResult:
     instance = instance_dir(spec, mc_version)
     cursors = {path: capture_log_cursor(path) for path in latest_log_candidates(instance)}
@@ -625,7 +644,8 @@ def smoke_target(
         finally:
             launched.set()
 
-    print(f"[SMOKE] {instance.name}: waiting {timeout}s for quickplay world entry")
+    goal = "the interface self-test result" if interfaces else "quickplay world entry"
+    print(f"[SMOKE] {instance.name}: waiting {timeout}s for {goal}")
     timer = threading.Thread(target=timer_thread, name=f"smoke-timer-{spec.target}")
     quickplay = threading.Thread(target=quickplay_thread, name=f"smoke-quickplay-{spec.target}")
     timer.start()
@@ -634,12 +654,13 @@ def smoke_target(
     try:
         log_path = latest_log_candidates(instance)[0]
         log_text = ""
-        ok = False
+        outcome: bool | None = None
         while not timer_done.wait(0.1):
             log_path, log_text = read_smoke_log(instance, cursors)
-            if log_text and entered_world(log_text):
-                ok = True
-                break
+            if log_text:
+                outcome = smoke_outcome(log_text, interfaces)
+                if outcome is not None:
+                    break
             if "error" in launch_error:
                 break
 
@@ -647,7 +668,9 @@ def smoke_target(
         if final_log_text.strip():
             log_path = final_log_path
             log_text = final_log_text
-        ok = ok or bool(log_text and entered_world(log_text))
+        if outcome is None and log_text:
+            outcome = smoke_outcome(log_text, interfaces)
+        ok = outcome is True
 
         launched.wait(timeout=1)
         process = process_holder.get("process")
@@ -655,12 +678,22 @@ def smoke_target(
 
         if ok:
             print(
-                f"[SMOKE][PASS] {instance.name}: entered world within {timeout}s; "
+                f"[SMOKE][PASS] {instance.name}: {goal} reached within {timeout}s; "
                 f"waiting {POST_ENTRY_SETTLE_SECONDS:g}s before cleanup"
             )
+            if interfaces:
+                for line in log_text.splitlines():
+                    if "[PondererSmoke]" in line:
+                        print(f"  {line.strip()}")
             time.sleep(POST_ENTRY_SETTLE_SECONDS)
         else:
-            print(f"[SMOKE][FAIL] {instance.name}: did not enter world within {timeout}s")
+            if outcome is False:
+                print(f"[SMOKE][FAIL] {instance.name}: interface self-test reported FAIL")
+                for line in log_text.splitlines():
+                    if "[PondererSmoke]" in line:
+                        print(f"  {line.strip()}")
+            else:
+                print(f"[SMOKE][FAIL] {instance.name}: {goal} not reached within {timeout}s")
             if "error" in launch_error:
                 print(f"[SMOKE][LAUNCH ERROR] {launch_error['error']}")
             if exit_code is not None:
@@ -709,6 +742,7 @@ def run_smoke(
             args.smoke_timeout,
             args.smoke_log_lines,
             args.dry_run,
+            args.smoke_interfaces,
         )
         for target in targets
     ]
@@ -726,6 +760,9 @@ def main() -> int:
     parser.add_argument("--smoke", action="store_true", help="Build, quickplay, wait for a world-entry log marker, then clean up.")
     parser.add_argument("--smoke-timeout", type=int, default=DEFAULT_SMOKE_TIMEOUT)
     parser.add_argument("--smoke-log-lines", type=int, default=DEFAULT_SMOKE_LOG_LINES)
+    parser.add_argument("--smoke-interfaces", action="store_true",
+                        help="With --smoke: run the in-game interface sandbox self-test and wait for its PASS/FAIL marker.")
+    parser.add_argument("--smoke-ponder-item", help="With --smoke-interfaces: also open PonderUI for this item id and screenshot it.")
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH)
     parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
     args = parser.parse_args()
@@ -733,6 +770,11 @@ def main() -> int:
         parser.error("--smoke-timeout must be greater than 0")
     if args.smoke_log_lines <= 0:
         parser.error("--smoke-log-lines must be greater than 0")
+
+    if args.smoke_interfaces:
+        EXTRA_JVM_ARGS.append("-Dponderer.smoke.interfaces=true")
+        if args.smoke_ponder_item:
+            EXTRA_JVM_ARGS.append(f"-Dponderer.smoke.interfaces.ponder={args.smoke_ponder_item}")
 
     props = read_gradle_properties()
     mc_version = props["minecraft_version"]

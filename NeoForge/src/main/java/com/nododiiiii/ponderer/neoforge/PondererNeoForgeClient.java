@@ -9,7 +9,7 @@ import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
-import com.nododiiiii.ponderer.neoforge.sticksnapshot.StickSnapshotFeature;
+import com.nododiiiii.ponderer.neoforge.interfaces.NeoForgeInterfaceEvents;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
 import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
@@ -68,7 +68,7 @@ public class PondererNeoForgeClient {
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseInput);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGH, PondererNeoForgeClient::onScreenMouseClick);
-        StickSnapshotFeature.onClientInit();
+        NeoForgeInterfaceEvents.register();
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {

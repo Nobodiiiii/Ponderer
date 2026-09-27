@@ -1,9 +1,6 @@
 package com.nododiiiii.ponderer.neoforge;
 
-import com.nododiiiii.ponderer.neoforge.sticksnapshot.client.ClientInputHandler;
-import com.nododiiiii.ponderer.neoforge.sticksnapshot.client.NeoForgeShowInterfaceClient;
 import com.nododiiiii.ponderer.platform.services.PlatformHelper;
-import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.api.distmarker.Dist;
@@ -54,26 +51,6 @@ public class NeoForgePlatformHelper implements PlatformHelper {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             runnable.get().run();
         }
-    }
-
-    @Override
-    public void showInterfaceStep(DslScene.DslStep step) {
-        executeOnClient(() -> () -> NeoForgeShowInterfaceClient.showInterfaceStep(step));
-    }
-
-    @Override
-    public void clickInterfaceStep(DslScene.DslStep step) {
-        executeOnClient(() -> () -> NeoForgeShowInterfaceClient.clickInterfaceStep(step));
-    }
-
-    @Override
-    public void closeInterfaceStep(String reason) {
-        executeOnClient(() -> () -> ClientInputHandler.closeEmbeddedMirrorFromPonder(reason));
-    }
-
-    @Override
-    public boolean supportsEmbeddedInterfacePreview() {
-        return true;
     }
 
     @Override

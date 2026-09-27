@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
-import com.nododiiiii.ponderer.mixin.AbstractContainerScreenAccessor;
+import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.minecraft.client.Minecraft;
@@ -182,26 +182,14 @@ public final class InterfaceSlotOverlayRenderer {
     }
 
     public static ContainerBounds readContainerBounds(AbstractContainerScreen<?> container) {
+        int[] rect = InterfacePlatform.get().containerRect(container);
+        if (rect != null && rect[2] > 1 && rect[3] > 1) {
+            return new ContainerBounds(rect[0], rect[1], rect[2], rect[3]);
+        }
         int imageWidth = 176;
         int imageHeight = 166;
-        int resolvedLeft;
-        int resolvedTop;
-
-        if (container instanceof AbstractContainerScreenAccessor accessor) {
-            imageWidth = Math.max(1, accessor.ponderer$getImageWidth());
-            imageHeight = Math.max(1, accessor.ponderer$getImageHeight());
-            resolvedLeft = accessor.ponderer$getLeftPos();
-            resolvedTop = accessor.ponderer$getTopPos();
-        } else {
-            resolvedLeft = Math.max(0, (container.width - imageWidth) / 2);
-            resolvedTop = Math.max(0, (container.height - imageHeight) / 2);
-        }
-
-        if (resolvedLeft == 0 && resolvedTop == 0 && (container.width > imageWidth || container.height > imageHeight)) {
-            resolvedLeft = Math.max(0, (container.width - imageWidth) / 2);
-            resolvedTop = Math.max(0, (container.height - imageHeight) / 2);
-        }
-        return new ContainerBounds(resolvedLeft, resolvedTop, imageWidth, imageHeight);
+        return new ContainerBounds(Math.max(0, (container.width - imageWidth) / 2),
+            Math.max(0, (container.height - imageHeight) / 2), imageWidth, imageHeight);
     }
 
     @Nullable

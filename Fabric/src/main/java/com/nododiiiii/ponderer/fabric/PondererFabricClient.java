@@ -6,6 +6,7 @@ import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
+import com.nododiiiii.ponderer.fabric.interfaces.FabricInterfaceEvents;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -158,6 +159,8 @@ public class PondererFabricClient implements ClientModInitializer {
                 jeiLeftMouseWasDown = false;
             }
         });
+
+        FabricInterfaceEvents.register();
 
         // JEI click interception on screen open
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
