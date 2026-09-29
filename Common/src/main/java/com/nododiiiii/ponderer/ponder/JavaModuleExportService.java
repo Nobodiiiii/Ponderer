@@ -80,6 +80,12 @@ public final class JavaModuleExportService {
         "show_interface",
         "click_interface",
         "change_interface_slot",
+        "set_interface_slots",
+        "set_interface_data",
+        "set_interface_context",
+        "interface_action",
+        "hide_interface",
+        "await_interface",
         "zoom_scene"
     );
 

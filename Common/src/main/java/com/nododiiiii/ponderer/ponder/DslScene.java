@@ -233,6 +233,26 @@ public class DslScene {
         @com.google.gson.annotations.SerializedName("interface")
         public com.google.gson.JsonObject interfaceSpec;
 
+        // ---- Interface timeline steps (set_interface_slots, set_interface_data,
+        // set_interface_context, interface_action, await_interface). Kept as raw JSON and
+        // parsed by InterfaceStepSpecs.
+        public com.google.gson.JsonArray slots;
+        public com.google.gson.JsonArray ghosts;
+        public com.google.gson.JsonArray data;
+        public com.google.gson.JsonObject player;
+        public com.google.gson.JsonObject target;
+        public com.google.gson.JsonObject from;
+        public com.google.gson.JsonObject to;
+        public com.google.gson.JsonObject goal;
+        public String button;
+        /** interface_action type_text / press_button: text to type or button label to match. */
+        public String chars;
+        public Boolean cursor;
+        /** set_interface_slots: clear earlier scripted slot writes and ghosts first. */
+        public Boolean replace;
+        public Integer timeout;
+        public LocalizedText hint;
+
         public int durationOrDefault(int fallback) {
             return duration == null ? fallback : Math.max(duration, 0);
         }

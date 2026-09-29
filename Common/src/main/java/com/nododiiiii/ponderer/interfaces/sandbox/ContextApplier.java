@@ -168,7 +168,7 @@ public final class ContextApplier {
         }
     }
 
-    private static void putInventory(SandboxSession session, Inventory inventory, String slot, ItemStack stack) {
+    static void putInventory(SandboxSession session, Inventory inventory, String slot, ItemStack stack) {
         String key = slot.toLowerCase(Locale.ROOT);
         if ("offhand".equals(key)) {
             inventory.offhand.set(0, stack);

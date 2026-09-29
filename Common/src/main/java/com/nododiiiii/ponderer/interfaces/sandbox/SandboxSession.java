@@ -290,17 +290,17 @@ public final class SandboxSession {
 
     public boolean mouseClicked(double x, double y, int button) {
         Screen screen = currentScreen();
-        return screen != null && canInteract() && dispatch("mouseClicked", () -> screen.mouseClicked(x, y, button), false);
+        return screen != null && canInteract() && afterInput(dispatch("mouseClicked", () -> screen.mouseClicked(x, y, button), false));
     }
 
     public boolean mouseReleased(double x, double y, int button) {
         Screen screen = currentScreen();
-        return screen != null && canInteract() && dispatch("mouseReleased", () -> screen.mouseReleased(x, y, button), false);
+        return screen != null && canInteract() && afterInput(dispatch("mouseReleased", () -> screen.mouseReleased(x, y, button), false));
     }
 
     public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
         Screen screen = currentScreen();
-        return screen != null && canInteract() && dispatch("mouseDragged", () -> screen.mouseDragged(x, y, button, dx, dy), false);
+        return screen != null && canInteract() && afterInput(dispatch("mouseDragged", () -> screen.mouseDragged(x, y, button, dx, dy), false));
     }
 
     public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
@@ -310,12 +310,17 @@ public final class SandboxSession {
 
     public boolean keyPressed(int key, int scanCode, int modifiers) {
         Screen screen = currentScreen();
-        return screen != null && canInteract() && dispatch("keyPressed", () -> screen.keyPressed(key, scanCode, modifiers), false);
+        return screen != null && canInteract() && afterInput(dispatch("keyPressed", () -> screen.keyPressed(key, scanCode, modifiers), false));
     }
 
     public boolean charTyped(char c, int modifiers) {
         Screen screen = currentScreen();
         return screen != null && canInteract() && dispatch("charTyped", () -> screen.charTyped(c, modifiers), false);
+    }
+
+    private boolean afterInput(boolean handled) {
+        SessionOps.updateCrafting(this);
+        return handled;
     }
 
     /** Pops a nested sandbox screen (e.g. a mod's client-side sub page). Returns false at the root. */

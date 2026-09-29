@@ -7,6 +7,13 @@ import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.projector.client.ProjectorCueMarkerInstruction;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
 import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.interfaces.instruction.AwaitInterfaceInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.HideInterfaceInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.InterfaceActionInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceContextInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceDataInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceSlotsInstruction;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import net.createmod.catnip.math.Pointing;
@@ -788,6 +795,18 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "show_interface" -> applyShowInterface(scene, step, context);
             case "change_interface_slot" -> applyChangeInterfaceSlot(scene, step);
             case "click_interface" -> applyClickInterface(scene, step);
+            case "set_interface_slots" -> scene.addInstruction(
+                new SetInterfaceSlotsInstruction(InterfaceStepSpecs.slots(step)));
+            case "set_interface_data" -> scene.addInstruction(
+                new SetInterfaceDataInstruction(InterfaceStepSpecs.data(step), step.durationOrDefault(1)));
+            case "set_interface_context" -> scene.addInstruction(
+                new SetInterfaceContextInstruction(InterfaceStepSpecs.context(step)));
+            case "interface_action" -> applyInterfaceAction(scene, step);
+            case "hide_interface" -> {
+                scene.addInstruction(new HideInterfaceInstruction(step.durationOrDefault(1)));
+                context.uiAnchorMode = false;
+            }
+            case "await_interface" -> applyAwaitInterface(scene, step);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
             case "set_block" -> applySetBlock(scene, step, context);
@@ -1104,15 +1123,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyClickInterface(SceneBuilder scene, DslScene.DslStep step) {
-        if (step.pos == null || step.pos.size() < 2) {
-            LOGGER.warn("click_interface missing point");
+        InterfaceStepSpecs.Action action = InterfaceStepSpecs.fromLegacyClick(step);
+        if (action == null) {
+            LOGGER.warn("click_interface needs pos [u, v] and action left|right");
             return;
         }
-        if (step.action == null || step.action.isBlank()) {
-            LOGGER.warn("click_interface missing action");
-            return;
-        }
-        scene.addInstruction(new ClickInterfaceInstruction(step));
+        scene.addInstruction(new InterfaceActionInstruction(action));
     }
 
     private void applyChangeInterfaceSlot(SceneBuilder scene, DslScene.DslStep step) {
@@ -1120,7 +1136,27 @@ public class DynamicPonderPlugin implements PonderPlugin {
             LOGGER.warn("change_interface_slot missing interfaceSlots");
             return;
         }
-        scene.addInstruction(new ChangeInterfaceSlotInstruction(step));
+        scene.addInstruction(new SetInterfaceSlotsInstruction(InterfaceStepSpecs.fromLegacyChangeSlot(step.interfaceSlots)));
+    }
+
+    private void applyInterfaceAction(SceneBuilder scene, DslScene.DslStep step) {
+        InterfaceStepSpecs.Action action = InterfaceStepSpecs.action(step);
+        if (action == null) {
+            LOGGER.warn("interface_action unknown action '{}'", step.action);
+            return;
+        }
+        scene.addInstruction(new InterfaceActionInstruction(action));
+    }
+
+    private void applyAwaitInterface(SceneBuilder scene, DslScene.DslStep step) {
+        InterfaceStepSpecs.Goal goal = InterfaceStepSpecs.goal(step);
+        if (goal == null) {
+            LOGGER.warn("await_interface needs goal.slot");
+            return;
+        }
+        String hint = step.hint == null ? null : step.hint.resolve();
+        scene.addInstruction(new AwaitInterfaceInstruction(goal, hint == null || hint.isBlank() ? null : hint,
+            step.timeout == null ? 600 : step.timeout));
     }
 
     private void ponderer$resetSceneViewState(net.createmod.ponder.foundation.PonderScene ps) {

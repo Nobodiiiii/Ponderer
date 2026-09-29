@@ -52,32 +52,6 @@ public final class JeiCompat {
     }
 
     /**
-     * Returns true when PonderUI should skip JEI's default event-driven draw pass
-     * and render the active overlay manually at the very end of the screen render.
-     */
-    public static boolean shouldRenderPonderUiOverlayManually(Screen screen) {
-        if (!isAvailable()) return false;
-        return PondererJeiPlugin.shouldRenderPonderUiOverlayManually(screen);
-    }
-
-    /**
-     * Render JEI's current ingredient/bookmark overlays manually on top of PonderUI.
-     */
-    public static void renderPonderUiOverlay(Screen screen, GuiGraphics graphics, int mouseX, int mouseY,
-                                             float partialTicks) {
-        if (!isAvailable()) return;
-        PondererJeiPlugin.renderPonderUiOverlay(screen, graphics, mouseX, mouseY, partialTicks);
-    }
-
-    /**
-     * Render JEI's manual tooltip layer for the active PonderUI overlay.
-     */
-    public static void renderPonderUiTooltips(Screen screen, GuiGraphics graphics, int mouseX, int mouseY) {
-        if (!isAvailable()) return;
-        PondererJeiPlugin.renderPonderUiTooltips(screen, graphics, mouseX, mouseY);
-    }
-
-    /**
      * Create a ScreenElement that renders the given ingredient object using JEI.
      * The ingredient can be an ItemStack, FluidStack, or any JEI-registered type.
      * Returns null if JEI is unavailable or the ingredient is not recognized.

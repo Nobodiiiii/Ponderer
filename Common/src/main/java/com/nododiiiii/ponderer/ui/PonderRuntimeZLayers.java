@@ -22,6 +22,13 @@ public final class PonderRuntimeZLayers {
     public static final int TOOLTIP_LAYER = SCENE_LIFT_BIAS + 1000;
     public static final int PONDER_BUTTON_LAYER = SCENE_LIFT_BIAS + 1200;
 
+    /**
+     * Ghost ingredients, tab bar and ghost cursor of the embedded interface. Relative to the
+     * scene overlay pass, whose pose is already lifted, so it must stay small: adding the
+     * biased layers above there pushes geometry past the GUI far plane and it is clipped.
+     */
+    public static final int INTERFACE_OVERLAY_LAYER = 400;
+
     private PonderRuntimeZLayers() {
     }
 }

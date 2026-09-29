@@ -4,11 +4,13 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.interfaces.sandbox.Fidelity;
 import com.nododiiiii.ponderer.interfaces.sandbox.SandboxCoordinates;
 import com.nododiiiii.ponderer.interfaces.sandbox.SandboxNetworkFirewall;
 import com.nododiiiii.ponderer.interfaces.sandbox.SandboxScreenGate;
 import com.nododiiiii.ponderer.interfaces.sandbox.SandboxSession;
+import com.nododiiiii.ponderer.interfaces.sandbox.SessionOps;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
@@ -105,7 +107,14 @@ public final class InterfaceSmokeTest {
                             failures.add("PonderUI scene showed no embedded interface");
                         }
                         screenshot(mc, "ponderer-smoke-ponder.png");
-                    } else if (ticks > 85) {
+                        InterfaceHost.enterTry();
+                        check(InterfaceHost.mode() == InterfaceHost.Mode.TRY, "could not enter try mode");
+                    } else if (ticks == 86) {
+                        screenshot(mc, "ponderer-smoke-ponder-try.png");
+                        InterfaceHost.exitTry();
+                        check(InterfaceHost.mode() == InterfaceHost.Mode.WATCH, "could not leave try mode");
+                        check(InterfaceHost.activeScreen() != null, "reset on leaving try mode lost the interface");
+                    } else if (ticks > 90) {
                         mc.setScreen(null);
                         finish();
                     }
@@ -169,12 +178,65 @@ public final class InterfaceSmokeTest {
         expect("ui_id crafting", menu("minecraft:crafting"), Fidelity.INTERACTIVE, "bare_type", null);
         expect("held writable_book", item("minecraft:writable_book"), Fidelity.INTERACTIVE, "client_screen", null);
         expect("unknown block", block("ponderer:not_a_block", null), Fidelity.SCHEMATIC, null, null);
+        runActionCases();
 
         check(real == mc.player, "Minecraft.player not restored");
         check(real.containerMenu == realMenu && realMenu.getStateId() == realMenuState, "real container menu changed");
         check(real.getInventory().getTimesChanged() == realInventory, "real inventory changed");
         check(real.experienceLevel == realXp, "real experience changed");
         check(mc.screen == null, "host screen changed to " + mc.screen);
+    }
+
+    /** Stage 2: scripted slot writes, synthesized actions, the crafting adapter and context patches. */
+    private static void runActionCases() {
+        expect("actions chest", chest(), Fidelity.INTERACTIVE, "provider", session -> {
+            AbstractContainerMenu menu = session.menu();
+            SessionOps.perform(session, action(InterfaceStepSpecs.ActionKind.QUICK_MOVE, 0, null, 0));
+            check(menu.getSlot(0).getItem().isEmpty(), "quick_move left diamonds in chest slot 0");
+            check(session.player().getInventory().countItem(Items.DIAMOND) == 5, "quick_move did not move diamonds to the sandbox inventory");
+
+            InterfaceStepSpecs.Action drag = action(InterfaceStepSpecs.ActionKind.DRAG, 13, 1, 0);
+            SessionOps.beginDrag(session, drag);
+            SessionOps.perform(session, drag);
+            check(menu.getSlot(1).getItem().is(Items.OAK_LOG) && menu.getSlot(1).getItem().getCount() == 32
+                && menu.getSlot(13).getItem().isEmpty() && menu.getCarried().isEmpty(), "drag 13 -> 1 did not move the logs");
+
+            SessionOps.perform(session, action(InterfaceStepSpecs.ActionKind.SWAP_HOTBAR, 1, null, 0));
+            check(menu.getSlot(1).getItem().isEmpty() && session.player().getInventory().getItem(0).is(Items.OAK_LOG),
+                "swap_hotbar did not swap slot 1 with hotbar 1");
+
+            SessionOps.writeSlot(session, new InterfaceStepSpecs.SlotWrite(2, new InterfaceDescriptor.ItemSpec("minecraft:iron_ingot", 3, null, null), null, null));
+            check(menu.getSlot(2).getItem().is(Items.IRON_INGOT) && menu.getSlot(2).getItem().getCount() == 3, "set_interface_slots did not write iron");
+            check(SessionOps.goalMet(session, new InterfaceStepSpecs.Goal(2, "minecraft:iron_ingot", 3)), "goal not met for 3 iron");
+            SessionOps.writeSlot(session, new InterfaceStepSpecs.SlotWrite(2, InterfaceDescriptor.ItemSpec.of("minecraft:stone"), 99, 99));
+            check(menu.getSlot(2).getItem().is(Items.IRON_INGOT), "expect mismatch did not skip the write");
+
+            int stock = session.player().getInventory().countItem(Items.IRON_INGOT);
+            SessionOps.perform(session, action(InterfaceStepSpecs.ActionKind.THROW, 2, null, 0));
+            check(menu.getSlot(2).getItem().getCount() == 2, "throw did not drop one iron");
+            check(session.player().getInventory().countItem(Items.IRON_INGOT) == stock + 1, "thrown iron did not return to the sandbox inventory");
+            check(session.tripwire().violations() == 0, "tripwire fired during actions");
+        });
+        expect("actions crafting", block("minecraft:crafting_table", null), Fidelity.INTERACTIVE, "provider", session -> {
+            AbstractContainerMenu menu = session.menu();
+            for (int slot : new int[]{1, 2, 4, 5}) {
+                SessionOps.writeSlot(session, new InterfaceStepSpecs.SlotWrite(slot, InterfaceDescriptor.ItemSpec.of("minecraft:oak_planks"), null, null));
+            }
+            check(menu.getSlot(0).getItem().is(Items.CRAFTING_TABLE), "crafting adapter did not produce a crafting table: " + menu.getSlot(0).getItem());
+            SessionOps.perform(session, action(InterfaceStepSpecs.ActionKind.CLICK, 0, null, 0));
+            check(menu.getCarried().is(Items.CRAFTING_TABLE), "taking the result did not carry a crafting table");
+            check(menu.getSlot(1).getItem().isEmpty() && menu.getSlot(0).getItem().isEmpty(), "taking the result did not consume the grid");
+        });
+        expect("context xp", block("minecraft:enchanting_table", null), Fidelity.INTERACTIVE, "provider", session -> {
+            SessionOps.patchContext(session, new InterfaceStepSpecs.ContextPatch("creative", 30, null, 2, null));
+            check(session.player().experienceLevel == 30 && session.player().getInventory().selected == 2
+                && session.player().getAbilities().instabuild, "set_interface_context did not apply");
+        });
+    }
+
+    private static InterfaceStepSpecs.Action action(InterfaceStepSpecs.ActionKind kind, int slot, @Nullable Integer to, int button) {
+        return new InterfaceStepSpecs.Action(kind, new InterfaceStepSpecs.Target(slot, null, null),
+            to == null ? null : new InterfaceStepSpecs.Target(to, null, null), button, 0, false, null, null, 0, 0);
     }
 
     private static void expect(String name, InterfaceDescriptor descriptor, Fidelity fidelity, @Nullable String strategy,

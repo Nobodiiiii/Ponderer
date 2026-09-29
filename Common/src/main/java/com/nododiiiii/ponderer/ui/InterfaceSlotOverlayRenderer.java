@@ -40,23 +40,9 @@ public final class InterfaceSlotOverlayRenderer {
         return RUNTIME_BINDINGS.containsKey(slotIndex);
     }
 
-    public static void applyStep(DslScene.DslStep step) {
-        RUNTIME_BINDINGS.clear();
-        if (step == null || step.interfaceSlots == null) {
-            return;
-        }
-        for (DslScene.InterfaceSlotBinding binding : step.interfaceSlots) {
-            if (binding == null || binding.slotIndex == null || binding.ingredientId == null || binding.ingredientId.isBlank()) {
-                continue;
-            }
-            RUNTIME_BINDINGS.put(binding.slotIndex,
-                new DslScene.InterfaceSlotBinding(
-                    binding.slotIndex,
-                    binding.slotX,
-                    binding.slotY,
-                    binding.ingredientId,
-                    binding.ingredientKind));
-        }
+    /** Adds a display-only ingredient over slot {@code slotIndex} ({@code set_interface_slots.ghosts}). */
+    public static void putGhost(int slotIndex, String ingredientId, @Nullable String ingredientKind) {
+        RUNTIME_BINDINGS.put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, ingredientId, ingredientKind));
     }
 
     public static void render(GuiGraphics graphics, Screen screen) {
@@ -73,7 +59,7 @@ public final class InterfaceSlotOverlayRenderer {
 
         graphics.flush();
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, PonderRuntimeZLayers.SLOT_ONLY_LAYER);
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.INTERFACE_OVERLAY_LAYER);
         RenderSystem.disableDepthTest();
 
         ContainerBounds bounds = readContainerBounds(container);
@@ -128,11 +114,10 @@ public final class InterfaceSlotOverlayRenderer {
         if (binding == null || binding.slotIndex == null || binding.slotIndex < 0 || binding.slotIndex >= slots.size()) {
             return null;
         }
-        if (binding.slotX == null || binding.slotY == null) {
-            return null;
-        }
         Slot slot = slots.get(binding.slotIndex);
-        if (!slot.isActive() || slot.x != binding.slotX || slot.y != binding.slotY) {
+        // Positions are an optional layout check; ghosts from set_interface_slots carry none.
+        boolean positioned = binding.slotX != null && binding.slotY != null;
+        if (!slot.isActive() || (positioned && (slot.x != binding.slotX || slot.y != binding.slotY))) {
             return null;
         }
         return slot;

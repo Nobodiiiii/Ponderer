@@ -23,7 +23,7 @@ import java.util.List;
 public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
 
     private final PonderScene scene;
-    private final SandboxSession session;
+    private SandboxSession session;
 
     InterfaceOverlayElement(PonderScene scene, SandboxSession session) {
         this.scene = scene;
@@ -42,6 +42,11 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
         return session;
     }
 
+    /** Swaps in a rebuilt session (try-mode reset); the caller destroys the old one. */
+    void replaceSession(SandboxSession session) {
+        this.session = session;
+    }
+
     @Override
     public void render(PonderScene scene, PonderUI screen, GuiGraphics graphics, float partialTicks, float fade) {
         // Interface code overrides shader colour, so fading is all-or-nothing (scene fade-out hides it).
@@ -53,6 +58,14 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
         int mouseY = InterfaceHost.mouseY(mc);
         InterfaceHost.beforeRender(session, mouseX, mouseY);
         boolean hoverAllowed = InterfaceHost.shouldForwardHover(screen, mouseX, mouseY);
+        int hoverX = hoverAllowed ? mouseX : -1;
+        int hoverY = hoverAllowed ? mouseY : -1;
+        double[] ghost = InterfaceHost.cursorPosition(session, partialTicks);
+        if (ghost != null) {
+            // While a scripted action animates, hover (tooltips, carried stack) follows the ghost cursor.
+            hoverX = (int) ghost[0];
+            hoverY = (int) ghost[1];
+        }
 
         // The 3D scene leaves depth behind that would clip GUI geometry; start from a clean buffer.
         graphics.flush();
@@ -62,10 +75,11 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
         graphics.pose().pushPose();
         try {
-            session.render(graphics, hoverAllowed ? mouseX : -1, hoverAllowed ? mouseY : -1, partialTicks);
+            session.render(graphics, hoverX, hoverY, partialTicks);
             if (session.currentScreen() != null) {
                 InterfaceSlotOverlayRenderer.render(graphics, session.currentScreen());
             }
+            InterfaceHost.renderChrome(graphics, session, mouseX, mouseY, partialTicks);
             InterfaceHost.renderDraggedBinding(graphics, mouseX, mouseY);
         } finally {
             graphics.pose().popPose();
