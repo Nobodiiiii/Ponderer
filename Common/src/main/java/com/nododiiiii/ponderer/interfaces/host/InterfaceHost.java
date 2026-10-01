@@ -647,7 +647,9 @@ public final class InterfaceHost {
             draggedBindingOrigin = null;
             return true;
         }
-        return slot != null || isInside(session, x, y);
+        // Only consume drags started by this editor. JEI needs the release event
+        // over a target slot to accept ingredients dragged from its overlay.
+        return false;
     }
 
     static void renderDraggedBinding(GuiGraphics graphics, int mouseX, int mouseY) {

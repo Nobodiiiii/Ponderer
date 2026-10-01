@@ -55,12 +55,23 @@ def append_missing_jvm_args(existing: str) -> str:
     return combined
 
 
+def windows_java_ipc_arg() -> str:
+    ipc_dir = PROJECT_ROOT / ".gradle" / "java-ipc"
+    ipc_dir.mkdir(parents=True, exist_ok=True)
+    return f"-Djdk.net.unixdomain.tmpdir={ipc_dir}"
+
+
 def gradle_subprocess_env() -> dict[str, str] | None:
     if platform.system() != "Windows":
         return None
 
     env = os.environ.copy()
     env["GRADLE_OPTS"] = append_missing_jvm_args(env.get("GRADLE_OPTS", ""))
+    # Apply before the wrapper/daemon starts: project build scripts run too late
+    # to repair a Selector's "Unable to establish loopback connection" failure.
+    java_options = env.get("JAVA_TOOL_OPTIONS", "")
+    if "-Djdk.net.unixdomain.tmpdir=" not in java_options:
+        env["JAVA_TOOL_OPTIONS"] = f'{java_options} "{windows_java_ipc_arg()}"'.strip()
     env.setdefault("PYTHONIOENCODING", "utf-8")
     return env
 
@@ -309,6 +320,8 @@ def build_jvm_args(version_data: dict, instance: Path, classpath: str) -> list[s
     }
 
     args = ["-Xmx4G", "-Xms512M"]
+    if platform.system() == "Windows":
+        args.append(windows_java_ipc_arg())
     for entry in version_data.get("arguments", {}).get("jvm", []):
         if isinstance(entry, str):
             args.append(replace_tokens(entry, replacements))

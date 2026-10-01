@@ -1,0 +1,1009 @@
+{
+  "audit_date": "2026-10-01",
+  "branch": "1.21.1",
+  "head": "b823ca21ce9b66395a46e005152cdd7e147a1055",
+  "sources": [
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InputWindowElementAccessor.java",
+      "name": "InputWindowElementAccessor",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "933893b7a9bb3f832d66e2e886ac77f88cc088d21c1e54791eeb0edd4e9c0cb0",
+      "annotations": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 5,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceCaptureMixin.java",
+      "name": "InterfaceCaptureMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "6eeef036c609ecbe71e7f33eaa1979a1529cad3491bf82b419abc475747ce6fe",
+      "annotations": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceItemCaptureMixin.java",
+      "name": "InterfaceItemCaptureMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "c8dc8cc6bbef84d34940762c7bd048ae6ebe3bf29a2cfa84df424bc51423ad1a",
+      "annotations": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceMenuCaptureMixin.java",
+      "name": "InterfaceMenuCaptureMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "2a8820e1631e5e2e74630ed305a6f8095e0860d36f58732eeb1a5a345285ebf8",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/MinecraftCoordPickScrollMixin.java",
+      "name": "MinecraftCoordPickScrollMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "9807eb1e4fc2f823c20c7bb8077036ec123767317712e9e2016ba5609580ec21",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 1
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/MinecraftNbtPickMixin.java",
+      "name": "MinecraftNbtPickMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "154f86b058d4dac3673723614fb289b0b476fd0bfa2120cb41aba3edded0bf55",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 1,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/MultiLineEditBoxAccessor.java",
+      "name": "MultiLineEditBoxAccessor",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "239c286d1768629a047e104b124186016097b734915696476e0160f6fcbf6d22",
+      "annotations": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 1,
+        "Invoker": 1,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/MultilineTextFieldAccessor.java",
+      "name": "MultilineTextFieldAccessor",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "47317f74255d6c82c7df55a9c985166ec5360e2b85ed9182d246d118cb9872c2",
+      "annotations": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 2,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderKeybindsAccessor.java",
+      "name": "PonderKeybindsAccessor",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "6c1a032ffbc9ddb5668b1802f2271a770f95640f0f37e3d257d5f4aceda0c979",
+      "annotations": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 1,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderLevelMixin.java",
+      "name": "PonderLevelMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "2576994381de48b1b388447088398ace4bad16811e2c99b2f583d98191c5392b",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 2
+      },
+      "require_zero": 0,
+      "cancellable": 1
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderLocalizationMixin.java",
+      "name": "PonderLocalizationMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "92be8e0f2604dafd824c3d9f4eeb5a8a185bcd5bc57b9663f2802aba0d9b9174",
+      "annotations": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 2
+      },
+      "require_zero": 0,
+      "cancellable": 2
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneAccessor.java",
+      "name": "PonderSceneAccessor",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "bd9031caa7453b0c224dbdc752484968fc739c4d91b0871989106b93fa9540be",
+      "annotations": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 7,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneTextIndexMixin.java",
+      "name": "PonderSceneTextIndexMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "d80b483442fdcb1ea78e0ee11dca103d3082e37882bed22f657b4e464440edd3",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneViewOffsetMixin.java",
+      "name": "PonderSceneViewOffsetMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "9d62c6cce182f729e7e48a904116fa4688eb305867665f688a0f02722a3d26a8",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderUIAccessor.java",
+      "name": "PonderUIAccessor",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "a376a0e6a243c9082fbc957f500d4e4c7a241e65eb5c39d81d8c9e2caedaf985",
+      "annotations": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 8,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderUIMixin.java",
+      "name": "PonderUIMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "caef8389e0a6083066cf3434af373a266cfb4ba07ab150fbc25c62cbe6f0fa79",
+      "annotations": {
+        "Inject": 14,
+        "Redirect": 5,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 4,
+      "cancellable": 2
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/RenderSystemShaderLightsAccessor.java",
+      "name": "RenderSystemShaderLightsAccessor",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "7b95b7b2170573ebd6459674106c8a5524b275cde8f65fcc78e9e8c91c263097",
+      "annotations": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 1,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxChunkCacheMixin.java",
+      "name": "SandboxChunkCacheMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "fecc7616fa2e2004321376947d0393a66d29492a842baa270c9e3946580db227",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 1
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxClientLevelMixin.java",
+      "name": "SandboxClientLevelMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "596c0e406da31d80a2cde9420f13515a85b9cee83f6cdbe260378073e0dbecf3",
+      "annotations": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 2
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxNetworkFirewallMixin.java",
+      "name": "SandboxNetworkFirewallMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "30939e9f20368f67c029938ef8a5718a78f6f309389f39f3b5f4aa34b64888e9",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 2,
+      "cancellable": 1
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxScreenGateMixin.java",
+      "name": "SandboxScreenGateMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "86d002146487f9a9a9baf28c80aff3f3f45196a2816a306f09e276c909cde498",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 2,
+      "cancellable": 1
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxWorldBridgeMixin.java",
+      "name": "SandboxWorldBridgeMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "da0067f48006c0f4d713503c8d79788461c502b05188db40dea34faac7d83243",
+      "annotations": {
+        "Inject": 8,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 8
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/TextWindowElementAccessor.java",
+      "name": "TextWindowElementAccessor",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "fa65f658701a0bc43129ffa89d22293d6ed935ca0d29a7299274ae8d550f9d16",
+      "annotations": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 5,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/WorldSectionElementImplMixin.java",
+      "name": "WorldSectionElementImplMixin",
+      "module": "Common",
+      "registered_in": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "sha256": "6bffd467d7bb76380d32b1e35a9ca0cc7d6259ce6443473a8adfd9cb9119ca6f",
+      "annotations": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 1
+      },
+      "require_zero": 0,
+      "cancellable": 2
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/AnimationTickHolderMixin.java",
+      "name": "AnimationTickHolderMixin",
+      "module": "NeoForge",
+      "registered_in": [],
+      "sha256": "c9ddf2eabd809d1b7939daedb236b72963aca35dd9a0847142fe1790b7544b93",
+      "annotations": {
+        "Inject": 7,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 7,
+      "cancellable": 7
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceExtendedCaptureMixin.java",
+      "name": "InterfaceExtendedCaptureMixin",
+      "module": "NeoForge",
+      "registered_in": [
+        "NeoForge"
+      ],
+      "sha256": "2af53ec8507378c5f6910b403e26873c49b789ba194b2a0a775c45a880de294f",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderLevelModelDataMixin.java",
+      "name": "PonderLevelModelDataMixin",
+      "module": "NeoForge",
+      "registered_in": [
+        "NeoForge"
+      ],
+      "sha256": "08a91840130b4499f7b43506fe6f55fbed148815884a140863eb4fd45e225f51",
+      "annotations": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryMixin.java",
+      "name": "PonderSceneRegistryMixin",
+      "module": "NeoForge",
+      "registered_in": [
+        "NeoForge"
+      ],
+      "sha256": "5547932c9005d4a487387d712df9dde06eb85896e1526570826a0c04775d121b",
+      "annotations": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 2,
+      "cancellable": 2
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryNbtMixin.java",
+      "name": "PonderSceneRegistryNbtMixin",
+      "module": "NeoForge",
+      "registered_in": [
+        "NeoForge"
+      ],
+      "sha256": "2a7f7456e4ea752f99d0bb9907687a57af358cd82711807c59af84b1d9efb30a",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 1,
+      "cancellable": 1
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderTooltipNbtMixin.java",
+      "name": "PonderTooltipNbtMixin",
+      "module": "NeoForge",
+      "registered_in": [
+        "NeoForge"
+      ],
+      "sha256": "2215729224d4b386440c9d0b42f39f8f5d1468f556455fa9d27628984b1093c5",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 1,
+      "cancellable": 1
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderUINbtMixin.java",
+      "name": "PonderUINbtMixin",
+      "module": "NeoForge",
+      "registered_in": [
+        "NeoForge"
+      ],
+      "sha256": "7414be6edd1d6d4e3374aa8b3d68a59b0485c513b1ae37626b5f44ef0b526a00",
+      "annotations": {
+        "Inject": 4,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 4,
+      "cancellable": 0
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/SceneTransformOffsetMixin.java",
+      "name": "SceneTransformOffsetMixin",
+      "module": "NeoForge",
+      "registered_in": [
+        "NeoForge"
+      ],
+      "sha256": "081295cec1cff2270412357950c5bf4c9f8fb0920aac446dee7a573a0495bbc8",
+      "annotations": {
+        "Inject": 3,
+        "Redirect": 1,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 3,
+      "cancellable": 0
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/AnimationTickHolderMixin.java",
+      "name": "AnimationTickHolderMixin",
+      "module": "Fabric",
+      "registered_in": [
+        "Fabric"
+      ],
+      "sha256": "55d580e1e5e785ad5710e4974bb0844e609779e8e2aa0c187aa44c82c3dd3550",
+      "annotations": {
+        "Inject": 7,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 7,
+      "cancellable": 7
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceExtendedCaptureMixin.java",
+      "name": "InterfaceExtendedCaptureMixin",
+      "module": "Fabric",
+      "registered_in": [
+        "Fabric"
+      ],
+      "sha256": "8bd164d9d2ce2b8b3690878bcb37538197a50004f0030079685db1620a1a5772",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 0,
+      "cancellable": 0
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryMixinFabric.java",
+      "name": "PonderSceneRegistryMixinFabric",
+      "module": "Fabric",
+      "registered_in": [
+        "Fabric"
+      ],
+      "sha256": "17c5c8042dabe01eccfceab022a6d83a433c4d0bc4b33afb994ae4b57e05b911",
+      "annotations": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 2,
+      "cancellable": 2
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryNbtMixinFabric.java",
+      "name": "PonderSceneRegistryNbtMixinFabric",
+      "module": "Fabric",
+      "registered_in": [
+        "Fabric"
+      ],
+      "sha256": "e304bc502ce6a1962eef1f42040ee26d2db6efcaee748e1a05567002f683f13e",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 1,
+      "cancellable": 1
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderTooltipNbtMixinFabric.java",
+      "name": "PonderTooltipNbtMixinFabric",
+      "module": "Fabric",
+      "registered_in": [
+        "Fabric"
+      ],
+      "sha256": "35b8f7137d75e077c5482e041ffd762ee4e52bddeec13f3d791da77f0134c143",
+      "annotations": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 1,
+      "cancellable": 1
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderUINbtMixinFabric.java",
+      "name": "PonderUINbtMixinFabric",
+      "module": "Fabric",
+      "registered_in": [
+        "Fabric"
+      ],
+      "sha256": "891c44fb03afde4c064c34e4bb59837bff51417e222f2dd27575934d8ad7c20e",
+      "annotations": {
+        "Inject": 4,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 4,
+      "cancellable": 0
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/SceneTransformOffsetMixinFabric.java",
+      "name": "SceneTransformOffsetMixinFabric",
+      "module": "Fabric",
+      "registered_in": [
+        "Fabric"
+      ],
+      "sha256": "c034a03f88a0b0ac8d8a8e3082df91dc8f8fe765c4ea195c3f4cfc4f5daff270",
+      "annotations": {
+        "Inject": 5,
+        "Redirect": 0,
+        "Overwrite": 0,
+        "ModifyArg": 0,
+        "ModifyArgs": 0,
+        "ModifyVariable": 0,
+        "ModifyConstant": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Shadow": 0
+      },
+      "require_zero": 4,
+      "cancellable": 0
+    }
+  ],
+  "config_checks": [
+    {
+      "module": "NeoForge",
+      "registered_client": 31,
+      "duplicates": 0,
+      "missing": 0
+    },
+    {
+      "module": "Fabric",
+      "registered_client": 31,
+      "duplicates": 0,
+      "missing": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "NeoForge/src/main/resources/ponderer.mixins.json",
+      "sha256": "9a50d70e3bbaa0277e2c4a8fb93595e7d3496ed2c04d420e06c1d6062ac8a07e",
+      "mtime": 1790788461.68172
+    },
+    {
+      "path": "NeoForge/build/libs/ponderer-1.21.1-neoforge-1.10.6.1.jar",
+      "sha256": "c970ee3947308964dd2fa74a2b841d764f61ffe9826aaa7dbc6daa0e7391ef56",
+      "mtime": 1790788469.3662097
+    },
+    {
+      "path": "Fabric/src/main/resources/ponderer.mixins.json",
+      "sha256": "dd4d6a163dcfe008bc070aec777de2f92ff4622d99d2e2399f800eb20412ff58",
+      "mtime": 1790788461.6776674
+    },
+    {
+      "path": "Fabric/build/libs/ponderer-1.21.1-fabric-1.10.6.1.jar",
+      "sha256": "c57e66a69d5aacd37fde9bf66350d09b4bfdc6ef3290647354f561a86626b0f0",
+      "mtime": 1790788475.2679522
+    },
+    {
+      "path": "Fabric/build/classes/java/main/ponderer.refmap.json",
+      "sha256": "7c61ffe375f3c403d6e031d798ee70f9010742890ed5fbc6547375ba0dc8a84c",
+      "mtime": 1790788469.2261493
+    }
+  ],
+  "logs": [
+    {
+      "path": ".minecraft/versions/1.21.1-NeoForge/logs/latest.log",
+      "sha256": "54d448dc8ac307401912780f45d42e5fd3ba85422b6226903a4c21e13b5a3d91",
+      "mtime": 1790788566.105252,
+      "line_count": 557,
+      "evidence": [
+        {
+          "line": 98,
+          "text": "\t\tPonder 1.0.82+mc1.21.1 (ponder)"
+        },
+        {
+          "line": 557,
+          "text": "[0110月2026 01:16:06.104] [Render thread/INFO] [com.nododiiiii.ponderer.interfaces.InterfaceSmokeTest/]: [PondererSmoke] interfaces PASS (intercepted=7, taintDrops=0)"
+        }
+      ]
+    },
+    {
+      "path": ".minecraft/versions/1.21.1-Fabric/logs/latest.log",
+      "sha256": "a25702484535cf397d9454b9469c7b6b0515bda210db9b8ead0b421d50265d9d",
+      "mtime": 1790788525.9038458,
+      "line_count": 242,
+      "evidence": [
+        {
+          "line": 65,
+          "text": "\t   \\-- ponder 1.0.69"
+        },
+        {
+          "line": 242,
+          "text": "[01:15:25] [Render thread/INFO]: [PondererSmoke] interfaces PASS (intercepted=7, taintDrops=0)"
+        }
+      ]
+    }
+  ],
+  "crash_reports_present": false,
+  "verification": {
+    "source_coverage_complete": true,
+    "source_hashes_unchanged_at_final_check": true,
+    "document_links_resolve": true,
+    "runtime_reexecuted_by_audit": false,
+    "implementation_modified_by_audit": false
+  }
+}

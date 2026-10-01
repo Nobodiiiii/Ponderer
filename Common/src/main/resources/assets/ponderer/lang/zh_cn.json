@@ -1248,5 +1248,16 @@
   "ponderer.ui.projector.overlay.modifier.sneak": "潜行",
   "ponderer.ui.projector.overlay.modifier.ctrl": "Ctrl",
   "ponderer.ui.projector.overlay.interface.title": "界面步骤",
-  "ponderer.ui.projector.overlay.interface.render_only": "仅以提示形式渲染，不打开真实界面"
+  "ponderer.ui.projector.overlay.interface.render_only": "仅以提示形式渲染，不打开真实界面",
+  "ponderer.interface.capture.saved": "已捕获界面",
+  "ponderer.interface.capture.button": "从世界捕获界面",
+  "ponderer.interface.capture.again": "重新捕获界面",
+  "ponderer.interface.capture.tooltip": "收起编辑器后，正常打开目标界面，自动识别方块或物品来源。一秒后完成捕获，Esc 取消。",
+  "ponderer.interface.capture.clear": "改用手动设置",
+  "ponderer.interface.capture.clear.tooltip": "清除已捕获界面，返回手动填写。",
+  "ponderer.interface.capture.start": "请正常打开目标界面，等待一秒完成捕获。Esc 取消。",
+  "ponderer.interface.capture.done": "已捕获界面，保存此步骤即可回放。",
+  "ponderer.interface.capture.cancelled": "捕获已取消或超时，原有设置已保留。",
+  "ponderer.interface.capture.failed": "捕获失败，原有设置已保留，详情请查看日志。",
+  "ponderer.interface.capture.too_large": "开屏数据过大，无法捕获。"
 }

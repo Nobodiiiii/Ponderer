@@ -9,8 +9,8 @@ import javax.annotation.Nullable;
 
 /**
  * Picks the "sandbox origin": a position the real client cannot have loaded. Any mod code
- * that still looks the target up through {@code Minecraft.level} then finds an unloaded
- * chunk and fails instead of binding to a real block entity.
+ * looking through {@code Minecraft.level} uses the scoped world bridge. Outside that scope,
+ * sandbox coordinates still resolve to an unloaded chunk rather than a real block entity.
  */
 public final class SandboxCoordinates {
 

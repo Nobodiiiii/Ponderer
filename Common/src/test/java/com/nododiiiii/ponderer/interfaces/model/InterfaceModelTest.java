@@ -21,6 +21,26 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InterfaceModelTest {
+    @Test
+    void capturedFactoryPreservesEmptyPayloadAndLookupOrigin() {
+        InterfaceDescriptor d = InterfaceDescriptorJson.parse(JsonParser.parseString("""
+            {"target":{"kind":"block","block":"example:machine"},"menuType":"example:machine",
+             "extraData":"","lookupOrigin":[123,70,-456],"context":{"blocks":[
+             {"pos":[1,0,0],"block":"minecraft:chest"}]}}
+            """).getAsJsonObject());
+        assertEquals("", d.extraData);
+        assertArrayEquals(new int[]{123, 70, -456}, d.lookupOrigin);
+        assertEquals(1, d.contextBlocks.size());
+        assertEquals(1, d.contextBlocks.getFirst().dx());
+    }
+
+    @Test
+    void malformedLookupOriginDoesNotEnableCoordinateAliases() {
+        InterfaceDescriptor d = InterfaceDescriptorJson.parse(JsonParser.parseString(
+            "{\"lookupOrigin\":[1,2],\"extraData\":null}").getAsJsonObject());
+        assertNull(d.lookupOrigin);
+        assertNull(d.extraData);
+    }
 
     // ---- Legacy migration ---------------------------------------------------------------
 

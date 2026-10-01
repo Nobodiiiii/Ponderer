@@ -57,8 +57,13 @@ final class OpenPlanner {
         List<Strategy> chain = new ArrayList<>();
         switch (d.targetKind) {
             case BLOCK, SCENE_BLOCK -> {
+                if (d.extraData != null) {
+                    chain.add(Strategy.CLIENT_FACTORY);
+                }
                 chain.add(Strategy.PROVIDER);
-                chain.add(Strategy.CLIENT_FACTORY);
+                if (d.extraData == null && d.menuType != null) {
+                    chain.add(Strategy.BARE_TYPE);
+                }
             }
             case MENU -> {
                 chain.add(Strategy.BARE_TYPE);

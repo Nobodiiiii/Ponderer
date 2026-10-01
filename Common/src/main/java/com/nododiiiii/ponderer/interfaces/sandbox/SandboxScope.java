@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
  * <p>{@code Minecraft.level}, {@code Minecraft.screen} and the connection are deliberately not
  * swapped: the level field is typed {@code ClientLevel}, the screen must stay the host, and
  * every packet sent through the real connection meanwhile is dropped by the firewall.
+ * {@link SandboxWorldBridge} redirects world/chunk lookups to the sandbox during this scope.
  */
 public final class SandboxScope implements AutoCloseable {
 

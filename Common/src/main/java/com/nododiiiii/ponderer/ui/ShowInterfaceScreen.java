@@ -2,6 +2,9 @@ package com.nododiiiii.ponderer.ui;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.interfaces.capture.InterfaceCapture;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.component.DataComponents;
@@ -17,6 +20,9 @@ import java.util.Locale;
 import java.util.Map;
 
 public class ShowInterfaceScreen extends AbstractStepEditorScreen {
+    @Nullable
+    private JsonObject capturedInterface;
+    private final StepTextFieldHandle capturedMenuField = new StepTextFieldHandle("captured_menu");
     private static final String NBT_SNAPSHOT_KEY = "show_interface_nbt";
     private static final String ITEM_NBT_SNAPSHOT_KEY = "show_interface_item_nbt";
     private static final BlockPos SANITIZED_CONTEXT_POS = BlockPos.ZERO;
@@ -75,6 +81,20 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
+        entries.add(FieldSpecs.fullButton(
+            UIText.of(capturedInterface == null ? "ponderer.interface.capture.button" : "ponderer.interface.capture.again"),
+            UIText.of("ponderer.interface.capture.tooltip"),
+            () -> InterfaceCapture.start(snapshotForm(), createReturnContext())));
+        if (capturedInterface != null) {
+            capturedMenuField.setValue(capturedInterface.has("menuType") ? capturedInterface.get("menuType").getAsString() : "");
+            entries.add(FieldSpecs.text(capturedMenuField, "ponderer.interface.capture.saved", null, null, 180,
+                entry -> entry.field().setEditable(false)));
+            entries.add(FieldSpecs.fullButton(
+                UIText.of("ponderer.interface.capture.clear"),
+                UIText.of("ponderer.interface.capture.clear.tooltip"),
+                () -> { capturedInterface = null; rebuildFormPreservingState(); }));
+            return;
+        }
         entries.add(FieldSpecs.cycle(
             sourceBinding,
             "ponderer.ui.show_interface.source",
@@ -143,6 +163,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     @Override
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
+        capturedInterface = step.interfaceSpec == null ? null : step.interfaceSpec.deepCopy();
         String source = step.interfaceSource == null ? SOURCE_BLOCK : step.interfaceSource.toLowerCase(Locale.ROOT);
         for (int i = 0; i < SOURCES.length; i++) {
             if (SOURCES[i].equals(source)) {
@@ -183,6 +204,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void appendCustomSnapshot(Map<String, String> snapshot) {
+        if (capturedInterface != null) snapshot.put(InterfaceCapture.SNAPSHOT_KEY, capturedInterface.toString());
         if (contextPos != null && contextPos.size() >= 3) {
             snapshot.put("ctx_pos", contextPos.get(0) + "," + contextPos.get(1) + "," + contextPos.get(2));
         }
@@ -202,6 +224,11 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void restoreCustomSnapshot(Map<String, String> snapshot) {
+        capturedInterface = snapshot.containsKey(InterfaceCapture.SNAPSHOT_KEY)
+            ? JsonParser.parseString(snapshot.get(InterfaceCapture.SNAPSHOT_KEY)).getAsJsonObject() : null;
+        if (snapshot.containsKey(InterfaceCapture.NOTICE_KEY)) {
+            setInfoMessage(UIText.of(snapshot.get(InterfaceCapture.NOTICE_KEY)));
+        }
         if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_ID_KEY)) {
             blockField.setValue(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_ID_KEY));
         }
@@ -239,6 +266,13 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     @Override
     protected DslScene.DslStep buildStep() {
         clearStatusMessages();
+        if (capturedInterface != null) {
+            DslScene.DslStep capturedStep = new DslScene.DslStep();
+            capturedStep.type = "show_interface";
+            capturedStep.duration = null;
+            capturedStep.interfaceSpec = capturedInterface.deepCopy();
+            return capturedStep;
+        }
         String source = SOURCES[sourceIndex];
 
         DslScene.DslStep step = new DslScene.DslStep();

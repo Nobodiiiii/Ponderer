@@ -154,6 +154,9 @@ public final class InterfaceDescriptor {
     /** Base64 of the loader open-screen extra data, when captured. */
     @Nullable
     public String extraData;
+    /** Original block coordinates referenced by opaque opening data. Resolved only inside the sandbox. */
+    @Nullable
+    public int[] lookupOrigin;
     @Nullable
     public String resolvedStrategy;
 

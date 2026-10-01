@@ -1250,5 +1250,16 @@
   "ponderer.ui.projector.overlay.modifier.sneak": "Sneak",
   "ponderer.ui.projector.overlay.modifier.ctrl": "Ctrl",
   "ponderer.ui.projector.overlay.interface.title": "Interface Step",
-  "ponderer.ui.projector.overlay.interface.render_only": "Rendered as guidance only"
+  "ponderer.ui.projector.overlay.interface.render_only": "Rendered as guidance only",
+  "ponderer.interface.capture.saved": "Captured interface",
+  "ponderer.interface.capture.button": "Capture from world",
+  "ponderer.interface.capture.again": "Capture again",
+  "ponderer.interface.capture.tooltip": "Close the editor and open an interface normally. Its block or item source is detected automatically. Capture completes after one second; Esc cancels.",
+  "ponderer.interface.capture.clear": "Use manual settings",
+  "ponderer.interface.capture.clear.tooltip": "Discard the captured interface and return to the manual fields.",
+  "ponderer.interface.capture.start": "Open the target interface normally. Wait one second to capture it. Esc cancels.",
+  "ponderer.interface.capture.done": "Interface captured. Save this step to replay it.",
+  "ponderer.interface.capture.cancelled": "Capture cancelled or timed out. Your previous settings were kept.",
+  "ponderer.interface.capture.failed": "Capture failed. Your previous settings were kept; see the log.",
+  "ponderer.interface.capture.too_large": "Opening data is too large to capture."
 }

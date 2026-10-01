@@ -47,6 +47,12 @@ public final class InterfaceDescriptorJson {
 
         d.menuType = string(root, "menuType");
         d.extraData = string(root, "extraData");
+        // An extended factory can legitimately have an empty payload.
+        if (root.has("extraData") && root.get("extraData").isJsonPrimitive()
+            && root.get("extraData").getAsString().isEmpty()) {
+            d.extraData = "";
+        }
+        d.lookupOrigin = intArray(root, "lookupOrigin", 3);
         d.resolvedStrategy = string(root, "resolvedStrategy");
         d.interaction = InterfaceDescriptor.Interaction.parse(string(root, "interaction"));
 

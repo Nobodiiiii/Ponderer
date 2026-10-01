@@ -11,6 +11,27 @@ import com.nododiiiii.ponderer.interfaces.sandbox.SandboxNetworkFirewall;
 import com.nododiiiii.ponderer.interfaces.sandbox.SandboxScreenGate;
 import com.nododiiiii.ponderer.interfaces.sandbox.SandboxSession;
 import com.nododiiiii.ponderer.interfaces.sandbox.SessionOps;
+import com.nododiiiii.ponderer.interfaces.sandbox.SandboxScope;
+import com.nododiiiii.ponderer.interfaces.sandbox.SandboxWorldBridge;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
+import java.nio.ByteBuffer;
+import java.util.Base64;
+import com.nododiiiii.ponderer.interfaces.capture.InterfaceCapture;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptorJson;
+import com.google.gson.JsonParser;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.core.Direction;
+import java.util.Map;
+import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ui.ShowInterfaceScreen;
+import com.nododiiiii.ponderer.ui.SceneEditorScreen;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
@@ -47,13 +68,20 @@ public final class InterfaceSmokeTest {
     private static final boolean ENABLED = Boolean.getBoolean("ponderer.smoke.interfaces");
     private static final String PONDER_ITEM = System.getProperty("ponderer.smoke.interfaces.ponder", "");
 
-    private enum Phase { WAIT_WORLD, CASES, SANDBOX_SCREEN, PONDER, DONE }
+    private enum Phase { WAIT_WORLD, CAPTURE, WORLD_CAPTURE, FACTORY_CAPTURE, CASES, SANDBOX_SCREEN, MOD_SCREEN, EDITOR, PONDER, DONE }
 
     private static Phase phase = Phase.WAIT_WORLD;
     private static int ticks;
     private static final List<String> failures = new ArrayList<>();
     @Nullable
     private static SandboxSession shown;
+    private static InterfaceDescriptor capturedRoundTrip;
+    private static boolean captureReturned;
+    private static InterfaceDescriptor modPreview;
+    private static com.google.gson.JsonObject capturedJson;
+    private static BlockPos worldCapturePos;
+    private static String worldCaptureBlock;
+    private static boolean ponderTryEnabled;
 
     private InterfaceSmokeTest() {
     }
@@ -70,8 +98,55 @@ public final class InterfaceSmokeTest {
                     if (mc.level == null || mc.player == null) {
                         ticks = 0;
                     } else if (ticks > 60 && mc.screen == null) {
-                        phase = Phase.CASES;
+                        startCaptureCase(mc);
+                        phase = Phase.CAPTURE;
                         ticks = 0;
+                    }
+                }
+                case CAPTURE -> {
+                    if (captureReturned) {
+                        check(capturedRoundTrip != null, "capture did not return a descriptor");
+                        if (capturedRoundTrip != null) {
+                            check(capturedRoundTrip.targetKind == InterfaceDescriptor.TargetKind.MENU,
+                                "an unrelated aimed-at block was incorrectly recorded as the menu source");
+                            check(capturedRoundTrip.slots.stream().anyMatch(slot -> slot.index() == 0 && slot.item().id().equals("minecraft:diamond") && slot.item().count() == 5),
+                                "capture did not observe server slot sync");
+                            expect("capture round trip", capturedRoundTrip, Fidelity.INTERACTIVE, null, session ->
+                                check(session.menu().getSlot(0).getItem().is(Items.DIAMOND), "captured slot was lost on replay"));
+                        }
+                        phase = startWorldCaptureCase(mc, false) ? Phase.WORLD_CAPTURE : Phase.CASES;
+                        ticks = 0;
+                    } else if (ticks > 400) {
+                        failures.add("capture round trip timed out");
+                        finish();
+                    }
+                }
+                case WORLD_CAPTURE, FACTORY_CAPTURE -> {
+                    if (captureReturned) {
+                        check(capturedRoundTrip != null, "world capture did not return a descriptor");
+                        if (capturedRoundTrip != null) {
+                            check(capturedRoundTrip.isBlockTarget() && worldCaptureBlock.equals(capturedRoundTrip.block),
+                                "world capture kept the old held-item source");
+                            check(java.util.Arrays.equals(capturedRoundTrip.lookupOrigin,
+                                new int[]{worldCapturePos.getX(), worldCapturePos.getY(), worldCapturePos.getZ()}),
+                                "world capture lost the factory's source coordinates");
+                            check(capturedRoundTrip.nbt != null, "world capture lost block entity NBT");
+                            check(capturedRoundTrip.extraData != null, "world capture lost extended opening bytes");
+                            expect(phase == Phase.WORLD_CAPTURE ? "block interaction capture" : "factory lookup capture",
+                                capturedRoundTrip, Fidelity.INTERACTIVE, "client_factory", null);
+                            modPreview = capturedRoundTrip;
+                        }
+                        if (phase == Phase.WORLD_CAPTURE) {
+                            startWorldCaptureCase(mc, true);
+                            phase = Phase.FACTORY_CAPTURE;
+                        } else {
+                            java.nio.file.Files.writeString(mc.gameDirectory.toPath().resolve("ponderer-smoke-world-capture.json"), capturedJson.toString());
+                            phase = Phase.CASES;
+                        }
+                        ticks = 0;
+                    } else if (ticks > 400) {
+                        failures.add("world capture timed out in " + phase);
+                        finish();
                     }
                 }
                 case CASES -> {
@@ -89,14 +164,38 @@ public final class InterfaceSmokeTest {
                         if (shown != null) {
                             shown.destroy("smoke");
                         }
-                        if (PONDER_ITEM.isBlank()) {
-                            finish();
+                        if (modPreview != null) {
+                            shown = SandboxSession.open(modPreview, null);
+                            mc.setScreen(new HostScreen(shown));
+                            phase = Phase.MOD_SCREEN;
+                        } else if (PONDER_ITEM.isBlank()) {
+                            openEditorCase(mc);
                         } else {
                             mc.setScreen(PonderUI.of(ResourceLocation.parse(PONDER_ITEM)));
                             phase = Phase.PONDER;
                         }
                         ticks = 0;
                     }
+                }
+                case MOD_SCREEN -> {
+                    if (ticks == 20) screenshot(mc, "ponderer-smoke-mod-interface.png");
+                    if (ticks > 25) {
+                        check(shown.fidelity() == Fidelity.INTERACTIVE, "mod GUI failed during render/tick: " + shown.reports());
+                        mc.setScreen(null);
+                        shown.destroy("smoke mod preview");
+                        if (PONDER_ITEM.isBlank()) openEditorCase(mc);
+                        else { mc.setScreen(PonderUI.of(ResourceLocation.parse(PONDER_ITEM))); phase = Phase.PONDER; }
+                        ticks = 0;
+                    }
+                }
+                case EDITOR -> {
+                    if (ticks == 10) screenshot(mc, "ponderer-smoke-capture-editor.png");
+                    if (ticks == 15) {
+                        DslScene scene = new DslScene();
+                        mc.setScreen(new ShowInterfaceScreen(scene, 0, new SceneEditorScreen(scene, 0)));
+                    }
+                    if (ticks == 25) screenshot(mc, "ponderer-smoke-capture-button.png");
+                    if (ticks > 30) { mc.setScreen(null); finish(); }
                 }
                 case PONDER -> {
                     if (ticks == 80) {
@@ -106,9 +205,13 @@ public final class InterfaceSmokeTest {
                         if (embedded == null) {
                             failures.add("PonderUI scene showed no embedded interface");
                         }
+                        SandboxSession session = mc.screen instanceof PonderUI ui ? InterfaceHost.sessionOf(ui.getActiveScene()) : null;
+                        check(session != null && session.fidelity() == Fidelity.INTERACTIVE, "PonderUI interface did not reach interactive fidelity");
+                        ponderTryEnabled = session != null && session.canInteract();
                         screenshot(mc, "ponderer-smoke-ponder.png");
                         InterfaceHost.enterTry();
-                        check(InterfaceHost.mode() == InterfaceHost.Mode.TRY, "could not enter try mode");
+                        check(InterfaceHost.mode() == (ponderTryEnabled ? InterfaceHost.Mode.TRY : InterfaceHost.Mode.WATCH),
+                            "try mode did not respect the descriptor's interaction setting");
                     } else if (ticks == 86) {
                         screenshot(mc, "ponderer-smoke-ponder-try.png");
                         InterfaceHost.exitTry();
@@ -137,6 +240,99 @@ public final class InterfaceSmokeTest {
         } else {
             LOGGER.error("[PondererSmoke] interfaces FAIL {}", String.join(" | ", failures));
         }
+    }
+
+    private static void startCaptureCase(Minecraft mc) {
+        var server = mc.getSingleplayerServer();
+        if (server == null) { captureReturned = true; return; }
+        BlockPos source = mc.player.blockPosition();
+        InterfaceCapture.start(Map.of(), snapshot -> {
+            String raw = snapshot.get(InterfaceCapture.SNAPSHOT_KEY);
+            if (raw != null) {
+                capturedJson = JsonParser.parseString(raw).getAsJsonObject();
+                capturedRoundTrip = InterfaceDescriptorJson.parse(capturedJson);
+            }
+            captureReturned = true;
+        });
+        var hit = mc.hitResult;
+        try {
+            mc.hitResult = new BlockHitResult(Vec3.atCenterOf(source), Direction.UP, source, false);
+            InterfaceCapture.beforeUse();
+        } finally { mc.hitResult = hit; }
+        var uuid = mc.player.getUUID();
+        server.execute(() -> {
+            var player = server.getPlayerList().getPlayer(uuid);
+            if (player == null) return;
+            // A transient container: exercises real open/sync/close packets without changing any blocks or player items.
+            SimpleContainer inventory = new SimpleContainer(27);
+            inventory.setItem(0, new ItemStack(Items.DIAMOND, 5));
+            player.openMenu(new SimpleMenuProvider((id, inv, who) -> ChestMenu.threeRows(id, inv, inventory), Component.literal("Capture smoke")));
+        });
+    }
+
+    /** Optional real-world regression: recapture a machine after selecting a held-item source. */
+    private static boolean startWorldCaptureCase(Minecraft mc, boolean serverOnly) {
+        if (!serverOnly) {
+            BlockPos center = mc.player.blockPosition();
+            for (BlockPos pos : BlockPos.betweenClosed(center.offset(-4, -4, -4), center.offset(4, 4, 4))) {
+                String id = BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(pos).getBlock()).toString();
+                if (id.equals("mekanism:metallurgic_infuser")) {
+                    worldCapturePos = pos.immutable();
+                    worldCaptureBlock = id;
+                    break;
+                }
+            }
+            if (worldCapturePos == null || mc.getSingleplayerServer() == null) {
+                LOGGER.info("[PondererSmoke] world capture fixture unavailable; skipped");
+                return false;
+            }
+        }
+        captureReturned = false;
+        capturedRoundTrip = null;
+        // Both the manual selector and a previously misclassified capture used to force item mode.
+        String previous = "{\"schema\":2,\"target\":{\"kind\":\"item\",\"mode\":\"menu\",\"item\":{\"id\":\""
+            + worldCaptureBlock + "\",\"count\":1}}}";
+        InterfaceCapture.start(Map.of("interface_source", "1", InterfaceCapture.SNAPSHOT_KEY, previous), snapshot -> {
+            String raw = snapshot.get(InterfaceCapture.SNAPSHOT_KEY);
+            check("ponderer.interface.capture.done".equals(snapshot.get(InterfaceCapture.NOTICE_KEY)), "world capture did not complete");
+            if (raw != null) {
+                capturedJson = JsonParser.parseString(raw).getAsJsonObject();
+                capturedRoundTrip = InterfaceDescriptorJson.parse(capturedJson);
+            }
+            captureReturned = true;
+        });
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(worldCapturePos), Direction.UP, worldCapturePos, false);
+        if (serverOnly) {
+            // No client use/hit/held-item hints: the real opening packet's factory must identify its source.
+            var uuid = mc.player.getUUID();
+            mc.getSingleplayerServer().execute(() -> {
+                var player = mc.getSingleplayerServer().getPlayerList().getPlayer(uuid);
+                if (player != null) player.level().getBlockState(worldCapturePos).useWithoutItem(player.level(), player, hit);
+            });
+        } else {
+            InterfaceCapture.beforeUse();
+            mc.gameMode.useItemOn(mc.player, net.minecraft.world.InteractionHand.MAIN_HAND, hit);
+        }
+        return true;
+    }
+
+    private static void openEditorCase(Minecraft mc) {
+        DslScene fixtureScene = new DslScene();
+        DslScene.DslStep step = new DslScene.DslStep();
+        step.type = "show_interface";
+        step.interfaceSpec = capturedJson;
+        class EditorProbe extends ShowInterfaceScreen {
+            EditorProbe() { super(fixtureScene, 0, new SceneEditorScreen(fixtureScene, 0), 0, step); }
+            DslScene.DslStep result() { return buildStep(); }
+        }
+        EditorProbe editor = new EditorProbe();
+        mc.setScreen(editor);
+        check(capturedJson != null && capturedJson.equals(editor.result().interfaceSpec), "editor lost captured descriptor");
+        editor.setPendingPickRestore(Map.of(InterfaceCapture.SNAPSHOT_KEY, capturedJson.toString()));
+        // Re-init also exercises the return-from-capture snapshot route used by StepEditorContext.
+        editor.init(mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+        check(capturedJson.equals(editor.result().interfaceSpec), "editor lost capture on snapshot restore");
+        phase = Phase.EDITOR;
     }
 
     // ---- Cases --------------------------------------------------------------------------
@@ -179,12 +375,61 @@ public final class InterfaceSmokeTest {
         expect("held writable_book", item("minecraft:writable_book"), Fidelity.INTERACTIVE, "client_screen", null);
         expect("unknown block", block("ponderer:not_a_block", null), Fidelity.SCHEMATIC, null, null);
         runActionCases();
+        runWorldBridgeCases(mc);
 
         check(real == mc.player, "Minecraft.player not restored");
         check(real.containerMenu == realMenu && realMenu.getStateId() == realMenuState, "real container menu changed");
         check(real.getInventory().getTimesChanged() == realInventory, "real inventory changed");
         check(real.experienceLevel == realXp, "real experience changed");
         check(mc.screen == null, "host screen changed to " + mc.screen);
+    }
+
+    private static void runWorldBridgeCases(Minecraft mc) {
+        BlockPos source = mc.player.blockPosition();
+        var original = mc.level.getBlockState(source);
+        var originalEntity = mc.level.getBlockEntity(source);
+        InterfaceDescriptor alias = chest();
+        alias.lookupOrigin = new int[]{source.getX(), source.getY(), source.getZ()};
+        expect("world bridge", alias, Fidelity.INTERACTIVE, "provider", session -> {
+            session.dispatch("bridge assertions", () -> {
+                check(mc.level.getBlockEntity(source) == session.level().getBlockEntity(session.targetPos()), "source alias missed sandbox BE");
+                check(mc.level.getBlockState(source).is(Blocks.CHEST), "source alias missed sandbox state");
+                var chunk = mc.level.getChunk(source.getX() >> 4, source.getZ() >> 4, ChunkStatus.FULL, false);
+                check(chunk != null && chunk.getBlockState(source).is(Blocks.CHEST), "chunk lookup missed sandbox state");
+                check(session.player().level().getChunk(source.getX() >> 4, source.getZ() >> 4, ChunkStatus.FULL, false) == chunk,
+                    "sandbox player chunk lookup diverged from world bridge");
+                check(mc.level.getChunkSource().getChunk(source.getX() >> 4, source.getZ() >> 4, ChunkStatus.FULL, false) == chunk,
+                    "direct chunk cache did not use sandbox facade");
+                check(mc.level.getBlockState(source.offset(512, 0, 0)).isAir(), "uncaptured world lookup escaped sandbox");
+                check(mc.level.getEntity(mc.player.getId()) == null, "real entity lookup escaped sandbox");
+                check(java.util.concurrent.CompletableFuture.supplyAsync(() -> SandboxWorldBridge.level(mc.level) == null).join(),
+                    "world bridge active on another thread");
+                mc.level.setBlock(source, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+                check(session.level().getBlockState(session.targetPos()).is(Blocks.GOLD_BLOCK), "write not redirected");
+                return null;
+            }, null);
+            check(mc.level.getBlockState(source) == original && mc.level.getBlockEntity(source) == originalEntity,
+                "world bridge modified real world");
+            try (SandboxScope ignored = SandboxScope.enter(session)) {
+                throw new IllegalArgumentException("smoke scope cleanup");
+            } catch (IllegalArgumentException expected) {
+                check(SandboxWorldBridge.level(mc.level) == null, "world bridge leaked after exception");
+            }
+        });
+        // Optional dependency fixture, never used by production opening logic.
+        for (String name : new String[]{"mekanism:metallurgic_infuser", "mekanism:energized_smelter"}) {
+            ResourceLocation id = ResourceLocation.parse(name);
+            if (!BuiltInRegistries.BLOCK.containsKey(id) || !BuiltInRegistries.MENU.containsKey(id)) continue;
+            InterfaceDescriptor d = block(name, null);
+            d.menuType = name;
+            d.lookupOrigin = new int[]{source.getX(), source.getY(), source.getZ()};
+            d.extraData = Base64.getEncoder().encodeToString(ByteBuffer.allocate(8).putLong(source.asLong()).array());
+            if (modPreview == null) modPreview = d;
+            expect(name + " client factory", d, Fidelity.INTERACTIVE, "client_factory", session -> {
+                check(session.currentScreen() != null && session.menu() != null, name + " did not construct GUI");
+                check(mc.level.getBlockState(source) == original, name + " changed real source block");
+            });
+        }
     }
 
     /** Stage 2: scripted slot writes, synthesized actions, the crafting adapter and context patches. */

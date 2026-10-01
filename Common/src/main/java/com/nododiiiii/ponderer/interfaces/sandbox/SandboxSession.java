@@ -125,6 +125,7 @@ public final class SandboxSession {
         registries = realLevel.registryAccess();
         gameType = ContextApplier.gameType(descriptor);
         level = new SandboxLevel(realLevel);
+        level.setLookupOrigin(descriptor.lookupOrigin, origin);
         player = new SandboxPlayer(mc, realLevel, listener, this, level);
         gameMode = new MultiPlayerGameMode(mc, listener);
 
