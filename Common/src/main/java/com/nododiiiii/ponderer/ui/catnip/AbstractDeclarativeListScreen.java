@@ -1,9 +1,9 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.lang.FontHelper;
 import net.createmod.catnip.lang.FontHelper.Palette;
@@ -300,21 +300,14 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             return;
         }
 
-        int dirtyFields = getUnsavedChangeCount();
-        new ConfirmationScreen()
-            .centered()
-            .withText(Component.translatable(
-                "catnip.ui.discarding_changes_message",
-                dirtyFields,
-                Component.translatable(dirtyFields != 1
-                    ? "catnip.ui.value_changes_plural"
-                    : "catnip.ui.value_changes_singular")))
-            .withAction(success -> {
-                if (success) {
-                    discardEdits();
-                }
-            })
-            .open(this);
+        new PondererDialogScreen(
+            this,
+            List.of(Component.translatable("ponderer.ui.discard_changes.title")),
+            List.of(Component.translatable("ponderer.ui.discard_changes.message", getUnsavedChangeCount())),
+            List.of(
+                promptButton("ponderer.ui.discard_changes.confirm", this::discardEdits),
+                PondererDialogScreen.closeButton(Component.translatable("ponderer.ui.unsaved_changes.keep_editing"))))
+            .open();
     }
 
     private void refreshActionButtons() {

@@ -27,10 +27,11 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     private static final String ITEM_NBT_SNAPSHOT_KEY = "show_interface_item_nbt";
     private static final BlockPos SANITIZED_CONTEXT_POS = BlockPos.ZERO;
 
+    private static final String SOURCE_CAPTURE = "capture";
     public static final String SOURCE_BLOCK = "block";
     public static final String SOURCE_HELD_ITEM = "held_item";
     public static final String SOURCE_UI_ID = "ui_id";
-    private static final String[] SOURCES = {SOURCE_BLOCK, SOURCE_HELD_ITEM, SOURCE_UI_ID};
+    private static final String[] SOURCES = {SOURCE_CAPTURE, SOURCE_BLOCK, SOURCE_HELD_ITEM, SOURCE_UI_ID};
 
     private int sourceIndex = 0;
     private final FieldBinding<Integer> sourceBinding =
@@ -72,6 +73,10 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         participants.add(capturedBlockProperties);
         participants.add(enableNbtBinding);
         participants.add(sourceBinding);
+        participants.add(blockField);
+        participants.add(itemField);
+        participants.add(itemNbtField);
+        participants.add(uiIdField);
     }
 
     @Override
@@ -81,32 +86,34 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(FieldSpecs.fullButton(
-            UIText.of(capturedInterface == null ? "ponderer.interface.capture.button" : "ponderer.interface.capture.again"),
-            UIText.of("ponderer.interface.capture.tooltip"),
-            () -> InterfaceCapture.start(snapshotForm(), createReturnContext())));
-        if (capturedInterface != null) {
-            capturedMenuField.setValue(capturedInterface.has("menuType") ? capturedInterface.get("menuType").getAsString() : "");
-            entries.add(FieldSpecs.text(capturedMenuField, "ponderer.interface.capture.saved", null, null, 180,
-                entry -> entry.field().setEditable(false)));
-            entries.add(FieldSpecs.fullButton(
-                UIText.of("ponderer.interface.capture.clear"),
-                UIText.of("ponderer.interface.capture.clear.tooltip"),
-                () -> { capturedInterface = null; rebuildFormPreservingState(); }));
-            return;
-        }
-        entries.add(FieldSpecs.cycle(
-            sourceBinding,
+        entries.add(FieldSpecs.labeledButton(
             "ponderer.ui.show_interface.source",
             "ponderer.ui.show_interface.source.tooltip",
-            140,
-            SOURCES.length,
-            this::rebuildFormPreservingState,
+            () -> {
+                sourceBinding.set((sourceIndex + 1) % SOURCES.length);
+                rebuildFormPreservingState();
+            },
             () -> UIText.of("ponderer.ui.show_interface.source.option." + SOURCES[sourceIndex]),
-            () -> 0xFFFFFF));
+            () -> UIText.of("ponderer.ui.show_interface.source.tooltip")));
 
         String source = SOURCES[sourceIndex];
         switch (source) {
+            case SOURCE_CAPTURE -> {
+                refreshCapturedMenuField();
+                entries.add(FieldSpecs.text(
+                    capturedMenuField,
+                    "ponderer.interface.capture.saved",
+                    "ponderer.interface.capture.tooltip",
+                    UIText.of("ponderer.interface.capture.hint"),
+                    124,
+                    entry -> {
+                        entry.field().setEditable(false);
+                        entry.field().setCanLoseFocus(true);
+                    },
+                    FieldDecorators.textAction("+", 0x66FF66,
+                        UIText.of("ponderer.interface.capture.tooltip"),
+                        () -> InterfaceCapture.start(snapshotForm(), createReturnContext()))));
+            }
             case SOURCE_BLOCK -> entries.add(FieldSpecs.text(
                 blockField,
                 "ponderer.ui.show_interface.block",
@@ -154,17 +161,20 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
             }
         }
 
-        entries.add(FieldSpecs.toggle(
-            enableNbtBinding,
-            "ponderer.ui.show_interface.enable_nbt",
-            "ponderer.ui.show_interface.enable_nbt.tooltip"));
+        if (!SOURCE_CAPTURE.equals(source)) {
+            entries.add(FieldSpecs.toggle(
+                enableNbtBinding,
+                "ponderer.ui.show_interface.enable_nbt",
+                "ponderer.ui.show_interface.enable_nbt.tooltip"));
+        }
     }
 
     @Override
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         capturedInterface = step.interfaceSpec == null ? null : step.interfaceSpec.deepCopy();
-        String source = step.interfaceSource == null ? SOURCE_BLOCK : step.interfaceSource.toLowerCase(Locale.ROOT);
+        String source = capturedInterface != null ? SOURCE_CAPTURE
+            : step.interfaceSource == null ? SOURCE_BLOCK : step.interfaceSource.toLowerCase(Locale.ROOT);
         for (int i = 0; i < SOURCES.length; i++) {
             if (SOURCES[i].equals(source)) {
                 sourceIndex = i;
@@ -226,6 +236,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     protected void restoreCustomSnapshot(Map<String, String> snapshot) {
         capturedInterface = snapshot.containsKey(InterfaceCapture.SNAPSHOT_KEY)
             ? JsonParser.parseString(snapshot.get(InterfaceCapture.SNAPSHOT_KEY)).getAsJsonObject() : null;
+        refreshCapturedMenuField();
         if (snapshot.containsKey(InterfaceCapture.NOTICE_KEY)) {
             setInfoMessage(UIText.of(snapshot.get(InterfaceCapture.NOTICE_KEY)));
         }
@@ -262,19 +273,27 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
         restoreNbtPickNotice(snapshot);
     }
 
+    private void refreshCapturedMenuField() {
+        capturedMenuField.setValue(capturedInterface != null && capturedInterface.has("menuType")
+            ? capturedInterface.get("menuType").getAsString() : "");
+    }
+
     @Nullable
     @Override
     protected DslScene.DslStep buildStep() {
         clearStatusMessages();
-        if (capturedInterface != null) {
+        String source = SOURCES[sourceIndex];
+        if (SOURCE_CAPTURE.equals(source)) {
+            if (capturedInterface == null) {
+                setErrorMessage(UIText.of("ponderer.interface.capture.error.missing"));
+                return null;
+            }
             DslScene.DslStep capturedStep = new DslScene.DslStep();
             capturedStep.type = "show_interface";
             capturedStep.duration = null;
             capturedStep.interfaceSpec = capturedInterface.deepCopy();
             return capturedStep;
         }
-        String source = SOURCES[sourceIndex];
-
         DslScene.DslStep step = new DslScene.DslStep();
         step.type = "show_interface";
         step.duration = null;

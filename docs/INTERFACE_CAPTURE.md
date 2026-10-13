@@ -43,6 +43,23 @@ Opening bytes remain opaque: source-coordinate queries within 128 blocks of the
 captured origin map to the far sandbox origin. This handles codecs that encode
 positions as raw longs or custom objects without guessing byte offsets. Only
 copied context exists there; uncaptured queries do not fall through to real blocks.
+
+Manual AE2 block interfaces also have a mod-level fallback after the normal
+`MenuProvider` strategy. It discovers the host types retained by AE2's
+`MenuTypeBuilder` registrations, generates opening data with AE2's own locators
+and initial-data serializers, then calls the existing loader client factory.
+There is no block-to-menu id table. More specific host types take precedence;
+terminal/bus `getMenuType` overrides select their primary menu. Cable-bus targets
+use the saved hit position to select a part from the isolated block entity.
+Factories must bind that exact sandbox host; automatic selection excludes
+submenus and rejects ambiguous main menus instead of opening an arbitrary one.
+
+AE2 remains optional. The bridge reflects AE2's private registry/builder metadata
+and uses class literals for Minecraft parameter types. Its source reference is
+`ref/1.21.1/AppliedEnergistics2` at `neoforge/v19.2.17`; upstream API changes can
+require updating the bridge. This constructs interfaces from local state; live
+ME network contents, server-driven submenus and custom synchronization are not
+simulated. Captured opening data keeps precedence over this fallback.
 This is a world API bridge, not an isolation boundary for arbitrary mod code that
 holds real chunk references, modifies globals, or defers work outside the scope.
 

@@ -11,11 +11,20 @@ import net.minecraft.world.phys.Vec3;
 
 public class AdjustViewInstruction extends TickingInstruction {
 
+    // PonderUI changes scenes with EXP at .25f. Normalize the gentler .1 curve
+    // over each phase so it reaches its target within the configured duration.
+    private static final double EASE_OUT_DECAY = 0.9;
+
     private final Vec3 center;
     private final boolean useDefaultCenter;
     private final float multiplier;
 
     private boolean skipDueToPickMode;
+    private boolean animationReady;
+    private Vec3 startOffset;
+    private Vec3 targetOffset;
+    private float startScale;
+    private float targetScale;
 
     public AdjustViewInstruction(Vec3 center, boolean useDefaultCenter, float multiplier, int duration) {
         super(true, Math.max(0, duration));
@@ -26,6 +35,7 @@ public class AdjustViewInstruction extends TickingInstruction {
 
     @Override
     protected void firstTick(PonderScene scene) {
+        animationReady = false;
         skipDueToPickMode = PickState.isActive();
         if (skipDueToPickMode) {
             return;
@@ -45,18 +55,22 @@ public class AdjustViewInstruction extends TickingInstruction {
             return;
         }
 
-        float currentScale = accessor.ponderer$getScaleFactor();
+        float currentScale = viewOffset.ponderer$isScaleOverrideActive()
+                ? viewOffset.ponderer$getScaleOverride().getValue()
+                : accessor.ponderer$getScaleFactor();
         float defaultScale = viewOffset.ponderer$getDefaultScale();
         if (Float.isNaN(defaultScale)) {
             defaultScale = currentScale;
             viewOffset.ponderer$setDefaultScale(defaultScale);
         }
-        float targetScale = Float.isNaN(multiplier) ? defaultScale : defaultScale * multiplier;
+        startScale = currentScale;
+        targetScale = Float.isNaN(multiplier) ? defaultScale : defaultScale * multiplier;
 
         LerpedFloat lerpX = viewOffset.ponderer$getViewOffsetX();
         LerpedFloat lerpY = viewOffset.ponderer$getViewOffsetY();
         LerpedFloat lerpZ = viewOffset.ponderer$getViewOffsetZ();
         LerpedFloat lerpScale = viewOffset.ponderer$getScaleOverride();
+        startOffset = new Vec3(lerpX.getValue(), lerpY.getValue(), lerpZ.getValue());
 
         double targetX, targetY, targetZ;
 
@@ -79,12 +93,14 @@ public class AdjustViewInstruction extends TickingInstruction {
             targetY = -centerY - baseTranslationY;
             targetZ = -centerZ - baseTranslationZ;
         }
+        targetOffset = new Vec3(targetX, targetY, targetZ);
 
         // Initialize scale override from current scaleFactor
         if (!viewOffset.ponderer$isScaleOverrideActive()) {
             lerpScale.startWithValue(currentScale);
         }
         viewOffset.ponderer$setScaleOverrideActive(true);
+        animationReady = true;
 
         if (totalTicks == 0) {
             lerpX.startWithValue(targetX);
@@ -93,32 +109,18 @@ public class AdjustViewInstruction extends TickingInstruction {
             lerpScale.startWithValue(targetScale);
             accessor.ponderer$setScaleFactor(targetScale);
         } else {
-            int moveTicks = totalTicks / 2;
-            int zoomTicks = totalTicks - moveTicks;
-
-            // Pan phase: chase offset over first half
-            if (moveTicks > 0) {
-                lerpX.chase(targetX, Math.abs(targetX - lerpX.getValue(0)) / moveTicks, LerpedFloat.Chaser.LINEAR);
-                lerpY.chase(targetY, Math.abs(targetY - lerpY.getValue(0)) / moveTicks, LerpedFloat.Chaser.LINEAR);
-                lerpZ.chase(targetZ, Math.abs(targetZ - lerpZ.getValue(0)) / moveTicks, LerpedFloat.Chaser.LINEAR);
-            } else {
-                lerpX.startWithValue(targetX);
-                lerpY.startWithValue(targetY);
-                lerpZ.startWithValue(targetZ);
-            }
-
-            // Zoom phase starts after pan completes; keep scale chasing idle for now
-            // It will be kicked off in tick() once the pan phase ends
+            // Stop any earlier chase. tick() owns the values until both phases finish.
+            lerpX.chase(startOffset.x, 0, LerpedFloat.Chaser.IDLE);
+            lerpY.chase(startOffset.y, 0, LerpedFloat.Chaser.IDLE);
+            lerpZ.chase(startOffset.z, 0, LerpedFloat.Chaser.IDLE);
+            lerpScale.chase(currentScale, 0, LerpedFloat.Chaser.IDLE);
         }
     }
 
     @Override
     public void tick(PonderScene scene) {
         super.tick(scene);
-        if (skipDueToPickMode) {
-            return;
-        }
-        if (totalTicks <= 0) {
+        if (skipDueToPickMode || !animationReady || totalTicks <= 0) {
             return;
         }
         if (!(scene instanceof PonderSceneAccessor accessor) || !(scene instanceof PonderSceneViewOffsetAccess viewOffset)) {
@@ -129,20 +131,32 @@ public class AdjustViewInstruction extends TickingInstruction {
         int moveTicks = totalTicks / 2;
         int zoomTicks = totalTicks - moveTicks;
 
-        // At the transition point, kick off the scale chase
-        if (zoomTicks > 0 && elapsed == moveTicks + 1) {
-            float currentScale = accessor.ponderer$getScaleFactor();
-            float defaultScale = viewOffset.ponderer$getDefaultScale();
-            float targetScale = Float.isNaN(multiplier) ? defaultScale : defaultScale * multiplier;
-            LerpedFloat lerpScale = viewOffset.ponderer$getScaleOverride();
-            lerpScale.startWithValue(currentScale);
-            lerpScale.chase(targetScale, Math.abs(targetScale - currentScale) / zoomTicks, LerpedFloat.Chaser.LINEAR);
-        }
+        double moveProgress = easeOutProgress(elapsed, moveTicks);
+        Vec3 offset = moveProgress == 1 ? targetOffset : startOffset.lerp(targetOffset, moveProgress);
+        setAnimatedValue(viewOffset.ponderer$getViewOffsetX(), offset.x);
+        setAnimatedValue(viewOffset.ponderer$getViewOffsetY(), offset.y);
+        setAnimatedValue(viewOffset.ponderer$getViewOffsetZ(), offset.z);
 
-        // Sync scaleFactor from the override so other code reading it gets reasonable values
-        if (viewOffset.ponderer$isScaleOverrideActive()) {
-            accessor.ponderer$setScaleFactor(viewOffset.ponderer$getScaleOverride().getValue(0));
+        double zoomProgress = easeOutProgress(elapsed - moveTicks, zoomTicks);
+        double scale = zoomProgress == 1 ? targetScale : startScale + (targetScale - startScale) * zoomProgress;
+        setAnimatedValue(viewOffset.ponderer$getScaleOverride(), scale);
+        accessor.ponderer$setScaleFactor(viewOffset.ponderer$getScaleOverride().getValue());
+    }
+
+    private static double easeOutProgress(int elapsed, int duration) {
+        if (duration <= 0 || elapsed >= duration) {
+            return 1;
         }
+        if (elapsed <= 0) {
+            return 0;
+        }
+        return (1 - Math.pow(EASE_OUT_DECAY, elapsed)) / (1 - Math.pow(EASE_OUT_DECAY, duration));
+    }
+
+    private static void setAnimatedValue(LerpedFloat lerp, double value) {
+        // Preserve interpolation from the previous tick, with no chase left after completion.
+        lerp.chase(value, 0, LerpedFloat.Chaser.IDLE);
+        lerp.setValue(value);
     }
 
     private static double alignToBlockCenter(double value) {

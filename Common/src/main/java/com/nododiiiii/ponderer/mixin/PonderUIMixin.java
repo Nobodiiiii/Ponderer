@@ -21,8 +21,10 @@ import com.nododiiiii.ponderer.ui.UIText;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.createmod.ponder.Ponder;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderScene;
+import net.createmod.ponder.foundation.ui.AbstractPonderScreen;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
@@ -220,28 +222,30 @@ public abstract class PonderUIMixin extends Screen {
     }
 
     /**
-     * Append our edit button's label to PonderUI's shared bottom-button hover
-     * tooltip strip (the same row PonderUI uses for slowMode/userMode/etc.).
+     * Add the default-toggle hint between the Comfy Reading button and its
+     * label, and append our edit button's label to the shared tooltip strip.
      */
     @Inject(method = "renderHoverTooltips", at = @At("TAIL"))
     private void ponderer$renderEditButtonTooltip(GuiGraphics graphics, int tooltipColor, CallbackInfo ci) {
+        int tooltipY = this.height - 16;
         PonderButton slowMode = ((PonderUIAccessor) this).ponderer$getSlowMode();
         if (slowMode != null && slowMode.isVisible() && slowMode.isHoveredOrFocused()) {
             Component hint = Component.translatable(Config.DEFAULT_TEXT_PROGRESS.get()
                 ? "ponderer.ui.text_progress.default_off_hint"
                 : "ponderer.ui.text_progress.default_on_hint");
-            float scale = 0.75f;
-            float halfWidth = Minecraft.getInstance().font.width(hint) * scale / 2;
-            float centerX = Math.max(halfWidth + 4,
-                Math.min(slowMode.getX() + slowMode.getWidth() / 2f, this.width - halfWidth - 4));
+            var font = Minecraft.getInstance().font;
+            Component label = Ponder.lang().translate(AbstractPonderScreen.SLOW_TEXT).component();
+            float scale = (float) font.width(label) / Math.max(1, font.width(hint));
+            // Catnip's outer border extends four pixels below the widget bounds.
+            int buttonBottom = slowMode.getY() + slowMode.getHeight() + 4;
+            float hintY = buttonBottom + (tooltipY - buttonBottom - font.lineHeight * scale) / 2;
             graphics.pose().pushPose();
-            graphics.pose().translate(centerX, slowMode.getY() - 10, 500);
+            graphics.pose().translate(slowMode.getX() + 5, hintY, 500);
             graphics.pose().scale(scale, scale, 1);
-            graphics.drawCenteredString(Minecraft.getInstance().font, hint, 0, 0, tooltipColor);
+            graphics.drawCenteredString(font, hint, 0, 0, tooltipColor);
             graphics.pose().popPose();
         }
         if (ponderer$editButton != null && ponderer$editButton.isHoveredOrFocused()) {
-            int tooltipY = this.height - 16;
             graphics.drawCenteredString(Minecraft.getInstance().font,
                 Component.translatable("ponderer.ui.tooltip.edit_scene"),
                 ponderer$editButton.getX() + 10, tooltipY, tooltipColor);

@@ -11,6 +11,7 @@ import java.util.Map;
 public class SetBlockScreen extends AbstractStepEditorScreen {
 
     private static final String[] ENTRANCE_MODES = {"hidden", "immediate", "animated"};
+    private static final String[] ENTRANCE_ANIMATIONS = {"simultaneous", "down", "up", "south", "north", "east", "west"};
 
     private final StepTextFieldHandle blockField = new StepTextFieldHandle("block");
     private final StepTextFieldHandle nbtField = new StepTextFieldHandle("nbt");
@@ -25,7 +26,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
     private boolean smartDisplay = false;
     private int entranceModeIndex = 1;
     private int directionIndex = 0;
-    private int entranceAnimationIndex = 0;
+    private int entranceAnimationIndex = 1;
 
     private final FieldBinding<Boolean> spawnParticlesBinding =
         FieldBindings.bool("particles", () -> spawnParticles, value -> spawnParticles = Boolean.TRUE.equals(value));
@@ -133,11 +134,11 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
                 "ponderer.ui.set_block.entrance_animation",
                 "ponderer.ui.set_block.entrance_animation.tooltip",
                 140,
-                SelectionAnimationOptions.ENTRANCE_ANIMATIONS.length,
+                ENTRANCE_ANIMATIONS.length,
                 () -> {
                 },
                 () -> SelectionAnimationOptions.entranceAnimationLabel(
-                    SelectionAnimationOptions.ENTRANCE_ANIMATIONS[entranceAnimationIndex]),
+                    ENTRANCE_ANIMATIONS[entranceAnimationIndex]),
                 () -> 0xFFFFFF));
             entries.add(FieldSpecs.cycle(
                 directionBinding,
@@ -197,8 +198,8 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
         }
         if (step.entranceAnimation != null && !step.entranceAnimation.isBlank()) {
             String normalized = SelectionAnimationOptions.normalizeEntranceAnimation(step.entranceAnimation);
-            for (int i = 0; i < SelectionAnimationOptions.ENTRANCE_ANIMATIONS.length; i++) {
-                if (SelectionAnimationOptions.ENTRANCE_ANIMATIONS[i].equals(normalized)) {
+            for (int i = 0; i < ENTRANCE_ANIMATIONS.length; i++) {
+                if (ENTRANCE_ANIMATIONS[i].equals(normalized)) {
                     entranceAnimationIndex = i;
                     break;
                 }
@@ -309,8 +310,7 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             if (!linkId.isEmpty()) {
                 step.linkId = linkId;
             }
-            String entranceAnimation = SelectionAnimationOptions.ENTRANCE_ANIMATIONS[entranceAnimationIndex];
-            step.entranceAnimation = "none".equals(entranceAnimation) ? "down" : entranceAnimation;
+            step.entranceAnimation = ENTRANCE_ANIMATIONS[entranceAnimationIndex];
             step.entranceDuration = Math.max(0, parseIntOr(durationField.getValue(), 20));
             step.entranceInterval = Math.max(0, parseIntOr(intervalField.getValue(), 1));
             step.smartDisplay = smartDisplay;

@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.PondererUiScaling;
 import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.config.ui.ConfigScreen;
@@ -142,17 +143,30 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
     }
 
     protected void showLeavingPrompt(Consumer<ConfirmationScreen.Response> action) {
-        int dirtyFields = getUnsavedChangeCount();
-        new ConfirmationScreen()
-            .centered()
-            .withThreeActions(action)
-            .addText(Component.translatable(
-                "catnip.ui.leaving_with_changes_message",
-                dirtyFields,
-                Component.translatable(dirtyFields != 1
-                    ? "catnip.ui.value_changes_plural"
-                    : "catnip.ui.value_changes_singular")))
-            .open(this);
+        new PondererDialogScreen(
+            this,
+            List.of(Component.translatable("ponderer.ui.unsaved_changes.title")),
+            List.of(Component.translatable("ponderer.ui.unsaved_changes.message", getUnsavedChangeCount())),
+            List.of(
+                promptButton("ponderer.ui.unsaved_changes.save_and_back",
+                    () -> action.accept(ConfirmationScreen.Response.Confirm)),
+                promptButton("ponderer.ui.unsaved_changes.discard_and_back",
+                    () -> action.accept(ConfirmationScreen.Response.ConfirmDontSave)),
+                promptButton("ponderer.ui.unsaved_changes.keep_editing",
+                    () -> action.accept(ConfirmationScreen.Response.Cancel)))) {
+            @Override
+            public void onClose() {
+                super.onClose();
+                action.accept(ConfirmationScreen.Response.Cancel);
+            }
+        }.open();
+    }
+
+    protected final PondererDialogScreen.DialogButton promptButton(String labelKey, Runnable action) {
+        return PondererDialogScreen.button(Component.translatable(labelKey), dialog -> {
+            dialog.closeToSource();
+            action.run();
+        });
     }
 
     @Override

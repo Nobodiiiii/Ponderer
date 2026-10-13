@@ -33,6 +33,7 @@ import net.createmod.ponder.api.scene.SceneBuildingUtil;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstruction;
 import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
+import net.createmod.ponder.foundation.instruction.RotateSceneInstruction;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -1004,27 +1005,22 @@ public class DynamicPonderPlugin implements PonderPlugin {
         float degreesY = step.degrees == null ? 90f : step.degrees;
         Float degreesX = step.degreesX;
         int duration = step.durationOrDefault(20);
+        if (duration > 0) {
+            // Match Ponder's exponential rotation; duration only controls the scene wait.
+            scene.addInstruction(new RotateSceneInstruction(degreesX == null ? 0f : degreesX, degreesY, true));
+            scene.idle(duration);
+            return;
+        }
         scene.addInstruction(ponderScene -> {
             var yRotation = ponderScene.getTransform().yRotation;
             float targetY = yRotation.getChaseTarget() + degreesY;
-            if (duration == 0) {
-                yRotation.startWithValue(targetY);
-            } else {
-                yRotation.chaseTimed(targetY, duration);
-            }
+            yRotation.startWithValue(targetY);
             if (degreesX != null) {
                 var xRotation = ponderScene.getTransform().xRotation;
                 float targetX = xRotation.getChaseTarget() + degreesX;
-                if (duration == 0) {
-                    xRotation.startWithValue(targetX);
-                } else {
-                    xRotation.chaseTimed(targetX, duration);
-                }
+                xRotation.startWithValue(targetX);
             }
         });
-        if (duration > 0) {
-            scene.idle(duration);
-        }
     }
 
     private void applyZoomScene(SceneBuilder scene, DslScene.DslStep step) {

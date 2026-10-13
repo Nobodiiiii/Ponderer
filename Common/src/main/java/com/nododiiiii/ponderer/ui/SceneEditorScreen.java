@@ -3,6 +3,8 @@ package com.nododiiiii.ponderer.ui;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.Config;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
+import com.nododiiiii.ponderer.interfaces.model.LegacyInterfaceMigrator;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
@@ -621,7 +623,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                 controlActionName(step.action),
                 step.item != null && !step.item.isBlank() ? step.item : UIText.of("ponderer.ui.none"));
             case "show_interface" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("show_interface"), step.block != null ? step.block : "?");
+                stepTypeName("show_interface"), interfaceTargetSummary(step));
             case "change_interface_slot" -> UIText.of("ponderer.ui.step.summary.slot_count",
                 stepTypeName("change_interface_slot"),
                 step.interfaceSlots != null ? step.interfaceSlots.size() : 0);
@@ -653,6 +655,20 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             case "next_scene" -> UIText.of("ponderer.ui.step.summary.next_scene");
             default -> step.type;
         };
+    }
+
+    private String interfaceTargetSummary(DslScene.DslStep step) {
+        InterfaceDescriptor descriptor = LegacyInterfaceMigrator.fromStep(step);
+        if (descriptor.menuType != null) {
+            return descriptor.menuType;
+        }
+        if (descriptor.block != null) {
+            return descriptor.block;
+        }
+        if (descriptor.item != null && !descriptor.item.id().isBlank()) {
+            return descriptor.item.id();
+        }
+        return "?";
     }
 
     private String entityTargetSummary(@Nullable String id, @Nullable String linkId) {

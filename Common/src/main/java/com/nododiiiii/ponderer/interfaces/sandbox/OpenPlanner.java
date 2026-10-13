@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.interfaces.sandbox;
 
+import com.nododiiiii.ponderer.compat.ae2.Ae2InterfaceCompat;
 import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
 import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
 import net.minecraft.client.gui.screens.Screen;
@@ -29,6 +30,7 @@ import java.util.List;
  * <ul>
  *   <li>P – provider: the sandbox block entity's own {@link MenuProvider} (server-style construction,
  *   all sandbox objects), else {@code BlockState#getMenuProvider}.</li>
+ *   <li>A – AE2's registered host-aware menu factories, without a server-side open request.</li>
  *   <li>F – loader client factory with captured extra data.</li>
  *   <li>B – bare {@code MenuType#create(id, inventory)}.</li>
  *   <li>S – client screen from {@code ItemStack#use}, captured by the screen gate.</li>
@@ -38,7 +40,7 @@ import java.util.List;
 final class OpenPlanner {
 
     enum Strategy {
-        PROVIDER("provider"), CLIENT_FACTORY("client_factory"), BARE_TYPE("bare_type"), CLIENT_SCREEN("client_screen");
+        PROVIDER("provider"), AE2("ae2"), CLIENT_FACTORY("client_factory"), BARE_TYPE("bare_type"), CLIENT_SCREEN("client_screen");
 
         final String id;
 
@@ -61,6 +63,7 @@ final class OpenPlanner {
                     chain.add(Strategy.CLIENT_FACTORY);
                 }
                 chain.add(Strategy.PROVIDER);
+                chain.add(Strategy.AE2);
                 if (d.extraData == null && d.menuType != null) {
                     chain.add(Strategy.BARE_TYPE);
                 }
@@ -111,9 +114,10 @@ final class OpenPlanner {
     }
 
     @Nullable
-    private static Opened attempt(SandboxSession session, InterfaceDescriptor d, Strategy strategy) {
+    private static Opened attempt(SandboxSession session, InterfaceDescriptor d, Strategy strategy) throws ReflectiveOperationException {
         return switch (strategy) {
             case PROVIDER -> provider(session);
+            case AE2 -> ae2(session, d);
             case CLIENT_FACTORY -> clientFactory(session, d);
             case BARE_TYPE -> bareType(session, d);
             case CLIENT_SCREEN -> clientScreen(session, d);
@@ -139,6 +143,12 @@ final class OpenPlanner {
             return null;
         }
         return withScreen(session, Strategy.PROVIDER, menu, provider.getDisplayName());
+    }
+
+    @Nullable
+    private static Opened ae2(SandboxSession session, InterfaceDescriptor descriptor) throws ReflectiveOperationException {
+        Ae2InterfaceCompat.Opened opened = Ae2InterfaceCompat.open(session, descriptor, session::nextWindowId, session::report);
+        return opened == null ? null : withScreen(session, Strategy.AE2, opened.menu(), opened.title());
     }
 
     @Nullable

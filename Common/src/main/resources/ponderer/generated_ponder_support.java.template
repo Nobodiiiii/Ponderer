@@ -15,6 +15,7 @@ import net.createmod.ponder.api.scene.Selection;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstruction;
 import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
+import net.createmod.ponder.foundation.instruction.RotateSceneInstruction;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -465,27 +466,22 @@ public final class GeneratedPonderSupport {
     }
 
     public static void rotateCameraY(SceneBuilder scene, float degrees, float degreesX, int duration) {
+        if (duration > 0) {
+            // Match Ponder's exponential rotation; duration only controls the scene wait.
+            scene.addInstruction(new RotateSceneInstruction(degreesX, degrees, true));
+            scene.idle(duration);
+            return;
+        }
         scene.addInstruction(ponderScene -> {
             var yRotation = ponderScene.getTransform().yRotation;
             float target = yRotation.getChaseTarget() + degrees;
-            if (duration == 0) {
-                yRotation.startWithValue(target);
-            } else {
-                yRotation.chaseTimed(target, duration);
-            }
+            yRotation.startWithValue(target);
             if (degreesX != 0f) {
                 var xRotation = ponderScene.getTransform().xRotation;
                 float targetX = xRotation.getChaseTarget() + degreesX;
-                if (duration == 0) {
-                    xRotation.startWithValue(targetX);
-                } else {
-                    xRotation.chaseTimed(targetX, duration);
-                }
+                xRotation.startWithValue(targetX);
             }
         });
-        if (duration > 0) {
-            scene.idle(duration);
-        }
     }
 
     public static void rotateCameraY(SceneBuilder scene, float degrees, int duration) {

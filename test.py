@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -448,20 +449,24 @@ def copy_mod_jar(spec: PlatformSpec, props: dict[str, str], instance: Path) -> P
     mod_id = props.get("mod_id", "ponderer")
     mc_version = props["minecraft_version"]
     destination = mods_dir / jar_path.name
-    for existing in mods_dir.glob(f"{mod_id}-{mc_version}-{spec.loader}-*.jar"):
-        if existing != destination:
-            try:
-                existing.unlink()
-            except PermissionError:
-                print(f"[WARN] Could not remove locked mod jar: {existing}")
-
+    # Never overwrite a jar in place: a running client's ZipFile keeps entry
+    # offsets from the original archive and cannot safely read the new bytes.
+    staged_path: Path | None = None
     try:
-        shutil.copy2(jar_path, destination)
+        with tempfile.NamedTemporaryFile(dir=mods_dir, suffix=".tmp", delete=False) as staged:
+            staged_path = Path(staged.name)
+        shutil.copy2(jar_path, staged_path)
+        for existing in mods_dir.glob(f"{mod_id}-{mc_version}-{spec.loader}-*.jar"):
+            if existing != destination:
+                existing.unlink()
+        os.replace(staged_path, destination)
     except PermissionError:
-        if destination.exists():
-            print(f"[WARN] Reusing locked mod jar: {destination}")
-        else:
-            raise
+        raise RuntimeError(
+            f"Could not update mod jar in {mods_dir}. Close Minecraft for this instance and retry."
+        ) from None
+    finally:
+        if staged_path is not None:
+            staged_path.unlink(missing_ok=True)
     return destination
 
 

@@ -249,23 +249,22 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             }
 
             String metaKey = SyncMeta.metaKey(category, entry.id(), entry.pack());
-            if (!"force".equals(session.pullMode)) {
+            if (session.automatic() || !"force".equals(session.pullMode)) {
                 String status = SyncMeta.checkConflict(metaKey, entry.bytes(), localFile);
-                if ("both_modified".equals(status)) {
+                if ("both_modified".equals(status) || "local_modified".equals(status)) {
                     session.conflicts++;
-                    if ("check".equals(session.pullMode)) {
-                        notifyClient(Component.translatable("ponderer.cmd.pull.conflict_both", displayId));
-                        session.skipped++;
-                        continue;
-                    }
-                    if ("keep_local".equals(session.pullMode)) {
+                    // Joining a world must not replace locally saved edits with an older server copy.
+                    if (session.automatic() || "check".equals(session.pullMode)
+                        || "keep_local".equals(session.pullMode)) {
+                        if (!session.automatic() && "check".equals(session.pullMode)) {
+                            String key = "both_modified".equals(status)
+                                ? "ponderer.cmd.pull.conflict_both" : "ponderer.cmd.pull.conflict_local";
+                            notifyClient(Component.translatable(key, displayId));
+                        }
                         session.skipped++;
                         continue;
                     }
                     notifyClient(Component.translatable("ponderer.cmd.pull.conflict_server", displayId));
-                } else if ("local_modified".equals(status) && "keep_local".equals(session.pullMode)) {
-                    session.skipped++;
-                    continue;
                 }
             }
 
