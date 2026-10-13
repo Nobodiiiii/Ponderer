@@ -1763,14 +1763,14 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         ProjectorBlockEntity projector = menu.projector();
         // Use a fixed preview facing while preserving the projector's other visual state.
         if (projector != null) {
-            return projector.getBlockState().setValue(ProjectorBlock.FACING, Direction.NORTH);
+            return projector.getBlockState().setValue(ProjectorBlock.FACING, Direction.EAST);
         }
 
         return (menu.projectorKind().requiresAnchor()
             ? ModBlocks.LIFE_SIZE_PROJECTOR.get()
             : ModBlocks.MINIATURE_PROJECTOR.get())
             .defaultBlockState()
-            .setValue(ProjectorBlock.FACING, Direction.NORTH);
+            .setValue(ProjectorBlock.FACING, Direction.EAST);
     }
 
     private static void renderControlOverlay(GuiGraphics graphics, int x, int y, int width, int height,
