@@ -32,6 +32,10 @@ public class PondererGeneralConfigScreen extends AbstractDeclarativeConfigListSc
             "ponderer.ui.mod_config.default_editable.tooltip",
             Config.DEFAULT_EDITABLE));
         entries.add(ConfigEntries.booleanEntry(
+            "ponderer.ui.mod_config.default_text_progress",
+            "ponderer.ui.mod_config.default_text_progress.tooltip",
+            Config.DEFAULT_TEXT_PROGRESS));
+        entries.add(ConfigEntries.booleanEntry(
             "ponderer.ui.mod_config.pack_orphan_prompt",
             "ponderer.ui.mod_config.pack_orphan_prompt.tooltip",
             Config.PACK_ORPHAN_PROMPT));

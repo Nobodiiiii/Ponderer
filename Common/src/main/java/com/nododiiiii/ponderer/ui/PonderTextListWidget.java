@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.TextIndexStore;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -19,13 +20,10 @@ import java.util.List;
  * Ponder scene segment. Clicking a row seeks the scene to the tick at which
  * that text appears, mirroring keyframe navigation in {@link PonderUI#seekToTime(int)}.
  *
- * Visibility is controlled by a toggle button set up in PonderUIMixin via the
- * {@code VISIBLE} flag.
+ * Visibility starts from the client configuration and can be toggled for this
+ * Ponder screen using the Comfy Reading button set up in PonderUIMixin.
  */
 public class PonderTextListWidget extends AbstractWidget {
-
-    /** Persistent (per-session) toggle for whether the panel is shown. */
-    public static boolean VISIBLE = true;
 
     /** Desired width when there is room. The actual width is computed dynamically. */
     public static final int DESIRED_PANEL_WIDTH = 144;
@@ -56,6 +54,8 @@ public class PonderTextListWidget extends AbstractWidget {
     private static final int SCROLL_THUMB     = 0xC0_8ab6d6;
 
     private final PonderUI ponderUi;
+    private boolean configuredDefault;
+    private boolean panelVisible;
     private int scrollOffset;
 
     public PonderTextListWidget(PonderUI ponderUi) {
@@ -63,6 +63,26 @@ public class PonderTextListWidget extends AbstractWidget {
             computeWidth(ponderUi.width), Math.max(60, ponderUi.height - TOP_Y - BOTTOM_PAD),
             Component.empty());
         this.ponderUi = ponderUi;
+        this.configuredDefault = Config.DEFAULT_TEXT_PROGRESS.get();
+        this.panelVisible = configuredDefault;
+    }
+
+    public boolean isPanelVisible() {
+        boolean currentDefault = Config.DEFAULT_TEXT_PROGRESS.get();
+        if (configuredDefault != currentDefault) {
+            configuredDefault = currentDefault;
+            panelVisible = currentDefault;
+        }
+        return panelVisible;
+    }
+
+    public void setPanelVisible(boolean visible) {
+        configuredDefault = Config.DEFAULT_TEXT_PROGRESS.get();
+        panelVisible = visible;
+    }
+
+    public void togglePanel() {
+        setPanelVisible(!isPanelVisible());
     }
 
     private static int rightEdge(int screenWidth) {
@@ -264,7 +284,7 @@ public class PonderTextListWidget extends AbstractWidget {
 
     private boolean shouldShow() {
         if (!this.visible) return false;
-        if (!VISIBLE) return false;
+        if (!isPanelVisible()) return false;
         if (PickState.isActive() || InterfaceSlotEditState.isActive()) return false;
         PonderScene active = ponderUi.getActiveScene();
         return active != null;

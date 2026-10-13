@@ -7,6 +7,7 @@ import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
 
@@ -31,8 +32,8 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
         this.valueField.setValue(propertyValue);
         this.keyField.moveCursorToStart(false);
         this.valueField.moveCursorToStart(false);
-        this.keyField.setHint("facing");
-        this.valueField.setHint("north");
+        this.keyField.setHint(Component.literal("facing"));
+        this.valueField.setHint(Component.literal("north"));
         this.removeButton = new FormBoxWidget(0, 0, 20, 16).withCallback(onRemove);
         PonderIconStencils.attachFail(removeButton, PonderIconStencils.centered(PonderGuiTextures.ICON_DISABLE));
         listeners.add(keyField);

@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.ponder.PackStateStore;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
@@ -54,6 +55,9 @@ public abstract class PonderUIMixin extends Screen {
     @Unique
     private PonderButton ponderer$editButton;
 
+    @Unique
+    private PonderTextListWidget ponderer$textList;
+
     protected PonderUIMixin() {
         super(CommonComponents.EMPTY);
     }
@@ -61,14 +65,19 @@ public abstract class PonderUIMixin extends Screen {
     @Inject(method = "init", at = @At("TAIL"))
     private void ponderer$addEditButton(CallbackInfo ci) {
         PonderUI self = (PonderUI) (Object) this;
-        addRenderableWidget(new PonderTextListWidget(self));
+        PonderTextListWidget textList = new PonderTextListWidget(self);
+        if (ponderer$textList != null) {
+            textList.setPanelVisible(ponderer$textList.isPanelVisible());
+        }
+        ponderer$textList = textList;
+        addRenderableWidget(textList);
 
         // Hijack the Create "comfy reading" button (slowMode): repurpose it as
         // the text-progress panel toggle.
         PonderUIAccessor accessor = (PonderUIAccessor) this;
         PonderButton slowMode = accessor.ponderer$getSlowMode();
         if (slowMode != null) {
-            slowMode.withCallback(() -> PonderTextListWidget.VISIBLE = !PonderTextListWidget.VISIBLE);
+            slowMode.withCallback(textList::togglePanel);
         }
 
         var match = ponderer$resolveDynamicScene(self);
@@ -214,15 +223,29 @@ public abstract class PonderUIMixin extends Screen {
      * Append our edit button's label to PonderUI's shared bottom-button hover
      * tooltip strip (the same row PonderUI uses for slowMode/userMode/etc.).
      */
-    @Inject(method = "renderHoverTooltips", at = @At("TAIL"), remap = false)
+    @Inject(method = "renderHoverTooltips", at = @At("TAIL"))
     private void ponderer$renderEditButtonTooltip(GuiGraphics graphics, int tooltipColor, CallbackInfo ci) {
-        if (ponderer$editButton == null || !ponderer$editButton.isHoveredOrFocused()) {
-            return;
+        PonderButton slowMode = ((PonderUIAccessor) this).ponderer$getSlowMode();
+        if (slowMode != null && slowMode.isVisible() && slowMode.isHoveredOrFocused()) {
+            Component hint = Component.translatable(Config.DEFAULT_TEXT_PROGRESS.get()
+                ? "ponderer.ui.text_progress.default_off_hint"
+                : "ponderer.ui.text_progress.default_on_hint");
+            float scale = 0.75f;
+            float halfWidth = Minecraft.getInstance().font.width(hint) * scale / 2;
+            float centerX = Math.max(halfWidth + 4,
+                Math.min(slowMode.getX() + slowMode.getWidth() / 2f, this.width - halfWidth - 4));
+            graphics.pose().pushPose();
+            graphics.pose().translate(centerX, slowMode.getY() - 10, 500);
+            graphics.pose().scale(scale, scale, 1);
+            graphics.drawCenteredString(Minecraft.getInstance().font, hint, 0, 0, tooltipColor);
+            graphics.pose().popPose();
         }
-        int tooltipY = this.height - 16;
-        graphics.drawCenteredString(Minecraft.getInstance().font,
-            Component.translatable("ponderer.ui.tooltip.edit_scene"),
-            ponderer$editButton.getX() + 10, tooltipY, tooltipColor);
+        if (ponderer$editButton != null && ponderer$editButton.isHoveredOrFocused()) {
+            int tooltipY = this.height - 16;
+            graphics.drawCenteredString(Minecraft.getInstance().font,
+                Component.translatable("ponderer.ui.tooltip.edit_scene"),
+                ponderer$editButton.getX() + 10, tooltipY, tooltipColor);
+        }
     }
 
     @Inject(method = "removed", at = @At("TAIL"), remap = false)
@@ -393,8 +416,19 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void ponderer$onPickClick(double x, double y, int button, CallbackInfoReturnable<Boolean> cir) {
-        if (!PickState.isActive() && !NbtExpandedPickState.isActive())
+        if (!PickState.isActive() && !NbtExpandedPickState.isActive()) {
+            PonderButton slowMode = ((PonderUIAccessor) this).ponderer$getSlowMode();
+            if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && slowMode != null
+                && slowMode.active && slowMode.visible && slowMode.isVisible() && slowMode.isMouseOver(x, y)) {
+                boolean enabled = !Config.DEFAULT_TEXT_PROGRESS.get();
+                Config.DEFAULT_TEXT_PROGRESS.set(enabled);
+                Config.DEFAULT_TEXT_PROGRESS.save();
+                ponderer$textList.setPanelVisible(enabled);
+                slowMode.playDownSound(Minecraft.getInstance().getSoundManager());
+                cir.setReturnValue(true);
+            }
             return;
+        }
 
         if (PickState.isUiPointPickActive()) {
             if (button == 0) {

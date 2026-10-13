@@ -44,6 +44,12 @@ public class Config {
         .comment("Default editable value for newly created scenes and scenes without an explicit editable flag.")
         .define("defaultEditable", true);
 
+    public static final ModConfigSpec.BooleanValue DEFAULT_TEXT_PROGRESS = CLIENT_BUILDER
+        .comment("Show the text progress panel by default when opening a Ponder scene.",
+                 "Right-click the Comfy Reading button to toggle this default; left-click toggles the current panel.")
+        .translation("ponderer.ui.mod_config.default_text_progress")
+        .define("defaultTextProgress", true);
+
     // -- AI Scene Generation --
 
     public static final ModConfigSpec.ConfigValue<String> AI_CONFIG_SOURCE = CLIENT_BUILDER

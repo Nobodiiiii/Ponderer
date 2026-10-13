@@ -52,7 +52,7 @@ public final class EntryTextSupport {
         if (!(field instanceof HintableTextFieldWidget hintableField) || hintKey == null || hintKey.isBlank()) {
             return;
         }
-        hintableField.setHint(UIText.of(hintKey));
+        hintableField.setHint(Component.literal(UIText.of(hintKey)));
     }
 
     public static int compactLabelWidth(int totalWidth) {
