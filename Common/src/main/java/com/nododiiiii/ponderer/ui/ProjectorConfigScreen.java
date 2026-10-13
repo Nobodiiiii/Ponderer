@@ -1761,16 +1761,16 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
     private net.minecraft.world.level.block.state.BlockState projectorDisplayState() {
         ProjectorBlockEntity projector = menu.projector();
+        // Use a fixed preview facing while preserving the projector's other visual state.
         if (projector != null) {
-            return projector.getBlockState();
+            return projector.getBlockState().setValue(ProjectorBlock.FACING, Direction.NORTH);
         }
 
-        Direction facing = projectorFacing();
         return (menu.projectorKind().requiresAnchor()
             ? ModBlocks.LIFE_SIZE_PROJECTOR.get()
             : ModBlocks.MINIATURE_PROJECTOR.get())
             .defaultBlockState()
-            .setValue(ProjectorBlock.FACING, facing);
+            .setValue(ProjectorBlock.FACING, Direction.NORTH);
     }
 
     private static void renderControlOverlay(GuiGraphics graphics, int x, int y, int width, int height,
