@@ -43,9 +43,12 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             FieldDecorators.heldItem(
             stack -> {
                 itemField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+                countField.setValue(String.valueOf(stack.getCount()));
                 net.minecraft.world.item.component.CustomData customData = stack.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
                 if (customData != null && !customData.isEmpty()) {
                     nbtField.setValue(customData.copyTag().toString());
+                } else {
+                    nbtField.setValue("");
                 }
             })));
         entries.add(FieldSpecs.number(

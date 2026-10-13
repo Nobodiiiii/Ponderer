@@ -59,6 +59,8 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
                     net.minecraft.world.item.component.CustomData customData = stack.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
                     if (customData != null && !customData.isEmpty()) {
                         nbtField.setValue(customData.copyTag().toString());
+                    } else {
+                        nbtField.setValue("");
                     }
                 })));
         } else {

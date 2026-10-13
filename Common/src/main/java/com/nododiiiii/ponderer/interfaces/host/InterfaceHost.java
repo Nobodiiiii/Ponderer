@@ -21,6 +21,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
@@ -76,6 +77,7 @@ public final class InterfaceHost {
     private static DslScene.InterfaceSlotBinding draggedBinding;
     @Nullable
     private static Integer draggedBindingOrigin;
+    private static ItemStack draggedItemStack = ItemStack.EMPTY;
 
     private InterfaceHost() {
     }
@@ -102,6 +104,7 @@ public final class InterfaceHost {
     }
 
     public static void closeAll(String reason) {
+        cancelSlotDrag();
         InterfaceOverlayElement element = current;
         current = null;
         mode = Mode.WATCH;
@@ -412,6 +415,7 @@ public final class InterfaceHost {
      * movement while a forwarded button is held.
      */
     static void beforeRender(SandboxSession session, int mouseX, int mouseY) {
+        InterfaceSlotEditState.applyPreview(session);
         if (pressedButton < 0) {
             return;
         }
@@ -434,6 +438,7 @@ public final class InterfaceHost {
         pressedButton = -1;
         draggedBinding = null;
         draggedBindingOrigin = null;
+        draggedItemStack = ItemStack.EMPTY;
     }
 
     static int mouseX(Minecraft mc) {
@@ -611,22 +616,31 @@ public final class InterfaceHost {
         }
     }
 
-    // ---- change_interface_slot editing (JEI ghost bindings over slots) ------------------
+    // ---- change_interface_slot editing (logical items and non-item ghosts) --------------
 
     private static boolean editPressed(SandboxSession session, double x, double y, int button) {
+        InterfaceSlotEditState.applyPreview(session);
         Screen screen = session.currentScreen();
         Slot slot = screen == null ? null : InterfaceSlotOverlayRenderer.findSlotAt(screen, x, y);
         if (slot == null) {
             return isInside(session, x, y);
         }
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-            InterfaceSlotEditState.removeBinding(slot.index);
+            cancelSlotDrag();
+            if (InterfaceSlotEditState.getBindingForSlot(slot) != null) {
+                InterfaceSlotEditState.clearBinding(slot);
+            }
         } else if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            DslScene.InterfaceSlotBinding binding = InterfaceSlotEditState.getBinding(slot.index);
+            cancelSlotDrag();
+            DslScene.InterfaceSlotBinding binding = InterfaceSlotEditState.getBindingForSlot(slot);
             if (binding != null) {
+                binding.slotIndex = slot.index;
+                binding.slotX = slot.x;
+                binding.slotY = slot.y;
                 draggedBinding = binding;
                 draggedBindingOrigin = binding.slotIndex;
-                InterfaceSlotEditState.removeBinding(slot.index);
+                draggedItemStack = "item".equalsIgnoreCase(binding.ingredientKind) ? slot.getItem().copy() : ItemStack.EMPTY;
+                InterfaceSlotEditState.clearBinding(slot);
             }
         }
         return true;
@@ -638,13 +652,13 @@ public final class InterfaceHost {
         DslScene.InterfaceSlotBinding dragged = draggedBinding;
         if (dragged != null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             if (slot != null) {
-                InterfaceSlotEditState.putBinding(slot.index, slot.x, slot.y, dragged.ingredientId, dragged.ingredientKind);
+                InterfaceSlotEditState.putBinding(slot.index, slot.x, slot.y, dragged);
             } else if (draggedBindingOrigin != null) {
-                InterfaceSlotEditState.putBinding(draggedBindingOrigin, dragged.slotX, dragged.slotY,
-                    dragged.ingredientId, dragged.ingredientKind);
+                InterfaceSlotEditState.putBinding(draggedBindingOrigin, dragged.slotX, dragged.slotY, dragged);
             }
             draggedBinding = null;
             draggedBindingOrigin = null;
+            draggedItemStack = ItemStack.EMPTY;
             return true;
         }
         // Only consume drags started by this editor. JEI needs the release event
@@ -652,20 +666,38 @@ public final class InterfaceHost {
         return false;
     }
 
+    /** Finishing an edit or cancelling a drag keeps the ingredient in its original slot. */
+    public static void cancelSlotDrag() {
+        DslScene.InterfaceSlotBinding dragged = draggedBinding;
+        Integer origin = draggedBindingOrigin;
+        draggedBinding = null;
+        draggedBindingOrigin = null;
+        draggedItemStack = ItemStack.EMPTY;
+        if (dragged != null && origin != null && InterfaceSlotEditState.isActive()) {
+            InterfaceSlotEditState.putBinding(origin, dragged.slotX, dragged.slotY, dragged);
+        }
+    }
+
     static void renderDraggedBinding(GuiGraphics graphics, int mouseX, int mouseY) {
         DslScene.InterfaceSlotBinding dragged = draggedBinding;
-        if (dragged == null) {
+        if (!InterfaceSlotEditState.isActive() || dragged == null) {
             return;
         }
-        var element = JeiCompat.resolveIngredientById(dragged.ingredientId, dragged.ingredientKind);
-        if (element == null) {
+        var element = draggedItemStack.isEmpty()
+            ? JeiCompat.resolveIngredientById(dragged.ingredientId, dragged.ingredientKind) : null;
+        if (element == null && draggedItemStack.isEmpty()) {
             return;
         }
         graphics.flush();
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, PonderRuntimeZLayers.INTERFACE_OVERLAY_LAYER);
         RenderSystem.disableDepthTest();
-        element.render(graphics, mouseX - 8, mouseY - 8);
+        if (!draggedItemStack.isEmpty()) {
+            graphics.renderItem(draggedItemStack, mouseX - 8, mouseY - 8);
+            graphics.renderItemDecorations(Minecraft.getInstance().font, draggedItemStack, mouseX - 8, mouseY - 8);
+        } else {
+            element.render(graphics, mouseX - 8, mouseY - 8);
+        }
         graphics.pose().popPose();
         graphics.flush();
     }

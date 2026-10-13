@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.neoforge.interfaces;
 
 import com.nododiiiii.ponderer.interfaces.InterfaceSmokeTest;
 import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.ponder.PonderRenderCache;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -55,6 +56,7 @@ public final class NeoForgeInterfaceEvents {
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
+        PonderRenderCache.tick();
         InterfaceHost.tick();
         InterfaceSmokeTest.tick();
     }

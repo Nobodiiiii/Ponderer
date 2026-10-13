@@ -1,12 +1,14 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.ui.IdFieldMode;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.client.renderer.Rect2i;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -30,6 +32,12 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     private int preferredFieldWidth = -1;
     private int minimumControlWidth = -1;
     private float controlWidthScale = 1.0f;
+    @Nullable
+    private IngredientSlotWidget ingredientSlot;
+    @Nullable
+    private IdFieldMode ingredientMode;
+    @Nullable
+    private Rect2i ingredientSlotArea;
 
     public PlainTextListEntry(String labelKey, @Nullable String tooltipKey, @Nullable String hintKey,
                               String initialValue, Consumer<String> responder) {
@@ -52,6 +60,31 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
     public void setValue(String value) {
         textField.setValue(value != null ? value : "");
+    }
+
+    public void addIngredientSlot(IdFieldMode mode, @Nullable String tooltipText) {
+        ingredientMode = mode;
+        ingredientSlot = new IngredientSlotWidget(mode, textField::getValue, tooltipText);
+    }
+
+    @Nullable
+    public IdFieldMode ingredientMode() {
+        return ingredientMode;
+    }
+
+    @Nullable
+    public Rect2i ingredientSlotArea() {
+        return ingredientSlotArea;
+    }
+
+    public void clearIngredientSlotArea() {
+        ingredientSlotArea = null;
+    }
+
+    public void renderIngredientTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (ingredientSlot != null && ingredientSlotArea != null && ingredientSlotArea.contains(mouseX, mouseY)) {
+            ingredientSlot.renderSlotTooltip(graphics, mouseX, mouseY);
+        }
     }
 
     public BoxWidget addTrailingButton(int width, Runnable onClick, Supplier<String> labelGetter,
@@ -123,14 +156,23 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
         int labelWidth = getLabelWidth(width);
         int trailingWidth = getTrailingWidth();
-        int controlMinimum = minimumControlWidth > 0 ? minimumControlWidth : trailingWidth + 60;
+        int leadingWidth = ingredientSlot == null ? 0 : IngredientSlotWidget.SIZE + CONTROL_GAP;
+        int controlMinimum = minimumControlWidth > 0 ? minimumControlWidth : leadingWidth + trailingWidth + 60;
         if (preferredFieldWidth > 0) {
-            controlMinimum = Math.max(controlMinimum, preferredFieldWidth + trailingWidth);
+            controlMinimum = Math.max(controlMinimum, preferredFieldWidth + leadingWidth + trailingWidth);
         }
         EntryTextSupport.AlignedControlBounds controlBounds = EntryTextSupport.rightAlignedControlBounds(
             x, width, labelWidth, controlWidthScale, controlMinimum);
-        int actualFieldWidth = Math.max(60, controlBounds.width() - trailingWidth);
-        int fieldX = controlBounds.x();
+        int actualFieldWidth = Math.max(60, controlBounds.width() - leadingWidth - trailingWidth);
+        int fieldX = controlBounds.x() + leadingWidth;
+
+        if (ingredientSlot != null) {
+            ingredientSlot.setX(controlBounds.x());
+            ingredientSlot.setY(y + 9);
+            ingredientSlotArea = new Rect2i(ingredientSlot.getX(), ingredientSlot.getY(),
+                IngredientSlotWidget.SIZE, IngredientSlotWidget.SIZE);
+            ingredientSlot.render(graphics, mouseX, mouseY, partialTicks);
+        }
 
         textField.setX(fieldX);
         textField.setY(y + 8);

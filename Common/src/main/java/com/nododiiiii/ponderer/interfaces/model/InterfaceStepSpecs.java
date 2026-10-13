@@ -90,7 +90,8 @@ public final class InterfaceStepSpecs {
                 String kind = b.ingredientKind == null || b.ingredientKind.isBlank()
                     ? "item" : b.ingredientKind.trim().toLowerCase(Locale.ROOT);
                 if ("item".equals(kind)) {
-                    slots.add(new SlotWrite(b.slotIndex, InterfaceDescriptor.ItemSpec.of(b.ingredientId.trim()), b.slotX, b.slotY));
+                    slots.add(new SlotWrite(b.slotIndex, new InterfaceDescriptor.ItemSpec(b.ingredientId.trim(),
+                        b.itemCount == null ? 1 : b.itemCount, b.itemComponents, null), b.slotX, b.slotY));
                 } else {
                     ghosts.add(new GhostWrite(b.slotIndex, kind, b.ingredientId.trim()));
                 }

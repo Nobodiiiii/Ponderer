@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.google.gson.JsonObject;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
@@ -267,6 +268,11 @@ public class DslScene {
         public String ingredientId;
         @Nullable
         public String ingredientKind;
+        /** Optional item stack data; older bindings default to one item with no components. */
+        @Nullable
+        public Integer itemCount;
+        @Nullable
+        public JsonObject itemComponents;
 
         public InterfaceSlotBinding() {
         }
@@ -282,6 +288,18 @@ public class DslScene {
             this.slotY = slotY;
             this.ingredientId = ingredientId;
             this.ingredientKind = ingredientKind;
+        }
+
+        public InterfaceSlotBinding copy() {
+            InterfaceSlotBinding copy = new InterfaceSlotBinding();
+            copy.slotIndex = slotIndex;
+            copy.slotX = slotX;
+            copy.slotY = slotY;
+            copy.ingredientId = ingredientId;
+            copy.ingredientKind = ingredientKind;
+            copy.itemCount = itemCount;
+            copy.itemComponents = itemComponents == null ? null : itemComponents.deepCopy();
+            return copy;
         }
     }
 }

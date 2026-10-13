@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.createmod.catnip.gui.ScreenOpener;
@@ -46,7 +45,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
                                        SceneEditorScreen parent, int editIndex,
                                        @Nullable DslScene.DslStep existingStep) {
         super(scene, sceneIndex, parent, "ponderer.ui.scope.editor", "ponderer.ui.step_editor",
-            STEP_EDITOR_LIST_WIDTH, (screen, mode) -> JeiCompat.setActiveEditor((AbstractStepEditorScreen) screen, mode));
+            STEP_EDITOR_LIST_WIDTH);
         this.editIndex = editIndex;
         this.existingStep = existingStep;
     }

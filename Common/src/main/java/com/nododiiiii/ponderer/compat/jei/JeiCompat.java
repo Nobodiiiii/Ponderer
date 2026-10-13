@@ -1,12 +1,11 @@
 package com.nododiiiii.ponderer.compat.jei;
 
-import com.nododiiiii.ponderer.ui.AbstractStepEditorScreen;
-import com.nododiiiii.ponderer.ui.IdFieldMode;
-import com.nododiiiii.ponderer.ui.JeiAwareScreen;
 import net.createmod.catnip.gui.element.ScreenElement;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ui.UIText;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -33,22 +32,18 @@ public final class JeiCompat {
         return available;
     }
 
-    /** Tell JEI plugin to show overlay for this editor screen. */
-    public static void setActiveEditor(AbstractStepEditorScreen screen, IdFieldMode mode) {
-        if (!isAvailable()) return;
-        PondererJeiPlugin.setActiveEditor(screen, mode);
-    }
-
-    /** Tell JEI plugin to show overlay for any JEI-aware screen. */
-    public static void setActiveScreen(JeiAwareScreen screen, IdFieldMode mode) {
-        if (!isAvailable()) return;
-        PondererJeiPlugin.setActiveScreen(screen, mode);
-    }
-
-    /** Tell JEI plugin to hide the overlay. */
-    public static void clearActiveEditor() {
-        if (!isAvailable()) return;
-        PondererJeiPlugin.clearActiveEditor();
+    /** A hint about actual list visibility; no JEI toggle state is read or changed. */
+    @Nullable
+    public static String getIngredientListVisibilityHint() {
+        if (!isAvailable() || !PondererJeiPlugin.isIngredientListNotDisplayed()) {
+            return null;
+        }
+        for (KeyMapping mapping : Minecraft.getInstance().options.keyMappings) {
+            if ("key.jei.toggleOverlay".equals(mapping.getName()) && !mapping.isUnbound()) {
+                return UIText.of("ponderer.ui.jei_browse.not_displayed.key", mapping.getTranslatedKeyMessage().getString());
+            }
+        }
+        return UIText.of("ponderer.ui.jei_browse.not_displayed");
     }
 
     /**
@@ -97,8 +92,15 @@ public final class JeiCompat {
         return JeiIngredientHelper.resolveById(id, kind);
     }
 
+    public static boolean renderIngredientTooltip(@Nullable ScreenElement element, GuiGraphics graphics,
+                                                   int mouseX, int mouseY) {
+        if (!isAvailable()) return false;
+        return element instanceof JeiIngredientScreenElement ingredientElement
+            && ingredientElement.renderTooltip(graphics, mouseX, mouseY);
+    }
+
     /**
-     * Resolve an ingredient ID string from a JEI ITypedIngredient click.
+     * Resolve an ingredient ID string from a JEI ITypedIngredient drop.
      * Handles all ingredient types (items, fluids, chemicals, etc.).
      * Returns the registry ID string, or null if unable to resolve.
      */

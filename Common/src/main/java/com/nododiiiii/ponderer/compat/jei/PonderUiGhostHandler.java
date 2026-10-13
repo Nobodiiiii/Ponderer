@@ -18,9 +18,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * JEI drops onto the interface embedded in PonderUI: in slot-edit mode they become ghost
- * bindings; in try/exercise mode item drops put a real stack into the sandbox slot (only the
- * sandbox ever holds it).
+ * JEI drops onto the interface embedded in PonderUI: slot edits persist bindings and write
+ * items into the sandbox menu; try/exercise drops place a real stack through normal slot
+ * rules. Non-item ingredients remain display-only ghosts.
  */
 public class PonderUiGhostHandler implements IGhostIngredientHandler<PonderUI> {
     @Override
@@ -36,7 +36,7 @@ public class PonderUiGhostHandler implements IGhostIngredientHandler<PonderUI> {
             if (descriptor == null || descriptor.id() == null || descriptor.id().isBlank()) {
                 return List.of();
             }
-            return InterfaceSlotGhostHandler.createTargets(container, descriptor);
+            return InterfaceSlotGhostHandler.createTargets(container, descriptor, ingredient);
         }
 
         Optional<ItemStack> stack = ingredient.getItemStack();
@@ -70,6 +70,11 @@ public class PonderUiGhostHandler implements IGhostIngredientHandler<PonderUI> {
             });
         }
         return targets;
+    }
+
+    @Override
+    public boolean shouldHighlightTargets() {
+        return !InterfaceSlotEditState.isActive();
     }
 
     @Override

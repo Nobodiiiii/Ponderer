@@ -92,6 +92,9 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
             RenderSystem.disableDepthTest();
         }
         redrawEarlierOverlays(scene, screen, graphics, partialTicks);
+        if (hoverAllowed && ghost == null && session.currentScreen() != null) {
+            InterfaceSlotOverlayRenderer.renderJeiVisibilityTooltip(graphics, session.currentScreen(), mouseX, mouseY);
+        }
     }
 
     /**

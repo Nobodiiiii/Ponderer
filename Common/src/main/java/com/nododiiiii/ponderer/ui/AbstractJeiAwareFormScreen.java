@@ -1,62 +1,75 @@
 package com.nododiiiii.ponderer.ui;
 
-import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.Rect2i;
+import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
 
 import javax.annotation.Nullable;
-import java.util.function.BiConsumer;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class AbstractJeiAwareFormScreen extends AbstractStatefulDeclarativeFormScreen
-    implements JeiTextButtonHost {
-
-    private final JeiFieldController jeiController;
+    implements JeiAwareScreen {
 
     protected AbstractJeiAwareFormScreen(@Nullable Screen parent, String scopeKey, String titleKey,
-                                         int preferredListWidth,
-                                         BiConsumer<JeiAwareScreen, IdFieldMode> activationAction) {
+                                         int preferredListWidth) {
         super(parent, scopeKey, titleKey, preferredListWidth);
-        this.jeiController = new JeiFieldController(activationAction);
     }
 
-    protected AbstractJeiAwareFormScreen(@Nullable Screen parent, String scopeKey, String titleKey,
-                                         BiConsumer<JeiAwareScreen, IdFieldMode> activationAction) {
+    protected AbstractJeiAwareFormScreen(@Nullable Screen parent, String scopeKey, String titleKey) {
         super(parent, scopeKey, titleKey);
-        this.jeiController = new JeiFieldController(activationAction);
     }
 
-    @Nullable
-    @Override
-    public HintableTextFieldWidget getJeiTargetField() {
-        return jeiController.targetField();
-    }
-
-    @Override
-    public final void toggleJeiForField(HintableTextFieldWidget field, IdFieldMode mode) {
-        jeiController.toggle(this, field, mode);
-        onJeiStateChanged();
+    public final boolean hasJeiIngredientFields() {
+        return list != null && list.children().stream().anyMatch(entry ->
+            entry instanceof PlainTextListEntry textEntry && textEntry.ingredientMode() != null);
     }
 
     @Override
-    public final boolean isJeiActiveForField(HintableTextFieldWidget field) {
-        return jeiController.isActiveFor(field);
-    }
-
-    @Override
-    public void deactivateJei() {
-        if (!jeiController.isActive()) {
-            return;
+    public List<IngredientTarget> getJeiIngredientTargets() {
+        List<IngredientTarget> targets = new ArrayList<>();
+        if (list == null) {
+            return targets;
         }
-        jeiController.deactivate();
-        onJeiStateChanged();
+        for (var entry : list.children()) {
+            if (!(entry instanceof PlainTextListEntry textEntry) || textEntry.ingredientMode() == null) {
+                continue;
+            }
+            Rect2i area = textEntry.ingredientSlotArea();
+            if (area == null) {
+                continue;
+            }
+            int left = Math.max(area.getX(), list.getX());
+            int top = Math.max(area.getY(), list.getY());
+            int right = Math.min(area.getX() + area.getWidth(), list.getRight());
+            int bottom = Math.min(area.getY() + area.getHeight(), list.getBottom());
+            if (right > left && bottom > top) {
+                targets.add(new IngredientTarget(textEntry.field(), textEntry.ingredientMode(),
+                    new Rect2i(left, top, right - left, bottom - top)));
+            }
+        }
+        return targets;
     }
 
     @Override
-    public void showJeiIncompatibleWarning(IdFieldMode mode) {
-        setErrorMessage(switch (mode) {
-            case BLOCK -> UIText.of("ponderer.ui.jei.error.not_block");
-            case ENTITY -> UIText.of("ponderer.ui.jei.error.not_spawn_egg");
-            case ITEM, INGREDIENT -> null;
-        });
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        // Offscreen entries retain their widget coordinates; only freshly rendered slots may accept drops.
+        if (list != null) {
+            for (var entry : list.children()) {
+                if (entry instanceof PlainTextListEntry textEntry) {
+                    textEntry.clearIngredientSlotArea();
+                }
+            }
+        }
+        super.render(graphics, mouseX, mouseY, partialTicks);
+        if (list != null && list.isMouseOver(mouseX, mouseY)) {
+            for (var entry : list.children()) {
+                if (entry instanceof PlainTextListEntry textEntry) {
+                    textEntry.renderIngredientTooltip(graphics, mouseX, mouseY);
+                }
+            }
+        }
     }
 
     @Override
@@ -79,21 +92,4 @@ public abstract class AbstractJeiAwareFormScreen extends AbstractStatefulDeclara
         return height - 60;
     }
 
-    @Override
-    public void removed() {
-        super.removed();
-        if (jeiController.isActive()) {
-            deactivateJei();
-        }
-    }
-
-    protected boolean rebuildOnJeiStateChange() {
-        return false;
-    }
-
-    protected void onJeiStateChanged() {
-        if (rebuildOnJeiStateChange()) {
-            rebuildListPreservingScroll();
-        }
-    }
 }

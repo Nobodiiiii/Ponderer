@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.Config;
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.network.BlueprintConfigRequestPayload;
 import com.nododiiiii.ponderer.network.BlueprintConfigResponsePayload;
 import com.nododiiiii.ponderer.network.BlueprintConfigUpdatePayload;
@@ -32,8 +31,7 @@ public class BlueprintItemConfigScreen extends AbstractJeiAwareFormScreen {
         super(parent,
             "ponderer.ui.scope.blueprint",
             "ponderer.ui.mod_config.blueprint.title",
-            UILayoutConstants.EDITOR_LIST_W,
-            JeiCompat::setActiveScreen);
+            UILayoutConstants.EDITOR_LIST_W);
         this.enableBuiltinItem = readEnableBuiltinItem();
         this.serverEnableBuiltinItem = this.enableBuiltinItem;
         this.carrierItem = readCarrierItem();
@@ -79,8 +77,6 @@ public class BlueprintItemConfigScreen extends AbstractJeiAwareFormScreen {
             setErrorMessage(UIText.of("ponderer.ui.create_item_entity.error.invalid_id"));
             return false;
         }
-
-        deactivateJei();
 
         Config.BLUEPRINT_CARRIER_ITEM.set(normalizedCarrier);
         carrierItem = normalizedCarrier;

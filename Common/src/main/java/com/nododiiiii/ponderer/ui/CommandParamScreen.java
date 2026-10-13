@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
@@ -58,8 +57,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     private boolean collectingEntries = false;
 
     private CommandParamScreen(String titleKey, List<FieldDef> fieldDefs, Consumer<Map<String, String>> onExecute) {
-        super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, UILayoutConstants.EDITOR_LIST_W,
-            JeiCompat::setActiveScreen);
+        super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, UILayoutConstants.EDITOR_LIST_W);
         this.fieldDefs = fieldDefs;
         this.onExecute = onExecute;
     }
@@ -185,7 +183,6 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
             values.put(toggleDef.id, String.valueOf(toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue)));
         }
 
-        deactivateJei();
         PondererClientCommands.runReportingTo(
             this::setInfoMessage,
             this::setErrorMessage,
@@ -197,11 +194,6 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     @Override
     protected void prepareSnapshotForBuild(Map<String, String> snapshot) {
         restoreSnapshot(snapshot);
-    }
-
-    @Override
-    protected boolean rebuildOnJeiStateChange() {
-        return true;
     }
 
     @Override

@@ -51,7 +51,7 @@ public final class InterfaceSlotOverlayRenderer {
         }
 
         Map<Integer, DslScene.InterfaceSlotBinding> bindings = InterfaceSlotEditState.isActive()
-            ? InterfaceSlotEditState.getBindingsForRender()
+            ? InterfaceSlotEditState.getGhostBindingsForRender()
             : RUNTIME_BINDINGS;
         if (bindings.isEmpty()) {
             return;
@@ -78,6 +78,27 @@ public final class InterfaceSlotOverlayRenderer {
 
         graphics.pose().popPose();
         graphics.flush();
+    }
+
+    public static void renderJeiVisibilityTooltip(GuiGraphics graphics, Screen screen, int mouseX, int mouseY) {
+        if (!InterfaceSlotEditState.isActive() || findSlotAt(screen, mouseX, mouseY) == null) {
+            return;
+        }
+        String hint = JeiCompat.getIngredientListVisibilityHint();
+        if (hint == null) {
+            return;
+        }
+        Minecraft mc = Minecraft.getInstance();
+        graphics.flush();
+        graphics.pose().pushPose();
+        try {
+            graphics.pose().translate(0, 0, PonderRuntimeZLayers.TOOLTIP_LAYER);
+            RenderSystem.disableDepthTest();
+            graphics.renderTooltip(mc.font, mc.font.split(Component.literal(hint), 240), mouseX, mouseY);
+        } finally {
+            graphics.pose().popPose();
+            graphics.flush();
+        }
     }
 
     public static void renderTooltip(GuiGraphics graphics, Screen screen, int mouseX, int mouseY) {
@@ -131,7 +152,7 @@ public final class InterfaceSlotOverlayRenderer {
         }
 
         Map<Integer, DslScene.InterfaceSlotBinding> bindings = InterfaceSlotEditState.isActive()
-            ? InterfaceSlotEditState.getBindingsForRender()
+            ? InterfaceSlotEditState.getGhostBindingsForRender()
             : RUNTIME_BINDINGS;
 
         DslScene.InterfaceSlotBinding binding = bindings.get(slot.index);

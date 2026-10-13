@@ -1,0 +1,146 @@
+package com.nododiiiii.ponderer.ui.catnip;
+
+import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.ui.IdFieldMode;
+import net.createmod.catnip.gui.element.ScreenElement;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.SpawnEggItem;
+
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
+/** A client-side ingredient slot bound to an ID field. */
+public class IngredientSlotWidget extends AbstractWidget {
+
+    public static final int SIZE = 18;
+    private static final ResourceLocation SLOT_SPRITE = ResourceLocation.withDefaultNamespace("container/slot");
+
+    private final IdFieldMode mode;
+    private final Supplier<String> valueGetter;
+    private final Slot slot = new Slot(new SimpleContainer(1), 0, 0, 0);
+    @Nullable
+    private final String tooltipText;
+    @Nullable
+    private String previewId;
+    @Nullable
+    private ScreenElement previewIngredient;
+
+    public IngredientSlotWidget(IdFieldMode mode, Supplier<String> valueGetter, @Nullable String tooltipText) {
+        super(0, 0, SIZE, SIZE, CommonComponents.EMPTY);
+        this.mode = mode;
+        this.valueGetter = valueGetter;
+        this.tooltipText = tooltipText;
+    }
+
+    @Override
+    protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        graphics.blitSprite(SLOT_SPRITE, getX(), getY(), SIZE, SIZE);
+        updatePreview();
+        ItemStack stack = slot.getItem();
+        int itemX = getX() + 1;
+        int itemY = getY() + 1;
+        if (slot.hasItem()) {
+            graphics.renderItem(stack, itemX, itemY);
+            graphics.renderItemDecorations(Minecraft.getInstance().font, stack, itemX, itemY);
+        } else if (previewIngredient != null) {
+            previewIngredient.render(graphics, itemX, itemY);
+        }
+        if (isHoveredOrFocused()) {
+            AbstractContainerScreen.renderSlotHighlight(graphics, itemX, itemY, 0);
+        }
+    }
+
+    @Override
+    protected void updateWidgetNarration(NarrationElementOutput output) {
+        // Keyboard focus remains on the ID field.
+    }
+
+    /** Called by the form after its list scissor has ended, like container screen tooltips. */
+    public void renderSlotTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!isMouseOver(mouseX, mouseY)) {
+            return;
+        }
+        updatePreview();
+        if (slot.hasItem()) {
+            graphics.renderTooltip(Minecraft.getInstance().font, slot.getItem(), mouseX, mouseY);
+            return;
+        }
+        if (JeiCompat.renderIngredientTooltip(previewIngredient, graphics, mouseX, mouseY)) {
+            return;
+        }
+        List<Component> lines = new ArrayList<>();
+        if (tooltipText != null) {
+            lines.add(Component.literal(tooltipText));
+        }
+        String hint = JeiCompat.getIngredientListVisibilityHint();
+        if (hint != null) {
+            lines.add(Component.literal(hint));
+        }
+        if (!lines.isEmpty()) {
+            graphics.renderComponentTooltip(Minecraft.getInstance().font, lines, mouseX, mouseY);
+        }
+    }
+
+    private void updatePreview() {
+        String id = valueGetter.get().trim();
+        // ID fields may also contain block states, item components, or inline NBT.
+        int suffix = id.length();
+        for (char delimiter : new char[] {'[', '{'}) {
+            int index = id.indexOf(delimiter);
+            if (index >= 0) {
+                suffix = Math.min(suffix, index);
+            }
+        }
+        id = id.substring(0, suffix).trim();
+        if (id.equals(previewId)) {
+            return;
+        }
+        previewId = id;
+        slot.set(ItemStack.EMPTY);
+        previewIngredient = null;
+        ResourceLocation key = ResourceLocation.tryParse(id);
+        if (key == null) {
+            return;
+        }
+        ItemStack previewStack = ItemStack.EMPTY;
+        switch (mode) {
+            case ITEM, INGREDIENT -> {
+                if (BuiltInRegistries.ITEM.containsKey(key)) {
+                    previewStack = new ItemStack(BuiltInRegistries.ITEM.get(key));
+                }
+            }
+            case BLOCK -> {
+                if (BuiltInRegistries.BLOCK.containsKey(key)) {
+                    previewStack = new ItemStack(BuiltInRegistries.BLOCK.get(key).asItem());
+                }
+            }
+            case ENTITY -> {
+                if (BuiltInRegistries.ENTITY_TYPE.containsKey(key)) {
+                    SpawnEggItem egg = SpawnEggItem.byId(BuiltInRegistries.ENTITY_TYPE.get(key));
+                    if (egg != null) {
+                        previewStack = new ItemStack(egg);
+                    } else if (BuiltInRegistries.ITEM.containsKey(key)) {
+                        previewStack = new ItemStack(BuiltInRegistries.ITEM.get(key));
+                    }
+                }
+            }
+        }
+        if (mode == IdFieldMode.INGREDIENT && previewStack.isEmpty()) {
+            previewIngredient = JeiCompat.resolveIngredientById(id);
+        }
+        slot.set(previewStack);
+    }
+}

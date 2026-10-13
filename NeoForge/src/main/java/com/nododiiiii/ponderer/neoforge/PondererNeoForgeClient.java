@@ -3,8 +3,6 @@ package com.nododiiiii.ponderer.neoforge;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
-import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -26,7 +24,6 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -36,7 +33,6 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
-import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
@@ -67,7 +63,6 @@ public class PondererNeoForgeClient {
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseScrolled);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseInput);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onPlayerLoggedIn);
-        NeoForge.EVENT_BUS.addListener(EventPriority.HIGH, PondererNeoForgeClient::onScreenMouseClick);
         NeoForgeInterfaceEvents.register();
     }
 
@@ -154,16 +149,6 @@ public class PondererNeoForgeClient {
 
         if (blueprintHandler.onMouseInput(event.getButton(), event.getAction() == 1)) {
             event.setCanceled(true);
-        }
-    }
-
-    // --- JEI click interception ---
-    private static void onScreenMouseClick(ScreenEvent.MouseButtonPressed.Pre event) {
-        if (JeiCompat.isAvailable()) {
-            if (PondererJeiPlugin.handleMouseClick(
-                    event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton())) {
-                event.setCanceled(true);
-            }
         }
     }
 

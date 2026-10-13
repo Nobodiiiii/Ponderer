@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.interfaces.sandbox.SessionOps;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
+import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
@@ -36,5 +37,6 @@ public class SetInterfaceSlotsInstruction extends TickingInstruction {
         for (InterfaceStepSpecs.SlotWrite write : spec.slots()) {
             InterfaceHost.script(scene, "slot:" + write.index(), session -> SessionOps.writeSlot(session, write));
         }
+        InterfaceSlotEditState.invalidatePreview();
     }
 }

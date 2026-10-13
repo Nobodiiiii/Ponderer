@@ -52,20 +52,12 @@ public final class FieldDecorators {
         return new FieldDecorator() {
             @Override
             public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
-                if (!JeiCompat.isAvailable()) {
-                    return;
+                if (!(screen instanceof JeiAwareScreen)) {
+                    throw new IllegalStateException("JEI decorator requires screen to implement JeiAwareScreen");
                 }
-                if (!(screen instanceof JeiTextButtonHost host)) {
-                    throw new IllegalStateException("JEI decorator requires screen to implement JeiTextButtonHost");
-                }
-                entry.addTrailingButton(
-                    FormTextButtonSpec.DEFAULT_WIDTH,
-                    () -> host.toggleJeiForField((net.createmod.catnip.config.ui.HintableTextFieldWidget) entry.field(), mode),
-                    () -> "J",
-                    () -> host.isJeiActiveForField((net.createmod.catnip.config.ui.HintableTextFieldWidget) entry.field())
-                        ? 0x55FF55
-                        : 0xAAAAFF,
-                    UIText.of("ponderer.ui.jei_browse.tooltip"));
+                entry.addIngredientSlot(
+                    mode,
+                    JeiCompat.isAvailable() ? UIText.of("ponderer.ui.jei_browse.tooltip") : null);
             }
         };
     }
@@ -151,10 +143,10 @@ public final class FieldDecorators {
                 }
                 entry.addTrailingButton(
                     FormTextButtonSpec.DEFAULT_WIDTH,
-                    () -> host.useHeldItemFromButton(onItemPicked),
+                    () -> host.openInventoryPickerFromButton(entry, onItemPicked),
                     () -> "+",
                     () -> 0x66FF66,
-                    UIText.of("ponderer.ui.held_item.tooltip"));
+                    UIText.of("ponderer.ui.inventory_pick.tooltip"));
             }
         };
     }

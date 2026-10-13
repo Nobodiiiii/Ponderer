@@ -13,6 +13,7 @@
     "MinecraftNbtPickMixin",
     "MinecraftCoordPickScrollMixin",
     "SandboxScreenGateMixin",
+    "SandboxContainerRenderEventsMixin",
     "SandboxNetworkFirewallMixin",
     "SandboxWorldBridgeMixin",
     "SandboxClientLevelMixin",
@@ -36,6 +37,8 @@
     "MultilineTextFieldAccessor",
     "PonderUIAccessor",
     "PonderUIMixin",
+    "PonderProgressBarMixin",
+    "PonderPlaybackMixin",
     "PonderUINbtMixin",
     "PonderTooltipNbtMixin"
   ],

@@ -626,7 +626,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                 stepTypeName("show_interface"), interfaceTargetSummary(step));
             case "change_interface_slot" -> UIText.of("ponderer.ui.step.summary.slot_count",
                 stepTypeName("change_interface_slot"),
-                step.interfaceSlots != null ? step.interfaceSlots.size() : 0);
+                step.interfaceSlots != null ? step.interfaceSlots.stream()
+                    .filter(binding -> binding != null && !InterfaceSlotEditState.isClearBinding(binding)).count() : 0);
             case "click_interface" -> stepTypeName("click_interface");
             case "encapsulate_bounds" -> stepTypeName("encapsulate_bounds");
             case "play_sound" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("play_sound"),

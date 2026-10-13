@@ -59,7 +59,7 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
                                    Map<String, String> parentSnapshot,
                                    String targetSnapshotKey) {
         super(scene, sceneIndex, parent, "ponderer.ui.scope.editor", "ponderer.ui.nbt_editor",
-            PREFERRED_LAYOUT_WIDTH, (screen, mode) -> {});
+            PREFERRED_LAYOUT_WIDTH);
         this.parentContext = parentContext;
         this.parentSnapshot = new HashMap<>(parentSnapshot);
         this.targetSnapshotKey = targetSnapshotKey;

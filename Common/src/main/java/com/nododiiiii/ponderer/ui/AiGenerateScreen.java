@@ -2,7 +2,8 @@ package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ai.AiSceneGenerator;
 import com.nododiiiii.ponderer.ai.StructureDescriber;
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.ai.McmodApiClient;
+import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
@@ -18,6 +19,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
 import java.nio.file.Path;
@@ -26,6 +29,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
@@ -61,7 +66,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     public AiGenerateScreen() {
         super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.ai_generate.title",
-            UILayoutConstants.EDITOR_LIST_W, JeiCompat::setActiveScreen);
+            UILayoutConstants.EDITOR_LIST_W);
     }
 
     @Override
@@ -210,11 +215,6 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     @Override
     protected void afterSnapshotRestored(Map<String, String> snapshot) {
         applyCachedStatus();
-    }
-
-    @Override
-    protected boolean rebuildOnJeiStateChange() {
-        return true;
     }
 
     @Override
@@ -425,6 +425,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     }
 
     public void updateAutoUrl(@Nullable String url, String itemId) {
+        if (!itemId.equals(cachedCarrier)) {
+            return;
+        }
         referenceUrlManager.removeAutoUrlsForItem();
         if (url != null && !url.isBlank()) {
             referenceUrlManager.addUrl(url, itemId, true);
@@ -432,6 +435,14 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         if (Minecraft.getInstance().screen == this) {
             rebuildListPreservingScroll();
         }
+    }
+
+    @Override
+    public void onJeiItemDropped(HintableTextFieldWidget field, ItemStack stack) {
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        CompletableFuture.supplyAsync(() -> McmodApiClient.getItemUrl(itemId))
+            .exceptionally(error -> Optional.empty())
+            .thenAcceptAsync(url -> updateAutoUrl(url.orElse(null), itemId), Minecraft.getInstance());
     }
 
     private boolean doGenerate() {

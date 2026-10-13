@@ -7,6 +7,8 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.item.TooltipFlag;
 
 import javax.annotation.Nullable;
 
@@ -37,6 +39,24 @@ public class JeiIngredientScreenElement implements ScreenElement {
         IJeiRuntime rt = PondererJeiPlugin.getRuntime();
         if (rt == null) return;
         renderTyped(graphics, rt.getIngredientManager(), x, y);
+    }
+
+    public boolean renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        if (rt == null) return false;
+        return renderTooltipTyped(graphics, rt.getIngredientManager(), mouseX, mouseY);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> boolean renderTooltipTyped(GuiGraphics graphics, IIngredientManager mgr, int mouseX, int mouseY) {
+        ITypedIngredient<T> typed = (ITypedIngredient<T>) typedIngredient;
+        IIngredientRenderer<T> renderer = mgr.getIngredientRenderer(typed.getType());
+        Minecraft mc = Minecraft.getInstance();
+        TooltipFlag flag = mc.options.advancedItemTooltips ? TooltipFlag.ADVANCED : TooltipFlag.NORMAL;
+        var lines = renderer.getTooltip(typed.getIngredient(), flag);
+        if (lines.isEmpty()) return false;
+        graphics.renderComponentTooltip(renderer.getFontRenderer(mc, typed.getIngredient()), lines, mouseX, mouseY);
+        return true;
     }
 
     @SuppressWarnings("unchecked")

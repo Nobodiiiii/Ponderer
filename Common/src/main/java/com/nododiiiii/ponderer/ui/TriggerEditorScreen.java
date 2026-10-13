@@ -7,7 +7,6 @@ import com.nododiiiii.ponderer.nbt.NbtTextCodec;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.minecraft.client.Minecraft;
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -60,7 +59,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
     public TriggerEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(scene, sceneIndex, parent, "ponderer.ui.scope.editor", "ponderer.ui.step_editor",
-            UILayoutConstants.EDITOR_LIST_W, JeiCompat::setActiveScreen);
+            UILayoutConstants.EDITOR_LIST_W);
 
         if ("structure".equals(scene.triggerMode)) {
             triggerModeIndex = 1;

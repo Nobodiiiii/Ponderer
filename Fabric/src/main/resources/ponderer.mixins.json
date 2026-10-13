@@ -37,6 +37,8 @@
     "MultilineTextFieldAccessor",
     "PonderUIAccessor",
     "PonderUIMixin",
+    "PonderProgressBarMixin",
+    "PonderPlaybackMixin",
     "PonderUINbtMixinFabric",
     "PonderTooltipNbtMixinFabric"
   ],

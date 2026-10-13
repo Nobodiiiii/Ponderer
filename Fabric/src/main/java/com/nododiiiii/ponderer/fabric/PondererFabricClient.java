@@ -4,8 +4,6 @@ import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
-import com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin;
 import com.nododiiiii.ponderer.fabric.interfaces.FabricInterfaceEvents;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
@@ -28,8 +26,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
@@ -53,7 +49,6 @@ public class PondererFabricClient implements ClientModInitializer {
     private final BlueprintHandler blueprintHandler = new BlueprintHandler();
     private boolean hasNotified = false;
     private boolean triggerKeyWasDown = false;
-    private boolean jeiLeftMouseWasDown = false;
     private boolean blueprintRightMouseWasDown = false;
 
     @Override
@@ -93,7 +88,7 @@ public class PondererFabricClient implements ClientModInitializer {
             PondererClientCommands.register(dispatcher);
         });
 
-        // Client tick: key bindings + blueprint handler + player join notifications + JEI interception
+        // Client tick: key bindings + blueprint handler + player join notifications
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null && client.screen == null && NbtPickState.isActive()) {
                 client.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
@@ -145,30 +140,9 @@ public class PondererFabricClient implements ClientModInitializer {
                 showPendingNotifications();
             }
 
-            // JEI click fallback for Fabric: catches clicks that may bypass screen mouse callbacks.
-            if (JeiCompat.isAvailable() && client.screen != null) {
-                long window = client.getWindow().getWindow();
-                boolean leftDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
-                if (leftDown && !jeiLeftMouseWasDown) {
-                    double mouseX = client.mouseHandler.xpos() * client.getWindow().getGuiScaledWidth() / client.getWindow().getScreenWidth();
-                    double mouseY = client.mouseHandler.ypos() * client.getWindow().getGuiScaledHeight() / client.getWindow().getScreenHeight();
-                    PondererJeiPlugin.handleMouseClick(client.screen, mouseX, mouseY, 0);
-                }
-                jeiLeftMouseWasDown = leftDown;
-            } else {
-                jeiLeftMouseWasDown = false;
-            }
         });
 
         FabricInterfaceEvents.register();
-
-        // JEI click interception on screen open
-        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-            if (JeiCompat.isAvailable()) {
-                ScreenMouseEvents.allowMouseClick(screen).register((scr, mouseX, mouseY, button) ->
-                        !PondererJeiPlugin.handleMouseClick(scr, mouseX, mouseY, button));
-            }
-        });
 
         // Blueprint mouse events are handled via the tick method and client input directly
         // Fabric doesn't have direct mouse scroll/click events at the same level as Forge's InputEvent
