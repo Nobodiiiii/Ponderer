@@ -9,8 +9,9 @@ public class PonderSpeedButton extends PonderButton {
     private final String label;
 
     public PonderSpeedButton(int x, int y, String label, Component description, Runnable callback) {
-        super(x, y);
+        super(x, y, 24, 10);
         this.label = label;
+        withPadding(0, 0);
         setMessage(description);
         withCallback(callback);
         enableFade(0, 5);

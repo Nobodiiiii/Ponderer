@@ -1,0 +1,1610 @@
+{
+  "audit": "JEI Mixin and integration audit",
+  "timestamp": "2026-10-01T14:04:48.886072+08:00",
+  "root": "D:\\Files\\ponderer",
+  "branch": "1.21.1",
+  "scope": "All 41 active-module Mixin sources screened; 13 feature-related Mixin sources reviewed in detail; all 10 JEI integration classes reviewed. Not a fresh full behavioral audit of all other Mixins.",
+  "counts": {
+    "source_mixins": 41,
+    "registered_unique_sources": 40,
+    "jei_feature_review": 13,
+    "direct_jei_target_or_import": 0,
+    "compat_java": 10,
+    "client_registrations": {
+      "NeoForge": 33,
+      "Fabric": 33
+    }
+  },
+  "source_configs": {
+    "NeoForge": {
+      "required": true,
+      "minVersion": "0.8",
+      "package": "com.nododiiiii.ponderer.mixin",
+      "compatibilityLevel": "JAVA_21",
+      "mixins": [],
+      "client": [
+        "PonderLocalizationMixin",
+        "PonderSceneRegistryMixin",
+        "PonderSceneRegistryNbtMixin",
+        "PonderLevelMixin",
+        "PonderLevelModelDataMixin",
+        "MinecraftNbtPickMixin",
+        "MinecraftCoordPickScrollMixin",
+        "SandboxScreenGateMixin",
+        "SandboxNetworkFirewallMixin",
+        "SandboxWorldBridgeMixin",
+        "SandboxClientLevelMixin",
+        "SandboxChunkCacheMixin",
+        "InterfaceCaptureMixin",
+        "InterfaceItemCaptureMixin",
+        "InterfaceBlockCaptureMixin",
+        "InterfaceLevelCaptureMixin",
+        "InterfaceMenuCaptureMixin",
+        "InterfaceExtendedCaptureMixin",
+        "WorldSectionElementImplMixin",
+        "PonderSceneAccessor",
+        "TextWindowElementAccessor",
+        "InputWindowElementAccessor",
+        "RenderSystemShaderLightsAccessor",
+        "PonderKeybindsAccessor",
+        "PonderSceneViewOffsetMixin",
+        "PonderSceneTextIndexMixin",
+        "SceneTransformOffsetMixin",
+        "MultiLineEditBoxAccessor",
+        "MultilineTextFieldAccessor",
+        "PonderUIAccessor",
+        "PonderUIMixin",
+        "PonderUINbtMixin",
+        "PonderTooltipNbtMixin"
+      ],
+      "server": [],
+      "injectors": {
+        "defaultRequire": 1
+      }
+    },
+    "Fabric": {
+      "required": true,
+      "minVersion": "0.8",
+      "package": "com.nododiiiii.ponderer.mixin",
+      "refmap": "ponderer.refmap.json",
+      "compatibilityLevel": "JAVA_21",
+      "mixins": [],
+      "client": [
+        "PonderLocalizationMixin",
+        "PonderSceneRegistryMixinFabric",
+        "PonderSceneRegistryNbtMixinFabric",
+        "PonderLevelMixin",
+        "MinecraftNbtPickMixin",
+        "MinecraftCoordPickScrollMixin",
+        "SandboxScreenGateMixin",
+        "SandboxNetworkFirewallMixin",
+        "SandboxWorldBridgeMixin",
+        "SandboxClientLevelMixin",
+        "SandboxChunkCacheMixin",
+        "InterfaceCaptureMixin",
+        "InterfaceItemCaptureMixin",
+        "InterfaceBlockCaptureMixin",
+        "InterfaceLevelCaptureMixin",
+        "InterfaceMenuCaptureMixin",
+        "InterfaceExtendedCaptureMixin",
+        "WorldSectionElementImplMixin",
+        "AnimationTickHolderMixin",
+        "PonderSceneAccessor",
+        "TextWindowElementAccessor",
+        "InputWindowElementAccessor",
+        "RenderSystemShaderLightsAccessor",
+        "PonderKeybindsAccessor",
+        "PonderSceneViewOffsetMixin",
+        "PonderSceneTextIndexMixin",
+        "SceneTransformOffsetMixinFabric",
+        "MultiLineEditBoxAccessor",
+        "MultilineTextFieldAccessor",
+        "PonderUIAccessor",
+        "PonderUIMixin",
+        "PonderUINbtMixinFabric",
+        "PonderTooltipNbtMixinFabric"
+      ],
+      "server": [],
+      "injectors": {
+        "defaultRequire": 1
+      }
+    }
+  },
+  "existing_jar_configs": {
+    "Fabric": {
+      "required": true,
+      "minVersion": "0.8",
+      "package": "com.nododiiiii.ponderer.mixin",
+      "refmap": "ponderer.refmap.json",
+      "compatibilityLevel": "JAVA_21",
+      "mixins": [],
+      "client": [
+        "PonderLocalizationMixin",
+        "PonderSceneRegistryMixinFabric",
+        "PonderSceneRegistryNbtMixinFabric",
+        "PonderLevelMixin",
+        "MinecraftNbtPickMixin",
+        "MinecraftCoordPickScrollMixin",
+        "SandboxScreenGateMixin",
+        "SandboxNetworkFirewallMixin",
+        "SandboxWorldBridgeMixin",
+        "SandboxClientLevelMixin",
+        "SandboxChunkCacheMixin",
+        "InterfaceCaptureMixin",
+        "InterfaceItemCaptureMixin",
+        "InterfaceBlockCaptureMixin",
+        "InterfaceLevelCaptureMixin",
+        "InterfaceMenuCaptureMixin",
+        "InterfaceExtendedCaptureMixin",
+        "WorldSectionElementImplMixin",
+        "AnimationTickHolderMixin",
+        "PonderSceneAccessor",
+        "TextWindowElementAccessor",
+        "InputWindowElementAccessor",
+        "RenderSystemShaderLightsAccessor",
+        "PonderKeybindsAccessor",
+        "PonderSceneViewOffsetMixin",
+        "PonderSceneTextIndexMixin",
+        "SceneTransformOffsetMixinFabric",
+        "MultiLineEditBoxAccessor",
+        "MultilineTextFieldAccessor",
+        "PonderUIAccessor",
+        "PonderUIMixin",
+        "PonderUINbtMixinFabric",
+        "PonderTooltipNbtMixinFabric"
+      ],
+      "server": [],
+      "injectors": {
+        "defaultRequire": 1
+      }
+    },
+    "NeoForge": {
+      "required": true,
+      "minVersion": "0.8",
+      "package": "com.nododiiiii.ponderer.mixin",
+      "compatibilityLevel": "JAVA_21",
+      "mixins": [],
+      "client": [
+        "PonderLocalizationMixin",
+        "PonderSceneRegistryMixin",
+        "PonderSceneRegistryNbtMixin",
+        "PonderLevelMixin",
+        "PonderLevelModelDataMixin",
+        "MinecraftNbtPickMixin",
+        "MinecraftCoordPickScrollMixin",
+        "SandboxScreenGateMixin",
+        "SandboxNetworkFirewallMixin",
+        "SandboxWorldBridgeMixin",
+        "SandboxClientLevelMixin",
+        "SandboxChunkCacheMixin",
+        "InterfaceCaptureMixin",
+        "InterfaceItemCaptureMixin",
+        "InterfaceBlockCaptureMixin",
+        "InterfaceLevelCaptureMixin",
+        "InterfaceMenuCaptureMixin",
+        "InterfaceExtendedCaptureMixin",
+        "WorldSectionElementImplMixin",
+        "PonderSceneAccessor",
+        "TextWindowElementAccessor",
+        "InputWindowElementAccessor",
+        "RenderSystemShaderLightsAccessor",
+        "PonderKeybindsAccessor",
+        "PonderSceneViewOffsetMixin",
+        "PonderSceneTextIndexMixin",
+        "SceneTransformOffsetMixin",
+        "MultiLineEditBoxAccessor",
+        "MultilineTextFieldAccessor",
+        "PonderUIAccessor",
+        "PonderUIMixin",
+        "PonderUINbtMixin",
+        "PonderTooltipNbtMixin"
+      ],
+      "server": [],
+      "injectors": {
+        "defaultRequire": 1
+      }
+    }
+  },
+  "mixins": [
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InputWindowElementAccessor.java",
+      "bytes": 1036,
+      "sha256": "933893b7a9bb3f832d66e2e886ac77f88cc088d21c1e54791eeb0edd4e9c0cb0",
+      "mtime": "2026-06-18T16:46:03.309283+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(InputWindowElement.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Accessor": 5,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceBlockCaptureMixin.java",
+      "bytes": 1449,
+      "sha256": "6d51aff07f7e1acc2d39b1fc8f2c32d6e6567ff32a2265aaeee4606d6fbfe2e0",
+      "mtime": "2026-10-01T01:41:36.689629+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(BlockBehaviour.BlockStateBase.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceCaptureMixin.java",
+      "bytes": 697,
+      "sha256": "6eeef036c609ecbe71e7f33eaa1979a1529cad3491bf82b419abc475747ce6fe",
+      "mtime": "2026-10-01T01:03:58.094702+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(Minecraft.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceItemCaptureMixin.java",
+      "bytes": 1157,
+      "sha256": "c8dc8cc6bbef84d34940762c7bd048ae6ebe3bf29a2cfa84df424bc51423ad1a",
+      "mtime": "2026-10-01T01:14:21.334754+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(MultiPlayerGameMode.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceLevelCaptureMixin.java",
+      "bytes": 761,
+      "sha256": "882d3c8cd27143e10260ad4df1efb9d73587296ae81f261505d3f205824371db",
+      "mtime": "2026-10-01T01:41:36.690632+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(Level.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceMenuCaptureMixin.java",
+      "bytes": 1222,
+      "sha256": "060b29b5cf00317af1ca108cb58276d0bab579c4bb66b6e8d867967d69b3eb2d",
+      "mtime": "2026-10-01T01:41:36.688069+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(MenuType.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/MinecraftCoordPickScrollMixin.java",
+      "bytes": 1232,
+      "sha256": "9807eb1e4fc2f823c20c7bb8077036ec123767317712e9e2016ba5609580ec21",
+      "mtime": "2026-04-30T23:41:15.761859+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(MouseHandler.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/MinecraftNbtPickMixin.java",
+      "bytes": 1579,
+      "sha256": "154f86b058d4dac3673723614fb289b0b476fd0bfa2120cb41aba3edded0bf55",
+      "mtime": "2026-04-30T23:41:15.763416+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(Minecraft.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/MultiLineEditBoxAccessor.java",
+      "bytes": 574,
+      "sha256": "239c286d1768629a047e104b124186016097b734915696476e0160f6fcbf6d22",
+      "mtime": "2026-05-25T20:38:31.637415+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(MultiLineEditBox.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Accessor": 1,
+        "Invoker": 1,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/MultilineTextFieldAccessor.java",
+      "bytes": 442,
+      "sha256": "47317f74255d6c82c7df55a9c985166ec5360e2b85ed9182d246d118cb9872c2",
+      "mtime": "2026-05-25T20:38:31.638417+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(MultilineTextField.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Accessor": 2,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderKeybindsAccessor.java",
+      "bytes": 395,
+      "sha256": "6c1a032ffbc9ddb5668b1802f2271a770f95640f0f37e3d257d5f4aceda0c979",
+      "mtime": "2026-04-30T23:41:15.764462+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(PonderKeybinds.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Accessor": 1,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderLevelMixin.java",
+      "bytes": 1732,
+      "sha256": "2576994381de48b1b388447088398ace4bad16811e2c99b2f583d98191c5392b",
+      "mtime": "2026-09-01T22:14:31.139944+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(PonderLevel.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderLocalizationMixin.java",
+      "bytes": 3014,
+      "sha256": "92be8e0f2604dafd824c3d9f4eeb5a8a185bcd5bc57b9663f2802aba0d9b9174",
+      "mtime": "2026-04-30T23:41:15.771468+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(PonderLocalization.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneAccessor.java",
+      "bytes": 975,
+      "sha256": "bd9031caa7453b0c224dbdc752484968fc739c4d91b0871989106b93fa9540be",
+      "mtime": "2026-04-30T23:41:15.772469+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(PonderScene.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Accessor": 7,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneTextIndexMixin.java",
+      "bytes": 789,
+      "sha256": "d80b483442fdcb1ea78e0ee11dca103d3082e37882bed22f657b4e464440edd3",
+      "mtime": "2026-06-18T16:46:03.309283+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(PonderScene.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneViewOffsetMixin.java",
+      "bytes": 2761,
+      "sha256": "9d62c6cce182f729e7e48a904116fa4688eb305867665f688a0f02722a3d26a8",
+      "mtime": "2026-04-30T23:41:15.780493+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(PonderScene.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderUIAccessor.java",
+      "bytes": 1391,
+      "sha256": "a376a0e6a243c9082fbc957f500d4e4c7a241e65eb5c39d81d8c9e2caedaf985",
+      "mtime": "2026-05-25T20:40:06.946800+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(PonderUI.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Accessor": 8,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderUIMixin.java",
+      "bytes": 32517,
+      "sha256": "caef8389e0a6083066cf3434af373a266cfb4ba07ab150fbc25c62cbe6f0fa79",
+      "mtime": "2026-09-27T04:42:43.249034+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(PonderUI.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 14,
+        "Redirect": 5,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/RenderSystemShaderLightsAccessor.java",
+      "bytes": 715,
+      "sha256": "7b95b7b2170573ebd6459674106c8a5524b275cde8f65fcc78e9e8c91c263097",
+      "mtime": "2026-06-21T22:04:13.820877+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(RenderSystem.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Accessor": 1,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxChunkCacheMixin.java",
+      "bytes": 1081,
+      "sha256": "fecc7616fa2e2004321376947d0393a66d29492a842baa270c9e3946580db227",
+      "mtime": "2026-10-01T01:02:59.663399+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(ClientChunkCache.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxClientLevelMixin.java",
+      "bytes": 1320,
+      "sha256": "596c0e406da31d80a2cde9420f13515a85b9cee83f6cdbe260378073e0dbecf3",
+      "mtime": "2026-10-01T01:02:59.662872+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(ClientLevel.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxNetworkFirewallMixin.java",
+      "bytes": 1264,
+      "sha256": "30939e9f20368f67c029938ef8a5718a78f6f309389f39f3b5f4aa34b64888e9",
+      "mtime": "2026-09-27T03:38:25.144536+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(Connection.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxScreenGateMixin.java",
+      "bytes": 1015,
+      "sha256": "86d002146487f9a9a9baf28c80aff3f3f45196a2816a306f09e276c909cde498",
+      "mtime": "2026-09-27T03:38:25.118512+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(Minecraft.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxWorldBridgeMixin.java",
+      "bytes": 3642,
+      "sha256": "da0067f48006c0f4d713503c8d79788461c502b05188db40dea34faac7d83243",
+      "mtime": "2026-10-01T01:02:59.662326+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(Level.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 8,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/TextWindowElementAccessor.java",
+      "bytes": 918,
+      "sha256": "fa65f658701a0bc43129ffa89d22293d6ed935ca0d29a7299274ae8d550f9d16",
+      "mtime": "2026-06-18T16:46:03.317796+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(TextWindowElement.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Accessor": 5,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/WorldSectionElementImplMixin.java",
+      "bytes": 1303,
+      "sha256": "6bffd467d7bb76380d32b1e35a9ca0cc7d6259ce6443473a8adfd9cb9119ca6f",
+      "mtime": "2026-04-30T23:41:15.791997+08:00",
+      "module": "Common",
+      "target_annotation": "@Mixin(WorldSectionElementImpl.class)",
+      "registered_loaders": [
+        "NeoForge",
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/AnimationTickHolderMixin.java",
+      "bytes": 3099,
+      "sha256": "c9ddf2eabd809d1b7939daedb236b72963aca35dd9a0847142fe1790b7544b93",
+      "mtime": "2026-09-01T22:14:31.252422+08:00",
+      "module": "NeoForge",
+      "target_annotation": "@Mixin(AnimationTickHolder.class)",
+      "registered_loaders": [],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 7,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceExtendedCaptureMixin.java",
+      "bytes": 1919,
+      "sha256": "30488f2008faacb6022994fb99288ae4f7a08aa7bffcf64b7b5a06166348767a",
+      "mtime": "2026-10-01T01:41:36.688586+08:00",
+      "module": "NeoForge",
+      "target_annotation": "@Mixin(MenuType.class)",
+      "registered_loaders": [
+        "NeoForge"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderLevelModelDataMixin.java",
+      "bytes": 605,
+      "sha256": "08a91840130b4499f7b43506fe6f55fbed148815884a140863eb4fd45e225f51",
+      "mtime": "2026-09-01T22:14:31.254462+08:00",
+      "module": "NeoForge",
+      "target_annotation": "@Mixin(PonderLevel.class)",
+      "registered_loaders": [
+        "NeoForge"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 0,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryMixin.java",
+      "bytes": 5355,
+      "sha256": "5547932c9005d4a487387d712df9dde06eb85896e1526570826a0c04775d121b",
+      "mtime": "2026-09-01T22:14:31.255980+08:00",
+      "module": "NeoForge",
+      "target_annotation": "@Mixin(PonderSceneRegistry.class)",
+      "registered_loaders": [
+        "NeoForge"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryNbtMixin.java",
+      "bytes": 1663,
+      "sha256": "2a7f7456e4ea752f99d0bb9907687a57af358cd82711807c59af84b1d9efb30a",
+      "mtime": "2026-09-01T22:14:31.255980+08:00",
+      "module": "NeoForge",
+      "target_annotation": "@Mixin(PonderSceneRegistry.class)",
+      "registered_loaders": [
+        "NeoForge"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderTooltipNbtMixin.java",
+      "bytes": 1769,
+      "sha256": "2215729224d4b386440c9d0b42f39f8f5d1468f556455fa9d27628984b1093c5",
+      "mtime": "2026-09-01T22:14:31.257562+08:00",
+      "module": "NeoForge",
+      "target_annotation": "@Mixin(PonderTooltipHandler.class)",
+      "registered_loaders": [
+        "NeoForge"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderUINbtMixin.java",
+      "bytes": 2147,
+      "sha256": "7414be6edd1d6d4e3374aa8b3d68a59b0485c513b1ae37626b5f44ef0b526a00",
+      "mtime": "2026-09-01T22:14:31.258568+08:00",
+      "module": "NeoForge",
+      "target_annotation": "@Mixin(PonderUI.class)",
+      "registered_loaders": [
+        "NeoForge"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 4,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/SceneTransformOffsetMixin.java",
+      "bytes": 2679,
+      "sha256": "081295cec1cff2270412357950c5bf4c9f8fb0920aac446dee7a573a0495bbc8",
+      "mtime": "2026-09-01T22:14:31.259568+08:00",
+      "module": "NeoForge",
+      "target_annotation": "@Mixin(PonderScene.SceneTransform.class)",
+      "registered_loaders": [
+        "NeoForge"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 3,
+        "Redirect": 1,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/AnimationTickHolderMixin.java",
+      "bytes": 3021,
+      "sha256": "55d580e1e5e785ad5710e4974bb0844e609779e8e2aa0c187aa44c82c3dd3550",
+      "mtime": "2026-06-21T22:03:57.238644+08:00",
+      "module": "Fabric",
+      "target_annotation": "@Mixin(AnimationTickHolder.class)",
+      "registered_loaders": [
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 7,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/InterfaceExtendedCaptureMixin.java",
+      "bytes": 2330,
+      "sha256": "e4f05390f821fbf5afd1062f7ae36aaa0a2c711c53931c2a696347158eb2f1af",
+      "mtime": "2026-10-01T01:41:36.689629+08:00",
+      "module": "Fabric",
+      "target_annotation": "@Mixin(ExtendedScreenHandlerType.class)",
+      "registered_loaders": [
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryMixinFabric.java",
+      "bytes": 4973,
+      "sha256": "17c5c8042dabe01eccfceab022a6d83a433c4d0bc4b33afb994ae4b57e05b911",
+      "mtime": "2026-06-21T22:04:27.795643+08:00",
+      "module": "Fabric",
+      "target_annotation": "@Mixin(PonderSceneRegistry.class)",
+      "registered_loaders": [
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 2,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryNbtMixinFabric.java",
+      "bytes": 1377,
+      "sha256": "e304bc502ce6a1962eef1f42040ee26d2db6efcaee748e1a05567002f683f13e",
+      "mtime": "2026-06-21T22:04:34.527377+08:00",
+      "module": "Fabric",
+      "target_annotation": "@Mixin(PonderSceneRegistry.class)",
+      "registered_loaders": [
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderTooltipNbtMixinFabric.java",
+      "bytes": 1357,
+      "sha256": "35b8f7137d75e077c5482e041ffd762ee4e52bddeec13f3d791da77f0134c143",
+      "mtime": "2026-06-21T22:04:42.433098+08:00",
+      "module": "Fabric",
+      "target_annotation": "@Mixin(PonderTooltipHandler.class)",
+      "registered_loaders": [
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 1,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderUINbtMixinFabric.java",
+      "bytes": 2021,
+      "sha256": "891c44fb03afde4c064c34e4bb59837bff51417e222f2dd27575934d8ad7c20e",
+      "mtime": "2026-06-21T22:04:58.328079+08:00",
+      "module": "Fabric",
+      "target_annotation": "@Mixin(PonderUI.class)",
+      "registered_loaders": [
+        "Fabric"
+      ],
+      "jei_feature_review": true,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 4,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/SceneTransformOffsetMixinFabric.java",
+      "bytes": 3918,
+      "sha256": "c034a03f88a0b0ac8d8a8e3082df91dc8f8fe765c4ea195c3f4cfc4f5daff270",
+      "mtime": "2026-09-01T22:14:31.246215+08:00",
+      "module": "Fabric",
+      "target_annotation": "@Mixin(PonderScene.SceneTransform.class)",
+      "registered_loaders": [
+        "Fabric"
+      ],
+      "jei_feature_review": false,
+      "direct_jei_target_or_import": false,
+      "annotation_counts": {
+        "Inject": 5,
+        "Redirect": 0,
+        "Accessor": 0,
+        "Invoker": 0,
+        "Overwrite": 0
+      }
+    }
+  ],
+  "jei_integration_sources": [
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/InterfaceSlotGhostHandler.java",
+      "bytes": 2376,
+      "sha256": "7e8ec81328550d63f295a924bdd887ebe79fcf853d77873b77839ddc986ccc6c",
+      "mtime": "2026-04-30T23:41:15.741843+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/JeiAwareGhostHandler.java",
+      "bytes": 2844,
+      "sha256": "4f363a9f15158fdc8a3b5050a50293adadd7af2a3347b6617d1e3848d9a213dc",
+      "mtime": "2026-04-30T23:41:15.743857+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/JeiCompat.java",
+      "bytes": 5182,
+      "sha256": "058738adc6be9991795017a43df7c5620bc100742ee1c031eebd6814dece898f",
+      "mtime": "2026-09-28T02:39:09.726952+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/JeiIngredientHelper.java",
+      "bytes": 8074,
+      "sha256": "5be77a673696f6bfd8c6116f3eb7142b39e38380fd789a687a69f62d19e1d4aa",
+      "mtime": "2026-06-21T20:40:53.161726+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/JeiIngredientScreenElement.java",
+      "bytes": 2020,
+      "sha256": "13878c6f0a7c858d466714195c1c835e81e664fa38aa253dcedc00565e4864d5",
+      "mtime": "2026-06-13T02:14:32.485972+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/JeiOverlayController.java",
+      "bytes": 2872,
+      "sha256": "1d3cfeb293ea081f18a66e09d65ddf282256e33e960879bba08d94354f807615",
+      "mtime": "2026-04-30T23:41:15.749854+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/PondererJeiPlugin.java",
+      "bytes": 11743,
+      "sha256": "75885eaa8337e4037ed574a4a019cd5bf55e2ce3258f29d8b1da260d55124ac9",
+      "mtime": "2026-09-28T02:39:09.728465+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/PonderUiGhostHandler.java",
+      "bytes": 3050,
+      "sha256": "928b228c8e21f6b526618b10e67cfb90b95ccf3d08ef80cbfa3f09e6bcea1726",
+      "mtime": "2026-09-28T02:40:52.195801+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/PonderUiIngredientHandler.java",
+      "bytes": 1854,
+      "sha256": "72088b0d71da9aa39f4d7db3347629e119f426afceef2ce610f465f1b57f5f6d",
+      "mtime": "2026-09-28T02:42:31.034448+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/StepEditorGhostHandler.java",
+      "bytes": 3975,
+      "sha256": "2694cb1fba2a4cb958cac32d2b14f06d88e9439361b2299a6b7e0088b506e7ce",
+      "mtime": "2026-09-01T22:14:31.138944+08:00"
+    }
+  ],
+  "supporting_sources": [
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/JeiAwareGhostHandler.java",
+      "bytes": 2844,
+      "sha256": "4f363a9f15158fdc8a3b5050a50293adadd7af2a3347b6617d1e3848d9a213dc",
+      "mtime": "2026-04-30T23:41:15.743857+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/JeiIngredientHelper.java",
+      "bytes": 8074,
+      "sha256": "5be77a673696f6bfd8c6116f3eb7142b39e38380fd789a687a69f62d19e1d4aa",
+      "mtime": "2026-06-21T20:40:53.161726+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/JeiIngredientScreenElement.java",
+      "bytes": 2020,
+      "sha256": "13878c6f0a7c858d466714195c1c835e81e664fa38aa253dcedc00565e4864d5",
+      "mtime": "2026-06-13T02:14:32.485972+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/JeiOverlayController.java",
+      "bytes": 2872,
+      "sha256": "1d3cfeb293ea081f18a66e09d65ddf282256e33e960879bba08d94354f807615",
+      "mtime": "2026-04-30T23:41:15.749854+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/PondererJeiPlugin.java",
+      "bytes": 11743,
+      "sha256": "75885eaa8337e4037ed574a4a019cd5bf55e2ce3258f29d8b1da260d55124ac9",
+      "mtime": "2026-09-28T02:39:09.728465+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/PonderUiGhostHandler.java",
+      "bytes": 3050,
+      "sha256": "928b228c8e21f6b526618b10e67cfb90b95ccf3d08ef80cbfa3f09e6bcea1726",
+      "mtime": "2026-09-28T02:40:52.195801+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/compat/jei/PonderUiIngredientHandler.java",
+      "bytes": 1854,
+      "sha256": "72088b0d71da9aa39f4d7db3347629e119f426afceef2ce610f465f1b57f5f6d",
+      "mtime": "2026-09-28T02:42:31.034448+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/interfaces/host/InterfaceHost.java",
+      "bytes": 27266,
+      "sha256": "fe9a41a0ed76bfff5a9ed5e35343da12bc3f151e8ac0791767edf0a4e82eebfe",
+      "mtime": "2026-10-01T12:13:39.371937+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/interfaces/sandbox/SandboxSession.java",
+      "bytes": 21808,
+      "sha256": "c49513f8d382daca3f175081e2038d731186e2b98223811df62765f6050dc974",
+      "mtime": "2026-10-01T01:02:22.914582+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/interfaces/sandbox/SandboxWorldBridge.java",
+      "bytes": 794,
+      "sha256": "bcf77603b5cef868a5da6c9a23663c339783a13600a24835bd3990c117fb0bcb",
+      "mtime": "2026-10-01T01:02:59.661807+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/interfaces/sandbox/SessionOps.java",
+      "bytes": 15811,
+      "sha256": "c71f1253ff00c95d8ead097f0ec76053169a6d4772eae7a46be29a8745a5f648",
+      "mtime": "2026-09-28T02:02:27.199225+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderUIAccessor.java",
+      "bytes": 1391,
+      "sha256": "a376a0e6a243c9082fbc957f500d4e4c7a241e65eb5c39d81d8c9e2caedaf985",
+      "mtime": "2026-05-25T20:40:06.946800+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/PonderUIMixin.java",
+      "bytes": 32517,
+      "sha256": "caef8389e0a6083066cf3434af373a266cfb4ba07ab150fbc25c62cbe6f0fa79",
+      "mtime": "2026-09-27T04:42:43.249034+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxChunkCacheMixin.java",
+      "bytes": 1081,
+      "sha256": "fecc7616fa2e2004321376947d0393a66d29492a842baa270c9e3946580db227",
+      "mtime": "2026-10-01T01:02:59.663399+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxClientLevelMixin.java",
+      "bytes": 1320,
+      "sha256": "596c0e406da31d80a2cde9420f13515a85b9cee83f6cdbe260378073e0dbecf3",
+      "mtime": "2026-10-01T01:02:59.662872+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxNetworkFirewallMixin.java",
+      "bytes": 1264,
+      "sha256": "30939e9f20368f67c029938ef8a5718a78f6f309389f39f3b5f4aa34b64888e9",
+      "mtime": "2026-09-27T03:38:25.144536+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxScreenGateMixin.java",
+      "bytes": 1015,
+      "sha256": "86d002146487f9a9a9baf28c80aff3f3f45196a2816a306f09e276c909cde498",
+      "mtime": "2026-09-27T03:38:25.118512+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/mixin/SandboxWorldBridgeMixin.java",
+      "bytes": 3642,
+      "sha256": "da0067f48006c0f4d713503c8d79788461c502b05188db40dea34faac7d83243",
+      "mtime": "2026-10-01T01:02:59.662326+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ponder/NbtSceneFilter.java",
+      "bytes": 15329,
+      "sha256": "f5450b7395dc8a46e0ff25e2812c8df1fb588955fcad51eb172c9f0c1addefa4",
+      "mtime": "2026-09-01T22:14:31.170443+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/AbstractJeiAwareFormScreen.java",
+      "bytes": 2961,
+      "sha256": "86a6e84262e09847739aff18f44cc3c12db23f00104fc0c49b8d895447b407ba",
+      "mtime": "2026-04-30T23:41:15.856370+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/AbstractSceneEditorFormScreen.java",
+      "bytes": 10938,
+      "sha256": "8ac4fc55288b9fc5c441ab5f9af7debb3bd50a0d8e883ac9aa972f1ec4f2b7a1",
+      "mtime": "2026-05-25T20:40:12.650272+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/AbstractStepEditorScreen.java",
+      "bytes": 7342,
+      "sha256": "60ab70fc2aae4cc59cd0e3918600940e0fc37d7ae3f0c893b37decb8315f1e4d",
+      "mtime": "2026-05-25T20:40:12.651473+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/AiGenerateScreen.java",
+      "bytes": 26851,
+      "sha256": "3734a06f755ced534ed9b2d07e726da1bc8c7e9740291db22c1ddb6b0d2c526e",
+      "mtime": "2026-09-01T22:14:31.187164+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/BlueprintItemConfigScreen.java",
+      "bytes": 9119,
+      "sha256": "aa65e7145372fd88067ac7cc7f7ceb167ce829db5d45a461a126d6dc7b951c61",
+      "mtime": "2026-06-18T16:46:03.364932+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/catnip/FormTextButtonSpec.java",
+      "bytes": 1501,
+      "sha256": "fe4aff8d4cda687f23dbda9490e85e034d4875c5f0c9ec139a93447a1b05f7fb",
+      "mtime": "2026-04-30T23:41:15.999205+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/CommandParamScreen.java",
+      "bytes": 21302,
+      "sha256": "5759907266b7e258aa5e8524b0fa8952288efb3a3f673f59e255ab1b46ed9705",
+      "mtime": "2026-09-01T22:14:31.188668+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/FieldDecorators.java",
+      "bytes": 8086,
+      "sha256": "b58fb8021cb0438ad4df0f3f9c2d2f0c2c01576497e9ee627d464b619ddf73b9",
+      "mtime": "2026-05-25T20:40:12.655668+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/IdFieldMode.java",
+      "bytes": 590,
+      "sha256": "7a99541ba2b5d75478a3c69bce9c2b5e227eaa1fc8a677470dc1601b05ce102c",
+      "mtime": "2026-04-30T23:41:15.899216+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/InterfaceSlotEditState.java",
+      "bytes": 10141,
+      "sha256": "4c17e33c75e58a7ba6750720551d392825434b029ae6ed60bff08179e61be4bc",
+      "mtime": "2026-04-30T23:41:15.904216+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/InterfaceSlotOverlayRenderer.java",
+      "bytes": 8161,
+      "sha256": "38c634ff5e351c988413fe30e8f8f0c3d87cdb6dc0f7014f8c904451ee85640c",
+      "mtime": "2026-09-28T03:32:17.727059+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/JeiAwareScreen.java",
+      "bytes": 892,
+      "sha256": "3832751eb3e655cdd38405bdb40d0078878119bc2385ed68341dbaa7e5da2d74",
+      "mtime": "2026-04-30T23:41:15.907216+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/JeiFieldController.java",
+      "bytes": 1414,
+      "sha256": "fc01d016c056fb1180b68324d1d7e417ee3794ef4f83bb067859befcb1ff02c6",
+      "mtime": "2026-04-30T23:41:15.907216+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/JeiTextButtonHost.java",
+      "bytes": 316,
+      "sha256": "0f325702753191d2626d4ef0f24dc4fac5b30429379e2dc02ed93d48b74e6497",
+      "mtime": "2026-04-30T23:41:15.909724+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/PonderRuntimeZLayers.java",
+      "bytes": 1628,
+      "sha256": "897b0d239bd4eb29c59a9c6eec9c9773ba8b2b87c2beeabd5af859e373ece655",
+      "mtime": "2026-09-28T03:32:17.727059+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/ProjectorConfigScreen.java",
+      "bytes": 88284,
+      "sha256": "484119a3d47ff340309b1adb56dc32a882727ea491ed83f93c29c40fd1947d72",
+      "mtime": "2026-09-01T22:14:31.199832+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/TriggerEditorScreen.java",
+      "bytes": 20351,
+      "sha256": "1facc502fb053c63f265a52cc8f8a152476fb7eda998d88180fd88276587cf57",
+      "mtime": "2026-09-01T22:14:31.206852+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/UiAnchorViewport.java",
+      "bytes": 2318,
+      "sha256": "2db6b47cf1d054e3712a066116bfa3b1142176b07460a6775a167ef2f9003884",
+      "mtime": "2026-09-27T03:36:29.101827+08:00"
+    },
+    {
+      "path": "Common/src/main/java/com/nododiiiii/ponderer/ui/UILayoutConstants.java",
+      "bytes": 5710,
+      "sha256": "31285248d6b0cc117987e4935554b941fd85c7010653566f9ef048382be81274",
+      "mtime": "2026-04-30T23:41:15.971499+08:00"
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/fabric/PondererFabricClient.java",
+      "bytes": 12473,
+      "sha256": "b8ef348ff81e8ff6e784fe605c6d58118c27e3052feb8fd3c77f593609f614cc",
+      "mtime": "2026-09-27T04:06:51.946246+08:00"
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryNbtMixinFabric.java",
+      "bytes": 1377,
+      "sha256": "e304bc502ce6a1962eef1f42040ee26d2db6efcaee748e1a05567002f683f13e",
+      "mtime": "2026-06-21T22:04:34.527377+08:00"
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderTooltipNbtMixinFabric.java",
+      "bytes": 1357,
+      "sha256": "35b8f7137d75e077c5482e041ffd762ee4e52bddeec13f3d791da77f0134c143",
+      "mtime": "2026-06-21T22:04:42.433098+08:00"
+    },
+    {
+      "path": "Fabric/src/main/java/com/nododiiiii/ponderer/mixin/PonderUINbtMixinFabric.java",
+      "bytes": 2021,
+      "sha256": "891c44fb03afde4c064c34e4bb59837bff51417e222f2dd27575934d8ad7c20e",
+      "mtime": "2026-06-21T22:04:58.328079+08:00"
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderSceneRegistryNbtMixin.java",
+      "bytes": 1663,
+      "sha256": "2a7f7456e4ea752f99d0bb9907687a57af358cd82711807c59af84b1d9efb30a",
+      "mtime": "2026-09-01T22:14:31.255980+08:00"
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderTooltipNbtMixin.java",
+      "bytes": 1769,
+      "sha256": "2215729224d4b386440c9d0b42f39f8f5d1468f556455fa9d27628984b1093c5",
+      "mtime": "2026-09-01T22:14:31.257562+08:00"
+    },
+    {
+      "path": "NeoForge/src/main/java/com/nododiiiii/ponderer/mixin/PonderUINbtMixin.java",
+      "bytes": 2147,
+      "sha256": "7414be6edd1d6d4e3374aa8b3d68a59b0485c513b1ae37626b5f44ef0b526a00",
+      "mtime": "2026-09-01T22:14:31.258568+08:00"
+    },
+    {
+      "path": "ref/1.21.1/JustEnoughItems/CommonApi/src/main/java/mezz/jei/api/gui/handlers/IGhostIngredientHandler.java",
+      "bytes": 1863,
+      "sha256": "7b6acd1cfa2674b2be98faeff2bbe99ac967f8fa1d9595b590de1242fc2b6e7e",
+      "mtime": "2026-06-14T23:36:45.864268+08:00"
+    },
+    {
+      "path": "ref/1.21.1/JustEnoughItems/Gui/src/main/java/mezz/jei/gui/events/GuiEventHandler.java",
+      "bytes": 5774,
+      "sha256": "b15818c791afb2c6919817c12737ab4d553b3e2f65d6e7cfa389bc32f06e57de",
+      "mtime": "2026-06-14T23:36:46.063892+08:00"
+    },
+    {
+      "path": "ref/1.21.1/JustEnoughItems/Gui/src/main/java/mezz/jei/gui/recipes/RecipesGui.java",
+      "bytes": 23636,
+      "sha256": "e593d08e1c0ffc6cf067db26ec049bf0ec0aef2216e28186f54f59761a42c6ff",
+      "mtime": "2026-06-14T23:36:46.119894+08:00"
+    },
+    {
+      "path": "ref/1.21.1/JustEnoughItems/Library/src/main/java/mezz/jei/library/gui/helpers/ScreenHelper.java",
+      "bytes": 7598,
+      "sha256": "b10fe132b63166cddbd28d6a449ba4f837ec76c2b9e5f1088183ba710d70a053",
+      "mtime": "2026-06-14T23:36:46.156324+08:00"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "settings.gradle",
+      "bytes": 541,
+      "sha256": "b99db7ae8781a5b0ebc1c4186bb70f168d5f517049163b952ebc975467e66aa7",
+      "mtime": "2026-09-01T22:14:31.286556+08:00"
+    },
+    {
+      "path": "gradle.properties",
+      "bytes": 961,
+      "sha256": "47a77c7e47bc17a63942201bf7fab1c833fd66d147a45eba0cf8fa8dcabd5b47",
+      "mtime": "2026-10-01T01:30:16.333791+08:00"
+    },
+    {
+      "path": "Common/build.gradle",
+      "bytes": 1359,
+      "sha256": "203b1adb3600a48b7f3d85bd9bcc37405f6a49e6b1439d820899521d35070f62",
+      "mtime": "2026-09-01T22:14:31.126837+08:00"
+    },
+    {
+      "path": "NeoForge/build.gradle",
+      "bytes": 5540,
+      "sha256": "8c7c25b104e7655c9d9137af4bbb85a207933d1c95fabe035b2ebc086c5df72c",
+      "mtime": "2026-09-01T22:14:31.249445+08:00"
+    },
+    {
+      "path": "Fabric/build.gradle",
+      "bytes": 2764,
+      "sha256": "f535bf47fdd65dd7d60dce16619a8174435a6f50c22687c981ce878a53332730",
+      "mtime": "2026-09-27T04:06:51.944692+08:00"
+    },
+    {
+      "path": "build.gradle",
+      "bytes": 6261,
+      "sha256": "ef12dd9b16ad4453c77f51b7bb420dda468515a2cd72ad58146295c896923d54",
+      "mtime": "2026-09-27T04:28:45.062692+08:00"
+    },
+    {
+      "path": "test.py",
+      "bytes": 29456,
+      "sha256": "ee1b71fed53f30616d01052b440215886f4d3177f712dee9feb5ddca3569fd03",
+      "mtime": "2026-10-01T01:28:10.838330+08:00"
+    },
+    {
+      "path": "ref/SOURCES.md",
+      "bytes": 4114,
+      "sha256": "9dba729cc1ae7d69415942e91707704b190c73e15e366f2c8214fe10bdbb2733",
+      "mtime": "2026-06-14T23:41:12.315105+08:00"
+    },
+    {
+      "path": "ref/1.21.1/JustEnoughItems/gradle.properties",
+      "bytes": 2626,
+      "sha256": "168a5c6ce94c4b2477513aa3a6eff32364c2fb6c06320b9a883b11d1514cd666",
+      "mtime": "2026-06-14T23:36:46.304668+08:00"
+    },
+    {
+      "path": "Fabric/build/classes/java/main/ponderer.refmap.json",
+      "bytes": 16076,
+      "sha256": "f79ded4b08b79025109cfc08a719649d1889a622c3dad2c9b00c4237a2bbc315",
+      "mtime": "2026-10-01T12:14:01.404220+08:00"
+    },
+    {
+      "path": "Fabric/build/libs/ponderer-1.21.1-fabric-1.10.6.1.jar",
+      "bytes": 5271605,
+      "sha256": "0a2d5500194927cfc1d71ffe29382388d9a13f0a5777e0d7a2ac7ef7f6a1f48b",
+      "mtime": "2026-10-01T12:14:07.804055+08:00"
+    },
+    {
+      "path": "NeoForge/build/libs/ponderer-1.21.1-neoforge-1.10.6.1.jar",
+      "bytes": 3255734,
+      "sha256": "6e6aeeede070b481859c0137a4fc4957f99f27957b40eb09d11dab7a09f298f9",
+      "mtime": "2026-10-01T12:14:01.904649+08:00"
+    },
+    {
+      "path": ".minecraft/versions/1.21.1-Fabric/logs/latest.log",
+      "bytes": 17460,
+      "sha256": "3bb5aea38f693ac98626eacd06d0475426098c8092c3b181e1d464f4e070a320",
+      "mtime": "2026-10-01T01:43:48.678606+08:00"
+    },
+    {
+      "path": ".minecraft/versions/1.21.1-NeoForge/logs/latest.log",
+      "bytes": 106066,
+      "sha256": "d5047d41fb89be6f07248fc7365907a846437fe36488fcb4aa3e9951b1c3b068",
+      "mtime": "2026-10-01T12:34:20.646210+08:00"
+    },
+    {
+      "path": ".minecraft/versions/1.21.1-Fabric/mods/jei-1.21.1-fabric-19.27.0.340.jar",
+      "bytes": 1561711,
+      "sha256": "80c35be9e42fca71eca577e538336902547c1fe3f5adedb2b79546ab01f66bbf",
+      "mtime": "2026-03-11T16:53:39.476385+08:00"
+    },
+    {
+      "path": ".minecraft/versions/1.21.1-NeoForge/mods/jei-1.21.1-neoforge-19.42.0.385.jar",
+      "bytes": 1639573,
+      "sha256": "0c2a1cba52689afe8eee875eb1bbbf31325230d529ae9c78e7651eef50be9001",
+      "mtime": "2026-07-29T10:40:13.809678+08:00"
+    }
+  ],
+  "exact_19_21_source_archives": [
+    {
+      "path": "C:/Users/Nobodiiiii/.gradle/caches/modules-2/files-2.1/mezz.jei/jei-1.21.1-common-api/19.21.0.243/86faeffaa96479d497f2045d558249cae2e96d9d/jei-1.21.1-common-api-19.21.0.243-sources.jar",
+      "bytes": 132484,
+      "sha256": "b28191b26fbec6e35f0763183a2889edb16b71e04f3f3710ee15ca05fbbce3f5",
+      "mtime": "2026-04-30T23:58:10.971616+08:00",
+      "read_source_members": [
+        {
+          "entry": "mezz/jei/api/ingredients/IIngredientType.java",
+          "sha256": "3e05e1ad4c63fce505a8aaae4b98bc4f5b4ec5307bbbaf4911accb26616cc4fa"
+        },
+        {
+          "entry": "mezz/jei/api/helpers/ICodecHelper.java",
+          "sha256": "0db32138397329dbf1f861f707263a69c1dcf108ca455aa2808ad6976459ce1f"
+        },
+        {
+          "entry": "mezz/jei/api/runtime/IIngredientManager.java",
+          "sha256": "90c7ad9cdd58a7331f267c9211ca26ee73878ce87c5f04d0a1e60333b854f0ff"
+        }
+      ]
+    },
+    {
+      "path": "C:/Users/Nobodiiiii/.gradle/caches/modules-2/files-2.1/mezz.jei/jei-1.21.1-gui/19.21.0.243/8612bbc5c9cbba776a512e1fc8d608a38c58014b/jei-1.21.1-gui-19.21.0.243-sources.jar",
+      "bytes": 146845,
+      "sha256": "0fd040c0f5e0a1e86622eb3efd948fdc51cb08843076f4177d88096169a471a8",
+      "mtime": "2026-04-30T23:58:22.389939+08:00",
+      "read_source_members": [
+        {
+          "entry": "mezz/jei/gui/ghost/GhostIngredientDrag.java",
+          "sha256": "3a5bfcd2f4d10b7f507bb60dc4b14f37165a5855405b1ec9f33eb1f82cc5981e"
+        },
+        {
+          "entry": "mezz/jei/gui/ghost/GhostIngredientDragManager.java",
+          "sha256": "f6dd83d722368e27ddc0e2b7657afe64c080dd838de9149ca91921f66900dca9"
+        }
+      ]
+    },
+    {
+      "path": "C:/Users/Nobodiiiii/.gradle/caches/modules-2/files-2.1/mezz.jei/jei-1.21.1-common/19.21.0.243/5c3f6e40b6feaf8c8338e759ec1871736d5f2b22/jei-1.21.1-common-19.21.0.243-sources.jar",
+      "bytes": 208271,
+      "sha256": "82f13c28ec26de23fef6902f87fd60c6dcd11092edc5920f8ebc961f5284ca51",
+      "mtime": "2026-04-30T23:58:17.619128+08:00",
+      "read_source_members": [
+        {
+          "entry": "mezz/jei/common/Internal.java",
+          "sha256": "c60540c471744f0937fc087966ebd8163f1b558cb011c16dcccf06ce569d2ddd"
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "report_links": 60,
+    "missing_links": [],
+    "invalid_line_numbers": [],
+    "fresh_build": false,
+    "fresh_game_run": false,
+    "runtime_findings_reproduced": false,
+    "crash_report_directory_exists": false,
+    "notes": "Existing artifacts do not prove correspondence to current source; no new smoke run. NeoForge latest log lacks interfaces PASS at this snapshot.",
+    "Fabric_jar_config_equals_source": true,
+    "NeoForge_jar_config_equals_source": true,
+    "fabric_refmap_json_equal": true,
+    "fabric_refmap_raw_bytes_equal": false,
+    "final_fingerprint_changes": [],
+    "report_sha256": "6a50464ddf3e6d80519a14c978b2cf70185f40d05f681130f64d5c300d9dc815"
+  },
+  "followup_19_51_conflict": {
+    "report": "docs/JEI_19_51_CONFLICT_2026-10-01.md",
+    "report_sha256": "263058dc6eb3b23a1ef0b991356edfccb2ecd89065202f8a9243a37b1dda36fb",
+    "result": {
+      "game_directory": "D:\\Files\\ponderer\\.minecraft\\versions\\1.21.1-NeoForge\\compat-tests\\jei-19.51-20261001",
+      "jei": "jei-1.21.1-neoforge-19.51.0.417.jar.disabled",
+      "jei_sha256": "effd91a0b8b469fe3d7ed0bb28b55fed83d69f4bf6efcd3019740fe3cf8c5916",
+      "ponderer": "ponderer-1.21.1-neoforge-1.10.6.1.jar",
+      "ponderer_sha256": "6e6aeeede070b481859c0137a4fc4957f99f27957b40eb09d11dab7a09f298f9",
+      "timeout_seconds": 180,
+      "smoke_outcome": true,
+      "jei_started": true,
+      "source_instance_unchanged": true,
+      "elapsed_seconds": 40.57,
+      "process_stopped": false,
+      "cleanup_followup": {
+        "pid": 49596,
+        "process_exists": false,
+        "isolated_game_java_processes": 0,
+        "verification": "Get-Process by PID and Win32_Process query after taskkill; initial immediate poll had raced with process exit."
+      }
+    },
+    "note": "Follow-up evidence; original audit snapshot and validation fields retain their original point-in-time scope."
+  },
+  "documentation_supplement": {
+    "date": "2026-10-01",
+    "scope": "Per-file scenarios and responsibilities: 13 current feature-related mixins and 4 removed NeoForge mirror-architecture classes; removed sources inspected at 2db6e9f2^; original source/artifact audit snapshot preserved.",
+    "current_rows": 13,
+    "historical_rows": 4,
+    "fresh_build": false,
+    "fresh_game_run": false,
+    "report_links_checked": 60,
+    "report_sha256": "6a50464ddf3e6d80519a14c978b2cf70185f40d05f681130f64d5c300d9dc815"
+  }
+}

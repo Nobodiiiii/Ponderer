@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
+import com.nododiiiii.ponderer.ponder.PonderInterpolationSnapshot;
 import com.nododiiiii.ponderer.ui.PonderSpeedButton;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
@@ -23,6 +24,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class PonderPlaybackMixin extends Screen {
     @Shadow(remap = false) private PonderButton left;
     @Shadow(remap = false) private PonderButton right;
+    @Shadow(remap = false) private PonderButton close;
     @Shadow(remap = false) private int extendedTickLength;
     @Shadow(remap = false) private int extendedTickTimer;
     @Shadow(remap = false) private int skipCooling;
@@ -31,6 +33,7 @@ public abstract class PonderPlaybackMixin extends Screen {
 
     @Unique private double ponderer$playbackSpeed = 1;
     @Unique private PonderSpeedButton ponderer$halfSpeed;
+    @Unique private PonderSpeedButton ponderer$normalSpeed;
     @Unique private PonderSpeedButton ponderer$doubleSpeed;
     @Unique private PonderScene ponderer$previousScene;
     @Unique private int ponderer$previousTime;
@@ -42,36 +45,55 @@ public abstract class PonderPlaybackMixin extends Screen {
 
     @Inject(method = "init", at = @At("TAIL"))
     private void ponderer$addSpeedButtons(CallbackInfo ci) {
-        ponderer$halfSpeed = addRenderableWidget(new PonderSpeedButton(left.getX() - 28, left.getY(), "÷2",
-            Component.translatable("ponderer.ui.playback.half"), () -> ponderer$toggleSpeed(.5)));
-        ponderer$doubleSpeed = addRenderableWidget(new PonderSpeedButton(right.getX() + 28, right.getY(), "×2",
-            Component.translatable("ponderer.ui.playback.double"), () -> ponderer$toggleSpeed(2)));
+        int buttonY = left.getY() - 18;
+        ponderer$halfSpeed = addRenderableWidget(new PonderSpeedButton(left.getX() - 2, buttonY, "0.5x",
+            Component.translatable("ponderer.ui.playback.half"), () -> ponderer$selectSpeed(.5)));
+        ponderer$normalSpeed = addRenderableWidget(new PonderSpeedButton(close.getX() - 2, buttonY, "1x",
+            Component.translatable("ponderer.ui.playback.normal"), () -> ponderer$selectSpeed(1)));
+        ponderer$doubleSpeed = addRenderableWidget(new PonderSpeedButton(right.getX() - 2, buttonY, "2x",
+            Component.translatable("ponderer.ui.playback.double"), () -> ponderer$selectSpeed(2)));
         ponderer$updateSpeedButtons();
     }
 
     @Unique
-    private void ponderer$toggleSpeed(double speed) {
-        ponderer$playbackSpeed = ponderer$playbackSpeed == speed ? 1 : speed;
+    private void ponderer$selectSpeed(double speed) {
+        if (ponderer$playbackSpeed == speed) {
+            return;
+        }
+        ponderer$playbackSpeed = speed;
         extendedTickTimer = 0;
         ponderer$updateSpeedButtons();
     }
 
     @Unique
     private void ponderer$updateSpeedButtons() {
-        ponderer$halfSpeed.withCustomTheme(ponderer$playbackSpeed == .5 ? PonderButton.COLOR_CLICK : PonderButton.COLOR_IDLE,
-            null, null, null);
-        ponderer$doubleSpeed.withCustomTheme(ponderer$playbackSpeed == 2 ? PonderButton.COLOR_CLICK : PonderButton.COLOR_IDLE,
-            null, null, null);
+        ponderer$setSpeedButtonSelected(ponderer$halfSpeed, ponderer$playbackSpeed == .5);
+        ponderer$setSpeedButtonSelected(ponderer$normalSpeed, ponderer$playbackSpeed == 1);
+        ponderer$setSpeedButtonSelected(ponderer$doubleSpeed, ponderer$playbackSpeed == 2);
+    }
+
+    @Unique
+    private void ponderer$setSpeedButtonSelected(PonderSpeedButton button, boolean selected) {
+        button.withCustomTheme(selected ? PonderButton.COLOR_CLICK : PonderButton.COLOR_IDLE,
+            selected ? PonderButton.COLOR_CLICK : PonderButton.COLOR_HOVER, null, null);
     }
 
     @Inject(method = "renderHoverTooltips", at = @At("TAIL"))
-    private void ponderer$renderSpeedTooltip(GuiGraphics graphics, int tooltipColor, CallbackInfo ci) {
-        for (PonderSpeedButton button : new PonderSpeedButton[]{ponderer$halfSpeed, ponderer$doubleSpeed}) {
+    private void ponderer$renderPlaybackHints(GuiGraphics graphics, int tooltipColor, CallbackInfo ci) {
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 500);
+        // The navigation labels use this same footer row while hovered.
+        if (!left.isHoveredOrFocused() && !close.isHoveredOrFocused() && !right.isHoveredOrFocused()) {
+            graphics.drawCenteredString(Minecraft.getInstance().font,
+                Component.translatable("ponderer.ui.playback.drag_hint"), width / 2, height - 16, tooltipColor);
+        }
+        for (PonderSpeedButton button : new PonderSpeedButton[]{ponderer$halfSpeed, ponderer$normalSpeed, ponderer$doubleSpeed}) {
             if (button != null && button.isVisible() && button.isHoveredOrFocused()) {
                 graphics.drawCenteredString(Minecraft.getInstance().font, button.getMessage(),
-                    button.getX() + button.getWidth() / 2, height - 16, tooltipColor);
+                    button.getX() + button.getWidth() / 2, button.getY() - 14, tooltipColor);
             }
         }
+        graphics.pose().popPose();
     }
 
     @Inject(method = "tick", at = @At("HEAD"))
@@ -95,12 +117,13 @@ public abstract class PonderPlaybackMixin extends Screen {
         if (ponderer$isScrubbing()) {
             return;
         }
-        scene.tick();
         if (ponderer$playbackSpeed == 2) {
-            scene.tick();
+            PonderInterpolationSnapshot.tickTwice(scene);
             if (scene == ((PonderUI) (Object) this).getActiveScene()) {
                 PonderUI.ponderTicks++;
             }
+        } else {
+            scene.tick();
         }
     }
 
