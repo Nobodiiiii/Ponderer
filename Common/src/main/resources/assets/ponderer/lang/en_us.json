@@ -1,4 +1,6 @@
 {
+  "ponderer.ui.zoom": "Zoom: %s",
+  "ponderer.ui.zoom.hint": "Right-click to reset zoom",
   "itemGroup.ponderer": "Ponderer",
   "item.ponderer.blueprint": "Blueprint and Quill",
   "item.ponderer.blueprint.start_set": "First position set",

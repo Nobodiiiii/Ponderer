@@ -34,7 +34,7 @@
     "PonderKeybindsAccessor",
     "PonderSceneViewOffsetMixin",
     "PonderSceneTextIndexMixin",
-    "SceneTransformOffsetMixinFabric",
+    "SceneTransformOffsetMixin",
     "MultiLineEditBoxAccessor",
     "MultilineTextFieldAccessor",
     "PonderUIAccessor",

@@ -82,11 +82,6 @@ public abstract class PonderPlaybackMixin extends Screen {
     private void ponderer$renderPlaybackHints(GuiGraphics graphics, int tooltipColor, CallbackInfo ci) {
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 500);
-        // The navigation labels use this same footer row while hovered.
-        if (!left.isHoveredOrFocused() && !close.isHoveredOrFocused() && !right.isHoveredOrFocused()) {
-            graphics.drawCenteredString(Minecraft.getInstance().font,
-                Component.translatable("ponderer.ui.playback.drag_hint"), width / 2, height - 16, tooltipColor);
-        }
         for (PonderSpeedButton button : new PonderSpeedButton[]{ponderer$halfSpeed, ponderer$normalSpeed, ponderer$doubleSpeed}) {
             if (button != null && button.isVisible() && button.isHoveredOrFocused()) {
                 graphics.drawCenteredString(Minecraft.getInstance().font, button.getMessage(),

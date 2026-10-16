@@ -1,10 +1,14 @@
 package com.nododiiiii.ponderer.mixin;
 
+import com.nododiiiii.ponderer.ui.PonderSmallHint;
 import net.createmod.catnip.animation.LerpedFloat;
+import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.widget.AbstractSimiWidget;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -28,6 +32,16 @@ public abstract class PonderProgressBarMixin extends AbstractSimiWidget {
 
     protected PonderProgressBarMixin(int x, int y, int width, int height) {
         super(x, y, width, height);
+    }
+
+    @Inject(method = "doRender", at = @At("TAIL"))
+    private void ponderer$renderDragHint(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks,
+            CallbackInfo ci) {
+        if (active && visible && isHovered()) {
+            PonderSmallHint.render(graphics, Component.translatable("ponderer.ui.playback.drag_hint"),
+                getX() + getWidth() / 2, getY() + getHeight() + 4, ponder.height - 16,
+                UIRenderHelper.COLOR_TEXT_DARKER.getFirst().getRGB());
+        }
     }
 
     @Inject(method = "clicked(DD)Z", at = @At("HEAD"), cancellable = true)

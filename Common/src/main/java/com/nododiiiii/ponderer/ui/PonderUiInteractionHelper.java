@@ -11,6 +11,10 @@ public final class PonderUiInteractionHelper {
 
     public static boolean hasPriorityPonderButtonAt(Screen screen, double mouseX, double mouseY) {
         for (GuiEventListener child : screen.children()) {
+            if (child instanceof PonderZoomSlider slider && slider.active && slider.visible
+                && slider.isMouseOver(mouseX, mouseY)) {
+                return true;
+            }
             if (child instanceof PonderButton button
                 && button.isVisible()
                 && button.isMouseOver(mouseX, mouseY)) {

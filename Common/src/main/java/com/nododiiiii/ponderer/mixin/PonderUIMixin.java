@@ -8,7 +8,10 @@ import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.PonderScreenNavigation;
+import com.nododiiiii.ponderer.ui.PonderSmallHint;
 import com.nododiiiii.ponderer.ui.PonderTextListWidget;
+import com.nododiiiii.ponderer.ui.PonderUiZoomAccess;
+import com.nododiiiii.ponderer.ui.PonderZoomSlider;
 import com.nododiiiii.ponderer.ui.PondererConfigScreen;
 import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.ReadonlyPackImportPromptScreen;
@@ -21,10 +24,8 @@ import com.nododiiiii.ponderer.ui.UIText;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.createmod.ponder.Ponder;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderScene;
-import net.createmod.ponder.foundation.ui.AbstractPonderScreen;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
@@ -52,7 +53,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PonderUI.class)
-public abstract class PonderUIMixin extends Screen {
+public abstract class PonderUIMixin extends Screen implements PonderUiZoomAccess {
+
+    @Unique
+    private float ponderer$userZoom = 1;
+
+    @Unique
+    private PonderZoomSlider ponderer$zoomSlider;
+
+    @Override
+    public float ponderer$getUserZoom() {
+        return ponderer$userZoom;
+    }
+
+    @Override
+    public void ponderer$setUserZoom(float zoom) {
+        ponderer$userZoom = net.minecraft.util.Mth.clamp(zoom, PonderZoomSlider.MIN_ZOOM, PonderZoomSlider.MAX_ZOOM);
+    }
 
     @Unique
     private PonderButton ponderer$editButton;
@@ -67,6 +84,7 @@ public abstract class PonderUIMixin extends Screen {
     @Inject(method = "init", at = @At("TAIL"))
     private void ponderer$addEditButton(CallbackInfo ci) {
         PonderUI self = (PonderUI) (Object) this;
+        ponderer$zoomSlider = addRenderableWidget(new PonderZoomSlider(self));
         PonderTextListWidget textList = new PonderTextListWidget(self);
         if (ponderer$textList != null) {
             textList.setPanelVisible(ponderer$textList.isPanelVisible());
@@ -233,17 +251,9 @@ public abstract class PonderUIMixin extends Screen {
             Component hint = Component.translatable(Config.DEFAULT_TEXT_PROGRESS.get()
                 ? "ponderer.ui.text_progress.default_off_hint"
                 : "ponderer.ui.text_progress.default_on_hint");
-            var font = Minecraft.getInstance().font;
-            Component label = Ponder.lang().translate(AbstractPonderScreen.SLOW_TEXT).component();
-            float scale = (float) font.width(label) / Math.max(1, font.width(hint));
             // Catnip's outer border extends four pixels below the widget bounds.
             int buttonBottom = slowMode.getY() + slowMode.getHeight() + 4;
-            float hintY = buttonBottom + (tooltipY - buttonBottom - font.lineHeight * scale) / 2;
-            graphics.pose().pushPose();
-            graphics.pose().translate(slowMode.getX() + 5, hintY, 500);
-            graphics.pose().scale(scale, scale, 1);
-            graphics.drawCenteredString(font, hint, 0, 0, tooltipColor);
-            graphics.pose().popPose();
+            PonderSmallHint.render(graphics, hint, slowMode.getX() + 5, buttonBottom, tooltipY, tooltipColor);
         }
         if (ponderer$editButton != null && ponderer$editButton.isHoveredOrFocused()) {
             graphics.drawCenteredString(Minecraft.getInstance().font,
@@ -420,6 +430,12 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void ponderer$onPickClick(double x, double y, int button, CallbackInfoReturnable<Boolean> cir) {
+        if (ponderer$zoomSlider != null && ponderer$zoomSlider.mouseClicked(x, y, button)) {
+            setFocused(ponderer$zoomSlider);
+            setDragging(button == GLFW.GLFW_MOUSE_BUTTON_LEFT);
+            cir.setReturnValue(true);
+            return;
+        }
         if (!PickState.isActive() && !NbtExpandedPickState.isActive()) {
             PonderButton slowMode = ((PonderUIAccessor) this).ponderer$getSlowMode();
             if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && slowMode != null
