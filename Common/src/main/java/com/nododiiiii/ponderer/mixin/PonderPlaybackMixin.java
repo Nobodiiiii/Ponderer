@@ -46,11 +46,11 @@ public abstract class PonderPlaybackMixin extends Screen {
     @Inject(method = "init", at = @At("TAIL"))
     private void ponderer$addSpeedButtons(CallbackInfo ci) {
         int buttonY = left.getY() - 18;
-        ponderer$halfSpeed = addRenderableWidget(new PonderSpeedButton(left.getX() - 2, buttonY, "0.5x",
+        ponderer$halfSpeed = addRenderableWidget(new PonderSpeedButton(left.getX(), buttonY, "0.5x",
             Component.translatable("ponderer.ui.playback.half"), () -> ponderer$selectSpeed(.5)));
-        ponderer$normalSpeed = addRenderableWidget(new PonderSpeedButton(close.getX() - 2, buttonY, "1x",
+        ponderer$normalSpeed = addRenderableWidget(new PonderSpeedButton(close.getX(), buttonY, "1x",
             Component.translatable("ponderer.ui.playback.normal"), () -> ponderer$selectSpeed(1)));
-        ponderer$doubleSpeed = addRenderableWidget(new PonderSpeedButton(right.getX() - 2, buttonY, "2x",
+        ponderer$doubleSpeed = addRenderableWidget(new PonderSpeedButton(right.getX(), buttonY, "2x",
             Component.translatable("ponderer.ui.playback.double"), () -> ponderer$selectSpeed(2)));
         ponderer$updateSpeedButtons();
     }

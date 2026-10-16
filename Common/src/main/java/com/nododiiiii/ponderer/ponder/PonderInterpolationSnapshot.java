@@ -1,11 +1,8 @@
 package com.nododiiiii.ponderer.ponder;
 
-import com.nododiiiii.ponderer.mixin.AnimatedOverlayElementAccessor;
-import com.nododiiiii.ponderer.mixin.AnimatedSceneElementAccessor;
-import com.nododiiiii.ponderer.mixin.LerpedFloatAccessor;
 import net.createmod.catnip.animation.LerpedFloat;
+import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.foundation.PonderScene;
-import net.createmod.ponder.foundation.element.WorldSectionElementImpl;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.IdentityHashMap;
@@ -16,7 +13,9 @@ public final class PonderInterpolationSnapshot {
     private static final ThreadLocal<PonderInterpolationSnapshot> ACTIVE = new ThreadLocal<>();
 
     private final Map<LerpedFloat, Float> floats = new IdentityHashMap<>();
-    private final Map<WorldSectionElementImpl, SectionStart> sections = new IdentityHashMap<>();
+    private final Map<WorldSectionElement, Vec3> offsets = new IdentityHashMap<>();
+    private final Map<WorldSectionElement, Vec3> rotations = new IdentityHashMap<>();
+    private boolean restoring;
 
     private PonderInterpolationSnapshot() {
     }
@@ -26,12 +25,8 @@ public final class PonderInterpolationSnapshot {
         PonderInterpolationSnapshot previous = ACTIVE.get();
         ACTIVE.set(snapshot);
         try {
-            snapshot.capture(scene, false);
             scene.tick();
-            // Newly added elements retain their first tick's native interpolation start.
-            snapshot.capture(scene, true);
             scene.tick();
-            snapshot.capture(scene, true);
             snapshot.restore();
         } finally {
             if (previous == null) {
@@ -42,82 +37,71 @@ public final class PonderInterpolationSnapshot {
         }
     }
 
-    private void capture(PonderScene scene, boolean addedDuringTick) {
-        captureFloat(scene.getTransform().xRotation, addedDuringTick);
-        captureFloat(scene.getTransform().yRotation, addedDuringTick);
-        if (scene instanceof PonderSceneViewOffsetAccess view) {
-            captureFloat(view.ponderer$getViewOffsetX(), addedDuringTick);
-            captureFloat(view.ponderer$getViewOffsetY(), addedDuringTick);
-            captureFloat(view.ponderer$getViewOffsetZ(), addedDuringTick);
-            captureFloat(view.ponderer$getScaleOverride(), addedDuringTick);
-        }
-        scene.forEach(element -> {
-            if (element instanceof AnimatedSceneElementAccessor animated) {
-                captureFloat(animated.ponderer$getFade(), addedDuringTick);
-            }
-            if (element instanceof AnimatedOverlayElementAccessor overlay) {
-                captureFloat(overlay.ponderer$getFade(), addedDuringTick);
-            }
-            if (element instanceof WorldSectionElementImpl section && !sections.containsKey(section)) {
-                SectionAccess access = (SectionAccess) section;
-                sections.put(section, new SectionStart(
-                    addedDuringTick ? access.ponderer$getPreviousOffset() : section.getAnimatedOffset(),
-                    addedDuringTick ? access.ponderer$getPreviousRotation() : section.getAnimatedRotation()));
-            }
-        });
-    }
-
-    private void captureFloat(LerpedFloat value, boolean addedDuringTick) {
-        if (!floats.containsKey(value)) {
-            LerpedFloatAccessor access = (LerpedFloatAccessor) value;
-            floats.put(value, addedDuringTick ? access.ponderer$getPreviousValue() : access.ponderer$getValue());
-        }
-    }
-
     private void restore() {
-        floats.forEach((value, start) -> ((LerpedFloatAccessor) value).ponderer$setPreviousValue(start));
-        sections.forEach((section, start) -> {
-            SectionAccess access = (SectionAccess) section;
-            access.ponderer$setPreviousOffset(start.offset());
-            access.ponderer$setPreviousRotation(start.rotation());
-        });
+        restoring = true;
+        try {
+            floats.forEach((value, start) -> {
+                float end = value.getValue(1);
+                // setValue preserves the chase target/speed while establishing the previous value.
+                value.setValue(start);
+                value.setValue(end);
+            });
+            offsets.forEach((section, start) -> {
+                Vec3 end = section.getAnimatedOffset();
+                section.setAnimatedOffset(start, true);
+                section.setAnimatedOffset(end, false);
+            });
+            rotations.forEach((section, start) -> {
+                Vec3 end = section.getAnimatedRotation();
+                section.setAnimatedRotation(start, true);
+                section.setAnimatedRotation(end, false);
+            });
+        } finally {
+            restoring = false;
+        }
+    }
+
+    /** Observe the first public mutation, including animations created during either tick. */
+    public static void captureFloat(LerpedFloat value) {
+        PonderInterpolationSnapshot snapshot = ACTIVE.get();
+        if (snapshot != null && !snapshot.restoring && !snapshot.floats.containsKey(value)) {
+            snapshot.floats.put(value, value.getValue(1));
+        }
     }
 
     /** Explicit resets establish a new start rather than blending from before the reset. */
     public static void resetFloat(LerpedFloat value) {
         PonderInterpolationSnapshot snapshot = ACTIVE.get();
-        if (snapshot != null && snapshot.floats.containsKey(value)) {
-            snapshot.floats.put(value, ((LerpedFloatAccessor) value).ponderer$getValue());
+        if (snapshot != null && !snapshot.restoring) {
+            snapshot.floats.put(value, value.getValue(1));
         }
     }
 
-    public static void resetSectionOffset(WorldSectionElementImpl section, Vec3 offset) {
+    public static void captureSectionOffset(WorldSectionElement section) {
         PonderInterpolationSnapshot snapshot = ACTIVE.get();
-        if (snapshot != null) {
-            SectionStart start = snapshot.sections.get(section);
-            if (start != null) {
-                snapshot.sections.put(section, new SectionStart(offset, start.rotation()));
-            }
+        if (snapshot != null && !snapshot.restoring && !snapshot.offsets.containsKey(section)) {
+            snapshot.offsets.put(section, section.getAnimatedOffset());
         }
     }
 
-    public static void resetSectionRotation(WorldSectionElementImpl section, Vec3 rotation) {
+    public static void captureSectionRotation(WorldSectionElement section) {
         PonderInterpolationSnapshot snapshot = ACTIVE.get();
-        if (snapshot != null) {
-            SectionStart start = snapshot.sections.get(section);
-            if (start != null) {
-                snapshot.sections.put(section, new SectionStart(start.offset(), rotation));
-            }
+        if (snapshot != null && !snapshot.restoring && !snapshot.rotations.containsKey(section)) {
+            snapshot.rotations.put(section, section.getAnimatedRotation());
         }
     }
 
-    private record SectionStart(Vec3 offset, Vec3 rotation) {
+    public static void resetSectionOffset(WorldSectionElement section) {
+        PonderInterpolationSnapshot snapshot = ACTIVE.get();
+        if (snapshot != null && !snapshot.restoring) {
+            snapshot.offsets.put(section, section.getAnimatedOffset());
+        }
     }
 
-    public interface SectionAccess {
-        Vec3 ponderer$getPreviousOffset();
-        void ponderer$setPreviousOffset(Vec3 offset);
-        Vec3 ponderer$getPreviousRotation();
-        void ponderer$setPreviousRotation(Vec3 rotation);
+    public static void resetSectionRotation(WorldSectionElement section) {
+        PonderInterpolationSnapshot snapshot = ACTIVE.get();
+        if (snapshot != null && !snapshot.restoring) {
+            snapshot.rotations.put(section, section.getAnimatedRotation());
+        }
     }
 }
