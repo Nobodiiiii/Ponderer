@@ -34,8 +34,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class NbtSceneFilter {
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    // sceneId (e.g. "ponderer:my_scene") -> required NBT pattern
-    private static final Map<String, CompoundTag> FILTERS = new ConcurrentHashMap<>();
+    private record BindingFilter(ResourceLocation itemId, @Nullable CompoundTag nbt) {
+    }
+
+    // A scene may have several alternative bindings, including overlapping item tags.
+    private static final Map<String, List<BindingFilter>> FILTERS = new ConcurrentHashMap<>();
 
     // itemId -> set of scene IDs registered by our plugin (both filtered and unfiltered)
     private static final Map<ResourceLocation, Set<String>> ALL_SCENES = new ConcurrentHashMap<>();
@@ -50,15 +53,14 @@ public final class NbtSceneFilter {
     /**
      * Register a scene for an item. Called for ALL scenes (with or without NBT filter).
      */
-    public static void registerScene(ResourceLocation itemId, String sceneId) {
+    public static void registerScene(ResourceLocation itemId, String sceneId, @Nullable CompoundTag nbtFilter) {
         ALL_SCENES.computeIfAbsent(itemId, k -> ConcurrentHashMap.newKeySet()).add(sceneId);
-    }
-
-    /**
-     * Register an NBT filter for a specific scene.
-     */
-    public static void registerFilter(String sceneId, CompoundTag nbtFilter) {
-        FILTERS.put(sceneId, nbtFilter);
+        FILTERS.compute(sceneId, (key, existing) -> {
+            List<BindingFilter> filters = existing == null ? new ArrayList<>() : new ArrayList<>(existing);
+            BindingFilter binding = new BindingFilter(itemId, nbtFilter);
+            if (!filters.contains(binding)) filters.add(binding);
+            return List.copyOf(filters);
+        });
     }
 
     /**
@@ -120,7 +122,9 @@ public final class NbtSceneFilter {
         Set<String> sceneIds = ALL_SCENES.get(itemId);
         if (sceneIds == null || sceneIds.isEmpty()) return false;
         for (String sid : sceneIds) {
-            if (FILTERS.containsKey(sid)) return true;
+            List<BindingFilter> filters = FILTERS.get(sid);
+            if (filters != null && filters.stream().anyMatch(filter ->
+                filter.itemId().equals(itemId) && filter.nbt() != null)) return true;
         }
         return false;
     }
@@ -135,22 +139,14 @@ public final class NbtSceneFilter {
         if (sceneIds == null || sceneIds.isEmpty()) return true;
 
         for (String sid : sceneIds) {
-            CompoundTag filter = FILTERS.get(sid);
-            if (filter == null) {
-                // Unfiltered scene -> always visible
-                return true;
-            }
-            if (matchesNbt(stack, filter)) {
-                return true;
-            }
+            if (matchesBindings(stack, FILTERS.get(sid))) return true;
         }
         return false;
     }
 
     /**
      * Filter a compiled scene list based on the current ItemStack.
-     * Scenes without an NBT filter are always included.
-     * Scenes with an NBT filter are only included if the stack matches.
+     * A scene is included when at least one of its bindings for this item matches.
      * If ALL scenes would be filtered out, returns the original list as fallback.
      */
     public static List<PonderScene> filter(ItemStack stack, List<PonderScene> scenes) {
@@ -161,12 +157,12 @@ public final class NbtSceneFilter {
 
         for (PonderScene scene : scenes) {
             String sceneId = scene.getId().toString();
-            CompoundTag filter = FILTERS.get(sceneId);
-            if (filter == null) {
+            List<BindingFilter> filters = FILTERS.get(sceneId);
+            if (filters == null) {
                 filtered.add(scene);
             } else {
                 anyFiltered = true;
-                if (matchesNbt(stack, filter)) {
+                if (matchesBindings(stack, filters)) {
                     filtered.add(scene);
                 }
             }
@@ -174,6 +170,17 @@ public final class NbtSceneFilter {
 
         if (!anyFiltered) return scenes;
         return filtered.isEmpty() ? scenes : filtered;
+    }
+
+    private static boolean matchesBindings(ItemStack stack, @Nullable List<BindingFilter> filters) {
+        if (filters == null) return true;
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        for (BindingFilter filter : filters) {
+            if (filter.itemId().equals(itemId) && (filter.nbt() == null || matchesNbt(stack, filter.nbt()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

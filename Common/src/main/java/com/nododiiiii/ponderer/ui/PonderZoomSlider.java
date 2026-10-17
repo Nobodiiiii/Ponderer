@@ -38,6 +38,11 @@ public class PonderZoomSlider extends AbstractSliderButton {
         return screenWidth - 31 - sliderWidth(screenWidth);
     }
 
+    public void refreshValue() {
+        value = sliderValueForZoom(zoom.ponderer$getUserZoom());
+        updateMessage();
+    }
+
     @Override
     protected void updateMessage() {
         setMessage(Component.translatable("ponderer.ui.zoom",

@@ -18,7 +18,6 @@ import sys
 import tempfile
 import threading
 import time
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -96,6 +95,8 @@ ASSETS_DIR = DOT_MINECRAFT / "assets"
 
 DEFAULT_WIDTH = 1600
 DEFAULT_HEIGHT = 900
+# Fixed offline UUID for Dev, shared by all local client launches.
+DEFAULT_PLAYER_UUID = "380df991f603344ca090369bad2a924a"
 DEFAULT_SMOKE_TIMEOUT = 40
 DEFAULT_SMOKE_LOG_LINES = 160
 POST_ENTRY_SETTLE_SECONDS = 2.0
@@ -344,7 +345,7 @@ def build_game_args(version_data: dict, instance: Path, world: str, width: int, 
         "${game_directory}": str(instance),
         "${assets_root}": str(ASSETS_DIR),
         "${assets_index_name}": str(asset_index),
-        "${auth_uuid}": str(uuid.uuid4()).replace("-", ""),
+        "${auth_uuid}": DEFAULT_PLAYER_UUID,
         "${auth_access_token}": "0",
         "${clientid}": "0",
         "${auth_xuid}": "0",

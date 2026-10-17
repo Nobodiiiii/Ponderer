@@ -11,6 +11,7 @@ import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.PonderUiInteractionHelper;
+import com.nododiiiii.ponderer.ui.PonderUiPreviewAccess;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.ChatFormatting;
@@ -144,6 +145,9 @@ public final class InterfaceHost {
             return;
         }
         if (!(mc.screen instanceof PonderUI ui) || ui.getActiveScene() != element.scene()) {
+            return;
+        }
+        if (((PonderUiPreviewAccess) ui).ponderer$getFreePreview().isActive()) {
             return;
         }
         SandboxSession session = element.session();
@@ -296,6 +300,9 @@ public final class InterfaceHost {
         if (!(screen instanceof PonderUI ui) || ui.getActiveScene() != element.scene()) {
             return null;
         }
+        if (((PonderUiPreviewAccess) ui).ponderer$getFreePreview().isActive()) {
+            return null;
+        }
         return element.session();
     }
 
@@ -371,6 +378,9 @@ public final class InterfaceHost {
     }
 
     public static boolean keyPressed(Screen screen, int key, int scanCode, int modifiers) {
+        if (screen instanceof PonderUI && key == GLFW.GLFW_KEY_SPACE && !InterfaceSlotEditState.isActive()) {
+            return false;
+        }
         SandboxSession session = sessionFor(screen);
         if (session == null || InterfaceSlotEditState.isActive()) {
             return false;

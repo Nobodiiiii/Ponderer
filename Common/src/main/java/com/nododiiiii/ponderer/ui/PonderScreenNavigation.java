@@ -61,7 +61,7 @@ public final class PonderScreenNavigation {
             return false;
         }
 
-        PonderUI ponderUI = PonderUI.of(NbtSceneFilter.createStack(itemId, scene.nbtFilter));
+        PonderUI ponderUI = PonderUI.of(NbtSceneFilter.createStack(itemId, SceneItemBindings.firstNbtFilter(scene)));
         PonderUIAccessor accessor = (PonderUIAccessor) ponderUI;
 
         List<PonderScene> ponderScenes = accessor.ponderer$getScenes();

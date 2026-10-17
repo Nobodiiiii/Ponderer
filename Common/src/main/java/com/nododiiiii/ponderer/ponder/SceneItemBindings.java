@@ -14,6 +14,9 @@ import java.util.Set;
 
 /** Resolves carrier item IDs and #item_tag bindings without expanding the saved scene. */
 public final class SceneItemBindings {
+    public record ResolvedBinding(ResourceLocation itemId, @Nullable String nbtFilter) {
+    }
+
     private SceneItemBindings() {
     }
 
@@ -53,6 +56,55 @@ public final class SceneItemBindings {
     public static ResourceLocation firstItem(@Nullable DslScene scene) {
         List<ResourceLocation> items = resolve(scene == null ? null : scene.items);
         return items.isEmpty() ? null : items.getFirst();
+    }
+
+    @Nullable
+    public static String nbtFilter(DslScene scene, int bindingIndex) {
+        String filter = scene.itemNbtFilters != null && bindingIndex < scene.itemNbtFilters.size()
+            ? scene.itemNbtFilters.get(bindingIndex) : scene.nbtFilter;
+        return filter == null || filter.isBlank() ? null : filter;
+    }
+
+    public static List<ResolvedBinding> resolveWithNbt(@Nullable DslScene scene) {
+        Set<ResolvedBinding> bindings = new LinkedHashSet<>();
+        if (scene == null || scene.items == null) return List.of();
+        for (int i = 0; i < scene.items.size(); i++) {
+            String binding = scene.items.get(i);
+            if (id(binding) == null) continue;
+            String filter = nbtFilter(scene, i);
+            for (ResourceLocation itemId : resolve(List.of(binding))) {
+                bindings.add(new ResolvedBinding(itemId, filter));
+            }
+        }
+        return List.copyOf(bindings);
+    }
+
+    @Nullable
+    public static String firstNbtFilter(DslScene scene) {
+        // The first binding may be an empty tag, so use the first resolved carrier.
+        List<ResolvedBinding> bindings = resolveWithNbt(scene);
+        return bindings.isEmpty() ? null : bindings.getFirst().nbtFilter();
+    }
+
+    public static boolean hasNbtFilters(DslScene scene) {
+        if (scene.items == null) return false;
+        for (int i = 0; i < scene.items.size(); i++) {
+            if (nbtFilter(scene, i) != null) return true;
+        }
+        return false;
+    }
+
+    public static boolean matchesWithNbt(DslScene scene, ItemStack stack) {
+        if (scene.items == null || stack.isEmpty()) return false;
+        for (int i = 0; i < scene.items.size(); i++) {
+            String binding = scene.items.get(i);
+            if (id(binding) == null || !matches(List.of(binding), stack)) continue;
+            String filter = nbtFilter(scene, i);
+            if (filter == null) return true;
+            var parsed = NbtSceneFilter.parseNbt(filter);
+            if (parsed != null && NbtSceneFilter.matchesNbt(stack, parsed)) return true;
+        }
+        return false;
     }
 
     public static boolean matches(@Nullable List<String> bindings, ItemStack stack) {

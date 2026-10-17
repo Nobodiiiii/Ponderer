@@ -541,7 +541,7 @@ public final class JavaModuleExportService {
             addFinding(result.warningFindings, "step/meta warnings", scene.id, scene.sceneKey(), null, null,
                 "Item tag bindings export as the currently resolved item IDs.");
         }
-        if (scene.nbtFilter != null && !scene.nbtFilter.isBlank()) {
+        if (SceneItemBindings.hasNbtFilters(scene)) {
             plan.partial = true;
             plan.hadMetaDrops = true;
             addFinding(result.warningFindings, "step/meta warnings", scene.id, scene.sceneKey(), null, null,

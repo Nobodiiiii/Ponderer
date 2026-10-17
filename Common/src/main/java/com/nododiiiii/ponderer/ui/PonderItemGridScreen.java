@@ -555,9 +555,9 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             String packKey = packPrefix != null ? packPrefix : "";
             String sceneKey = scene.sceneKey();
 
-            for (ResourceLocation resolvedItem : SceneItemBindings.resolve(scene.items)) {
-                String itemId = resolvedItem.toString();
-                String nf = scene.nbtFilter;
+            for (SceneItemBindings.ResolvedBinding binding : SceneItemBindings.resolveWithNbt(scene)) {
+                String itemId = binding.itemId().toString();
+                String nf = binding.nbtFilter();
                 String entryKey = normalizedEntryKey(itemId, nf);
 
                 packGroups.computeIfAbsent(packKey, ignored -> new LinkedHashMap<>())
@@ -618,9 +618,9 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             }
             String sceneKey = scene.sceneKey();
 
-            for (ResourceLocation resolvedItem : SceneItemBindings.resolve(scene.items)) {
-                String itemId = resolvedItem.toString();
-                String nf = scene.nbtFilter;
+            for (SceneItemBindings.ResolvedBinding binding : SceneItemBindings.resolveWithNbt(scene)) {
+                String itemId = binding.itemId().toString();
+                String nf = binding.nbtFilter();
                 String key = normalizedEntryKey(itemId, nf);
 
                 entryMap.computeIfAbsent(key, ignored -> new ArrayList<>());

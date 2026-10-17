@@ -9,6 +9,7 @@ import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.ButtonListEntry;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.component.DataComponents;
@@ -20,6 +21,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -33,8 +35,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
     private static final String[] FREQ_VALUES = {null, "always", "first_time", "until_read"};
     private static final String[] FREQ_KEYS = {"off", "always", "first_time", "until_read"};
 
-    private final StepTextFieldHandle itemField = new StepTextFieldHandle("itemId");
-    private final StepTextFieldHandle itemNbtField = new StepTextFieldHandle("itemNbt");
+    private final KeyValueListState itemBindings = new KeyValueListState("itemBinding", 1);
     private final StepTextFieldHandle titleTextField = new StepTextFieldHandle("titleText");
     private final StepTextFieldHandle subtitleTextField = new StepTextFieldHandle("subtitleText");
     private final StepTextFieldHandle structureField = new StepTextFieldHandle("structure");
@@ -85,9 +86,14 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             }
         }
 
-        String currentItem = scene.items != null && !scene.items.isEmpty() ? scene.items.get(0) : "";
-        itemField.setValue(currentItem);
-        itemNbtField.setValue(scene.nbtFilter != null ? scene.nbtFilter : "");
+        if (scene.items != null && !scene.items.isEmpty()) {
+            List<KeyValueListState.KeyValue> bindings = new ArrayList<>();
+            for (int i = 0; i < scene.items.size(); i++) {
+                String nbt = SceneItemBindings.nbtFilter(scene, i);
+                bindings.add(new KeyValueListState.KeyValue(scene.items.get(i), nbt != null ? nbt : ""));
+            }
+            itemBindings.replaceAll(bindings);
+        }
         titleTextField.setValue(scene.hintTitleText != null ? scene.hintTitleText : "");
         subtitleTextField.setValue(scene.hintSubtitleText != null ? scene.hintSubtitleText : "");
         structureField.setValue(scene.triggerStructure != null ? scene.triggerStructure : "");
@@ -130,8 +136,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         participants.add(autoFreqBinding);
         participants.add(titleFreqBinding);
         participants.add(subtitleFreqBinding);
-        participants.add(itemField);
-        participants.add(itemNbtField);
+        participants.add(itemBindings);
         participants.add(titleTextField);
         participants.add(subtitleTextField);
         participants.add(structureField);
@@ -158,23 +163,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             pendingStructureSelection = null;
         }
 
-        entries.add(FieldSpecs.text(
-            itemField,
-            "ponderer.ui.scene_desc.item_id",
-            "ponderer.ui.scene_desc.item_id.tooltip",
-            UIText.of("ponderer.ui.scene_desc.hint.item_id"),
-            124,
-            FieldDecorators.itemTagDropdown("itemId"),
-            FieldDecorators.jei(IdFieldMode.ITEM),
-            FieldDecorators.heldItem(this::applyHeldItem)));
-        entries.add(FieldSpecs.text(
-            itemNbtField,
-            "ponderer.ui.scene_desc.item_nbt",
-            null,
-            UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
-            124,
-            FieldDecorators.nbtPick("itemNbt"),
-            FieldDecorators.nbtExpand("itemNbt")));
+        collectItemBindingEntries(entries);
         entries.add(FieldSpecs.cycle(
             triggerModeBinding,
             "ponderer.ui.trigger_editor.trigger_mode",
@@ -280,15 +269,59 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         }
     }
 
-    private void applyHeldItem(ItemStack stack) {
+    private void collectItemBindingEntries(List<DeclarativeFormEntry> entries) {
+        for (int i = 0; i < itemBindings.size(); i++) {
+            int index = i;
+            String itemKey = "itemBinding_" + i + "_key";
+            String nbtKey = "itemBinding_" + i + "_val";
+            entries.add(FieldSpecs.text(
+                FieldBindings.string(itemKey,
+                    () -> index < itemBindings.size() ? itemBindings.get(index).key() : "",
+                    value -> itemBindings.updateKey(index, value)),
+                "ponderer.ui.scene_desc.item_id",
+                "ponderer.ui.scene_desc.item_id.tooltip",
+                UIText.of("ponderer.ui.scene_desc.hint.item_id"),
+                124,
+                FieldDecorators.itemTagDropdown(itemKey),
+                FieldDecorators.jei(IdFieldMode.ITEM),
+                FieldDecorators.heldItem(stack -> applyHeldItem(index, stack))));
+
+            List<FieldDecorator> nbtDecorators = new ArrayList<>();
+            nbtDecorators.add(FieldDecorators.nbtPick(nbtKey));
+            nbtDecorators.add(FieldDecorators.nbtExpand(nbtKey));
+            if (itemBindings.size() > 1) {
+                nbtDecorators.add(FieldDecorators.textAction(20, () -> {
+                    itemBindings.remove(index);
+                    rebuildFormPreservingState();
+                }, () -> "×", () -> 0xFF8080, UIText.of("ponderer.ui.scene_desc.remove_item")));
+            }
+            entries.add(FieldSpecs.text(
+                FieldBindings.string(nbtKey,
+                    () -> index < itemBindings.size() ? itemBindings.get(index).value() : "",
+                    value -> itemBindings.updateValue(index, value)),
+                "ponderer.ui.scene_desc.item_nbt",
+                null,
+                UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
+                124,
+                nbtDecorators.toArray(FieldDecorator[]::new)));
+        }
+        entries.add(screen -> screen.appendBuiltEntry(new ButtonListEntry(
+            "", null, 40, () -> {
+                itemBindings.addEmpty();
+                rebuildFormPreservingState();
+            }, () -> "+", () -> 0x80FF80, UIText.of("ponderer.ui.scene_desc.add_item"))));
+    }
+
+    private void applyHeldItem(int index, ItemStack stack) {
         String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        itemField.setValue(itemId);
+        itemBindings.updateKey(index, itemId);
         CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
         if (customData != null && !customData.isEmpty()) {
-            itemNbtField.setValue(customData.copyTag().toString());
+            itemBindings.updateValue(index, customData.copyTag().toString());
         } else {
-            itemNbtField.setValue("");
+            itemBindings.updateValue(index, "");
         }
+        rebuildFormPreservingState();
     }
 
     private void openStructureList() {
@@ -337,39 +370,57 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
     private boolean doSave() {
         clearStatusMessages();
 
-        String newItemId = itemField.getValue().trim();
-        if (newItemId.isEmpty()) {
-            setErrorMessage(UIText.of("ponderer.ui.scene_desc.empty_item"));
-            return false;
-        }
-        ResourceLocation bindingId = SceneItemBindings.id(newItemId);
-        if (bindingId == null) {
-            setErrorMessage(UIText.of("ponderer.cmd.new.error.invalid_binding", newItemId));
-            return false;
-        }
-        newItemId = (SceneItemBindings.isTag(newItemId) ? "#" : "") + bindingId;
-        String oldItemId = scene.items != null && !scene.items.isEmpty() ? scene.items.get(0) : "";
-        if (!newItemId.equals(oldItemId) && SceneItemBindings.resolve(List.of(newItemId)).isEmpty()) {
-            setErrorMessage(UIText.of("ponderer.cmd.new.error.empty_binding", newItemId));
-            return false;
-        }
-
-        if (!newItemId.equals(oldItemId) && !pendingItemDuplicateConfirm) {
-            for (DslScene s : SceneRuntime.getScenes()) {
-                if (s != scene && s.items != null && s.items.contains(newItemId)) {
-                    new ConfirmationScreen()
-                        .centered()
-                        .withText(Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"))
-                        .addText(Component.translatable("ponderer.ui.scene_desc.error.item_exists", newItemId))
-                        .withAction(confirmed -> {
-                            if (confirmed) {
-                                pendingItemDuplicateConfirm = true;
-                                doConfirm();
-                            }
-                        })
-                        .open(this);
+        List<String> newItems = new ArrayList<>();
+        List<String> newFilters = new ArrayList<>();
+        for (KeyValueListState.KeyValue binding : itemBindings.items()) {
+            String item = binding.key().trim();
+            if (item.isEmpty()) {
+                setErrorMessage(UIText.of("ponderer.ui.scene_desc.empty_item"));
+                return false;
+            }
+            ResourceLocation bindingId = SceneItemBindings.id(item);
+            if (bindingId == null) {
+                setErrorMessage(UIText.of("ponderer.cmd.new.error.invalid_binding", item));
+                return false;
+            }
+            item = (SceneItemBindings.isTag(item) ? "#" : "") + bindingId;
+            if ((scene.items == null || !scene.items.contains(item))
+                && SceneItemBindings.resolve(List.of(item)).isEmpty()) {
+                setErrorMessage(UIText.of("ponderer.cmd.new.error.empty_binding", item));
+                return false;
+            }
+            String nbt = binding.value().trim();
+            if (!nbt.isEmpty()) {
+                NbtTextCodec.ParseResult parsed = NbtTextCodec.parse(nbt);
+                if (!parsed.success()) {
+                    setErrorMessage(UIText.of("ponderer.ui.nbt_editor.error.invalid"));
                     return false;
                 }
+                nbt = NbtTextCodec.compact(parsed.tag());
+            }
+            newItems.add(item);
+            newFilters.add(nbt);
+        }
+
+        if (!pendingItemDuplicateConfirm) {
+            List<String> duplicates = newItems.stream().distinct()
+                .filter(item -> scene.items == null || !scene.items.contains(item))
+                .filter(item -> SceneRuntime.getScenes().stream()
+                    .anyMatch(s -> s != scene && s.items != null && s.items.contains(item)))
+                .toList();
+            if (!duplicates.isEmpty()) {
+                new ConfirmationScreen()
+                    .centered()
+                    .withText(Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"))
+                    .addText(Component.translatable("ponderer.ui.scene_desc.error.item_exists", String.join(", ", duplicates)))
+                    .withAction(confirmed -> {
+                        if (confirmed) {
+                            pendingItemDuplicateConfirm = true;
+                            doConfirm();
+                        }
+                    })
+                    .open(this);
+                return false;
             }
         }
         pendingItemDuplicateConfirm = false;
@@ -380,17 +431,11 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             return false;
         }
 
-        candidate.items = List.of(newItemId);
-        String nbt = itemNbtField.getValue().trim();
-        if (!nbt.isEmpty()) {
-            NbtTextCodec.ParseResult parsed = NbtTextCodec.parse(nbt);
-            if (!parsed.success()) {
-                setErrorMessage(UIText.of("ponderer.ui.nbt_editor.error.invalid"));
-                return false;
-            }
-            nbt = NbtTextCodec.compact(parsed.tag());
-        }
-        candidate.nbtFilter = nbt.isEmpty() ? null : nbt;
+        candidate.items = List.copyOf(newItems);
+        String firstFilter = newFilters.getFirst();
+        boolean sharedFilter = newFilters.stream().allMatch(firstFilter::equals);
+        candidate.nbtFilter = sharedFilter ? emptyToNull(firstFilter) : null;
+        candidate.itemNbtFilters = sharedFilter ? null : List.copyOf(newFilters);
 
         String triggerMode = TRIGGER_MODES[triggerModeIndex];
         if ("structure".equals(triggerMode)) {
@@ -443,6 +488,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
         scene.items = candidate.items;
         scene.nbtFilter = candidate.nbtFilter;
+        scene.itemNbtFilters = candidate.itemNbtFilters;
         scene.triggerMode = candidate.triggerMode;
         scene.hintAuto = candidate.hintAuto;
         scene.hintTitle = candidate.hintTitle;

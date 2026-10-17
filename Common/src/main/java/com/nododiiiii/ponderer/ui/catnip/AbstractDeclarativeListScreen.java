@@ -92,7 +92,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         setActionButtonTooltip(goBack, "ponderer.ui.back", "ponderer.ui.sidebar.back.tooltip");
         addRenderableWidget(goBack);
 
-        list = new ConfigScreenList(minecraft, listWidth, contentAreaHeight(), contentAreaTop(), getEntryHeight());
+        list = createCenteredList(contentAreaHeight(), contentAreaTop());
         list.setX(width / 2 - list.getWidth() / 2 + listHorizontalOffset());
         addRenderableWidget(list);
 
@@ -396,12 +396,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         }
 
         if (headerList == null) {
-            headerList = new ConfigScreenList(
-                minecraft,
-                listWidth,
-                currentHeaderHeight(),
-                contentAreaTop(),
-                getEntryHeight());
+            headerList = createCenteredList(currentHeaderHeight(), contentAreaTop());
             headerList.setX(width / 2 - headerList.getWidth() / 2 + listHorizontalOffset());
             addRenderableWidget(headerList);
         }
@@ -409,6 +404,22 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         headerList.children().clear();
         headerList.children().addAll(headerEntries);
         headerList.setScrollAmount(0);
+    }
+
+    private ConfigScreenList createCenteredList(int height, int top) {
+        return new ConfigScreenList(minecraft, listWidth, height, top, getEntryHeight()) {
+            @Override
+            public int getRowLeft() {
+                // Vanilla adds two pixels here, shifting equal row padding off-center.
+                return getX() + (getWidth() - getRowWidth()) / 2;
+            }
+
+            @Override
+            protected void renderSelection(GuiGraphics graphics, int top, int width, int height,
+                                           int outerColor, int innerColor) {
+                // Keep selection and focus behavior without drawing the vanilla row outline.
+            }
+        };
     }
 
     private int desiredListViewportHeight(int availableHeight) {

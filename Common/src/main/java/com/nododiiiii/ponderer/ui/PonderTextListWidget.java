@@ -59,12 +59,16 @@ public class PonderTextListWidget extends AbstractWidget {
     private int scrollOffset;
 
     public PonderTextListWidget(PonderUI ponderUi) {
-        super(computeLeft(ponderUi.width), TOP_Y,
-            computeWidth(ponderUi.width), Math.max(60, ponderUi.height - TOP_Y - BOTTOM_PAD),
+        super(computeLeft(ponderUi.width), top(ponderUi.width),
+            computeWidth(ponderUi.width), Math.max(60, ponderUi.height - top(ponderUi.width) - BOTTOM_PAD),
             Component.empty());
         this.ponderUi = ponderUi;
         this.configuredDefault = Config.DEFAULT_TEXT_PROGRESS.get();
         this.panelVisible = configuredDefault;
+    }
+
+    private static int top(int screenWidth) {
+        return screenWidth < 480 ? TOP_Y + 28 : TOP_Y;
     }
 
     public boolean isPanelVisible() {

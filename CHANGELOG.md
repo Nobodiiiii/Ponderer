@@ -1,5 +1,101 @@
 # Changelog
 
+## 1.10.6.1
+
+### 修复 / Fixes
+
+- **JEI 依赖范围修正**：移除 NeoForge 侧 JEI 依赖的 19.43 版本上限，允许使用 19.21.0.243 及以上版本。
+  Removed the JEI 19.43 upper version limit in NeoForge metadata, allowing JEI 19.21.0.243 and later.
+
+---
+
+## 1.10.6
+
+### 修复 / Fixes
+
+- **JEI 界面兼容性**：改进对不同 JEI 叠层渲染接口的适配，修复思索界面中物品列表、书签与 tooltip 的显示兼容问题，并补齐 GUI 区域信息同步。
+  Improved compatibility with different JEI overlay rendering APIs, fixing ingredient-list, bookmark, and tooltip rendering in Ponder screens and synchronizing GUI bounds.
+
+---
+
+## 1.10.5
+
+### 新增功能 / New Features
+
+- **NeoForge Java 模组导出**：Java 导出新增 NeoForge 目标工程识别，支持读取 `neoforge.mods.toml` 并生成对应的客户端场景注册代码。
+  Added NeoForge target-project detection to Java export, including `neoforge.mods.toml` parsing and generated client-side scene registration.
+
+### 改进 / Improvements
+
+- **1.21.1 导出代码适配**：更新生成代码中的资源路径、物品自定义数据与结构 NBT 读取方式，使导出模板适配 1.21.1 API。
+  Updated generated resource-location, item custom-data, and structure NBT code to use the 1.21.1 APIs.
+
+### 修复 / Fixes
+
+- **AE2 线缆渲染**：补充 NeoForge 思索场景中的方块实体模型数据读取，修复 AE2 线缆不显示的问题。
+  Added block-entity model-data access in NeoForge Ponder levels, fixing missing AE2 cable rendering.
+
+---
+
+## 1.10.4
+
+### 改进 / Improvements
+
+- **投影仪播放重构**：投影场景改由客户端根据源物品解析并维护播放状态，服务端发送红石触发信号；手动播放与进度定位使用客户端播放流程，并改进场景缓存与渲染边界计算。
+  Reworked projectors to resolve scenes from the source item and manage playback on the client, with server-side redstone trigger signals. Manual playback and seeking now use the client playback flow, with refined scene caching and render bounds.
+
+- **投影仪配置界面**：调整投影仪模型的显示位置、比例与朝向，补充 JEI 避让区域，并改进时间轴末尾关键帧的悬浮与定位。
+  Refined projector model placement, scale, and orientation in the config screen, added JEI exclusion areas, and improved hovering and seeking at timeline endpoints.
+
+- **远程同步去重**：拉取时跳过内容相同的本地文件，减少重复写入与无变化的更新提示。
+  Remote pulls now skip local files with identical contents, reducing redundant writes and update notifications.
+
+### 修复 / Fixes
+
+- **投影播放状态修复**：修复仅红石状态同步导致手动播放重置的问题，完善手动循环、单次播放结束与末帧保留时的动画冻结逻辑。
+  Fixed manual playback resetting on redstone-only state updates, and refined manual looping, single-run completion, and animation freezing when retaining the final frame.
+
+- **跨加载器思索适配**：调整 Fabric / NeoForge 的结构加载、NBT 场景过滤与场景变换相关 Mixin 映射，并补齐投影场景的动画时钟适配。
+  Adjusted Fabric / NeoForge mixin mappings for structure loading, NBT scene filtering, and scene transforms, and expanded animation-clock support for projected scenes.
+
+---
+
+## 1.10.2
+
+### 新增功能 / New Features
+
+- **远程工作区自动同步**：玩家加入服务器后自动同步可拉取的场景与结构；远端上传、删除、回滚及后台检测到的文件变化会增量同步给有拉取权限的在线玩家。
+  Added automatic scene and structure sync on server join, plus incremental updates for players with pull access after remote uploads, deletions, rollbacks, or changes detected by background scans.
+
+### 改进 / Improvements
+
+- **删除同步与本地冲突保护**：同步支持远端文件删除，并保留存在本地修改的文件，补充删除冲突与失败提示。
+  Sync now propagates remote file deletions while preserving locally modified files, with deletion-conflict and failure messages.
+
+- **同步节流与反馈**：自动同步采用后台轮询、变更合并与分批发送，并仅在产生更新、跳过或冲突时显示同步结果。
+  Automatic sync uses background polling, coalesced changes, and batched delivery, showing results only when files are updated, skipped, or conflicted.
+
+---
+
+## 1.10.1
+
+### 新增功能 / New Features
+
+- **蓝图合成配方**：新增内置蓝图的无序合成配方，可使用纸、淡蓝色染料与羽毛合成。
+  Added a shapeless recipe for the built-in blueprint using paper, light blue dye, and a feather.
+
+### 改进 / Improvements
+
+- **投影仪配置界面**：新增投影仪模型展示，并在未放入源物品时为播放、远端拉取操作提供明确提示。
+  Added a projector model display to the config screen and clear prompts when playback or remote pulls are attempted without a source item.
+
+### 修复 / Fixes
+
+- **1.21.1 配方加载与功能开关**：修正投影仪配方目录为 `recipe/`，为 NeoForge / Fabric 补充蓝图与投影仪的配置加载条件，禁用对应功能时不再加载其配方。
+  Corrected projector recipes to use the 1.21.1 `recipe/` directory and added NeoForge / Fabric config conditions so blueprint and projector recipes are omitted when their features are disabled.
+
+---
+
 ## 1.10.0
 
 ### 新增功能 / New Features

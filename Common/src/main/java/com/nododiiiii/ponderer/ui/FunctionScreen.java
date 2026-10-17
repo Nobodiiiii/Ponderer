@@ -8,10 +8,7 @@ import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -181,86 +178,17 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
 
     private static CommandParamScreen buildNewScenePage() {
         CommandParamScreen screen = CommandParamScreen.builder("ponderer.ui.function_page.new_scene.title")
-            .toggleField("use_held", "ponderer.ui.function_page.new.use_held", true)
-            .toggleField("use_held_nbt", "ponderer.ui.function_page.new.use_held_nbt", false)
             .itemField("item_id", "ponderer.ui.scene_desc.item_id",
-                "ponderer.ui.scene_desc.hint.item_id", false)
+                "ponderer.ui.scene_desc.hint.item_id", true)
             .textField("nbt", "ponderer.ui.function_page.param.nbt",
                 "ponderer.ui.function_page.param.nbt.hint", false)
-            .onExecute(values -> {
-                boolean useHeld = "true".equals(values.get("use_held"));
-                boolean useHeldNbt = "true".equals(values.get("use_held_nbt"));
-
-                String binding;
-                CompoundTag nbt = null;
-
-                if (useHeld) {
-                    var player = Minecraft.getInstance().player;
-                    if (player == null) {
-                        return;
-                    }
-                    ItemStack held = player.getMainHandItem();
-                    if (held.isEmpty()) {
-                        PondererClientCommands.newSceneFromHand(null);
-                        return;
-                    }
-                    binding = BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
-                    if (useHeldNbt) {
-                        nbt = PondererClientCommands.extractStackNbtFilter(held);
-                    }
-                } else {
-                    binding = values.get("item_id");
-                }
-
-                if (!useHeldNbt) {
-                    PondererClientCommands.newSceneForBindingSnbt(binding, values.get("nbt"));
-                    return;
-                }
-
-                PondererClientCommands.newSceneForBinding(binding, nbt);
-            })
+            .toggleField("capture_nbt", "ponderer.ui.function_page.new.capture_nbt", false)
+            .onExecute(values -> PondererClientCommands.newSceneForBindingSnbt(
+                values.get("item_id"), values.get("nbt")))
             .build();
 
-        screen.addToggleDependency("use_held_nbt", "use_held");
         screen.enableItemTagDropdown("item_id");
-        screen.addFieldDisablesToggle("item_id", "use_held");
-        screen.addFieldDisablesToggle("nbt", "use_held_nbt");
-
-        screen.addToggleAutoFill("use_held", "item_id", () -> {
-            var player = Minecraft.getInstance().player;
-            if (player == null) {
-                return "";
-            }
-            ItemStack held = player.getMainHandItem();
-            if (held.isEmpty()) {
-                return "";
-            }
-            return BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
-        });
-
-        screen.addToggleAutoFill("use_held_nbt", "nbt", () -> {
-            var player = Minecraft.getInstance().player;
-            if (player == null) {
-                return "";
-            }
-            ItemStack held = player.getMainHandItem();
-            if (held.isEmpty()) {
-                return "";
-            }
-            CompoundTag filter = PondererClientCommands.extractStackNbtFilter(held);
-            if (filter == null || filter.isEmpty()) {
-                return "";
-            }
-            return filter.toString();
-        });
-
-        var player = Minecraft.getInstance().player;
-        if (player != null) {
-            ItemStack held = player.getMainHandItem();
-            if (!held.isEmpty()) {
-                screen.setDefaultValue("item_id", BuiltInRegistries.ITEM.getKey(held.getItem()).toString());
-            }
-        }
+        screen.enableInventoryItemPicker("item_id", "nbt", "capture_nbt");
 
         return screen;
     }

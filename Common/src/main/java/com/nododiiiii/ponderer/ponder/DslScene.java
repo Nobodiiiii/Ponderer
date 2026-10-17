@@ -30,11 +30,15 @@ public class DslScene {
     public Boolean editable;
     public List<SceneSegment> scenes = List.of();
     /**
-     * Optional SNBT filter string. When set, scenes for this DslScene
-     * are only shown if the hovered item's NBT contains these tags.
+     * Optional default SNBT filter for bindings without an itemNbtFilters entry.
+     * A filtered binding matches only if the hovered item's NBT contains these tags.
      * Example: "{CustomModelData:1}" or "{display:{Name:'\"Special\"'}}"
      */
     public String nbtFilter;
+
+    /** Per-binding SNBT filters, aligned with items. Empty entries mean no filter; absent entries use nbtFilter. */
+    @Nullable
+    public List<String> itemNbtFilters;
 
     /**
      * Pack name this scene belongs to. Null or absent for local scenes.

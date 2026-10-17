@@ -19,12 +19,16 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.joml.Vector3f;
 import org.slf4j.Logger;
@@ -227,7 +231,8 @@ public class StructurePreviewWidget {
                     }
                 }
             }
-            List<PlacedBlock> placed = ExtraStructurePlanner.plan(nbt, BlockPos.ZERO, 0, true);
+            List<PlacedBlock> placed = finishTemplateBlocks(mc,
+                ExtraStructurePlanner.plan(nbt, BlockPos.ZERO, 0, true));
             if (placed.isEmpty()) {
                 setStatus(statusPrefix + "no_template");
             } else if (placed.size() > DEFAULT_LARGE_THRESHOLD) {
@@ -240,6 +245,37 @@ public class StructurePreviewWidget {
             LOGGER.debug("StructurePreview: invalid or unsupported world-generation template", e);
             setStatus(statusPrefix + "unavailable");
         }
+    }
+
+    /** Match vanilla jigsaw final_state replacement without running world-generation processors. */
+    private static List<PlacedBlock> finishTemplateBlocks(Minecraft mc, List<PlacedBlock> blocks) {
+        List<PlacedBlock> result = new ArrayList<>(blocks.size());
+        Map<String, BlockState> replacements = new LinkedHashMap<>();
+        for (PlacedBlock block : blocks) {
+            BlockState state = block.state;
+            CompoundTag blockNbt = block.nbt;
+            if (state.is(Blocks.JIGSAW)) {
+                String finalState = blockNbt == null ? "" : blockNbt.getString("final_state");
+                if (finalState.isBlank()) continue;
+                state = replacements.get(finalState);
+                if (state == null) {
+                    try {
+                        state = BlockStateParser.parseForBlock(
+                            mc.level.holderLookup(Registries.BLOCK), finalState, true).blockState();
+                    } catch (Exception | LinkageError e) {
+                        LOGGER.debug("StructurePreview: invalid jigsaw final_state '{}'", finalState, e);
+                        state = Blocks.AIR.defaultBlockState();
+                    }
+                    replacements.put(finalState, state);
+                }
+                // Replacement blocks must not inherit the jigsaw block entity's metadata.
+                blockNbt = null;
+            }
+            if (state.isAir() || state.is(Blocks.STRUCTURE_VOID)
+                || state.is(Blocks.STRUCTURE_BLOCK) || state.is(Blocks.JIGSAW)) continue;
+            result.add(new PlacedBlock(block.pos, state, blockNbt));
+        }
+        return result;
     }
 
     private void bake(Minecraft mc, List<PlacedBlock> placed) {

@@ -530,6 +530,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         List<ResourceLocation> components = SceneItemBindings.resolve(scene.items);
+        List<SceneItemBindings.ResolvedBinding> bindings = SceneItemBindings.resolveWithNbt(scene);
 
         if (components.isEmpty()) {
             LOGGER.warn("Scene {} has no valid items; skipping", scene.id);
@@ -554,14 +555,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
             String basePath = baseId == null ? "scene" : baseId.getPath();
             String scenePath = sceneList.size() > 1 ? basePath + "_" + sceneSuffix(sc, i) : basePath;
             String fullSceneId = getModId() + ":" + scenePath;
-            for (ResourceLocation comp : components) {
-                NbtSceneFilter.registerScene(comp, fullSceneId);
-            }
-            if (scene.nbtFilter != null && !scene.nbtFilter.isBlank()) {
-                CompoundTag nbt = NbtSceneFilter.parseNbt(scene.nbtFilter);
-                if (nbt != null) {
-                    NbtSceneFilter.registerFilter(fullSceneId, nbt);
-                }
+            for (SceneItemBindings.ResolvedBinding binding : bindings) {
+                NbtSceneFilter.registerScene(binding.itemId(), fullSceneId,
+                    NbtSceneFilter.parseNbt(binding.nbtFilter()));
             }
 
             // Register mapping from PonderScene ID to DslScene sceneKey for pack disambiguation

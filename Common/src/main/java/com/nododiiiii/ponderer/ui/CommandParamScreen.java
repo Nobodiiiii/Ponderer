@@ -6,6 +6,8 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -18,7 +20,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class CommandParamScreen extends AbstractJeiAwareFormScreen {
+public class CommandParamScreen extends AbstractInventoryPickerFormScreen {
 
     private static final int CHOICE_BUTTON_WIDTH = 100;
 
@@ -55,6 +57,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     private final Map<String, Map<String, Supplier<String>>> toggleAutoFill = new HashMap<>();
     private final Map<String, VisibilityRule> fieldVisibility = new HashMap<>();
     private final Set<String> itemTagFields = new HashSet<>();
+    private final Map<String, FieldDecorator> inventoryItemPickers = new HashMap<>();
 
     private boolean suppressFieldResponder = false;
     private boolean collectingEntries = false;
@@ -91,6 +94,16 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
 
     public void enableItemTagDropdown(String fieldId) {
         itemTagFields.add(fieldId);
+    }
+
+    public void enableInventoryItemPicker(String itemFieldId, String nbtFieldId, String captureNbtToggleId) {
+        inventoryItemPickers.put(itemFieldId, FieldDecorators.heldItem(stack -> {
+            setTextValue(itemFieldId, BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+            if (Boolean.parseBoolean(currentFieldValue(captureNbtToggleId))) {
+                CompoundTag nbt = PondererClientCommands.extractStackNbtFilter(stack);
+                setTextValue(nbtFieldId, nbt == null || nbt.isEmpty() ? "" : nbt.toString());
+            }
+        }));
     }
 
     @Override
@@ -428,6 +441,10 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         }
         if (itemTagFields.contains(textDef.id)) {
             specs.add(FieldDecorators.itemTagDropdown(textDef.id));
+        }
+        FieldDecorator inventoryPicker = inventoryItemPickers.get(textDef.id);
+        if (inventoryPicker != null) {
+            specs.add(inventoryPicker);
         }
         if (textDef.sceneSelector) {
             specs.add(FieldDecorators.sceneSelector(() -> openSceneSelector(textDef.id, textDef.sceneMultiSelect)));

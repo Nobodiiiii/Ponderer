@@ -965,7 +965,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         final net.minecraft.resources.ResourceLocation reopenId =
             com.nododiiiii.ponderer.ponder.SceneItemBindings.firstItem(scene);
         final String targetSceneId = computeCurrentSceneId();
-        final String nbtFilter = scene.nbtFilter;
+        final String nbtFilter = com.nododiiiii.ponderer.ponder.SceneItemBindings.firstNbtFilter(scene);
 
         if (reloadFromDisk) {
             com.nododiiiii.ponderer.ponder.SceneStore.reloadFromDisk();

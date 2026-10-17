@@ -58,34 +58,39 @@ public record RemotePullRequestPayload(String kind, String id, @Nullable String 
             return;
         }
 
-        sendBatched(player, bundle);
+        // Choosing a specific remote resource is an explicit request to replace its local copy.
+        String mode = RemoteWorkspaceService.KIND_SCENE.equals(payload.kind())
+            || RemoteWorkspaceService.KIND_STRUCTURE.equals(payload.kind()) ? "force" : "check";
+        sendBatched(player, bundle, mode);
         PondererServices.NETWORK.sendToPlayer(player, new RemoteActionResponsePayload(true, bundle.message(), false));
     }
 
-    private static void sendBatched(ServerPlayer player, RemoteWorkspaceService.PullBundle bundle) {
+    private static void sendBatched(ServerPlayer player, RemoteWorkspaceService.PullBundle bundle, String mode) {
         List<SyncResponsePayload.FileEntry> scriptBatch = new ArrayList<>();
         List<SyncResponsePayload.FileEntry> structureBatch = new ArrayList<>();
         int currentBytes = 0;
 
         for (SyncResponsePayload.FileEntry entry : bundle.scripts()) {
-            currentBytes = queueEntry(player, entry, scriptBatch, structureBatch, true, currentBytes);
+            currentBytes = queueEntry(player, entry, scriptBatch, structureBatch, true, currentBytes, mode);
         }
         for (SyncResponsePayload.FileEntry entry : bundle.structures()) {
-            currentBytes = queueEntry(player, entry, scriptBatch, structureBatch, false, currentBytes);
+            currentBytes = queueEntry(player, entry, scriptBatch, structureBatch, false, currentBytes, mode);
         }
 
         PondererServices.NETWORK.sendToPlayer(player,
-            new SyncResponsePayload(List.copyOf(scriptBatch), List.copyOf(structureBatch), true, 0));
+            new SyncResponsePayload(List.copyOf(scriptBatch), List.copyOf(structureBatch), List.of(), List.of(),
+                true, 0, mode, "remote_pull"));
     }
 
     private static int queueEntry(ServerPlayer player, SyncResponsePayload.FileEntry entry,
                                   List<SyncResponsePayload.FileEntry> scripts,
                                   List<SyncResponsePayload.FileEntry> structures,
-                                  boolean script, int currentBytes) {
+                                  boolean script, int currentBytes, String mode) {
         int entrySize = entry.bytes() == null ? 0 : entry.bytes().length;
         if (currentBytes > 0 && currentBytes + entrySize > MAX_SYNC_PAYLOAD_BYTES) {
             PondererServices.NETWORK.sendToPlayer(player,
-                new SyncResponsePayload(List.copyOf(scripts), List.copyOf(structures), false, 0));
+                new SyncResponsePayload(List.copyOf(scripts), List.copyOf(structures), List.of(), List.of(),
+                    false, 0, mode, "remote_pull"));
             scripts.clear();
             structures.clear();
             currentBytes = 0;

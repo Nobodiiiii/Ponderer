@@ -348,8 +348,9 @@ public final class TriggerManager {
         if (changed) saveState();
 
         PonderUI ui;
-        if (scene.nbtFilter != null && !scene.nbtFilter.isBlank()) {
-            ui = PonderUI.of(buildFilteredStack(itemId, scene.nbtFilter));
+        String nbtFilter = SceneItemBindings.firstNbtFilter(scene);
+        if (nbtFilter != null) {
+            ui = PonderUI.of(buildFilteredStack(itemId, nbtFilter));
         } else {
             ui = PonderUI.of(itemId);
         }

@@ -780,6 +780,8 @@ public final class PondererClientCommands {
 
         copy.id = newId;
         copy.items = List.of(targetItem.toString());
+        copy.nbtFilter = SceneItemBindings.nbtFilter(original, 0);
+        copy.itemNbtFilters = null;
 
         if (SceneStore.saveSceneToLocal(copy)) {
             SceneStore.reloadFromDisk();

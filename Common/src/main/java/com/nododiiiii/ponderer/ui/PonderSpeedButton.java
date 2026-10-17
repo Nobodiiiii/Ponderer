@@ -6,15 +6,23 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 public class PonderSpeedButton extends PonderButton {
-    private final String label;
+    private Component label;
 
     public PonderSpeedButton(int x, int y, String label, Component description, Runnable callback) {
-        super(x, y, 20, 10);
+        this(x, y, 20, Component.literal(label), description, callback);
+    }
+
+    public PonderSpeedButton(int x, int y, int width, Component label, Component description, Runnable callback) {
+        super(x, y, width, 10);
         this.label = label;
         withPadding(0, 0);
         setMessage(description);
         withCallback(callback);
         enableFade(0, 5);
+    }
+
+    public void setLabel(Component label) {
+        this.label = label;
     }
 
     @Override

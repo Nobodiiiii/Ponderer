@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.ponder.PonderInterpolationSnapshot;
 import com.nododiiiii.ponderer.ui.PonderSpeedButton;
+import com.nododiiiii.ponderer.ui.PonderUiPreviewAccess;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
@@ -152,6 +153,9 @@ public abstract class PonderPlaybackMixin extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (((PonderUiPreviewAccess) this).ponderer$getFreePreview().mouseReleased(button)) {
+            return true;
+        }
         boolean scrubbing = button == 0 && ponderer$isScrubbing();
         boolean handled = super.mouseReleased(mouseX, mouseY, button);
         if (scrubbing) {
