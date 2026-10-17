@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.ui.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
@@ -38,6 +39,7 @@ public record UploadResponsePayload(String sceneId, @Nullable String pack, Strin
         if (payload.status() != null && payload.status().startsWith("ok:")) {
             String newHash = payload.status().substring(3);
             String metaKey = SyncMeta.metaKey("scripts", payload.sceneId(), payload.pack());
+            PendingRemoteUpdates.resolved(metaKey);
 
             java.nio.file.Path localFile = SceneStore.findLocalSceneFile(payload.sceneId(), payload.pack());
             if (localFile != null && java.nio.file.Files.exists(localFile)) {

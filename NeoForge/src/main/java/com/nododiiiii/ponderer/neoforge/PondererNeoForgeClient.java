@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
+import com.nododiiiii.ponderer.ponder.AutoRemoteSyncClient;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
@@ -129,6 +130,7 @@ public class PondererNeoForgeClient {
 
     // --- Blueprint events ---
     private static void onBlueprintClientTick(ClientTickEvent.Post event) {
+        AutoRemoteSyncClient.tick();
         blueprintHandler.tick();
         TriggerManager.tick();
     }

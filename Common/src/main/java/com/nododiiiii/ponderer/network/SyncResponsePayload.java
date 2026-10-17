@@ -4,9 +4,12 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
+import com.nododiiiii.ponderer.ponder.AutoRemoteSyncClient;
+import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
+import com.nododiiiii.ponderer.ui.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -39,7 +42,11 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
     private static final int MAX_SYNC_PAYLOAD_BYTES = 900 * 1024;
 
     @Nullable
-    private static PullSession activeSession;
+    private static PullSession automaticSession;
+    @Nullable
+    private static PullSession manualSession;
+    @Nullable
+    private static Object sessionConnection;
 
     public record FileEntry(String id, @Nullable String pack, byte[] bytes) {
     }
@@ -157,13 +164,28 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
     }
 
     public static void handle(SyncResponsePayload payload) {
-        PullSession session = activeSession;
+        Object connection = Minecraft.getInstance().getConnection();
+        if (sessionConnection != connection) {
+            automaticSession = null;
+            manualSession = null;
+            sessionConnection = connection;
+        }
+        boolean automatic = "auto".equals(payload.reason()) || "join".equals(payload.reason());
+        if (automatic && !AutoRemoteSyncClient.isEnabled()) {
+            stopAutomaticSync();
+            return;
+        }
+        PullSession session = automatic ? automaticSession : manualSession;
         if (session == null) {
             String pullMode = payload.mode() == null || payload.mode().isBlank()
                 ? PondererClientCommands.consumePullMode()
                 : payload.mode();
             session = new PullSession(pullMode, payload.reason());
-            activeSession = session;
+            if (automatic) {
+                automaticSession = session;
+            } else {
+                manualSession = session;
+            }
         }
 
         applyEntries(payload.scripts(), "scripts", ".json", session);
@@ -171,20 +193,74 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         applyDeletes(payload.deletedScripts(), "scripts", ".json", session);
         applyDeletes(payload.deletedStructures(), "structures", ".nbt", session);
         session.skipped += payload.serverSkippedCount();
+        persistSessionMetadata(session);
 
         if (!payload.finalChunk()) {
             return;
         }
 
+        finishSession(session);
+        if (automatic) {
+            automaticSession = null;
+        } else {
+            manualSession = null;
+        }
+    }
+
+    public static void stopAutomaticSync() {
+        if (sessionConnection != Minecraft.getInstance().getConnection()) {
+            automaticSession = null;
+            return;
+        }
+        if (automaticSession != null) {
+            finishSession(automaticSession);
+            automaticSession = null;
+        }
+    }
+
+    /** Apply only the remote versions the user explicitly selected in remote management. */
+    public static int overwritePending(List<PendingRemoteUpdates.Update> updates) {
+        PullSession session = new PullSession("force", "resolve");
+        List<PendingRemoteUpdates.Update> pending = PendingRemoteUpdates.list();
+        int selected = 0;
+        for (PendingRemoteUpdates.Update update : updates) {
+            if (!pending.contains(update)) {
+                continue;
+            }
+            selected++;
+            String ext = "scripts".equals(update.category()) ? ".json" : ".nbt";
+            if (update.deletion()) {
+                applyDeletes(List.of(new DeleteEntry(update.id(), update.pack())), update.category(), ext, session);
+            } else {
+                applyEntries(List.of(new FileEntry(update.id(), update.pack(), update.bytes())),
+                    update.category(), ext, session);
+            }
+        }
+        finishSession(session);
+        return selected - session.skipped;
+    }
+
+    private static void persistSessionMetadata(PullSession session) {
         if (!session.syncedHashes.isEmpty()) {
             SyncMeta.recordHashes(session.syncedHashes);
+            session.syncedHashes.clear();
         }
         if (!session.deletedMetaKeys.isEmpty()) {
             SyncMeta.removeHashes(session.deletedMetaKeys);
+            session.deletedMetaKeys.clear();
         }
+    }
 
-        SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+    private static void finishSession(PullSession session) {
+        persistSessionMetadata(session);
+
+        if (session.written > 0 || session.deleted > 0) {
+            SceneStore.reloadFromDisk();
+            Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+        }
+        if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
+            screen.onSyncUpdatesChanged();
+        }
 
         if (!session.automatic() || session.written > 0 || session.deleted > 0 || session.skipped > 0
             || session.conflicts > 0) {
@@ -196,8 +272,9 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             notifyClient(Component.translatable("ponderer.cmd.pull.hint_force"));
             notifyClient(Component.translatable("ponderer.cmd.pull.hint_keep"));
         }
-
-        activeSession = null;
+        if (session.conflicts > 0) {
+            notifyClient(Component.translatable("ponderer.cmd.pull.hint_remote_manager"));
+        }
     }
 
     private static void applyDeletes(List<DeleteEntry> entries, String category, String ext, PullSession session) {
@@ -211,24 +288,30 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             }
 
             String metaKey = SyncMeta.metaKey(category, entry.id(), entry.pack());
+            PendingRemoteUpdates.Update update =
+                new PendingRemoteUpdates.Update(category, entry.id(), entry.pack(), null, "local_modified");
+            if (session.automatic() && PendingRemoteUpdates.isIgnored(update)) {
+                continue;
+            }
             String status = SyncMeta.checkDeleteConflict(metaKey, localFile);
-            if ("local_modified".equals(status)) {
+            if ("local_modified".equals(status) && (session.automatic() || !"force".equals(session.pullMode))) {
+                PendingRemoteUpdates.remember(update);
                 session.conflicts++;
                 session.skipped++;
-                if (!session.automatic()) {
-                    notifyClient(Component.translatable("ponderer.cmd.pull.delete_conflict", displayId));
-                }
+                notifyClient(Component.translatable("ponderer.cmd.pull.delete_conflict", displayId));
                 continue;
             }
 
             if (!Files.exists(localFile)) {
                 session.deletedMetaKeys.add(metaKey);
+                PendingRemoteUpdates.resolved(metaKey);
                 continue;
             }
 
             try {
                 Files.deleteIfExists(localFile);
                 session.deletedMetaKeys.add(metaKey);
+                PendingRemoteUpdates.resolved(metaKey);
                 session.deleted++;
             } catch (Exception e) {
                 LOGGER.warn("Failed to delete synced file: {}", localFile, e);
@@ -249,16 +332,26 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             }
 
             String metaKey = SyncMeta.metaKey(category, entry.id(), entry.pack());
+            PendingRemoteUpdates.Update update =
+                new PendingRemoteUpdates.Update(category, entry.id(), entry.pack(), entry.bytes(), "");
+            if (session.automatic() && PendingRemoteUpdates.isIgnored(update)) {
+                continue;
+            }
             if (session.automatic() || !"force".equals(session.pullMode)) {
                 String status = SyncMeta.checkConflict(metaKey, entry.bytes(), localFile);
-                if ("both_modified".equals(status) || "local_modified".equals(status)) {
+                if (!"none".equals(status)) {
                     session.conflicts++;
                     // Joining a world must not replace locally saved edits with an older server copy.
                     if (session.automatic() || "check".equals(session.pullMode)
                         || "keep_local".equals(session.pullMode)) {
-                        if (!session.automatic() && "check".equals(session.pullMode)) {
-                            String key = "both_modified".equals(status)
-                                ? "ponderer.cmd.pull.conflict_both" : "ponderer.cmd.pull.conflict_local";
+                        PendingRemoteUpdates.remember(new PendingRemoteUpdates.Update(
+                            category, entry.id(), entry.pack(), entry.bytes(), status));
+                        if (session.automatic() || "check".equals(session.pullMode)) {
+                            String key = switch (status) {
+                                case "local_deleted" -> "ponderer.cmd.pull.conflict_deleted";
+                                case "both_modified" -> "ponderer.cmd.pull.conflict_both";
+                                default -> "ponderer.cmd.pull.conflict_local";
+                            };
                             notifyClient(Component.translatable(key, displayId));
                         }
                         session.skipped++;
@@ -270,11 +363,13 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
 
             if (hasSameLocalContent(localFile, entry.bytes())) {
                 session.syncedHashes.put(metaKey, entry.bytes());
+                PendingRemoteUpdates.resolved(metaKey);
                 continue;
             }
 
             if (writeFile(localFile, entry.bytes())) {
                 session.syncedHashes.put(metaKey, entry.bytes());
+                PendingRemoteUpdates.resolved(metaKey);
                 session.written++;
             } else {
                 session.skipped++;

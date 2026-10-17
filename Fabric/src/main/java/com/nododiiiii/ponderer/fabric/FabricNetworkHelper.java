@@ -20,6 +20,7 @@ public class FabricNetworkHelper implements NetworkHelper {
     public void registerPackets() {
         PayloadTypeRegistry.playC2S().register(UploadScenePayload.TYPE, UploadScenePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SyncRequestPayload.TYPE, SyncRequestPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(AutoSyncPreferencePayload.TYPE, AutoSyncPreferencePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(DownloadStructurePayload.TYPE, DownloadStructurePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(StructurePreviewRequestPayload.TYPE, StructurePreviewRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(CaptureBlockEntityNbtRequestPayload.TYPE, CaptureBlockEntityNbtRequestPayload.CODEC);
@@ -68,6 +69,10 @@ public class FabricNetworkHelper implements NetworkHelper {
         ServerPlayNetworking.registerGlobalReceiver(SyncRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
             context.player().server.execute(() -> SyncRequestPayload.handle(payload, player));
+        });
+        ServerPlayNetworking.registerGlobalReceiver(AutoSyncPreferencePayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            player.server.execute(() -> AutoSyncPreferencePayload.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(DownloadStructurePayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
@@ -174,6 +179,12 @@ public class FabricNetworkHelper implements NetworkHelper {
     @Environment(EnvType.CLIENT)
     public void sendToServer(CustomPacketPayload packet) {
         ClientPlayNetworking.send(packet);
+    }
+
+    @Override
+    @Environment(EnvType.CLIENT)
+    public boolean canSendToServer(CustomPacketPayload.Type<?> type) {
+        return ClientPlayNetworking.canSend(type);
     }
 
     @Override

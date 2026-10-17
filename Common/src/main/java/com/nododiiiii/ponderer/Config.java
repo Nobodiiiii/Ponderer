@@ -50,6 +50,13 @@ public class Config {
         .translation("ponderer.ui.mod_config.default_text_progress")
         .define("defaultTextProgress", true);
 
+    public static final ModConfigSpec.ConfigValue<String> AUTO_SYNC_SERVER_PONDERS = CLIENT_BUILDER
+        .comment("Automatically sync server Ponder scenes and their structures: 'auto', 'on', or 'off'.",
+                 "Auto disables syncing in singleplayer and enables it in multiplayer, including LAN worlds.",
+                 "Off stays disabled across reconnects. Manual pulls and conflict resolution remain available.")
+        .translation("ponderer.ui.mod_config.auto_sync_server_ponders")
+        .define("autoSyncServerPonders", "auto", value -> "auto".equals(value) || "on".equals(value) || "off".equals(value));
+
     // -- AI Scene Generation --
 
     public static final ModConfigSpec.ConfigValue<String> AI_CONFIG_SOURCE = CLIENT_BUILDER

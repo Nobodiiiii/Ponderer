@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.logging.LogUtils;
 import com.mojang.math.Axis;
+import com.nododiiiii.ponderer.mixin.RenderSystemShaderLightsAccessor;
 import com.nododiiiii.ponderer.ponder.ExtraStructurePlanner;
 import com.nododiiiii.ponderer.ponder.ExtraStructurePlanner.PlacedBlock;
 import net.createmod.catnip.client.render.model.BakedModelBufferer;
@@ -25,7 +26,6 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
-import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.slf4j.Logger;
 
@@ -48,8 +48,9 @@ public class StructurePreviewWidget {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static final int FULL_BRIGHT = 0xF000F0;
-    private static final Vector3f DIFFUSE_LIGHT_0 = new Vector3f(-0.2f, 1.0f, 0.7f).normalize();
-    private static final Vector3f DIFFUSE_LIGHT_1 = new Vector3f(0.2f, 1.0f, -0.7f).normalize();
+    // Match PonderUI's lighting: GUI rendering flips the model's Y axis.
+    private static final Vector3f DIFFUSE_LIGHT_0 = new Vector3f(0.4f, -1.0f, 0.7f).normalize();
+    private static final Vector3f DIFFUSE_LIGHT_1 = new Vector3f(-0.4f, -0.5f, 0.7f).normalize();
 
     /** Rotation rate in degrees per second. One revolution in 60 seconds. */
     private static final float YAW_DEG_PER_SECOND = 6.0f;
@@ -365,6 +366,10 @@ public class StructurePreviewWidget {
         pose.last().normal().set(graphics.pose().last().normal());
         SuperRenderTypeBuffer buffer = DefaultSuperRenderTypeBuffer.getInstance();
 
+        graphics.flush();
+        Vector3f[] lightDirections = RenderSystemShaderLightsAccessor.ponderer$getShaderLightDirections();
+        Vector3f savedLight0 = new Vector3f(lightDirections[0]);
+        Vector3f savedLight1 = new Vector3f(lightDirections[1]);
         RenderSystem.enableBlend();
         RenderSystem.enableDepthTest();
         RenderSystem.setupLevelDiffuseLighting(DIFFUSE_LIGHT_0, DIFFUSE_LIGHT_1);
@@ -398,6 +403,7 @@ public class StructurePreviewWidget {
         buffer.draw();
         } finally {
             pose.popPose();
+            RenderSystem.setShaderLights(savedLight0, savedLight1);
             RenderSystem.disableBlend();
         }
     }
@@ -459,7 +465,7 @@ public class StructurePreviewWidget {
         lastDragX = mouseX;
         lastDragY = mouseY;
         dragYawDeg += (float) (dx * DRAG_YAW_PER_PIXEL);
-        dragPitchDeg += (float) (dy * DRAG_PITCH_PER_PIXEL);
+        dragPitchDeg -= (float) (dy * DRAG_PITCH_PER_PIXEL);
         if (dragPitchDeg < MIN_PITCH - PITCH_DEG) dragPitchDeg = MIN_PITCH - PITCH_DEG;
         if (dragPitchDeg > MAX_PITCH - PITCH_DEG) dragPitchDeg = MAX_PITCH - PITCH_DEG;
         return true;

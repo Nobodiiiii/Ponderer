@@ -20,6 +20,8 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
      */
     public void registerPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(VERSION);
+        event.registrar(VERSION).optional().playToServer(AutoSyncPreferencePayload.TYPE, AutoSyncPreferencePayload.CODEC,
+            (payload, ctx) -> ctx.enqueueWork(() -> AutoSyncPreferencePayload.handle(payload, (ServerPlayer) ctx.player())));
 
         registrar.playToServer(UploadScenePayload.TYPE, UploadScenePayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> UploadScenePayload.handle(payload, (ServerPlayer) ctx.player()));
@@ -122,6 +124,12 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
     @Override
     public void sendToServer(CustomPacketPayload packet) {
         PacketDistributor.sendToServer(packet);
+    }
+
+    @Override
+    public boolean canSendToServer(CustomPacketPayload.Type<?> type) {
+        var connection = net.minecraft.client.Minecraft.getInstance().getConnection();
+        return connection != null && connection.hasChannel(type);
     }
 
     @Override

@@ -14,6 +14,9 @@ public interface NetworkHelper {
     /** Send a packet from client to server. */
     void sendToServer(CustomPacketPayload packet);
 
+    /** Whether the connected server accepts this payload type. Client-side only. */
+    boolean canSendToServer(CustomPacketPayload.Type<?> type);
+
     /** Send a packet from server to a specific player. */
     void sendToPlayer(ServerPlayer player, CustomPacketPayload packet);
 }

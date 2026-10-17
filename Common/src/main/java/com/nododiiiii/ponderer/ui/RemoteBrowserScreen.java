@@ -9,9 +9,11 @@ import com.nododiiiii.ponderer.network.RemoteHistoryRequestPayload;
 import com.nododiiiii.ponderer.network.RemoteHistoryResponsePayload;
 import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
 import com.nododiiiii.ponderer.network.RemoteRollbackRequestPayload;
+import com.nododiiiii.ponderer.network.SyncResponsePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
+import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -52,7 +54,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
         .withZone(ZoneId.systemDefault());
 
     private enum Tab {
-        SCENES, STRUCTURES, PACKS, HISTORY
+        SCENES, STRUCTURES, PACKS, HISTORY, UPDATES
     }
 
     private record LocalComparison(boolean priority, String detail) {
@@ -64,7 +66,8 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     private record RemoteRow(RemoteCatalogResponsePayload.Entry entry, LocalComparison comparison, ItemStack iconStack) {
     }
 
-    private Tab tab = Tab.SCENES;
+    private Tab tab = PendingRemoteUpdates.list().isEmpty() ? Tab.SCENES : Tab.UPDATES;
+    private int syncRevision = -1;
     private boolean requestSent;
     private boolean waitingForServer = true;
     private boolean canPull;
@@ -88,9 +91,50 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     @Override
     protected void init() {
         super.init();
+        if (saveChanges != null) {
+            saveChanges.visible = true;
+            saveChanges.withCallback(() -> overwriteUpdates(PendingRemoteUpdates.list()));
+            PonderIconStencils.attachFail(saveChanges, PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_SAVE));
+            setActionButtonTooltip(saveChanges, "ponderer.ui.remote_browser.action.overwrite_all",
+                "ponderer.ui.remote_browser.action.overwrite_all.tooltip");
+        }
+        if (discardChanges != null) {
+            discardChanges.visible = true;
+            discardChanges.withCallback(() -> ignoreUpdates(PendingRemoteUpdates.list()));
+            setActionButtonTooltip(discardChanges, "ponderer.ui.remote_browser.action.ignore_all",
+                "ponderer.ui.remote_browser.action.ignore_all.tooltip");
+        }
+        updateButtonState(saveChanges, isSaveButtonActive());
+        updateButtonState(discardChanges, isDiscardButtonActive());
+        syncRevision = PendingRemoteUpdates.revision();
         if (!requestSent) {
             requestCatalog();
         }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (syncRevision != PendingRemoteUpdates.revision()) {
+            onSyncUpdatesChanged();
+        }
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
+        return !PendingRemoteUpdates.list().isEmpty();
+    }
+
+    @Override
+    protected boolean isDiscardButtonActive() {
+        return !PendingRemoteUpdates.list().isEmpty();
+    }
+
+    public void onSyncUpdatesChanged() {
+        syncRevision = PendingRemoteUpdates.revision();
+        rebuildListPreservingScroll();
+        updateButtonState(saveChanges, isSaveButtonActive());
+        updateButtonState(discardChanges, isDiscardButtonActive());
     }
 
     public void receiveCatalog(RemoteCatalogResponsePayload payload) {
@@ -161,11 +205,17 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.scenes"), null, () -> switchTab(Tab.SCENES), () -> 0xFFFFFF, () -> true),
             ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.structures"), null, () -> switchTab(Tab.STRUCTURES), () -> 0xFFFFFF, () -> true),
             ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.packs"), null, () -> switchTab(Tab.PACKS), () -> 0xFFFFFF, () -> true),
-            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.history"), null, () -> switchTab(Tab.HISTORY), () -> 0xFFFFFF, () -> true))));
+            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.history"), null, () -> switchTab(Tab.HISTORY), () -> 0xFFFFFF, () -> true),
+            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.updates", PendingRemoteUpdates.list().size()),
+                null, () -> switchTab(Tab.UPDATES), () -> 0xFFE08A, () -> true))));
     }
 
     @Override
     protected void collectEntries(List<ConfigScreenList.Entry> entries) {
+        if (tab == Tab.UPDATES) {
+            collectUpdateEntries(entries);
+            return;
+        }
         if (waitingForServer) {
             entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.loading")));
             return;
@@ -176,7 +226,46 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             case STRUCTURES -> collectStructureEntries(entries);
             case PACKS -> collectPackEntries(entries);
             case HISTORY -> collectHistoryEntries(entries);
+            case UPDATES -> collectUpdateEntries(entries);
         }
+    }
+
+    private void collectUpdateEntries(List<ConfigScreenList.Entry> entries) {
+        List<PendingRemoteUpdates.Update> updates = PendingRemoteUpdates.list();
+        if (updates.isEmpty()) {
+            entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.empty.updates")));
+            return;
+        }
+        for (PendingRemoteUpdates.Update update : updates) {
+            entries.add(new DynamicActionRowListEntry(
+                () -> displayKey(update.id(), update.pack()),
+                () -> UIText.of(update.deletion() ? "ponderer.ui.remote_browser.update.remote_deleted"
+                    : "local_deleted".equals(update.conflict()) ? "ponderer.ui.remote_browser.update.local_deleted"
+                    : "ponderer.ui.remote_browser.update.local_modified"),
+                () -> update.category() + " " + displayKey(update.id(), update.pack()),
+                List.of(
+                    actionButton("ponderer.ui.remote_browser.action.ignore", "ponderer.ui.remote_browser.action.ignore.tooltip",
+                        () -> ignoreUpdates(List.of(update)), 0xB5F5A8, () -> true),
+                    actionButton("ponderer.ui.remote_browser.action.overwrite", "ponderer.ui.remote_browser.action.overwrite.tooltip",
+                        () -> overwriteUpdates(List.of(update)), 0xFF9A9A, () -> true)),
+                null, () -> true));
+        }
+    }
+
+    private void ignoreUpdates(List<PendingRemoteUpdates.Update> updates) {
+        int count = PendingRemoteUpdates.ignore(updates);
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.ignored", count));
+        onSyncUpdatesChanged();
+    }
+
+    private void overwriteUpdates(List<PendingRemoteUpdates.Update> updates) {
+        int count = SyncResponsePayload.overwritePending(updates);
+        if (count < updates.size()) {
+            setErrorMessage(UIText.of("ponderer.ui.remote_browser.status.overwrite_failed", count, updates.size() - count));
+        } else {
+            setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.overwritten", count));
+        }
+        onSyncUpdatesChanged();
     }
 
     @Override
@@ -383,6 +472,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             case HISTORY -> historyId.isBlank()
                 ? UIText.of("ponderer.ui.remote_browser.subtitle.no_history")
                 : displayKey(historyId, historyPack);
+            case UPDATES -> UIText.of("ponderer.ui.remote_browser.subtitle.updates", PendingRemoteUpdates.list().size());
         };
     }
 

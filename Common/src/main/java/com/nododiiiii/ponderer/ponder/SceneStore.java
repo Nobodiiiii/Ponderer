@@ -891,6 +891,7 @@ public final class SceneStore {
         }
         try {
             Files.deleteIfExists(existing);
+            SyncMeta.recordLocalSceneDeletion(sceneId, existing);
             LOGGER.info("Deleted scene file: {}", existing);
             return true;
         } catch (IOException e) {
@@ -967,6 +968,9 @@ public final class SceneStore {
         }
         try {
             Files.deleteIfExists(existing);
+            String packPrefix = DslScene.extractPackPrefix(sceneKey);
+            String sceneId = packPrefix == null ? sceneKey : sceneKey.substring(packPrefix.length()).trim();
+            SyncMeta.recordLocalSceneDeletion(sceneId, existing);
             LOGGER.info("Deleted scene file: {}", existing);
             return true;
         } catch (IOException e) {

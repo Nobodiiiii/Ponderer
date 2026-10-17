@@ -78,10 +78,33 @@ public final class AutoRemoteSyncService {
         if (!UploadPermissions.canPull(player)) {
             return;
         }
-        PlayerSyncState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), PlayerSyncState::new);
+        PLAYER_STATES.computeIfAbsent(player.getUUID(), PlayerSyncState::new);
         if (index.isEmpty()) {
             markDirty();
         }
+        // Wait for the client's saved preference before sending any automatic content.
+    }
+
+    public static void setPlayerEnabled(ServerPlayer player, boolean enabled) {
+        PlayerSyncState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), PlayerSyncState::new);
+        if (state.enabled == enabled) {
+            return;
+        }
+        state.enabled = enabled;
+        state.clearPending();
+        state.lastSentHashes.clear();
+        state.nextAllowedTick = tickCounter;
+        if (!enabled) {
+            return;
+        }
+        UploadPermissions.ensurePullAccess(player);
+        if (!UploadPermissions.canPull(player)) {
+            return;
+        }
+        if (index.isEmpty()) {
+            markDirty();
+        }
+        // Re-enabling must also catch up on versions that changed while disabled.
         enqueueChanged(state, keysNeedingSync(state, index.values()), "join");
         enqueueDeleted(state, recentDeletedKeys, "join");
     }
@@ -181,11 +204,14 @@ public final class AutoRemoteSyncService {
     private static void enqueueForOnlinePullers(MinecraftServer server, Collection<ResourceKey> changed,
                                                 Collection<ResourceKey> deleted, String reason) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            PlayerSyncState state = PLAYER_STATES.get(player.getUUID());
+            if (state == null || !state.enabled) {
+                continue;
+            }
             UploadPermissions.ensurePullAccess(player);
             if (!UploadPermissions.canPull(player)) {
                 continue;
             }
-            PlayerSyncState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), PlayerSyncState::new);
             enqueueChanged(state, changed, reason);
             enqueueDeleted(state, deleted, reason);
         }
@@ -244,7 +270,7 @@ public final class AutoRemoteSyncService {
                 continue;
             }
             PLAYER_STATES.put(playerId, state);
-            if (state.isIdle() || tickCounter < state.nextAllowedTick) {
+            if (!state.enabled || state.isIdle() || tickCounter < state.nextAllowedTick) {
                 continue;
             }
             if (!UploadPermissions.canPull(player)) {
@@ -360,6 +386,7 @@ public final class AutoRemoteSyncService {
         private final Map<ResourceKey, String> lastSentHashes = new LinkedHashMap<>();
         private final LinkedHashSet<ResourceKey> pendingChanges = new LinkedHashSet<>();
         private final LinkedHashSet<ResourceKey> pendingDeletes = new LinkedHashSet<>();
+        private boolean enabled;
         private int nextAllowedTick;
         private String reason = "";
 

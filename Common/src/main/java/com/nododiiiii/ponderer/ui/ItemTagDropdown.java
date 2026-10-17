@@ -155,14 +155,9 @@ final class ItemTagDropdown {
         for (int row = 0; row < visibleRows; row++) {
             int index = firstVisible + row;
             int y = rowTop + row * ROW_HEIGHT;
-            if (row == hovered || index == selected) {
-                new BoxElement()
-                    .withBackground(BoxElement.COLOR_BACKGROUND_FLAT)
-                    .gradientBorder(row == hovered ? AbstractSimiWidget.COLOR_HOVER : AbstractSimiWidget.COLOR_CLICK)
-                    .withBorderOffset(0)
-                    .withBounds(bounds.getWidth() - 6, ROW_HEIGHT - 4)
-                    .at(left + 3, y + 2)
-                    .render(graphics);
+            if (row == hovered) {
+                graphics.fill(left + 1, y, right - 1, y + ROW_HEIGHT,
+                    AbstractSimiWidget.COLOR_DISABLED.getFirst().getRGB());
             }
             graphics.drawString(font, font.plainSubstrByWidth(options.get(index), textWidth),
                 left + PADDING + 2, y + 3, (index == selected

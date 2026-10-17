@@ -14,6 +14,7 @@ public final class PonderIconStencils {
 
     private static final int DEFAULT_ICON_SIZE = 16;
     private static final int TEXTURE_ICON_SIZE = 16;
+    private static final int TEXTURE_SHEET_SIZE = 256;
 
     private PonderIconStencils() {
     }
@@ -73,9 +74,15 @@ public final class PonderIconStencils {
                 float scale = iconSize / (float) TEXTURE_ICON_SIZE;
                 graphics.pose().scale(scale, scale, 1);
                 if (mirrorX) {
-                    graphics.pose().scale(-1, 1, 1);
+                    // Mirror texture coordinates so face culling cannot discard the stencil.
+                    graphics.blit(texture.getLocation(),
+                        -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2,
+                        TEXTURE_ICON_SIZE, TEXTURE_ICON_SIZE,
+                        texture.getStartX() + texture.getWidth(), texture.getStartY(),
+                        -texture.getWidth(), texture.getHeight(), TEXTURE_SHEET_SIZE, TEXTURE_SHEET_SIZE);
+                } else {
+                    texture.render(graphics, -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2);
                 }
-                texture.render(graphics, -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2);
                 graphics.pose().popPose();
             })
             .withBounds(iconSize, iconSize);

@@ -70,6 +70,24 @@ public final class SyncMeta {
         save(meta);
     }
 
+    /** Preserve in-game deletions even when the scene has never been synced. */
+    public static void recordLocalSceneDeletion(String sceneId, Path deletedFile) {
+        Path packsRoot = SceneStore.getPacksRoot().toAbsolutePath().normalize();
+        Path file = deletedFile.toAbsolutePath().normalize();
+        String pack = null;
+        if (file.startsWith(packsRoot)) {
+            Path relative = packsRoot.relativize(file);
+            if (relative.getNameCount() > 1) {
+                pack = relative.getName(0).toString();
+            }
+        }
+        Map<String, String> meta = load();
+        String key = metaKey("scripts", sceneId, pack);
+        if (meta.putIfAbsent(key, "local_deleted") == null) {
+            save(meta);
+        }
+    }
+
     public static String metaKey(String category, String id, @Nullable String pack) {
         if (pack == null || pack.isBlank()) {
             return category + "/" + id;
@@ -126,8 +144,7 @@ public final class SyncMeta {
     /**
      * Check conflict status when pulling a file.
      *
-     * @return "none" if no conflict, "local_modified" if only local changed,
-     * "server_modified" if only server changed, "both_modified" if conflict
+     * @return "none", "local_deleted", "local_modified", or "both_modified"
      */
     public static String checkConflict(String metaKey, byte[] serverContent, Path localFile) {
         Map<String, String> meta = load();
@@ -135,8 +152,14 @@ public final class SyncMeta {
         String serverHash = sha256(serverContent);
         String localHash = hashLocalFile(localFile);
 
+        if (!Files.exists(localFile)) {
+            // A missing file with a sync baseline was deliberately removed locally.
+            return lastSyncHash.isBlank() ? "none" : "local_deleted";
+        }
         if (localHash.isEmpty()) {
-            // Local file doesn't exist -> no conflict, just accept server
+            return "local_modified";
+        }
+        if (localHash.equals(serverHash)) {
             return "none";
         }
 
@@ -145,9 +168,6 @@ public final class SyncMeta {
 
         if (localChanged && serverChanged) {
             // Both sides changed since last sync
-            if (localHash.equals(serverHash)) {
-                return "none"; // Both made the same change
-            }
             return "both_modified";
         }
         if (localChanged) {

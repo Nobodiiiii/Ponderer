@@ -39,6 +39,8 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     protected ConfigScreenList list;
     @Nullable
     protected ConfigScreenList headerList;
+    @Nullable
+    private ConfigScreenList focusedList;
 
     private final int preferredListWidth;
     private final List<ConfigScreenList.Entry> headerEntries = new java.util.ArrayList<>();
@@ -129,10 +131,21 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     @Nullable
     @Override
     public GuiEventListener getFocused() {
+        // Catnip clears list focus when no row is focused, including scrollbar clicks.
+        // Preserve the clicked list for dragging while keeping text input routing.
+        if (focusedList != null && (isDragging() || ConfigScreenList.currentText == null)) {
+            return focusedList;
+        }
         if (ConfigScreenList.currentText != null) {
             return ConfigScreenList.currentText;
         }
         return super.getFocused();
+    }
+
+    @Override
+    public void setFocused(@Nullable GuiEventListener listener) {
+        super.setFocused(listener);
+        focusedList = listener instanceof ConfigScreenList configList ? configList : null;
     }
 
     @Override
