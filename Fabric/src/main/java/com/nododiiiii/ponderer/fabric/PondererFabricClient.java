@@ -10,6 +10,7 @@ import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
@@ -23,6 +24,7 @@ import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.CommonLifecycleEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
@@ -75,6 +77,11 @@ public class PondererFabricClient implements ClientModInitializer {
         // The Ponder library's load-complete lifecycle will run registerAll()
         // for initial registration; calling reload() here causes duplicate scenes.
         PonderConfig.client().editingMode.set(false);
+        CommonLifecycleEvents.TAGS_LOADED.register((registries, client) -> {
+            if (client) {
+                Minecraft.getInstance().execute(ProjectorClientCaches::onItemTagsUpdated);
+            }
+        });
 
         BlockEntityRendererRegistry.register(ModBlockEntities.PROJECTOR.get(), ctx -> new ProjectorBlockEntityRenderer());
         MenuScreens.register(ModMenuTypes.PROJECTOR.get(), ProjectorConfigScreen::new);

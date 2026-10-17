@@ -96,6 +96,12 @@ public final class PondererClientCommands {
                                                 .executes(ctx -> convertFromPonderJs(
                                                         ResourceLocationArgument.getId(ctx, "id"))))))
                         .then(Commands.literal("new")
+                                .then(Commands.literal("tag")
+                                        .then(Commands.argument("tag", ResourceLocationArgument.id())
+                                                .executes(ctx -> newSceneForBinding("#" + ResourceLocationArgument.getId(ctx, "tag"), null))
+                                                .then(Commands.argument("nbt", CompoundTagArgument.compoundTag())
+                                                        .executes(ctx -> newSceneForBinding("#" + ResourceLocationArgument.getId(ctx, "tag"),
+                                                                CompoundTagArgument.getCompoundTag(ctx, "nbt"))))))
                                 .then(Commands.literal("hand")
                                         .executes(ctx -> newSceneFromHand(null))
                                         .then(Commands.literal("use_held_nbt")
@@ -643,7 +649,33 @@ public final class PondererClientCommands {
     }
 
     public static int newSceneForItem(ResourceLocation itemId, @Nullable CompoundTag nbt) {
-        String basePath = itemId.getPath();
+        return newSceneForBinding(itemId.toString(), nbt);
+    }
+
+    public static int newSceneForBindingSnbt(String binding, String snbt) {
+        CompoundTag nbt = null;
+        if (snbt != null && !snbt.isBlank()) {
+            nbt = NbtSceneFilter.parseNbt(snbt);
+            if (nbt == null) {
+                notifyClient(Component.translatable("ponderer.cmd.new.error.invalid_nbt"));
+                return 0;
+            }
+        }
+        return newSceneForBinding(binding, nbt);
+    }
+
+    public static int newSceneForBinding(String rawBinding, @Nullable CompoundTag nbt) {
+        ResourceLocation itemId = SceneItemBindings.id(rawBinding);
+        if (itemId == null) {
+            notifyClient(Component.translatable("ponderer.cmd.new.error.invalid_binding", rawBinding));
+            return 0;
+        }
+        String binding = (SceneItemBindings.isTag(rawBinding) ? "#" : "") + itemId;
+        if (SceneItemBindings.resolve(List.of(binding)).isEmpty()) {
+            notifyClient(Component.translatable("ponderer.cmd.new.error.empty_binding", binding));
+            return 0;
+        }
+        String basePath = (SceneItemBindings.isTag(binding) ? "tag/" : "") + itemId.getPath();
         String baseId = "ponderer:" + basePath;
 
         // Find a unique scene id
@@ -656,7 +688,7 @@ public final class PondererClientCommands {
 
         DslScene scene = new DslScene();
         scene.id = sceneId;
-        scene.items = List.of(itemId.toString());
+        scene.items = List.of(binding);
         scene.title = LocalizedText.ofMap(Map.of(
                 "en_us", "New Scene - " + itemId.getPath(),
                 "zh_cn", "新场景 - " + itemId.getPath()));
@@ -696,10 +728,10 @@ public final class PondererClientCommands {
         if (SceneStore.saveSceneToLocal(scene)) {
             SceneStore.reloadFromDisk();
             Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
-            notifyClient(Component.translatable("ponderer.cmd.new.created", sceneId, itemId.toString()));
+            notifyClient(Component.translatable("ponderer.cmd.new.created", sceneId, binding));
             return 1;
         } else {
-            notifyClient(Component.translatable("ponderer.cmd.new.failed", itemId.toString()));
+            notifyClient(Component.translatable("ponderer.cmd.new.failed", binding));
             return 0;
         }
     }

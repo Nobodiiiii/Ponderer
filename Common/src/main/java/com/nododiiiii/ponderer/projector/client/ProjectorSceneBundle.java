@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.projector.client;
 
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.projector.ProjectorSceneKey;
@@ -147,7 +148,7 @@ public final class ProjectorSceneBundle {
             return null;
         }
 
-        ResourceLocation componentId = ResourceLocation.tryParse(dsl.items.get(0));
+        ResourceLocation componentId = SceneItemBindings.firstItem(dsl);
         if (componentId == null || !PonderIndex.getSceneAccess().doScenesExistForId(componentId)) {
             return null;
         }

@@ -332,8 +332,7 @@ public final class TriggerManager {
 
     private static void openPonderFor(DslScene scene, String sceneKey) {
         if (scene.items == null || scene.items.isEmpty()) return;
-        String itemIdStr = scene.items.get(0);
-        ResourceLocation itemId = ResourceLocation.tryParse(itemIdStr);
+        ResourceLocation itemId = SceneItemBindings.firstItem(scene);
         if (itemId == null) return;
 
         if (!PonderIndex.getSceneAccess().doScenesExistForId(itemId)) {
@@ -358,28 +357,7 @@ public final class TriggerManager {
     }
 
     private static ItemStack buildFilteredStack(ResourceLocation itemId, String nbtFilter) {
-        try {
-            var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
-            ItemStack stack = new ItemStack(item);
-            var tag = net.minecraft.nbt.TagParser.parseTag(nbtFilter);
-            net.minecraft.nbt.CompoundTag fullTag = new net.minecraft.nbt.CompoundTag();
-            fullTag.putString("id", itemId.toString());
-            fullTag.putInt("count", 1);
-            fullTag.put("tag", tag);
-            var level = Minecraft.getInstance().level;
-            if (level != null) {
-                ItemStack parsed = ItemStack.parseOptional(level.registryAccess(), fullTag);
-                if (!parsed.isEmpty()) {
-                    return parsed;
-                }
-            }
-            stack.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
-                net.minecraft.world.item.component.CustomData.of(tag.copy()));
-            return stack;
-        } catch (Exception e) {
-            var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
-            return new ItemStack(item);
-        }
+        return NbtSceneFilter.createStack(itemId, nbtFilter);
     }
 
     // ---- Persistence for shown/read state ----

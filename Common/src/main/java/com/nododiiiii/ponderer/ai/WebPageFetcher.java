@@ -10,7 +10,9 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,8 +36,14 @@ public class WebPageFetcher {
     public record ImageData(String base64, String mediaType) {}
 
     private static HttpClient getClient() {
-        return com.nododiiiii.ponderer.Config.AI_WEB_USE_PROXY.get()
-            ? HttpClientFactory.get() : PLAIN_CLIENT;
+        try {
+            if (com.nododiiiii.ponderer.Config.AI_WEB_USE_PROXY.get()) {
+                return HttpClientFactory.get();
+            }
+        } catch (Throwable ignored) {
+            // Common's isolated unit-test runtime does not include ForgeConfigSpec.
+        }
+        return PLAIN_CLIENT;
     }
 
     /**
@@ -49,6 +57,20 @@ public class WebPageFetcher {
      * Fetch a URL and extract text, optionally downloading images.
      */
     public static WebPageContent fetch(String url, boolean includeImages) throws IOException, InterruptedException {
+        return fetchInternal(url, includeImages, null);
+    }
+
+    public static WebPageContent fetch(String url, boolean includeImages,
+                                       AiCancellationScope cancellation) throws IOException, InterruptedException {
+        return fetchInternal(url, includeImages, cancellation);
+    }
+
+    private static WebPageContent fetchInternal(String url, boolean includeImages,
+                                                AiCancellationScope cancellation)
+        throws IOException, InterruptedException {
+        if (cancellation != null) {
+            cancellation.throwIfCancelled();
+        }
         HttpClient client = getClient();
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(url))
@@ -57,7 +79,28 @@ public class WebPageFetcher {
             .GET()
             .build();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response;
+        if (cancellation == null) {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        } else {
+            CompletableFuture<HttpResponse<String>> requestFuture =
+                cancellation.track(client.sendAsync(request, HttpResponse.BodyHandlers.ofString()));
+            try {
+                response = requestFuture.join();
+            } catch (CancellationException e) {
+                throw e;
+            } catch (CompletionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof IOException io) {
+                    throw io;
+                }
+                if (cause instanceof InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw interrupted;
+                }
+                throw e;
+            }
+        }
         if (response.statusCode() != 200) {
             throw new IOException("HTTP " + response.statusCode() + " fetching " + url);
         }
@@ -68,7 +111,9 @@ public class WebPageFetcher {
             text = text.substring(0, MAX_TEXT_LENGTH) + "\n... (truncated)";
         }
 
-        List<ImageData> images = includeImages ? extractAndDownloadImages(html, url, client) : List.of();
+        List<ImageData> images = includeImages
+            ? extractAndDownloadImages(html, url, client, cancellation)
+            : List.of();
         return new WebPageContent(text, images);
     }
 
@@ -100,7 +145,8 @@ public class WebPageFetcher {
     /**
      * Extract image URLs from HTML, filter by likely content images, download in parallel and encode.
      */
-    private static List<ImageData> extractAndDownloadImages(String html, String pageUrl, HttpClient client) {
+    private static List<ImageData> extractAndDownloadImages(String html, String pageUrl, HttpClient client,
+                                                            AiCancellationScope cancellation) {
         Pattern imgPattern = Pattern.compile("<img[^>]+src=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
         Matcher matcher = imgPattern.matcher(html);
 
@@ -112,16 +158,14 @@ public class WebPageFetcher {
             if (src.contains("icon") || src.contains("logo") || src.contains("avatar")) continue;
             if (src.contains("1x1") || src.contains("pixel")) continue;
             // Resolve relative URLs
-            if (src.startsWith("//")) {
-                src = "https:" + src;
-            } else if (src.startsWith("/")) {
-                try {
-                    URI base = URI.create(pageUrl);
-                    src = base.getScheme() + "://" + base.getHost() + src;
-                } catch (Exception e) {
+            try {
+                URI resolved = URI.create(pageUrl).resolve(src);
+                String scheme = resolved.getScheme();
+                if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
                     continue;
                 }
-            } else if (!src.startsWith("http")) {
+                src = resolved.toString();
+            } catch (Exception e) {
                 continue;
             }
             candidateUrls.add(src);
@@ -137,8 +181,13 @@ public class WebPageFetcher {
                 .header("User-Agent", USER_AGENT)
                 .GET()
                 .build();
-            futures.add(
-                client.sendAsync(imgReq, HttpResponse.BodyHandlers.ofByteArray())
+            CompletableFuture<HttpResponse<byte[]>> responseFuture =
+                client.sendAsync(imgReq, HttpResponse.BodyHandlers.ofByteArray());
+            if (cancellation != null) {
+                cancellation.track(responseFuture);
+            }
+            CompletableFuture<ImageData> imageFuture =
+                responseFuture
                     .thenApply(imgResp -> {
                         if (imgResp.statusCode() != 200) return null;
                         byte[] data = imgResp.body();
@@ -148,8 +197,8 @@ public class WebPageFetcher {
                         if (contentType.contains(";")) contentType = contentType.substring(0, contentType.indexOf(';')).trim();
                         return new ImageData(Base64.getEncoder().encodeToString(data), contentType);
                     })
-                    .exceptionally(ex -> null)
-            );
+                    .exceptionally(ex -> null);
+            futures.add(cancellation == null ? imageFuture : cancellation.track(imageFuture));
         }
 
         // Collect results, keeping order, up to MAX_IMAGES
@@ -157,9 +206,15 @@ public class WebPageFetcher {
         for (CompletableFuture<ImageData> f : futures) {
             if (images.size() >= MAX_IMAGES) break;
             try {
+                if (cancellation != null) {
+                    cancellation.throwIfCancelled();
+                }
                 ImageData img = f.join();
                 if (img != null) images.add(img);
             } catch (Exception ignored) {}
+        }
+        if (cancellation != null) {
+            cancellation.throwIfCancelled();
         }
         return images;
     }

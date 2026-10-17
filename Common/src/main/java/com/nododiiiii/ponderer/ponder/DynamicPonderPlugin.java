@@ -25,6 +25,7 @@ import net.createmod.ponder.api.element.TextElementBuilder;
 import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.api.registration.PonderPlugin;
 import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
+import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
 import net.createmod.ponder.api.registration.SharedTextRegistrationHelper;
 import net.createmod.ponder.api.scene.Selection;
 import net.createmod.ponder.api.scene.PonderStoryBoard;
@@ -412,6 +413,18 @@ public class DynamicPonderPlugin implements PonderPlugin {
         registerBlueprintGuideScene(helper);
     }
 
+    @Override
+    public void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
+        for (DslScene scene : SceneRuntime.getScenes()) {
+            ResourceLocation[] tags = resolveTags(scene.tags);
+            for (ResourceLocation item : SceneItemBindings.resolve(scene.items)) {
+                for (ResourceLocation tag : tags) {
+                    helper.addTagToComponent(item, tag);
+                }
+            }
+        }
+    }
+
     private void registerBlueprintGuideScene(PonderSceneRegistrationHelper<ResourceLocation> helper) {
         Item carrierItem = BlueprintFeature.resolveCarrierItem();
         if (carrierItem == Items.AIR) {
@@ -515,15 +528,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        List<ResourceLocation> components = new ArrayList<>();
-        for (String itemId : scene.items) {
-            ResourceLocation item = ResourceLocation.tryParse(itemId);
-            if (item == null) {
-                LOGGER.warn("Invalid item id {} in scene {}", itemId, scene.id);
-                continue;
-            }
-            components.add(item);
-        }
+        List<ResourceLocation> components = SceneItemBindings.resolve(scene.items);
 
         if (components.isEmpty()) {
             LOGGER.warn("Scene {} has no valid items; skipping", scene.id);
@@ -671,7 +676,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
         List<ResourceLocation> result = new ArrayList<>();
         for (String tagId : tags) {
-            ResourceLocation tag = ResourceLocation.tryParse(tagId);
+            ResourceLocation tag = tagId == null ? null : ResourceLocation.tryParse(tagId);
             if (tag != null) {
                 result.add(tag);
             }
@@ -821,6 +826,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "modify_block_entity_nbt" -> applyModifyBlockEntityNbt(scene, step);
             case "indicate_redstone" -> applyIndicateRedstone(scene, step);
             case "indicate_success" -> applyIndicateSuccess(scene, step);
+            case "spawn_particles" -> {
+                try {
+                    ParticleEffects.emit(scene, step);
+                } catch (IllegalArgumentException e) {
+                    LOGGER.warn("Invalid spawn_particles step: {}", e.getMessage());
+                }
+            }
             case "clear_entities" -> applyClearEntities(scene, step, context);
             case "clear_item_entities" -> applyClearItemEntities(scene, step, context);
             case "modify_entities_nbt" -> applyModifyEntitiesNbt(scene, step, context);

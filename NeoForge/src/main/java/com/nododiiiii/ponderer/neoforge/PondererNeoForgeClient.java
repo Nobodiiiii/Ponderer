@@ -9,6 +9,7 @@ import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.neoforge.interfaces.NeoForgeInterfaceEvents;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
@@ -35,6 +36,7 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.TagsUpdatedEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,6 +65,11 @@ public class PondererNeoForgeClient {
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseScrolled);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseInput);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onPlayerLoggedIn);
+        NeoForge.EVENT_BUS.addListener((TagsUpdatedEvent event) -> {
+            if (event.getUpdateCause() == TagsUpdatedEvent.UpdateCause.CLIENT_PACKET_RECEIVED) {
+                Minecraft.getInstance().execute(ProjectorClientCaches::onItemTagsUpdated);
+            }
+        });
         NeoForgeInterfaceEvents.register();
     }
 

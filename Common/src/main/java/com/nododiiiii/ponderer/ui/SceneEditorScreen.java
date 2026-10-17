@@ -645,6 +645,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             case "move_section" -> stepTypeName("move_section");
             case "indicate_redstone" -> stepTypeName("indicate_redstone");
             case "indicate_success" -> stepTypeName("indicate_success");
+            case "spawn_particles" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("spawn_particles"),
+                step.particle != null ? step.particle : "?");
             case "clear_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
                 stepTypeName("clear_entities"), entityTargetSummary(step.entity, step.linkId));
             case "clear_item_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
@@ -960,11 +962,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         PonderScreenNavigation.restoreReturnState(ponderReturnState);
         mc.setScreen(null);
 
-        net.minecraft.resources.ResourceLocation itemId = null;
-        if (scene.items != null && !scene.items.isEmpty()) {
-            itemId = net.minecraft.resources.ResourceLocation.tryParse(scene.items.get(0));
-        }
-        final net.minecraft.resources.ResourceLocation reopenId = itemId;
+        final net.minecraft.resources.ResourceLocation reopenId =
+            com.nododiiiii.ponderer.ponder.SceneItemBindings.firstItem(scene);
         final String targetSceneId = computeCurrentSceneId();
         final String nbtFilter = scene.nbtFilter;
 
@@ -993,17 +992,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private static net.minecraft.world.item.ItemStack buildFilteredStack(net.minecraft.resources.ResourceLocation itemId,
                                                                          String nbtFilter) {
-        net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
-        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item);
-        try {
-            net.minecraft.nbt.CompoundTag filterTag = net.minecraft.nbt.TagParser.parseTag(nbtFilter);
-            if (!filterTag.isEmpty()) {
-                stack.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
-                        net.minecraft.world.item.component.CustomData.of(filterTag));
-            }
-        } catch (Exception ignored) {
-        }
-        return stack;
+        return com.nododiiiii.ponderer.ponder.NbtSceneFilter.createStack(itemId, nbtFilter);
     }
 
     @Nullable

@@ -3,6 +3,7 @@
 package ${PACKAGE};
 
 import com.mojang.logging.LogUtils;
+import com.mojang.brigadier.StringReader;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.ElementLink;
@@ -21,6 +22,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
+import net.minecraft.commands.arguments.ParticleArgument;
+import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -806,6 +809,37 @@ public final class GeneratedPonderSupport {
                     data -> data.merge(patch.copy()), Boolean.TRUE.equals(redraw));
             } catch (Exception ignored) {
             }
+        }
+    }
+
+    public static void spawnParticles(SceneBuilder scene, String particle, Vec3 pos, String distribution,
+                                      Vec3 spread, Vec3 motion, int count, int duration) {
+        if (pos == null || particle == null || count < 0 || count > 4096 || duration < 1 || duration > 72000) {
+            LOGGER.warn("Invalid spawn_particles parameters");
+            return;
+        }
+        try {
+            StringReader reader = new StringReader(particle.trim());
+            ParticleOptions options = ParticleArgument.readParticle(reader, scene.getScene().getWorld().registryAccess());
+            reader.skipWhitespace();
+            if (reader.canRead()) throw new IllegalArgumentException("Unexpected trailing particle options");
+            scene.effects().emitParticles(pos, (world, x, y, z) -> {
+                var random = world.getRandom();
+                Vec3 offset = Vec3.ZERO;
+                if ("box".equals(distribution)) {
+                    offset = new Vec3(random.nextDouble() * 2 - 1, random.nextDouble() * 2 - 1, random.nextDouble() * 2 - 1);
+                } else if ("sphere".equals(distribution)) {
+                    double vertical = random.nextDouble() * 2 - 1;
+                    double angle = random.nextDouble() * Math.PI * 2;
+                    double radius = Math.cbrt(random.nextDouble());
+                    double horizontal = Math.sqrt(1 - vertical * vertical);
+                    offset = new Vec3(horizontal * Math.cos(angle), vertical, horizontal * Math.sin(angle)).scale(radius);
+                }
+                world.addParticle(options, x + offset.x * spread.x, y + offset.y * spread.y, z + offset.z * spread.z,
+                    motion.x, motion.y, motion.z);
+            }, count, duration);
+        } catch (Exception e) {
+            LOGGER.warn("Invalid spawn_particles step: {}", e.getMessage());
         }
     }
 

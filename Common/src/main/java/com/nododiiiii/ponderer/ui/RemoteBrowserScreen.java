@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
 import com.nododiiiii.ponderer.network.RemoteCatalogRequestPayload;
 import com.nododiiiii.ponderer.network.RemoteCatalogResponsePayload;
@@ -483,6 +484,10 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
         int nbtStart = itemId.indexOf('{');
         if (nbtStart >= 0) {
             itemId = itemId.substring(0, nbtStart).trim();
+        }
+        if (SceneItemBindings.isTag(itemId)) {
+            List<ResourceLocation> items = SceneItemBindings.resolve(List.of(itemId));
+            return items.isEmpty() ? null : items.getFirst();
         }
         ResourceLocation loc = ResourceLocation.tryParse(itemId);
         if (loc == null) {

@@ -482,6 +482,12 @@ public final class RemoteWorkspaceService {
             if (itemId.equals(boundItem)) {
                 return true;
             }
+            if (SceneItemBindings.isTag(boundItem)) {
+                ResourceLocation requested = ResourceLocation.tryParse(itemId);
+                if (requested != null && SceneItemBindings.resolve(List.of(boundItem)).contains(requested)) {
+                    return true;
+                }
+            }
         }
         return false;
     }

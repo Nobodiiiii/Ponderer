@@ -1,6 +1,9 @@
 package com.nododiiiii.ponderer.ai;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import net.minecraft.SharedConstants;
+import net.minecraft.server.Bootstrap;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -21,17 +24,23 @@ class AiSceneAgentPipelineTest {
     @TempDir
     Path tempDir;
 
+    @BeforeAll
+    static void bootstrapMinecraft() {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+    }
+
     @Test
     void repairsInvalidDraftUntilSceneParsesAndValidates() {
         FakeLlm llm = new FakeLlm(List.of(
             """
-                Segment 1: introduce the block.
-                REQUIRED_ELEMENTS: Paper
+                {"tool_calls":[{"id":"structure","name":"query_structure","arguments":{"mode":"summary"}}]}
                 """,
             """
-                {"id":"","items":[],"scenes":[{"steps":[{"type":"text","text":"broken","point":[99,99,99]}]}]}
+                {"tool_calls":[{"id":"bad","name":"submit_scene","arguments":{"scene":{"id":"","items":[],"scenes":[]}}}]}
                 """,
-            validSceneJson()
+            "{\"tool_calls\":[{\"id\":\"submit\",\"name\":\"submit_scene\",\"arguments\":{\"scene\":"
+                + validSceneJson() + "}}]}"
         ));
 
         AiRuntimeConfig config = new AiRuntimeConfig(
@@ -48,20 +57,22 @@ class AiSceneAgentPipelineTest {
 
         List<String> statuses = new ArrayList<>();
         AiSceneAgentPipeline.Result result = AiSceneAgentPipeline.run(
+            "test-run",
             request,
             llm,
             config,
-            2,
+            6,
             statuses::add,
-            (requiredElements, structureBlockIds) -> "Display Name -> Registry ID mapping:\n  Paper -> minecraft:paper [item]\n");
+            (name, content) -> {
+            }, new AiCancellationScope());
 
         assertEquals("ponderer:test_agent", result.scene().id);
-        assertEquals(1, result.repairAttempts());
+        assertEquals(2, result.validationAttempts());
         assertEquals(3, llm.calls.size());
-        assertTrue(result.validationIssues().isEmpty());
+        assertEquals(3, result.turnCount());
         assertTrue(result.finalJson().contains("\"ponderer:test_agent\""));
-        assertTrue(statuses.stream().anyMatch(status -> status.startsWith("Repairing scene JSON")));
-        assertTrue(llm.calls.get(2).userText().contains("VALIDATOR REPAIR REQUEST"));
+        assertTrue(statuses.stream().anyMatch(status -> status.startsWith("Fixing scene draft")));
+        assertTrue(llm.calls.get(2).userText().contains("\"errors\""));
     }
 
     @Test

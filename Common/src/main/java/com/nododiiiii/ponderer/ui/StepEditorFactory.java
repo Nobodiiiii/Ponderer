@@ -42,8 +42,7 @@ public final class StepEditorFactory {
             case "rotate_section" -> new SectionTransformScreen("rotate_section", true, scene, sceneIndex, parent);
             case "move_section" -> new SectionTransformScreen("move_section", false, scene, sceneIndex, parent);
             case "modify_block_entity_nbt" -> new ModifyBlockEntityNbtScreen(scene, sceneIndex, parent);
-            case "indicate_redstone" -> new IndicateEffectScreen("indicate_redstone", scene, sceneIndex, parent);
-            case "indicate_success" -> new IndicateEffectScreen("indicate_success", scene, sceneIndex, parent);
+            case "spawn_particles", "indicate_redstone", "indicate_success" -> new ParticleEffectScreen(scene, sceneIndex, parent);
             case "clear_entities" -> new ClearEntitiesScreen("clear_entities", scene, sceneIndex, parent);
             case "clear_item_entities" -> new ClearEntitiesScreen("clear_item_entities", scene, sceneIndex, parent);
             case "modify_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_entities_nbt", scene, sceneIndex, parent);
@@ -84,8 +83,7 @@ public final class StepEditorFactory {
             case "rotate_section" -> new SectionTransformScreen("rotate_section", true, scene, sceneIndex, parent, stepIndex, step);
             case "move_section" -> new SectionTransformScreen("move_section", false, scene, sceneIndex, parent, stepIndex, step);
             case "modify_block_entity_nbt" -> new ModifyBlockEntityNbtScreen(scene, sceneIndex, parent, stepIndex, step);
-            case "indicate_redstone" -> new IndicateEffectScreen("indicate_redstone", scene, sceneIndex, parent, stepIndex, step);
-            case "indicate_success" -> new IndicateEffectScreen("indicate_success", scene, sceneIndex, parent, stepIndex, step);
+            case "spawn_particles", "indicate_redstone", "indicate_success" -> new ParticleEffectScreen(scene, sceneIndex, parent, stepIndex, step);
             case "clear_entities" -> new ClearEntitiesScreen("clear_entities", scene, sceneIndex, parent, stepIndex, step);
             case "clear_item_entities" -> new ClearEntitiesScreen("clear_item_entities", scene, sceneIndex, parent, stepIndex, step);
             case "modify_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_entities_nbt", scene, sceneIndex, parent, stepIndex, step);

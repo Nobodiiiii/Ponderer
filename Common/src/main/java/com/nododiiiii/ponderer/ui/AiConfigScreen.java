@@ -69,6 +69,10 @@ public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
             "ponderer.ui.ai_config.max_tokens.hint",
             "ponderer.ui.ai_config.max_tokens.tooltip",
             Config.AI_MAX_TOKENS));
+        entries.add(ConfigEntries.integerEntry("ponderer.ui.ai_config.max_agent_turns",
+            "ponderer.ui.ai_config.max_agent_turns.hint",
+            "ponderer.ui.ai_config.max_agent_turns.tooltip",
+            Config.AI_MAX_AGENT_TURNS));
         entries.add(ConfigEntries.booleanEntry("ponderer.ui.ai_config.trust_ssl",
             "ponderer.ui.ai_config.trust_ssl.tooltip",
             Config.AI_TRUST_ALL_SSL));

@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
@@ -21,8 +22,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
@@ -556,7 +555,8 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             String packKey = packPrefix != null ? packPrefix : "";
             String sceneKey = scene.sceneKey();
 
-            for (String itemId : scene.items) {
+            for (ResourceLocation resolvedItem : SceneItemBindings.resolve(scene.items)) {
+                String itemId = resolvedItem.toString();
                 String nf = scene.nbtFilter;
                 String entryKey = normalizedEntryKey(itemId, nf);
 
@@ -618,7 +618,8 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             }
             String sceneKey = scene.sceneKey();
 
-            for (String itemId : scene.items) {
+            for (ResourceLocation resolvedItem : SceneItemBindings.resolve(scene.items)) {
+                String itemId = resolvedItem.toString();
                 String nf = scene.nbtFilter;
                 String key = normalizedEntryKey(itemId, nf);
 
@@ -663,24 +664,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
             Set<String> seenNormalizedKeys = new HashSet<>();
             for (String nf : itemEntry.getValue()) {
-                ItemStack stack = new ItemStack(item);
-                if (nf != null) {
-                    try {
-                        CompoundTag filterTag = TagParser.parseTag(nf);
-                        CompoundTag fullTag = new CompoundTag();
-                        fullTag.putString("id", rl.toString());
-                        fullTag.putInt("count", 1);
-                        fullTag.put("tag", filterTag);
-                        var level = Minecraft.getInstance().level;
-                        if (level != null) {
-                            ItemStack parsed = ItemStack.parseOptional(level.registryAccess(), fullTag);
-                            if (!parsed.isEmpty()) {
-                                stack = parsed;
-                            }
-                        }
-                    } catch (Exception ignored) {
-                    }
-                }
+                ItemStack stack = NbtSceneFilter.createStack(rl, nf);
 
                 String key = normalizedEntryKey(itemId, nf);
                 if (!seenNormalizedKeys.add(key)) {

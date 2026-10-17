@@ -38,6 +38,12 @@ public class RegistryMapper {
     /** An entry in the combined lookup index. */
     private record Entry(String id, String displayName, String path, String kind) {}
 
+    public record Candidate(String id, String displayName, List<String> kinds, String matchLevel) {
+    }
+
+    public record NameLookup(String query, List<Candidate> candidates, boolean found, boolean ambiguous) {
+    }
+
     /**
      * Add an entry. Unlike before, the same ID can be added multiple times with different kinds.
      * Deduplication is by (id + kind) pair, not by id alone.
@@ -284,5 +290,139 @@ public class RegistryMapper {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * Structured variant used by the agent protocol.
+     */
+    public static List<NameLookup> lookupForDisplayNames(List<String> requestedNames) {
+        Map<String, List<Entry>> displayIndex = new LinkedHashMap<>();
+        Map<String, List<Entry>> pathIndex = new LinkedHashMap<>();
+        List<Entry> allEntries = new ArrayList<>();
+        Set<String> indexedIdKinds = new HashSet<>();
+
+        BuiltInRegistries.BLOCK.forEach(block -> {
+            String id = BuiltInRegistries.BLOCK.getKey(block).toString();
+            addEntry(allEntries, indexedIdKinds, displayIndex, pathIndex, id,
+                block.getName().getString().toLowerCase(Locale.ROOT),
+                BuiltInRegistries.BLOCK.getKey(block).getPath().toLowerCase(Locale.ROOT), "block");
+        });
+        BuiltInRegistries.ENTITY_TYPE.forEach(entityType -> {
+            String id = BuiltInRegistries.ENTITY_TYPE.getKey(entityType).toString();
+            addEntry(allEntries, indexedIdKinds, displayIndex, pathIndex, id,
+                entityType.getDescription().getString().toLowerCase(Locale.ROOT),
+                BuiltInRegistries.ENTITY_TYPE.getKey(entityType).getPath().toLowerCase(Locale.ROOT), "entity");
+        });
+
+        boolean jeiAvailable;
+        try {
+            jeiAvailable = JeiCompat.isAvailable();
+        } catch (Throwable ignored) {
+            jeiAvailable = false;
+        }
+        if (jeiAvailable) {
+            for (String[] entry : JeiCompat.getAllExtraIngredientEntries()) {
+                addEntry(allEntries, indexedIdKinds, displayIndex, pathIndex,
+                    entry[0], entry[1], entry[2], entry[3]);
+            }
+        } else {
+            BuiltInRegistries.ITEM.forEach(item -> {
+                String id = BuiltInRegistries.ITEM.getKey(item).toString();
+                addEntry(allEntries, indexedIdKinds, displayIndex, pathIndex, id,
+                    item.getDescription().getString().toLowerCase(Locale.ROOT),
+                    BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase(Locale.ROOT), "item");
+            });
+        }
+
+        List<NameLookup> results = new ArrayList<>();
+        for (String rawName : requestedNames) {
+            String name = rawName == null ? "" : rawName.trim();
+            if (name.isEmpty()) {
+                continue;
+            }
+
+            if (name.contains(":")) {
+                List<Entry> matches = allEntries.stream()
+                    .filter(entry -> entry.id().equalsIgnoreCase(name))
+                    .toList();
+                List<Candidate> exactIdCandidates = candidates(matches, allEntries, "exact_id");
+                results.add(new NameLookup(
+                    name, exactIdCandidates, !exactIdCandidates.isEmpty(), exactIdCandidates.size() > 1));
+                continue;
+            }
+
+            String lower = name.toLowerCase(Locale.ROOT);
+            String asPath = lower.replace(' ', '_');
+            Map<String, Entry> exact = new LinkedHashMap<>();
+            List<Entry> displayMatches = displayIndex.get(lower);
+            if (displayMatches != null) {
+                displayMatches.forEach(entry -> exact.putIfAbsent(entry.id(), entry));
+            }
+            for (String pathKey : List.of(lower, asPath)) {
+                List<Entry> pathMatches = pathIndex.get(pathKey);
+                if (pathMatches != null) {
+                    pathMatches.forEach(entry -> exact.putIfAbsent(entry.id(), entry));
+                }
+            }
+            if (!exact.isEmpty()) {
+                String level = exact.size() == 1 ? "exact" : "exact_ambiguous";
+                List<Candidate> exactCandidates =
+                    candidates(new ArrayList<>(exact.values()), allEntries, level);
+                results.add(new NameLookup(name, exactCandidates, true, exactCandidates.size() > 1));
+                continue;
+            }
+
+            String[] words = lower.split("\\s+");
+            String[] pathWords = asPath.split("_");
+            Map<String, Entry> fuzzy = new LinkedHashMap<>();
+            for (Entry entry : allEntries) {
+                if (fuzzy.size() >= 8) {
+                    break;
+                }
+                boolean matches = allPartsMatch(entry, words);
+                if (!matches && pathWords.length > 1) {
+                    matches = allPartsMatch(entry, pathWords);
+                }
+                if (matches) {
+                    fuzzy.putIfAbsent(entry.id(), entry);
+                }
+            }
+            List<Candidate> fuzzyCandidates = candidates(
+                new ArrayList<>(fuzzy.values()), allEntries, "fuzzy");
+            results.add(new NameLookup(
+                name, fuzzyCandidates, !fuzzyCandidates.isEmpty(), fuzzyCandidates.size() > 1));
+        }
+        return List.copyOf(results);
+    }
+
+    private static boolean allPartsMatch(Entry entry, String[] parts) {
+        for (String part : parts) {
+            String normalized = part.replace(' ', '_');
+            if (!entry.displayName().contains(part)
+                && !entry.path().contains(part)
+                && !entry.path().contains(normalized)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static List<Candidate> candidates(List<Entry> matches, List<Entry> allEntries, String level) {
+        Map<String, Entry> unique = new LinkedHashMap<>();
+        for (Entry entry : matches) {
+            unique.putIfAbsent(entry.id(), entry);
+        }
+        List<Candidate> candidates = new ArrayList<>();
+        for (Entry entry : unique.values()) {
+            List<String> kinds = allEntries.stream()
+                .filter(candidate -> candidate.id().equals(entry.id()))
+                .map(Entry::kind)
+                .distinct()
+                .sorted(Comparator.comparingInt(RegistryMapper::kindPriority))
+                .toList();
+            candidates.add(new Candidate(
+                entry.id(), entry.displayName(), kinds, level));
+        }
+        return List.copyOf(candidates);
     }
 }

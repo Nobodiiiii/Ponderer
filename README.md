@@ -25,8 +25,10 @@ Ponderer 是一个 Minecraft 模组，提供数据驱动的 Ponder 场景编写�
 ### 思索的游戏内编辑
 
 - **可视化场景编辑**：在游戏内创建、编辑、删除和排序 Ponder 思索，支持 **热重载**。
+- **思索标签**：在编辑器的“修改信息 → 思索标签”中，按图标和名称多选已安装模组的分类（如 Create 的动力源），支持搜索标签名称、ID 和说明。选择后保存返回，再保存描述即可热重载；标签对整个思索的所有分场景生效，并将关联物品加入对应标签目录。标签保存在 JSON 的 `tags` 数组中，随场景同步、打包及 Java 模块导出。
 - **丰富步骤类型**：覆盖 结构展示/叠加结构、文本、实体与掉落物、镜头旋转/缩放、高亮区域、控制提示、声音、方块修改、区段移动/旋转 等绝大部分常用教程动作。
 - **界面化表单编辑**：为不同步骤提供专用配置界面，支持 ID、坐标、NBT、时长、方向、选区等字段校验，减少手写 JSON 的出错成本。
+- **按物品标签绑定**：新建思索时关闭“使用手持物品”，在“物品 ID / #标签”填写 `#minecraft:logs` 等物品标签，可同时填写 NBT 条件。JSON 的 `items` 可混用物品 ID 与 `#标签`；命令示例：`/ponderer new tag minecraft:logs {example:1b}`。标签随进服和数据包重载重新解析。
 - **结构与蓝图素材**：使用蓝图工具保存选区结构，并从 `config/ponderer/structures/` 加载自定义结构素材。
 - **JSON DSL 存储**：场景以 **数据驱动 JSON** 存放在 `config/ponderer/scripts/`，便于版本管理、手动调整和工具链处理。
 
@@ -126,8 +128,10 @@ Ponderer is a Minecraft mod for data-driven Ponder scene authoring, in-game visu
 ### In-Game Ponder Editing
 
 - **Visual scene editing**: Create, edit, delete, and reorder Ponder scenes in-game, with **hot reload** support.
+- **Ponder tags**: Open **Info → Ponder Tags** to select categories from installed mods (such as Create's Kinetic Sources) by icon and name. Search names, IDs, and descriptions; save the selection, then save the description to reload. Tags apply to all scenes in the ponder and add its associated items to the category index. The JSON `tags` array travels with scene sync, resource packs, and Java module exports.
 - **Rich step types**: Covers most common tutorial actions, including structure display/overlay structures, text, entities and dropped items, camera rotation/zoom, highlighted areas, control hints, sounds, block edits, and section movement/rotation.
 - **Form-based editing**: Dedicated configuration screens for different steps validate fields such as IDs, coordinates, NBT, durations, directions, and selections, reducing the error cost of hand-written JSON.
+- **Item tag bindings**: When creating a ponder, disable “Use held item” and enter an item tag such as `#minecraft:logs` in “Item ID / #Tag”, optionally with an NBT filter. JSON `items` can mix item IDs and `#tags`. Command example: `/ponderer new tag minecraft:logs {example:1b}`. Tags are resolved again on joining and datapack reloads.
 - **Structures and blueprint assets**: Save selected areas with the blueprint tool and load custom structure assets from `config/ponderer/structures/`.
 - **JSON DSL storage**: Scenes are stored as **data-driven JSON** under `config/ponderer/scripts/`, making them easy to version, adjust manually, and process with toolchains.
 

@@ -1,9 +1,11 @@
 package com.nododiiiii.ponderer.ai;
 
 import com.mojang.logging.LogUtils;
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ui.UIText;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.platform.PondererServices;
@@ -12,28 +14,22 @@ import org.slf4j.Logger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
-import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
- * Orchestrator: assembles the prompt, calls the LLM provider in two passes,
- * validates the result, writes the scene JSON to disk and triggers reload.
- *
- * <p>Pass 1 — outline: LLM designs the scene narrative and declares required game elements
- * (REQUIRED_ELEMENTS line). No JSON output, no registry mapping needed.
- *
- * <p>Pass 2 — JSON: LLM generates the full scene JSON, guided by the outline and a
- * targeted registry mapping built from the elements declared in Pass 1.
+ * Orchestrator for the bounded scene-authoring agent, local save, and reload.
  */
 public class AiSceneGenerator {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /**
-     * Generate a ponder scene from structure + user prompt using two LLM passes.
+     * Generate a ponder scene from structure + user prompt using the bounded agent loop.
      *
      * @param structurePaths  list of NBT file paths for the structures
      * @param carrierItemId   the item ID this scene is for (e.g. "minecraft:piston")
@@ -44,13 +40,28 @@ public class AiSceneGenerator {
      * @param onError         callback on main thread with error message
      * @param onStatus        callback on main thread with intermediate status messages
      */
-    public static void generate(List<Path> structurePaths, String carrierItemId, String userPrompt,
-                                 List<String> referenceUrls, String existingJson,
-                                 boolean buildTutorial, boolean includeImages,
-                                 Consumer<String> onSuccess, Consumer<String> onError,
-                                 Consumer<String> onStatus) {
-        CompletableFuture.supplyAsync(() -> {
+    public static AiGenerationTask generate(List<Path> structurePaths, String carrierItemId, String userPrompt,
+                                            List<String> referenceUrls, String existingJson,
+                                            boolean buildTutorial, boolean includeImages,
+                                            Consumer<String> onSuccess, Consumer<String> onError,
+                                            Consumer<String> onStatus) {
+        return start(
+            structurePaths, carrierItemId, userPrompt, referenceUrls, existingJson,
+            buildTutorial, includeImages, onSuccess, onError, () -> {
+            }, onStatus);
+    }
+
+    public static AiGenerationTask start(List<Path> structurePaths, String carrierItemId, String userPrompt,
+                                         List<String> referenceUrls, String existingJson,
+                                         boolean buildTutorial, boolean includeImages,
+                                         Consumer<String> onSuccess, Consumer<String> onError,
+                                         Runnable onCancelled, Consumer<String> onStatus) {
+        String runId = UUID.randomUUID().toString();
+        AiCancellationScope cancellation = new AiCancellationScope();
+        writeLog("last_agent_trace.log", "run=" + runId + "\nstatus=started\n");
+        CompletableFuture<String> worker = CompletableFuture.supplyAsync(() -> {
             try {
+                cancellation.throwIfCancelled();
                 AiRuntimeConfig config = AiRuntimeConfigResolver.resolve();
                 if (!config.hasApiKey()) {
                     throw new RuntimeException(
@@ -67,40 +78,88 @@ public class AiSceneGenerator {
                     includeImages
                 );
                 AiSceneAgentPipeline.Result result = AiSceneAgentPipeline.run(
+                    runId,
                     request,
                     AiProviderFactory.create(config),
                     config,
+                    Config.AI_MAX_AGENT_TURNS.get(),
                     status -> notifyStatus(onStatus, status),
-                    AiSceneGenerator::writeLog
+                    AiSceneGenerator::writeLog,
+                    cancellation
                 );
 
+                cancellation.throwIfCancelled();
                 SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(result.scene());
                 if (!saveResult.isSuccess() || saveResult.path() == null) {
                     throw new RuntimeException(saveResult.englishMessage());
                 }
 
                 return saveResult.path().toString();
+            } catch (CancellationException e) {
+                throw e;
             } catch (Exception e) {
                 throw new RuntimeException(e.getMessage(), e);
             }
-        }).thenAcceptAsync(filePath -> {
-            PondererClientCommands.reloadLocal();
-            onSuccess.accept(filePath);
-        }, Minecraft.getInstance()).exceptionally(ex -> {
-            Throwable cause = ex;
-            while (cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
-            LOGGER.error("AI scene generation failed", cause);
-            String msg = cause.getMessage();
-            if (msg == null) msg = cause.getClass().getSimpleName();
-            String finalMsg = msg;
-            Minecraft.getInstance().execute(() -> onError.accept(finalMsg));
-            return null;
         });
+        CompletableFuture<Void> completion = worker.handleAsync((filePath, error) -> {
+            if (error == null) {
+                PondererClientCommands.reloadLocal();
+                onSuccess.accept(filePath);
+                return null;
+            }
+            Throwable cause = unwrap(error);
+            if (cancellation.isCancellationRequested() || cause instanceof CancellationException) {
+                appendLog("last_agent_trace.log",
+                    System.lineSeparator() + "run=" + runId + " cancelled" + System.lineSeparator());
+                onCancelled.run();
+                return null;
+            }
+            LOGGER.error("AI scene generation failed", cause);
+            onError.accept(safeMessage(cause));
+            return null;
+        }, Minecraft.getInstance());
+        return new AiGenerationTask(runId, cancellation, completion);
+    }
+
+    private static Throwable unwrap(Throwable error) {
+        Throwable cause = error;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause;
+    }
+
+    private static String safeMessage(Throwable error) {
+        String message = error.getMessage();
+        return message == null || message.isBlank() ? error.getClass().getSimpleName() : message;
     }
 
     /** Schedule a status notification on the main thread. */
     private static void notifyStatus(Consumer<String> onStatus, String message) {
-        Minecraft.getInstance().execute(() -> onStatus.accept(message));
+        Minecraft.getInstance().execute(() -> onStatus.accept(localizeAgentStatus(message)));
+    }
+
+    private static String localizeAgentStatus(String message) {
+        if (message != null && message.startsWith("Agent turn ")) {
+            String value = message.substring("Agent turn ".length());
+            String[] parts = value.split("/", 2);
+            if (parts.length == 2) {
+                return UIText.of("ponderer.ui.ai_generate.status.agent_turn", parts[0], parts[1]);
+            }
+        }
+        String key = switch (message == null ? "" : message) {
+            case "Fetching reference pages" -> "ponderer.ui.ai_generate.status.fetching_web";
+            case "Querying structure" -> "ponderer.ui.ai_generate.status.query_structure";
+            case "Resolving registry entries" -> "ponderer.ui.ai_generate.status.registry";
+            case "Loading scene step schema" -> "ponderer.ui.ai_generate.status.schema";
+            case "Searching reference material" -> "ponderer.ui.ai_generate.status.search_references";
+            case "Inspecting existing scene" -> "ponderer.ui.ai_generate.status.inspect_existing";
+            case "Reviewing scene draft" -> "ponderer.ui.ai_generate.status.review";
+            case "Validating scene submission" -> "ponderer.ui.ai_generate.status.submit";
+            case "Fixing scene draft" -> "ponderer.ui.ai_generate.status.fix";
+            default -> null;
+        };
+        return key == null ? message : UIText.of(key);
     }
 
     /** Write content to a log file under config/ponderer/logs/ for debugging. */
@@ -118,57 +177,19 @@ public class AiSceneGenerator {
         }
     }
 
-    /**
-     * Parse the REQUIRED_ELEMENTS line from the outline.
-     * Expected format (on its own line): {@code REQUIRED_ELEMENTS: Piston, Lever, minecraft:zombie}
-     * Tolerates common LLM formatting variants: bold markers (**), extra spaces,
-     * underscores vs spaces, mixed case, trailing punctuation, etc.
-     * Returns an empty list if the line is absent.
-     */
-    static List<String> parseRequiredElements(String outline) {
-        String[] lines = outline.split("\n");
-        for (int i = 0; i < lines.length; i++) {
-            // Strip markdown bold/italic markers and leading/trailing whitespace
-            // NOTE: do NOT strip underscores — they appear in "REQUIRED_ELEMENTS" and registry IDs
-            String cleaned = lines[i].trim().replaceAll("[*`#>]", "").trim();
-            // Normalize to uppercase, collapse spaces, strip possible dash prefix ("- REQUIRED_ELEMENTS:")
-            String upper = cleaned.toUpperCase(Locale.ROOT).replaceAll("^[-\\s]+", "");
-            // Match "REQUIRED_ELEMENTS" or "REQUIRED ELEMENTS" with optional underscore/space,
-            // followed by optional colon/equals
-            if (upper.startsWith("REQUIRED_ELEMENTS") || upper.startsWith("REQUIRED ELEMENTS")) {
-                // Find where the key ends — skip past the label and separator
-                int idx = cleaned.indexOf(':');
-                if (idx < 0) idx = cleaned.indexOf('=');
-                if (idx < 0) {
-                    // Try to find the split after "REQUIRED_ELEMENTS" or "REQUIRED ELEMENTS"
-                    idx = upper.startsWith("REQUIRED_ELEMENTS") ? "REQUIRED_ELEMENTS".length()
-                        : "REQUIRED ELEMENTS".length();
-                    // Skip trailing whitespace/punctuation after the label
-                    while (idx < cleaned.length() && ":= \t".indexOf(cleaned.charAt(idx)) >= 0) idx++;
-                    idx--; // will be incremented below
-                }
-                String rest = cleaned.substring(idx + 1).trim();
-                // If the elements are on the next line(s), read ahead
-                if (rest.isEmpty()) {
-                    StringBuilder buf = new StringBuilder();
-                    for (int j = i + 1; j < lines.length; j++) {
-                        String nextLine = lines[j].trim();
-                        if (nextLine.isEmpty()) break; // stop at blank line
-                        if (buf.length() > 0) buf.append(", ");
-                        buf.append(nextLine);
-                    }
-                    rest = buf.toString().trim();
-                }
-                if (rest.isEmpty()) return List.of();
-                List<String> result = new ArrayList<>();
-                for (String part : rest.split("[,;、]")) {
-                    String s = part.trim();
-                    if (!s.isEmpty()) result.add(s);
-                }
-                return result;
+    private static void appendLog(String fileName, String content) {
+        try {
+            Path file = SafePaths.resolveFileName(getLogsDir(), fileName);
+            if (file == null) {
+                LOGGER.warn("Rejected unsafe log filename {}", fileName);
+                return;
             }
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, content, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to append log file {}: {}", fileName, e.getMessage());
         }
-        return List.of();
     }
 
     /**
@@ -203,8 +224,9 @@ public class AiSceneGenerator {
     // System prompts — hot-reloadable from config/ponderer/prompts/
     // -------------------------------------------------------------------------
 
-    private static final String OUTLINE_PROMPT_FILE = "outline_system.txt";
-    private static final String JSON_PROMPT_FILE = "json_system.txt";
+    private static final String AGENT_PROMPT_FILE = "agent_system.txt";
+    private static final String TOOLS_PLACEHOLDER = "{{TOOLS}}";
+    private static final String STEP_INDEX_PLACEHOLDER = "{{STEP_INDEX}}";
 
     private static Path getPromptsDir() {
         return getConfigDirFallback().resolve("ponderer").resolve("prompts");
@@ -489,16 +511,74 @@ public class AiSceneGenerator {
             - zh_cn text is natural Chinese, not translated from English
             """;
 
-    static String buildOutlineSystemPrompt(boolean buildTutorial) {
-        String prompt = loadOrCreatePrompt(OUTLINE_PROMPT_FILE, getDefaultOutlineSystemPrompt());
-        return prompt.replace(BUILD_TUTORIAL_PLACEHOLDER,
+    static String buildAgentSystemPrompt(boolean buildTutorial, String toolSpecification) {
+        String prompt = loadOrCreatePrompt(AGENT_PROMPT_FILE, getDefaultAgentSystemPrompt());
+        String tools = toolSpecification == null ? "[]" : toolSpecification;
+        if (prompt.contains(TOOLS_PLACEHOLDER)) {
+            prompt = prompt.replace(TOOLS_PLACEHOLDER, tools);
+        } else {
+            prompt = prompt + "\n\n## Tool specification\n" + tools;
+        }
+        String stepIndex = SceneStepCatalog.compactIndex();
+        if (prompt.contains(STEP_INDEX_PLACEHOLDER)) {
+            prompt = prompt.replace(STEP_INDEX_PLACEHOLDER, stepIndex);
+        } else {
+            prompt = prompt + "\n\n## Step type index\n" + stepIndex;
+        }
+        prompt = prompt.replace(BUILD_TUTORIAL_PLACEHOLDER,
             buildTutorial ? BUILD_TUTORIAL_CONTENT : "");
-    }
-
-    static String buildSystemPrompt(boolean buildTutorial) {
-        String prompt = loadOrCreatePrompt(JSON_PROMPT_FILE, getDefaultJsonSystemPrompt());
         return prompt.replace(EXAMPLE_PLACEHOLDER,
             buildTutorial ? MULTIBLOCK_EXAMPLE : SINGLE_BLOCK_EXAMPLE);
+    }
+
+    private static String getDefaultAgentSystemPrompt() {
+        return """
+            You are an autonomous Minecraft Ponder scene author for the Ponderer mod.
+            Work through the provided local tools and eventually submit one complete DslScene.
+
+            ## Protocol
+            Return ONLY one JSON object with a non-empty tool_calls array. Do not use markdown fences.
+            You may batch up to four read-only tools in one turn. submit_scene must be the only call in its turn.
+            Every call has this shape:
+            {"id":"unique_call_id","name":"tool_name","arguments":{}}
+            Read host tool results carefully and repair protocol or validation errors on the next turn.
+
+            ## Required workflow
+            - Inspect the selected structure before submitting.
+            - Search supplied reference material before submitting when available.
+            - Inspect the current scene before submitting in adjustment mode.
+            - Use lookup_registry for display names and inspect_registry_entries before relying on uncertain exact IDs.
+            - Use get_step_schema for every step type whose fields you are not fully certain about.
+            - Prefer review_scene before submit_scene. submit_scene always repeats deterministic validation.
+            - Plan privately; do not output a prose outline.
+
+            ## Scene contract
+            The submitted object has id, items, title, structures, tags, steps, and scenes.
+            id uses ponderer:<path>. items contains the target carrier item. title and every text use both en_us and zh_cn.
+            Top-level steps must be []. Each scenes entry has a unique id, localized title, and steps array.
+            Each normal segment begins with show_structure; a pure interface segment may begin with show_interface.
+            Use only structure IDs from the generation manifest and registry IDs verified by tools.
+
+            ## Content quality
+            Stay faithful to the user instruction and retrieved references. Do not invent mechanics, numbers, warnings,
+            recipes, or version behavior. Prefer the latest version described by the sources.
+            Build visual demonstrations rather than text lectures. Pair each text with a concrete visual action,
+            avoid three consecutive text blocks, point annotations at the relevant component, and keep timing readable.
+            Clean up demonstrated item entities. Use action on show_controls for player clicks and omit it for machine I/O.
+            Write natural Chinese, preserve official names, keep English concise, and never use emoji.
+            Coordinates use X east, Y up, Z south. Query the structure instead of guessing positions or block states.
+
+            ## Available tools
+            {{TOOLS}}
+
+            ## Step type index
+            {{STEP_INDEX}}
+
+            {{BUILD_TUTORIAL}}
+
+            ## Style example
+            {{EXAMPLE}}
+            """;
     }
 
     private static String getDefaultOutlineSystemPrompt() {

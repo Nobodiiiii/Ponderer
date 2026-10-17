@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
@@ -160,7 +161,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         entries.add(FieldSpecs.text(
             itemField,
             "ponderer.ui.scene_desc.item_id",
-            null,
+            "ponderer.ui.scene_desc.item_id.tooltip",
             UIText.of("ponderer.ui.scene_desc.hint.item_id"),
             124,
             FieldDecorators.jei(IdFieldMode.ITEM),
@@ -339,8 +340,18 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             setErrorMessage(UIText.of("ponderer.ui.scene_desc.empty_item"));
             return false;
         }
-
+        ResourceLocation bindingId = SceneItemBindings.id(newItemId);
+        if (bindingId == null) {
+            setErrorMessage(UIText.of("ponderer.cmd.new.error.invalid_binding", newItemId));
+            return false;
+        }
+        newItemId = (SceneItemBindings.isTag(newItemId) ? "#" : "") + bindingId;
         String oldItemId = scene.items != null && !scene.items.isEmpty() ? scene.items.get(0) : "";
+        if (!newItemId.equals(oldItemId) && SceneItemBindings.resolve(List.of(newItemId)).isEmpty()) {
+            setErrorMessage(UIText.of("ponderer.cmd.new.error.empty_binding", newItemId));
+            return false;
+        }
+
         if (!newItemId.equals(oldItemId) && !pendingItemDuplicateConfirm) {
             for (DslScene s : SceneRuntime.getScenes()) {
                 if (s != scene && s.items != null && s.items.contains(newItemId)) {

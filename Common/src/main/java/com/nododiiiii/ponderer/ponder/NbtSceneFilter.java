@@ -8,6 +8,7 @@ import com.mojang.logging.LogUtils;
 import net.createmod.ponder.foundation.PonderScene;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -84,6 +85,33 @@ public final class NbtSceneFilter {
     }
 
     // ---- Filtering ----
+
+    /** Builds a preview carrier using either custom NBT, legacy tag data, or 1.21 components. */
+    public static ItemStack createStack(ResourceLocation itemId, @Nullable String snbt) {
+        ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.get(itemId));
+        CompoundTag filter = parseNbt(snbt);
+        if (filter == null || filter.isEmpty()) return stack;
+
+        CompoundTag custom = filter.contains("tag", Tag.TAG_COMPOUND) ? filter.getCompound("tag") : filter;
+        if (filter.contains("components", Tag.TAG_COMPOUND)) {
+            RegistryAccess registryAccess = getRegistryAccess();
+            if (registryAccess != null) {
+                CompoundTag saved = new CompoundTag();
+                saved.putString("id", itemId.toString());
+                saved.putInt("count", 1);
+                saved.put("components", filter.getCompound("components").copy());
+                ItemStack parsed = ItemStack.parseOptional(registryAccess, saved);
+                if (!parsed.isEmpty()) return parsed;
+            }
+            return stack;
+        }
+        if (!custom.isEmpty()) {
+            CompoundTag combined = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+            combined.merge(custom);
+            stack.set(DataComponents.CUSTOM_DATA, CustomData.of(combined));
+        }
+        return stack;
+    }
 
     /**
      * Check whether any registered filters exist for the given item.

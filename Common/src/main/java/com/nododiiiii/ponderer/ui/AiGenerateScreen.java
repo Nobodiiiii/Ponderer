@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ai.AiSceneGenerator;
+import com.nododiiiii.ponderer.ai.AiGenerationTask;
 import com.nododiiiii.ponderer.ai.StructureDescriber;
 import com.nododiiiii.ponderer.ai.McmodApiClient;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
@@ -31,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
@@ -46,6 +48,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private static String cachedStatusMessage = null;
     private static boolean cachedStatusIsError = false;
     private static boolean cachedGenerating = false;
+    private static boolean cachedCancelling = false;
+    @Nullable
+    private static AiGenerationTask cachedGenerationTask;
 
     private static final int PREVIEW_HEIGHT = UILayoutConstants.LIST_ENTRY_H * 2;
     private static final int PREVIEW_INSET = 4;
@@ -60,6 +65,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private int previewY;
     private int previewW;
     private int previewH;
+    private boolean showingStopAction;
 
     @Nullable
     private Path loadedPreviewPath;
@@ -73,6 +79,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     protected void init() {
         super.init();
         applyCachedStatus();
+        refreshGenerationActionButton();
         if (!cachedStructurePaths.isEmpty()) {
             loadPreviewForCurrent();
         } else {
@@ -91,6 +98,13 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         super.removed();
         preview.dispose();
         loadedPreviewPath = null;
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        applyCachedStatus();
+        refreshGenerationActionButton();
     }
 
     @Override
@@ -204,7 +218,15 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     @Override
     protected boolean saveEdits() {
+        if (cachedGenerating) {
+            return cancelGeneration();
+        }
         return doGenerate();
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
+        return cachedGenerating ? !cachedCancelling : super.isSaveButtonActive();
     }
 
     @Override
@@ -470,10 +492,13 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         }
 
         cachedGenerating = true;
+        cachedCancelling = false;
         setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.generating"), false);
         applyCachedStatus();
+        refreshGenerationActionButton();
 
-        AiSceneGenerator.generate(
+        AtomicReference<AiGenerationTask> taskRef = new AtomicReference<>();
+        AiGenerationTask task = AiSceneGenerator.start(
             new ArrayList<>(cachedStructurePaths),
             cachedCarrier.trim(),
             cachedPrompt.trim(),
@@ -482,9 +507,15 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             cachedBuildTutorial,
             cachedIncludeImages,
             filePath -> Minecraft.getInstance().execute(() -> {
+                if (!isCurrentTask(taskRef.get())) {
+                    return;
+                }
                 cachedGenerating = false;
+                cachedCancelling = false;
+                cachedGenerationTask = null;
                 setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.success"), false);
                 applyCachedStatus();
+                refreshGenerationActionButton();
                 if (Minecraft.getInstance().player != null) {
                     Minecraft.getInstance().player.displayClientMessage(
                         Component.translatable("ponderer.ui.ai_generate.status.success"),
@@ -492,15 +523,81 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 }
             }),
             error -> Minecraft.getInstance().execute(() -> {
+                if (!isCurrentTask(taskRef.get())) {
+                    return;
+                }
                 cachedGenerating = false;
+                cachedCancelling = false;
+                cachedGenerationTask = null;
                 setCachedStatus(error, true);
                 applyCachedStatus();
+                refreshGenerationActionButton();
+            }),
+            () -> Minecraft.getInstance().execute(() -> {
+                if (!isCurrentTask(taskRef.get())) {
+                    return;
+                }
+                cachedGenerating = false;
+                cachedCancelling = false;
+                cachedGenerationTask = null;
+                setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.cancelled"), false);
+                applyCachedStatus();
+                refreshGenerationActionButton();
             }),
             statusMsg -> Minecraft.getInstance().execute(() -> {
+                if (!isCurrentTask(taskRef.get()) || cachedCancelling) {
+                    return;
+                }
                 setCachedStatus(statusMsg, false);
                 applyCachedStatus();
             }));
+        taskRef.set(task);
+        cachedGenerationTask = task;
         return true;
+    }
+
+    private boolean cancelGeneration() {
+        AiGenerationTask task = cachedGenerationTask;
+        if (!cachedGenerating || cachedCancelling || task == null) {
+            return false;
+        }
+        cachedCancelling = true;
+        setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.cancelling"), false);
+        applyCachedStatus();
+        refreshGenerationActionButton();
+        task.cancel();
+        return true;
+    }
+
+    private static boolean isCurrentTask(@Nullable AiGenerationTask task) {
+        return task == null
+            ? cachedGenerationTask == null && cachedGenerating
+            : cachedGenerationTask == task;
+    }
+
+    private void refreshGenerationActionButton() {
+        if (saveChanges == null) {
+            return;
+        }
+        boolean shouldShowStop = cachedGenerating;
+        if (showingStopAction == shouldShowStop) {
+            return;
+        }
+        showingStopAction = shouldShowStop;
+        PonderGuiTextures texture = shouldShowStop
+            ? PonderGuiTextures.ICON_CONFIG_DISCARD
+            : PonderGuiTextures.ICON_CONFIG_SAVE;
+        saveChanges.showingElement(texture.asStencil()
+            .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
+        if (shouldShowStop) {
+            setActionButtonTooltip(saveChanges,
+                "ponderer.ui.ai_generate.stop",
+                "ponderer.ui.ai_generate.stop.tooltip");
+        } else {
+            setActionButtonTooltip(saveChanges,
+                "ponderer.ui.save",
+                "ponderer.ui.sidebar.save.tooltip");
+        }
     }
 
     private void applyCachedStatus() {

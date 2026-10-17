@@ -7,6 +7,7 @@ import java.util.Map;
 
 public class DslScene {
     public String id;
+    /** Carrier item IDs or item tags prefixed with #, e.g. #minecraft:logs. */
     public List<String> items = List.of();
     public LocalizedText title;
     /**
@@ -180,6 +181,12 @@ public class DslScene {
         public String action;
         public String item;
         public String sound;
+        /** spawn_particles: particle command ID, optionally followed by SNBT options. */
+        public String particle;
+        /** spawn_particles: point, box (uniform), or sphere (uniform ellipsoid). */
+        public String distribution;
+        /** spawn_particles: half extents / radii around pos; count is particles per tick. */
+        public List<Double> spread;
         public Float soundVolume;
         public String source;
         public String color;

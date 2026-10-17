@@ -10,7 +10,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
@@ -184,15 +183,15 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
         CommandParamScreen screen = CommandParamScreen.builder("ponderer.ui.function_page.new_scene.title")
             .toggleField("use_held", "ponderer.ui.function_page.new.use_held", true)
             .toggleField("use_held_nbt", "ponderer.ui.function_page.new.use_held_nbt", false)
-            .itemField("item_id", "ponderer.ui.function_page.param.item_id",
-                "ponderer.ui.function_page.param.item_id.hint", false)
+            .itemField("item_id", "ponderer.ui.scene_desc.item_id",
+                "ponderer.ui.scene_desc.hint.item_id", false)
             .textField("nbt", "ponderer.ui.function_page.param.nbt",
                 "ponderer.ui.function_page.param.nbt.hint", false)
             .onExecute(values -> {
                 boolean useHeld = "true".equals(values.get("use_held"));
                 boolean useHeldNbt = "true".equals(values.get("use_held_nbt"));
 
-                ResourceLocation itemId;
+                String binding;
                 CompoundTag nbt = null;
 
                 if (useHeld) {
@@ -205,28 +204,20 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                         PondererClientCommands.newSceneFromHand(null);
                         return;
                     }
-                    itemId = BuiltInRegistries.ITEM.getKey(held.getItem());
+                    binding = BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
                     if (useHeldNbt) {
                         nbt = PondererClientCommands.extractStackNbtFilter(held);
                     }
                 } else {
-                    itemId = ResourceLocation.tryParse(values.get("item_id"));
-                    if (itemId == null) {
-                        return;
-                    }
+                    binding = values.get("item_id");
                 }
 
                 if (!useHeldNbt) {
-                    String nbtStr = values.get("nbt");
-                    if (nbtStr != null && !nbtStr.isEmpty()) {
-                        try {
-                            nbt = TagParser.parseTag(nbtStr);
-                        } catch (Exception ignored) {
-                        }
-                    }
+                    PondererClientCommands.newSceneForBindingSnbt(binding, values.get("nbt"));
+                    return;
                 }
 
-                PondererClientCommands.newSceneForItem(itemId, nbt);
+                PondererClientCommands.newSceneForBinding(binding, nbt);
             })
             .build();
 

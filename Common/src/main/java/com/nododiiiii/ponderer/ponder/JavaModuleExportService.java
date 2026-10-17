@@ -69,6 +69,7 @@ public final class JavaModuleExportService {
         "modify_block_entity_nbt",
         "indicate_redstone",
         "indicate_success",
+        "spawn_particles",
         "clear_entities",
         "clear_item_entities",
         "modify_entities_nbt",
@@ -391,14 +392,8 @@ public final class JavaModuleExportService {
         plan.className = classNameFor(scene.id);
         plan.storyboardBasePath = storyboardBasePath(scene.id);
 
-        for (String itemId : safeList(scene.items)) {
-            ResourceLocation itemLoc = ResourceLocation.tryParse(itemId);
-            if (itemLoc != null) {
-                Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(itemLoc).orElse(Items.AIR);
-                if (item != Items.AIR) {
-                    plan.componentItems.add(itemLoc.toString());
-                }
-            }
+        for (ResourceLocation itemLoc : SceneItemBindings.resolve(scene.items)) {
+            plan.componentItems.add(itemLoc.toString());
         }
         if (plan.componentItems.isEmpty()) {
             plan.skippedScene = true;
@@ -538,6 +533,12 @@ public final class JavaModuleExportService {
     private static void collectSceneMetaWarnings(DslScene scene,
                                                  JavaModuleScanResult result,
                                                  JavaModuleScanResult.ScenePlan plan) {
+        if (SceneItemBindings.hasTagBindings(scene)) {
+            plan.partial = true;
+            plan.hadMetaDrops = true;
+            addFinding(result.warningFindings, "step/meta warnings", scene.id, scene.sceneKey(), null, null,
+                "Item tag bindings export as the currently resolved item IDs.");
+        }
         if (scene.nbtFilter != null && !scene.nbtFilter.isBlank()) {
             plan.partial = true;
             plan.hadMetaDrops = true;
@@ -700,6 +701,14 @@ public final class JavaModuleExportService {
                 "show_section_and_merge" -> hasPos(step.blockPos);
             case "encapsulate_bounds" -> step.bounds != null && step.bounds.size() >= 3;
             case "play_sound" -> isNonBlank(step.sound);
+            case "spawn_particles" -> {
+                try {
+                    ParticleEffectSpec.validate(step);
+                    yield true;
+                } catch (IllegalArgumentException e) {
+                    yield false;
+                }
+            }
             case "replace_blocks", "set_block" -> hasPos(step.blockPos) && isNonBlank(step.block);
             case "rotate_section", "move_section" -> isNonBlank(step.linkId) || hasPos(step.blockPos);
             case "clear_entities", "clear_item_entities", "modify_entities_nbt", "modify_item_entities_nbt" ->
@@ -1209,6 +1218,11 @@ public final class JavaModuleExportService {
             sb.append("        helper.addTagToComponent(")
                 .append(resourceLocationExpr(componentItem))
                 .append(", tag);\n");
+            for (String sceneTag : plan.tags) {
+                sb.append("        helper.addTagToComponent(")
+                    .append(resourceLocationExpr(componentItem))
+                    .append(", ").append(resourceLocationExpr(sceneTag)).append(");\n");
+            }
         }
         sb.append("    }\n\n");
 
@@ -1454,6 +1468,14 @@ public final class JavaModuleExportService {
                 .append(blockPosExpr(step.blockPos)).append(");\n");
             case "indicate_success" -> sb.append("        GeneratedPonderSupport.indicateSuccess(scene, ")
                 .append(blockPosExpr(step.blockPos)).append(");\n");
+            case "spawn_particles" -> sb.append("        GeneratedPonderSupport.spawnParticles(scene, ")
+                .append(stringExpr(step.particle)).append(", ")
+                .append(vecExpr(step.pos)).append(", ")
+                .append(stringExpr(ParticleEffectSpec.distribution(step))).append(", ")
+                .append(vecExpr(ParticleEffectSpec.spread(step))).append(", ")
+                .append(vecExpr(ParticleEffectSpec.motion(step))).append(", ")
+                .append(ParticleEffectSpec.count(step)).append(", ")
+                .append(ParticleEffectSpec.duration(step)).append(");\n");
             case "clear_entities" -> sb.append("        GeneratedPonderSupport.clearEntities(scene, context, ")
                 .append(Boolean.TRUE.equals(step.fullScene)).append(", ")
                 .append(stringExpr(step.entity)).append(", ")

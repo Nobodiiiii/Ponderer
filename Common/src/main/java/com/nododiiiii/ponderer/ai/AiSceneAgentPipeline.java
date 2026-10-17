@@ -2,6 +2,11 @@ package com.nododiiiii.ponderer.ai;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -12,18 +17,19 @@ import javax.annotation.Nullable;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
- * Basic multi-round agent pipeline:
- * planner -> registry resolver -> JSON writer -> deterministic validator -> repair loop.
+ * Bounded JSON-protocol agent loop for AI-authored Ponder scenes.
  */
 public final class AiSceneAgentPipeline {
 
@@ -35,8 +41,8 @@ public final class AiSceneAgentPipeline {
         .setPrettyPrinting()
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
         .create();
-
-    private static final int DEFAULT_REPAIR_ATTEMPTS = 2;
+    private static final int MAX_TOOL_CALLS_PER_TURN = 4;
+    private static final int MAX_TOOL_CALLS_PER_RUN = 16;
 
     private AiSceneAgentPipeline() {
     }
@@ -50,289 +56,527 @@ public final class AiSceneAgentPipeline {
                           boolean includeImages) {
     }
 
+    public record ToolCall(String id, String name, JsonObject arguments) {
+    }
+
+    public record ToolResult(String id, String name, JsonObject result) {
+    }
+
+    public record TraceEntry(int turn, String rawResponse, List<ToolCall> calls,
+                             List<ToolResult> results, @Nullable String protocolError) {
+    }
+
     public record Result(String runId,
                          DslScene scene,
-                         String outline,
-                         String registryMapping,
                          String finalJson,
-                         List<AiSceneValidator.Issue> validationIssues,
-                         int repairAttempts,
-                         List<String> drafts) {
-    }
-
-    record PreparedContext(List<StructureDescriber.StructureInfo> structures,
-                           List<String> structureNames,
-                           List<String> allBlockTypes,
-                           String structureDescription,
-                           List<LlmProvider.ContentBlock> webContent) {
-    }
-
-    @FunctionalInterface
-    interface RegistryMappingResolver {
-        String build(List<String> requiredElements, List<String> structureBlockIds);
+                         int turnCount,
+                         int toolCallCount,
+                         int validationAttempts,
+                         List<TraceEntry> trace) {
     }
 
     public static Result run(Request request, LlmProvider llm, AiRuntimeConfig config,
                              Consumer<String> onStatus) {
-        return run(request, llm, config, DEFAULT_REPAIR_ATTEMPTS, onStatus);
+        return run(UUID.randomUUID().toString(), request, llm, config,
+            Config.AI_MAX_AGENT_TURNS.get(), onStatus, (name, content) -> {
+            }, new AiCancellationScope());
     }
 
     public static Result run(Request request, LlmProvider llm, AiRuntimeConfig config,
                              Consumer<String> onStatus, BiConsumer<String, String> diagnostics) {
-        return run(request, llm, config, DEFAULT_REPAIR_ATTEMPTS, onStatus, diagnostics);
+        return run(UUID.randomUUID().toString(), request, llm, config,
+            Config.AI_MAX_AGENT_TURNS.get(), onStatus, diagnostics, new AiCancellationScope());
     }
 
-    static Result run(Request request, LlmProvider llm, AiRuntimeConfig config, int maxRepairAttempts,
-                      Consumer<String> onStatus) {
-        return run(request, llm, config, maxRepairAttempts, onStatus, RegistryMapper::buildMappingForDisplayNames);
-    }
+    static Result run(String runId, Request request, LlmProvider llm, AiRuntimeConfig config,
+                      int maxTurns, Consumer<String> onStatus,
+                      BiConsumer<String, String> diagnostics, AiCancellationScope cancellation) {
+        cancellation.throwIfCancelled();
+        int boundedTurns = Math.max(2, Math.min(12, maxTurns));
+        AgentToolRegistry toolRegistry = new AgentToolRegistry();
+        AgentContext context = prepareContext(request, onStatus, diagnostics, cancellation);
+        String manifest = buildManifest(context);
+        String systemPrompt = AiSceneGenerator.buildAgentSystemPrompt(
+            request.buildTutorial(), toolRegistry.promptSpecification());
 
-    static Result run(Request request, LlmProvider llm, AiRuntimeConfig config, int maxRepairAttempts,
-                      Consumer<String> onStatus, BiConsumer<String, String> diagnostics) {
-        return run(request, llm, config, maxRepairAttempts, onStatus,
-            RegistryMapper::buildMappingForDisplayNames, diagnostics);
-    }
+        List<TraceEntry> trace = new ArrayList<>();
+        List<LlmProvider.ContentBlock> transcript = new ArrayList<>();
+        Set<String> usedCallIds = new HashSet<>();
+        int toolCallCount = 0;
+        String lastAction = "context preparation";
+        String lastProtocolError = "";
 
-    static Result run(Request request, LlmProvider llm, AiRuntimeConfig config, int maxRepairAttempts,
-                      Consumer<String> onStatus, RegistryMappingResolver registryMappingResolver) {
-        return run(request, llm, config, maxRepairAttempts, onStatus, registryMappingResolver, (name, content) -> {
-        });
-    }
+        for (int turn = 1; turn <= boundedTurns; turn++) {
+            cancellation.throwIfCancelled();
+            onStatus.accept("Agent turn " + turn + "/" + boundedTurns);
+            List<LlmProvider.ContentBlock> content = buildTurnContent(
+                manifest, transcript, turn, boundedTurns);
+            String response = llm.generate(
+                systemPrompt,
+                content,
+                config.baseUrl(),
+                config.apiKey(),
+                config.model(),
+                cancellation
+            ).join();
+            cancellation.throwIfCancelled();
 
-    static Result run(Request request, LlmProvider llm, AiRuntimeConfig config, int maxRepairAttempts,
-                      Consumer<String> onStatus, RegistryMappingResolver registryMappingResolver,
-                      BiConsumer<String, String> diagnostics) {
-        String runId = UUID.randomUUID().toString();
-        PreparedContext context = prepareContext(request, onStatus, diagnostics);
+            ParseOutcome parsed = parseToolCalls(response, toolRegistry);
+            if (parsed.error() != null) {
+                lastAction = "invalid model response on turn " + turn;
+                lastProtocolError = parsed.error();
+                JsonObject error = protocolError(parsed.error());
+                transcript.add(new LlmProvider.ContentBlock.Text(
+                    formatTranscriptTurn(turn, response, error)));
+                trace.add(new TraceEntry(turn, response, List.of(), List.of(), parsed.error()));
+                writeTrace(diagnostics, runId, trace);
+                onStatus.accept("Fixing scene draft");
+                continue;
+            }
+            String reusedId = parsed.calls().stream()
+                .map(ToolCall::id)
+                .filter(usedCallIds::contains)
+                .findFirst()
+                .orElse(null);
+            if (reusedId != null) {
+                String errorMessage = "Duplicate tool call id across turns: " + reusedId;
+                lastAction = "invalid model response on turn " + turn;
+                lastProtocolError = errorMessage;
+                JsonObject error = protocolError(errorMessage);
+                transcript.add(new LlmProvider.ContentBlock.Text(
+                    formatTranscriptTurn(turn, response, error)));
+                trace.add(new TraceEntry(turn, response, parsed.calls(), List.of(), errorMessage));
+                writeTrace(diagnostics, runId, trace);
+                onStatus.accept("Fixing scene draft");
+                continue;
+            }
+            if (toolCallCount + parsed.calls().size() > MAX_TOOL_CALLS_PER_RUN) {
+                String errorMessage = "Agent tool-call budget exceeded (max " + MAX_TOOL_CALLS_PER_RUN + ")";
+                lastAction = "rejected over-budget tool batch on turn " + turn;
+                lastProtocolError = errorMessage;
+                JsonObject error = protocolError(errorMessage);
+                transcript.add(new LlmProvider.ContentBlock.Text(
+                    formatTranscriptTurn(turn, response, error)));
+                trace.add(new TraceEntry(turn, response, parsed.calls(), List.of(), errorMessage));
+                writeTrace(diagnostics, runId, trace);
+                onStatus.accept("Fixing scene draft");
+                continue;
+            }
+            parsed.calls().forEach(call -> usedCallIds.add(call.id()));
+            lastAction = parsed.calls().stream()
+                .map(call -> call.name() + "[" + call.id() + "]")
+                .collect(Collectors.joining(", "));
 
-        onStatus.accept("Planning scene");
-        String outline = llm.generate(
-            AiSceneGenerator.buildOutlineSystemPrompt(request.buildTutorial()),
-            outlineContent(request, context),
-            config.baseUrl(),
-            config.apiKey(),
-            config.model()
-        ).join();
-        diagnostics.accept("last_outline.log", outline);
+            List<ToolResult> results = new ArrayList<>();
+            List<LlmProvider.ContentBlock> turnTranscript = new ArrayList<>();
+            turnTranscript.add(new LlmProvider.ContentBlock.Text(
+                "TURN " + turn + " ASSISTANT_RESPONSE:\n" + response));
+            DslScene submittedScene = null;
+            for (ToolCall call : parsed.calls()) {
+                cancellation.throwIfCancelled();
+                AgentTool tool = toolRegistry.get(call.name());
+                onStatus.accept(statusForTool(call.name()));
+                AgentTool.ToolExecution execution;
+                try {
+                    execution = tool.execute(context, call.arguments(), cancellation);
+                } catch (CancellationException e) {
+                    throw e;
+                } catch (RuntimeException e) {
+                    JsonObject failure = new JsonObject();
+                    failure.addProperty("ok", false);
+                    failure.addProperty("error", safeMessage(e));
+                    execution = AgentTool.ToolExecution.result(failure);
+                }
+                cancellation.throwIfCancelled();
+                ToolResult result = new ToolResult(call.id(), call.name(), execution.result());
+                results.add(result);
+                turnTranscript.add(new LlmProvider.ContentBlock.Text(
+                    formatToolResult(turn, result)));
+                turnTranscript.addAll(execution.images());
+                if (execution.submittedScene() != null) {
+                    submittedScene = execution.submittedScene();
+                }
+                toolCallCount++;
+            }
 
-        List<String> requiredElements = AiSceneGenerator.parseRequiredElements(outline);
-        String registryMapping = registryMappingResolver.build(requiredElements, context.allBlockTypes());
-        diagnostics.accept("last_registry_mapping.log", registryMapping);
+            transcript.addAll(turnTranscript);
+            trace.add(new TraceEntry(turn, response, parsed.calls(), List.copyOf(results), null));
+            writeTrace(diagnostics, runId, trace);
 
-        onStatus.accept("Writing scene JSON");
-        List<String> drafts = new ArrayList<>();
-        Draft draft = generateDraft(llm, config, request, context, outline, registryMapping, null, 1, diagnostics);
-        drafts.add(draft.rawJson());
-
-        int repairs = 0;
-        List<AiSceneValidator.Issue> issues = validateDraft(draft, context);
-        while (!issues.isEmpty() && repairs < maxRepairAttempts) {
-            repairs++;
-            onStatus.accept("Repairing scene JSON (" + repairs + "/" + maxRepairAttempts + ")");
-            String repairInstruction = buildRepairInstruction(draft.rawJson(), issues);
-            draft = generateDraft(llm, config, request, context, outline, registryMapping, repairInstruction,
-                repairs + 1, diagnostics);
-            drafts.add(draft.rawJson());
-            issues = validateDraft(draft, context);
+            if (submittedScene != null) {
+                cancellation.throwIfCancelled();
+                String finalJson = GSON_PRETTY.toJson(submittedScene);
+                diagnostics.accept("last_extracted_json_attempt_final.log", finalJson);
+                return new Result(
+                    runId,
+                    submittedScene,
+                    finalJson,
+                    turn,
+                    toolCallCount,
+                    context.runState().validationAttempts(),
+                    List.copyOf(trace)
+                );
+            }
+            if (!context.runState().lastErrors().isEmpty()
+                && parsed.calls().stream().anyMatch(call ->
+                    "review_scene".equals(call.name()) || "submit_scene".equals(call.name()))) {
+                onStatus.accept("Fixing scene draft");
+            }
+            if (toolCallCount >= MAX_TOOL_CALLS_PER_RUN) {
+                throw exhaustedException(
+                    boundedTurns, toolCallCount, lastAction, lastProtocolError, context, true);
+            }
         }
 
-        if (!issues.isEmpty() || draft.scene() == null) {
-            diagnostics.accept("last_validation_error.log", issues.stream()
-                .map(AiSceneValidator.Issue::format)
-                .collect(Collectors.joining("\n")));
-            throw new RuntimeException("AI agent could not produce a valid scene:\n"
-                + issues.stream().map(AiSceneValidator.Issue::format).collect(Collectors.joining("\n")));
-        }
-
-        AiSceneGenerator.autoAddKeyFrames(draft.scene());
-        String finalJson = GSON_PRETTY.toJson(draft.scene());
-        diagnostics.accept("last_extracted_json_attempt_final.log", finalJson);
-        return new Result(runId, draft.scene(), outline, registryMapping, finalJson, issues, repairs, List.copyOf(drafts));
+        throw exhaustedException(
+            boundedTurns, toolCallCount, lastAction, lastProtocolError, context, false);
     }
 
-    private static PreparedContext prepareContext(Request request, Consumer<String> onStatus,
-                                                  BiConsumer<String, String> diagnostics) {
+    private static AgentContext prepareContext(Request request, Consumer<String> onStatus,
+                                               BiConsumer<String, String> diagnostics,
+                                               AiCancellationScope cancellation) {
         try {
-            List<StructureDescriber.StructureInfo> structures = new ArrayList<>();
-            List<String> structureNames = new ArrayList<>();
-            Set<String> blockTypes = new LinkedHashSet<>();
-
+            List<AgentContext.StructureDocument> structures = new ArrayList<>();
             if (request.structurePaths() == null || request.structurePaths().isEmpty()) {
                 try (InputStream in = SceneStore.openBuiltinStructure("basic")) {
                     if (in != null) {
-                        StructureDescriber.StructureInfo info = StructureDescriber.describe(in);
-                        structures.add(info);
-                        structureNames.add("ponderer:basic");
-                        blockTypes.addAll(info.blockTypes());
+                        structures.add(new AgentContext.StructureDocument(
+                            "ponderer:basic", StructureDescriber.inspect(in)));
                     }
                 }
             } else {
                 for (Path path : request.structurePaths()) {
-                    StructureDescriber.StructureInfo info = StructureDescriber.describe(path);
-                    structures.add(info);
-                    structureNames.add(toStructureId(path));
-                    blockTypes.addAll(info.blockTypes());
+                    cancellation.throwIfCancelled();
+                    structures.add(new AgentContext.StructureDocument(
+                        toStructureId(path), StructureDescriber.inspect(path)));
                 }
             }
+            if (structures.isEmpty()) {
+                throw new IllegalArgumentException("No readable structures were provided");
+            }
 
-            String structureDescription = buildStructureDescription(structures, structureNames);
-            List<LlmProvider.ContentBlock> webContent = fetchReferenceContent(request, onStatus, diagnostics);
-            return new PreparedContext(
-                List.copyOf(structures),
-                List.copyOf(structureNames),
-                List.copyOf(blockTypes),
-                structureDescription,
-                List.copyOf(webContent)
+            List<AgentContext.ReferenceDocument> references = fetchReferences(
+                request, onStatus, diagnostics, cancellation);
+            AgentContext.ExistingSceneDocument existingScene = parseExistingScene(request.existingJson());
+            return new AgentContext(
+                structures,
+                references,
+                existingScene,
+                request.carrierItemId(),
+                request.userPrompt(),
+                request.buildTutorial(),
+                request.includeImages()
             );
+        } catch (CancellationException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to prepare AI agent context: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to prepare AI agent context: " + safeMessage(e), e);
         }
     }
 
-    private static String buildStructureDescription(List<StructureDescriber.StructureInfo> structures,
-                                                    List<String> structureNames) {
-        StringBuilder out = new StringBuilder();
-        out.append("=== Structure Information ===\n");
-        out.append("Structure pool:\n");
-        for (int i = 0; i < structureNames.size(); i++) {
-            out.append("  ").append(i + 1).append(". ").append(structureNames.get(i)).append("\n");
+    private static List<AgentContext.ReferenceDocument> fetchReferences(
+        Request request, Consumer<String> onStatus, BiConsumer<String, String> diagnostics,
+        AiCancellationScope cancellation) {
+        List<AgentContext.ReferenceDocument> references = new ArrayList<>();
+        if (request.referenceUrls() == null || request.referenceUrls().isEmpty()) {
+            return references;
         }
-        out.append("\n");
-        for (int i = 0; i < structures.size(); i++) {
-            out.append("--- Structure: ").append(structureNames.get(i)).append(" ---\n");
-            out.append(structures.get(i).textDescription()).append("\n");
-        }
-        return out.toString();
-    }
-
-    private static List<LlmProvider.ContentBlock> fetchReferenceContent(Request request, Consumer<String> onStatus,
-                                                                       BiConsumer<String, String> diagnostics) {
-        List<LlmProvider.ContentBlock> content = new ArrayList<>();
-        if (request.referenceUrls() == null) {
-            return content;
-        }
-        boolean hasUrls = request.referenceUrls().stream().anyMatch(url -> url != null && !url.isBlank());
-        if (hasUrls) {
-            onStatus.accept("Fetching reference pages");
-        }
+        onStatus.accept("Fetching reference pages");
         StringBuilder webLog = new StringBuilder();
-        for (String url : request.referenceUrls()) {
-            if (url == null || url.isBlank()) {
+        int index = 0;
+        for (String rawUrl : request.referenceUrls()) {
+            if (rawUrl == null || rawUrl.isBlank()) {
                 continue;
             }
+            cancellation.throwIfCancelled();
+            String id = "ref_" + (++index);
+            String url = rawUrl.trim();
             try {
-                WebPageFetcher.WebPageContent page = WebPageFetcher.fetch(url.trim(), request.includeImages());
-                content.add(new LlmProvider.ContentBlock.Text(
-                    "=== Reference web page: " + url.trim() + " ===\n" + page.text()));
-                webLog.append("=== ").append(url.trim()).append(" ===\n");
-                webLog.append("Text length: ").append(page.text().length())
-                    .append(" chars, Images sent: ").append(page.images().size()).append("\n\n");
-                webLog.append(page.text()).append("\n\n");
-                if (request.includeImages()) {
-                    for (WebPageFetcher.ImageData image : page.images()) {
-                        content.add(new LlmProvider.ContentBlock.Image(image.base64(), image.mediaType()));
-                        webLog.append("[Image: ").append(image.mediaType())
-                            .append(", base64 length: ").append(image.base64().length()).append("]\n");
-                    }
-                } else {
-                    webLog.append("[Images skipped: includeImages=false]\n");
-                }
-                webLog.append("\n");
+                WebPageFetcher.WebPageContent page = WebPageFetcher.fetch(
+                    url, request.includeImages(), cancellation);
+                references.add(new AgentContext.ReferenceDocument(
+                    id, url, page.text(), List.copyOf(page.images()), null));
+                webLog.append("=== ").append(id).append(" ").append(url).append(" ===\n")
+                    .append("Text length: ").append(page.text().length())
+                    .append(", Images: ").append(page.images().size()).append("\n\n")
+                    .append(page.text()).append("\n\n");
+            } catch (CancellationException e) {
+                throw e;
             } catch (Exception e) {
-                content.add(new LlmProvider.ContentBlock.Text(
-                    "(Failed to fetch " + url.trim() + ": " + e.getMessage() + ")"));
-                webLog.append("=== FAILED: ").append(url.trim()).append(" ===\n")
-                    .append(e.getMessage()).append("\n\n");
+                String message = safeMessage(e);
+                references.add(new AgentContext.ReferenceDocument(
+                    id, url, null, List.of(), message));
+                webLog.append("=== FAILED ").append(id).append(" ").append(url).append(" ===\n")
+                    .append(message).append("\n\n");
             }
         }
         if (!webLog.isEmpty()) {
             diagnostics.accept("last_web_content.log", webLog.toString());
         }
-        return content;
+        return List.copyOf(references);
     }
 
-    private static List<LlmProvider.ContentBlock> outlineContent(Request request, PreparedContext context) {
-        List<LlmProvider.ContentBlock> content = new ArrayList<>();
-        content.add(new LlmProvider.ContentBlock.Text(context.structureDescription()));
-        content.addAll(context.webContent());
-        if (request.existingJson() != null && !request.existingJson().isBlank()) {
-            content.add(new LlmProvider.ContentBlock.Text(
-                "=== Current scene JSON (adjust based on instruction below) ===\n" + request.existingJson()));
+    private static AgentContext.ExistingSceneDocument parseExistingScene(@Nullable String existingJson) {
+        if (existingJson == null || existingJson.isBlank()) {
+            return new AgentContext.ExistingSceneDocument(null, null, null);
         }
-        content.add(new LlmProvider.ContentBlock.Text(
-            "=== User instruction ===\n" + request.userPrompt()
-                + "\n\nTarget item ID: " + request.carrierItemId()
-                + "\nStructures: " + String.join(", ", context.structureNames())));
-        return content;
-    }
-
-    private static Draft generateDraft(LlmProvider llm, AiRuntimeConfig config, Request request,
-                                       PreparedContext context, String outline, String registryMapping,
-                                       @Nullable String repairInstruction, int attempt,
-                                       BiConsumer<String, String> diagnostics) {
-        List<LlmProvider.ContentBlock> content = new ArrayList<>();
-        content.add(new LlmProvider.ContentBlock.Text(context.structureDescription()));
-        content.add(new LlmProvider.ContentBlock.Text(registryMapping));
-        content.addAll(context.webContent());
-        if (request.existingJson() != null && !request.existingJson().isBlank()) {
-            content.add(new LlmProvider.ContentBlock.Text(
-                "=== Current scene JSON (modify based on instruction below) ===\n" + request.existingJson()));
-        }
-        content.add(new LlmProvider.ContentBlock.Text("=== Scene design outline (follow this plan) ===\n" + outline));
-        if (repairInstruction != null && !repairInstruction.isBlank()) {
-            content.add(new LlmProvider.ContentBlock.Text(repairInstruction));
-        }
-        content.add(new LlmProvider.ContentBlock.Text(
-            "=== User instruction ===\n" + request.userPrompt()
-                + "\n\nTarget item ID: " + request.carrierItemId()
-                + "\nStructures: " + String.join(", ", context.structureNames())));
-
-        String response = llm.generate(
-            AiSceneGenerator.buildSystemPrompt(request.buildTutorial()),
-            content,
-            config.baseUrl(),
-            config.apiKey(),
-            config.model()
-        ).join();
-        diagnostics.accept("last_json_response_attempt_" + attempt + ".log", response);
-        String json = LlmJsonSupport.cleanJson(LlmJsonSupport.extractJson(response));
-        diagnostics.accept("last_extracted_json_attempt_" + attempt + ".log", json);
-        DslScene scene = null;
-        Exception parseError = null;
         try {
-            scene = GSON.fromJson(json, DslScene.class);
-        } catch (Exception e) {
-            parseError = e;
+            JsonObject json = JsonParser.parseString(existingJson).getAsJsonObject();
+            DslScene scene = GSON.fromJson(json, DslScene.class);
+            return new AgentContext.ExistingSceneDocument(json, scene, null);
+        } catch (RuntimeException e) {
+            return new AgentContext.ExistingSceneDocument(null, null,
+                "Existing scene JSON could not be parsed: " + safeMessage(e));
         }
-        return new Draft(json, scene, parseError);
     }
 
-    private static List<AiSceneValidator.Issue> validateDraft(Draft draft, PreparedContext context) {
-        List<AiSceneValidator.Issue> issues = new ArrayList<>();
-        if (draft.parseError() != null) {
-            issues.add(new AiSceneValidator.Issue("$", "JSON parse error: " + draft.parseError().getMessage()));
-            return issues;
+    private static String buildManifest(AgentContext context) {
+        JsonObject manifest = new JsonObject();
+        manifest.addProperty("carrier_item_id", context.carrierItemId());
+        manifest.addProperty("user_instruction", context.userPrompt());
+        manifest.addProperty("build_tutorial", context.buildTutorial());
+        manifest.addProperty("include_images", context.includeImages());
+
+        JsonArray structures = new JsonArray();
+        for (AgentContext.StructureDocument document : context.structures()) {
+            StructureDescriber.StructureInfo info = document.snapshot().info();
+            JsonObject structure = new JsonObject();
+            structure.addProperty("id", document.id());
+            structure.add("size", GSON.toJsonTree(List.of(info.sizeX(), info.sizeY(), info.sizeZ())));
+            structure.addProperty("block_count", document.snapshot().blocks().size());
+            structure.add("block_types", GSON.toJsonTree(info.blockTypes()));
+            structures.add(structure);
         }
-        issues.addAll(AiSceneValidator.validate(draft.scene(), context.structures(), context.structureNames()));
-        return issues;
+        manifest.add("structures", structures);
+
+        JsonArray references = new JsonArray();
+        for (AgentContext.ReferenceDocument document : context.references()) {
+            JsonObject reference = new JsonObject();
+            reference.addProperty("id", document.id());
+            reference.addProperty("url", document.url());
+            reference.addProperty("available", document.available());
+            if (document.available()) {
+                reference.addProperty("text_length", document.text().length());
+                reference.addProperty("image_count", document.images().size());
+            } else {
+                reference.addProperty("error", document.error());
+            }
+            references.add(reference);
+        }
+        manifest.add("references", references);
+        manifest.add("existing_scene", existingSceneSummary(context.existingScene()));
+        return GSON_PRETTY.toJson(manifest);
     }
 
-    private static String buildRepairInstruction(String previousJson, List<AiSceneValidator.Issue> issues) {
-        String formattedIssues = issues.stream()
+    private static JsonObject existingSceneSummary(AgentContext.ExistingSceneDocument existing) {
+        JsonObject summary = new JsonObject();
+        summary.addProperty("available", existing.available());
+        if (!existing.available()) {
+            if (existing.error() != null) {
+                summary.addProperty("error", existing.error());
+            }
+            return summary;
+        }
+        summary.addProperty("id", existing.scene().id);
+        JsonArray topLevelFields = new JsonArray();
+        for (String key : existing.json().keySet()) {
+            if (!"scenes".equals(key)) {
+                topLevelFields.add(key);
+            }
+        }
+        summary.add("top_level_fields", topLevelFields);
+        JsonArray segments = new JsonArray();
+        int totalSteps = 0;
+        if (existing.scene().scenes != null) {
+            for (DslScene.SceneSegment segment : existing.scene().scenes) {
+                JsonObject item = new JsonObject();
+                item.addProperty("id", segment == null ? "" : segment.id);
+                int stepCount = segment == null || segment.steps == null ? 0 : segment.steps.size();
+                item.addProperty("step_count", stepCount);
+                totalSteps += stepCount;
+                segments.add(item);
+            }
+        }
+        summary.addProperty("segment_count", segments.size());
+        summary.addProperty("step_count", totalSteps);
+        summary.add("segments", segments);
+        return summary;
+    }
+
+    private static List<LlmProvider.ContentBlock> buildTurnContent(
+        String manifest, List<LlmProvider.ContentBlock> transcript, int turn, int maxTurns) {
+        List<LlmProvider.ContentBlock> content = new ArrayList<>();
+        content.add(new LlmProvider.ContentBlock.Text(
+            "=== Generation manifest ===\n" + manifest));
+        if (!transcript.isEmpty()) {
+            content.add(new LlmProvider.ContentBlock.Text(
+                "=== Agent transcript (tool images follow their matching result) ==="));
+            content.addAll(transcript);
+        }
+        content.add(new LlmProvider.ContentBlock.Text(
+            "=== Turn budget ===\nTurn " + turn + " of " + maxTurns
+                + ". Return only one JSON object containing tool_calls."));
+        return content;
+    }
+
+    private static ParseOutcome parseToolCalls(String response, AgentToolRegistry registry) {
+        try {
+            String json = LlmJsonSupport.cleanJson(LlmJsonSupport.extractJson(response));
+            JsonElement parsed = JsonParser.parseString(json);
+            if (!parsed.isJsonObject()) {
+                return ParseOutcome.error("Response must be a JSON object");
+            }
+            JsonObject object = parsed.getAsJsonObject();
+            JsonElement callsElement = object.get("tool_calls");
+            if (callsElement == null || !callsElement.isJsonArray()) {
+                return ParseOutcome.error("Response must contain a tool_calls array");
+            }
+            JsonArray callsArray = callsElement.getAsJsonArray();
+            if (callsArray.isEmpty()) {
+                return ParseOutcome.error("tool_calls must not be empty");
+            }
+            if (callsArray.size() > MAX_TOOL_CALLS_PER_TURN) {
+                return ParseOutcome.error("At most " + MAX_TOOL_CALLS_PER_TURN
+                    + " tool calls are allowed per turn");
+            }
+
+            List<ToolCall> calls = new ArrayList<>();
+            Set<String> ids = new HashSet<>();
+            boolean hasTerminal = false;
+            for (JsonElement callElement : callsArray) {
+                if (!callElement.isJsonObject()) {
+                    return ParseOutcome.error("Each tool call must be an object");
+                }
+                JsonObject call = callElement.getAsJsonObject();
+                String id = requiredProtocolString(call, "id");
+                String name = requiredProtocolString(call, "name").toLowerCase(Locale.ROOT);
+                if (!ids.add(id)) {
+                    return ParseOutcome.error("Duplicate tool call id: " + id);
+                }
+                AgentTool tool = registry.get(name);
+                if (tool == null) {
+                    return ParseOutcome.error("Unknown tool: " + name);
+                }
+                JsonElement arguments = call.get("arguments");
+                if (arguments == null || !arguments.isJsonObject()) {
+                    return ParseOutcome.error("Tool arguments must be an object for " + name);
+                }
+                hasTerminal |= tool.terminal();
+                calls.add(new ToolCall(id, name, arguments.getAsJsonObject().deepCopy()));
+            }
+            if (hasTerminal && calls.size() != 1) {
+                return ParseOutcome.error("submit_scene must be the only tool call in its turn");
+            }
+            return new ParseOutcome(List.copyOf(calls), null);
+        } catch (RuntimeException e) {
+            return ParseOutcome.error("Could not parse tool protocol JSON: " + safeMessage(e));
+        }
+    }
+
+    private static String requiredProtocolString(JsonObject object, String key) {
+        JsonElement value = object.get(key);
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()
+            || value.getAsString().isBlank()) {
+            throw new IllegalArgumentException(key + " is required");
+        }
+        return value.getAsString().trim();
+    }
+
+    private static JsonObject toolResultsJson(List<ToolResult> results) {
+        JsonObject wrapper = new JsonObject();
+        JsonArray array = new JsonArray();
+        for (ToolResult result : results) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("id", result.id());
+            entry.addProperty("name", result.name());
+            entry.add("result", result.result());
+            array.add(entry);
+        }
+        wrapper.add("tool_results", array);
+        return wrapper;
+    }
+
+    private static JsonObject protocolError(String message) {
+        JsonObject error = new JsonObject();
+        JsonObject detail = new JsonObject();
+        detail.addProperty("message", message);
+        detail.addProperty("retryable", true);
+        error.add("protocol_error", detail);
+        return error;
+    }
+
+    private static String formatTranscriptTurn(int turn, String response, JsonObject result) {
+        return "TURN " + turn + " ASSISTANT_RESPONSE:\n" + response
+            + "\nTURN " + turn + " HOST_RESULT:\n" + GSON_PRETTY.toJson(result);
+    }
+
+    private static String formatToolResult(int turn, ToolResult result) {
+        JsonObject entry = new JsonObject();
+        entry.addProperty("id", result.id());
+        entry.addProperty("name", result.name());
+        entry.add("result", result.result());
+        return "TURN " + turn + " TOOL_RESULT:\n" + GSON_PRETTY.toJson(entry);
+    }
+
+    private static RuntimeException exhaustedException(
+        int maxTurns, int toolCallCount, String lastAction, String lastProtocolError,
+        AgentContext context, boolean toolBudgetExhausted) {
+        StringBuilder message = new StringBuilder(toolBudgetExhausted
+            ? "AI agent exhausted the " + MAX_TOOL_CALLS_PER_RUN + "-call tool budget"
+            : "AI agent exhausted " + maxTurns + " turns without submitting a valid scene");
+        message.append("\nLast action: ").append(lastAction == null || lastAction.isBlank()
+            ? "none" : lastAction);
+        if (lastProtocolError != null && !lastProtocolError.isBlank()) {
+            message.append("\nLast protocol error: ").append(lastProtocolError);
+        }
+        String lastErrors = context.runState().lastErrors().stream()
             .map(AiSceneValidator.Issue::format)
             .collect(Collectors.joining("\n"));
-        return """
-            === VALIDATOR REPAIR REQUEST ===
-            Your previous JSON did not pass deterministic validation.
-            Keep the same scene plan and intent. Fix only the JSON fields needed to resolve these errors.
-            Output one complete valid DslScene JSON object, with no markdown fences or explanation.
+        if (!lastErrors.isBlank()) {
+            message.append("\nLast validation errors:\n").append(lastErrors);
+        } else if (!context.runState().lastWarnings().isEmpty()) {
+            message.append("\nLast validation warnings:\n")
+                .append(context.runState().lastWarnings().stream()
+                    .map(warning -> warning.path() + ": " + warning.message())
+                    .collect(Collectors.joining("\n")));
+        }
+        message.append("\nTurns allowed: ").append(maxTurns)
+            .append("; tool calls executed: ").append(toolCallCount);
+        return new RuntimeException(message.toString());
+    }
 
-            Validation errors:
-            %s
+    private static String formatTrace(List<TraceEntry> trace) {
+        StringBuilder out = new StringBuilder();
+        for (TraceEntry entry : trace) {
+            out.append("=== TURN ").append(entry.turn()).append(" ===\n")
+                .append("ASSISTANT_RESPONSE:\n").append(entry.rawResponse()).append("\n");
+            if (entry.protocolError() != null) {
+                out.append("PROTOCOL_ERROR:\n").append(entry.protocolError()).append("\n\n");
+            } else {
+                out.append("TOOL_CALLS:\n").append(GSON_PRETTY.toJson(entry.calls())).append("\n")
+                    .append("TOOL_RESULTS:\n").append(GSON_PRETTY.toJson(entry.results())).append("\n\n");
+            }
+        }
+        return out.toString();
+    }
 
-            Previous JSON:
-            %s
-            """.formatted(formattedIssues, previousJson);
+    private static void writeTrace(BiConsumer<String, String> diagnostics,
+                                   String runId, List<TraceEntry> trace) {
+        diagnostics.accept("last_agent_trace.log",
+            "run=" + runId + "\n" + formatTrace(trace));
+    }
+
+    private static String statusForTool(String name) {
+        return switch (name) {
+            case "query_structure" -> "Querying structure";
+            case "lookup_registry", "inspect_registry_entries" -> "Resolving registry entries";
+            case "get_step_schema" -> "Loading scene step schema";
+            case "search_references" -> "Searching reference material";
+            case "inspect_existing_scene" -> "Inspecting existing scene";
+            case "review_scene" -> "Reviewing scene draft";
+            case "submit_scene" -> "Validating scene submission";
+            default -> "Running agent tool";
+        };
     }
 
     private static String toStructureId(Path path) {
@@ -344,7 +588,8 @@ public final class AiSceneAgentPipeline {
             if (relative.toLowerCase(Locale.ROOT).endsWith(".nbt")) {
                 relative = relative.substring(0, relative.length() - 4);
             }
-            ResourceLocation parsed = ResourceLocation.tryParse(relative.contains(":") ? relative : "ponderer:" + relative);
+            ResourceLocation parsed = ResourceLocation.tryParse(
+                relative.contains(":") ? relative : "ponderer:" + relative);
             if (parsed != null) {
                 return parsed.toString();
             }
@@ -359,9 +604,23 @@ public final class AiSceneAgentPipeline {
             return parsed.toString();
         }
         List<String> segments = SafePaths.splitValidatedRelativePath(name);
-        return segments == null || segments.isEmpty() ? "ponderer:generated" : "ponderer:" + String.join("/", segments);
+        return segments == null || segments.isEmpty()
+            ? "ponderer:generated"
+            : "ponderer:" + String.join("/", segments);
     }
 
-    private record Draft(String rawJson, @Nullable DslScene scene, @Nullable Exception parseError) {
+    private static String safeMessage(Throwable error) {
+        Throwable current = error;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return message == null || message.isBlank() ? current.getClass().getSimpleName() : message;
+    }
+
+    private record ParseOutcome(List<ToolCall> calls, @Nullable String error) {
+        private static ParseOutcome error(String error) {
+            return new ParseOutcome(List.of(), error);
+        }
     }
 }

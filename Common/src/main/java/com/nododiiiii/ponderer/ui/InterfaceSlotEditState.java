@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
@@ -345,7 +346,7 @@ public final class InterfaceSlotEditState {
     @Nullable
     private static ResourceLocation getItemId() {
         if (context == null || context.scene().items == null || context.scene().items.isEmpty()) return null;
-        return ResourceLocation.tryParse(context.scene().items.get(0));
+        return SceneItemBindings.firstItem(context.scene());
     }
 
     private static LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> copyBindings(
