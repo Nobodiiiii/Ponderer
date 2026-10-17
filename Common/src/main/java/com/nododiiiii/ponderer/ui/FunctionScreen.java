@@ -222,6 +222,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
             .build();
 
         screen.addToggleDependency("use_held_nbt", "use_held");
+        screen.enableItemTagDropdown("item_id");
         screen.addFieldDisablesToggle("item_id", "use_held");
         screen.addFieldDisablesToggle("nbt", "use_held_nbt");
 

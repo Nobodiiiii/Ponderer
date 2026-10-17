@@ -415,6 +415,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     @Override
     public void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
+        CustomPonderTags.register();
         for (DslScene scene : SceneRuntime.getScenes()) {
             ResourceLocation[] tags = resolveTags(scene.tags);
             for (ResourceLocation item : SceneItemBindings.resolve(scene.items)) {

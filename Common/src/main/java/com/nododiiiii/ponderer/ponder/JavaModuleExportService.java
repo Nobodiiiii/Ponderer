@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -409,6 +410,7 @@ public final class JavaModuleExportService {
                 plan.tags.add(tagLoc.toString());
             }
         }
+        plan.customTags = CustomPonderTags.copy(CustomPonderTags.forScene(scene));
 
         collectSceneMetaWarnings(scene, result, plan);
 
@@ -863,6 +865,11 @@ public final class JavaModuleExportService {
     private static Map<String, Map<String, String>> buildSceneLangEntries(JavaModuleScanResult.TargetProject target,
                                                                           JavaModuleScanResult.ScenePlan scenePlan) {
         Map<String, Map<String, String>> langEntries = new LinkedHashMap<>();
+        scenePlan.customTags.forEach((id, definition) -> {
+            ResourceLocation location = ResourceLocation.parse(exportedTagId(target, scenePlan, id));
+            addLangEntries(langEntries, tagTitleLangKey(location.getNamespace(), location.getPath()), definition.title, id);
+            addLangEntries(langEntries, tagDescriptionLangKey(location.getNamespace(), location.getPath()), definition.description, "");
+        });
         for (int segmentIndex = 0; segmentIndex < scenePlan.segments.size(); segmentIndex++) {
             JavaModuleScanResult.SegmentPlan segment = scenePlan.segments.get(segmentIndex);
             if (segment.schematic == null) {
@@ -968,6 +975,15 @@ public final class JavaModuleExportService {
 
     private static String generatedAttributionTagId(String modId) {
         return modId + ":" + ATTRIBUTION_TAG_PATH;
+    }
+
+    /** Generated custom categories belong to the destination mod; external categories keep their IDs. */
+    private static String exportedTagId(JavaModuleScanResult.TargetProject target,
+                                         JavaModuleScanResult.ScenePlan plan, String id) {
+        if (!plan.customTags.containsKey(id)) {
+            return id;
+        }
+        return ResourceLocation.fromNamespaceAndPath(target.modId, ResourceLocation.parse(id).getPath()).toString();
     }
 
     private static String tagTitleLangKey(String modId, String tagPath) {
@@ -1197,7 +1213,8 @@ public final class JavaModuleExportService {
         sb.append("    }\n\n");
         sb.append("    public static void register(PonderSceneRegistrationHelper<ResourceLocation> helper) {\n");
         sb.append("        ResourceLocation[] tags = ")
-            .append(resourceLocationArrayExpr(plan.tags, generatedAttributionTagId(target.modId))).append(";\n");
+            .append(resourceLocationArrayExpr(plan.tags.stream().map(id -> exportedTagId(target, plan, id)).toList(),
+                generatedAttributionTagId(target.modId))).append(";\n");
         sb.append("        var multi = helper.forComponents(java.util.List.of(")
             .append(plan.componentItems.stream().map(JavaModuleExportService::resourceLocationExpr).collect(Collectors.joining(", ")))
             .append("));\n");
@@ -1213,6 +1230,19 @@ public final class JavaModuleExportService {
         }
         sb.append("    }\n\n");
         sb.append("    public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {\n");
+        plan.customTags.forEach((id, definition) -> {
+            String exportedId = exportedTagId(target, plan, id);
+            sb.append("        if (net.createmod.ponder.foundation.PonderIndex.getTagAccess().getListedTags().stream()\n")
+                .append("            .noneMatch(existing -> existing.getId().equals(").append(resourceLocationExpr(exportedId)).append("))) {\n")
+                .append("            helper.registerTag(").append(resourceLocationExpr(exportedId)).append(")\n")
+                .append("                .title(").append(stringExpr(resolveExportText(definition.title, id))).append(")\n")
+                .append("                .description(").append(stringExpr(resolveExportText(definition.description, ""))).append(")\n")
+                .append("                .item(net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(")
+                .append(resourceLocationExpr(BuiltInRegistries.ITEM.getKey(CustomPonderTags.iconItem(definition)).toString()))
+                .append(").orElse(net.minecraft.world.item.Items.BOOK))\n")
+                .append("                .addToIndex().register();\n")
+                .append("        }\n");
+        });
         sb.append("        ResourceLocation tag = GeneratedPonderAttribution.tag();\n");
         for (String componentItem : plan.componentItems) {
             sb.append("        helper.addTagToComponent(")
@@ -1221,7 +1251,7 @@ public final class JavaModuleExportService {
             for (String sceneTag : plan.tags) {
                 sb.append("        helper.addTagToComponent(")
                     .append(resourceLocationExpr(componentItem))
-                    .append(", ").append(resourceLocationExpr(sceneTag)).append(");\n");
+                    .append(", ").append(resourceLocationExpr(exportedTagId(target, plan, sceneTag))).append(");\n");
             }
         }
         sb.append("    }\n\n");

@@ -21,6 +21,7 @@ public class FabricNetworkHelper implements NetworkHelper {
         PayloadTypeRegistry.playC2S().register(UploadScenePayload.TYPE, UploadScenePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SyncRequestPayload.TYPE, SyncRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(DownloadStructurePayload.TYPE, DownloadStructurePayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(StructurePreviewRequestPayload.TYPE, StructurePreviewRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(CaptureBlockEntityNbtRequestPayload.TYPE, CaptureBlockEntityNbtRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(PermissionListRequestPayload.TYPE, PermissionListRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(PermissionUpdateRequestPayload.TYPE, PermissionUpdateRequestPayload.CODEC);
@@ -37,6 +38,7 @@ public class FabricNetworkHelper implements NetworkHelper {
 
         PayloadTypeRegistry.playS2C().register(SyncResponsePayload.TYPE, SyncResponsePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(DownloadStructureResultPayload.TYPE, DownloadStructureResultPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(StructurePreviewResponsePayload.TYPE, StructurePreviewResponsePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(UploadResponsePayload.TYPE, UploadResponsePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(CaptureBlockEntityNbtResponsePayload.TYPE, CaptureBlockEntityNbtResponsePayload.CODEC);
         PayloadTypeRegistry.playS2C().register(PermissionListResponsePayload.TYPE, PermissionListResponsePayload.CODEC);
@@ -55,6 +57,10 @@ public class FabricNetworkHelper implements NetworkHelper {
     }
 
     private void registerServerHandlers() {
+        ServerPlayNetworking.registerGlobalReceiver(StructurePreviewRequestPayload.TYPE, (payload, context) -> {
+            ServerPlayer player = context.player();
+            player.server.execute(() -> StructurePreviewRequestPayload.handle(payload, player));
+        });
         ServerPlayNetworking.registerGlobalReceiver(UploadScenePayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
             context.player().server.execute(() -> UploadScenePayload.handle(payload, player));
@@ -123,6 +129,9 @@ public class FabricNetworkHelper implements NetworkHelper {
 
     @Environment(EnvType.CLIENT)
     private void registerClientHandlers() {
+        ClientPlayNetworking.registerGlobalReceiver(StructurePreviewResponsePayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> StructurePreviewResponsePayload.handle(payload));
+        });
         ClientPlayNetworking.registerGlobalReceiver(SyncResponsePayload.TYPE, (payload, context) -> {
             context.client().execute(() -> SyncResponsePayload.handle(payload));
         });

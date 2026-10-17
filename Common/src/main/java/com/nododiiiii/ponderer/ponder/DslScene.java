@@ -20,6 +20,8 @@ public class DslScene {
      */
     public List<String> structures = List.of();
     public List<String> tags = List.of();
+    /** Custom Ponder categories owned by this scene, keyed by ponderer:<name>. */
+    public Map<String, CustomTag> customTags = Map.of();
     /**
      * Whether normal users can edit this scene. Null means the client config's
      * default editable value should be used.
@@ -148,6 +150,12 @@ public class DslScene {
 
     public boolean isEditable(boolean defaultEditable) {
         return editable == null ? defaultEditable : editable;
+    }
+
+    public static class CustomTag {
+        public LocalizedText title = LocalizedText.of("");
+        public LocalizedText description = LocalizedText.of("");
+        public String icon = "minecraft:book";
     }
 
     public static class SceneSegment {

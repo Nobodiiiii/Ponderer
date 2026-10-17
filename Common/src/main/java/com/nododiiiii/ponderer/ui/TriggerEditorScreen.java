@@ -164,6 +164,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             "ponderer.ui.scene_desc.item_id.tooltip",
             UIText.of("ponderer.ui.scene_desc.hint.item_id"),
             124,
+            FieldDecorators.itemTagDropdown("itemId"),
             FieldDecorators.jei(IdFieldMode.ITEM),
             FieldDecorators.heldItem(this::applyHeldItem)));
         entries.add(FieldSpecs.text(
@@ -291,7 +292,8 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
     }
 
     private void openStructureList() {
-        Minecraft.getInstance().setScreen(new StructureListScreen(this, selected -> pendingStructureSelection = selected));
+        Minecraft.getInstance().setScreen(new StructureListScreen(this,
+            selected -> pendingStructureSelection = selected, structureField.getValue()));
     }
 
     private void startCoordinatePick() {

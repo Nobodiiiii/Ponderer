@@ -38,6 +38,8 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     private IdFieldMode ingredientMode;
     @Nullable
     private Rect2i ingredientSlotArea;
+    @Nullable
+    private Rect2i renderedFieldArea;
 
     public PlainTextListEntry(String labelKey, @Nullable String tooltipKey, @Nullable String hintKey,
                               String initialValue, Consumer<String> responder) {
@@ -77,8 +79,14 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         return ingredientSlotArea;
     }
 
-    public void clearIngredientSlotArea() {
+    public void clearRenderedAreas() {
         ingredientSlotArea = null;
+        renderedFieldArea = null;
+    }
+
+    @Nullable
+    public Rect2i renderedFieldArea() {
+        return renderedFieldArea;
     }
 
     public void renderIngredientTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -178,6 +186,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         textField.setY(y + 8);
         textField.setWidth(actualFieldWidth);
         textField.setHeight(20);
+        renderedFieldArea = new Rect2i(fieldX, y + 8, actualFieldWidth, 20);
         textField.render(graphics, mouseX, mouseY, partialTicks);
 
         renderTrailing(graphics, y, x, width, height, mouseX, mouseY, partialTicks);

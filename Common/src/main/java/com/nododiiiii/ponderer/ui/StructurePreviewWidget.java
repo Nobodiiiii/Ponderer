@@ -20,6 +20,8 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -178,6 +180,67 @@ public class StructurePreviewWidget {
         }
     }
 
+    /** Preview an untrusted world-generation template without placing it in the real world. */
+    public void loadTemplate(CompoundTag nbt) {
+        dispose();
+        String statusPrefix = "ponderer.ui.structure_list.preview.";
+        try {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level == null) {
+                setStatus(statusPrefix + "unavailable");
+                return;
+            }
+            ListTag size = nbt.getList("size", Tag.TAG_INT);
+            if (size.size() != 3) throw new IllegalArgumentException("Missing template size");
+            for (int i = 0; i < 3; i++) {
+                if (size.getInt(i) <= 0 || size.getInt(i) > 512) {
+                    setStatus(statusPrefix + "too_large");
+                    return;
+                }
+            }
+            // Some templates offer multiple palettes; preview the first variant.
+            if (!nbt.contains("palette", Tag.TAG_LIST)) {
+                ListTag palettes = nbt.getList("palettes", Tag.TAG_LIST);
+                if (!palettes.isEmpty()) nbt.put("palette", palettes.getList(0));
+            }
+            ListTag palette = nbt.getList("palette", Tag.TAG_COMPOUND);
+            ListTag blocks = nbt.getList("blocks", Tag.TAG_COMPOUND);
+            if (palette.isEmpty() || blocks.isEmpty()) {
+                setStatus(statusPrefix + "no_template");
+                return;
+            }
+            if (palette.size() > 8192 || blocks.size() > 131072) {
+                setStatus(statusPrefix + "too_large");
+                return;
+            }
+            for (int i = 0; i < blocks.size(); i++) {
+                CompoundTag block = blocks.getCompound(i);
+                ListTag pos = block.getList("pos", Tag.TAG_INT);
+                int state = block.getInt("state");
+                if (pos.size() != 3 || state < 0 || state >= palette.size()) {
+                    throw new IllegalArgumentException("Invalid template block");
+                }
+                for (int axis = 0; axis < 3; axis++) {
+                    if (pos.getInt(axis) < 0 || pos.getInt(axis) >= size.getInt(axis)) {
+                        throw new IllegalArgumentException("Template block outside bounds");
+                    }
+                }
+            }
+            List<PlacedBlock> placed = ExtraStructurePlanner.plan(nbt, BlockPos.ZERO, 0, true);
+            if (placed.isEmpty()) {
+                setStatus(statusPrefix + "no_template");
+            } else if (placed.size() > DEFAULT_LARGE_THRESHOLD) {
+                setStatus(statusPrefix + "too_large");
+            } else {
+                bake(mc, placed);
+                statusKey = null;
+            }
+        } catch (Exception | LinkageError e) {
+            LOGGER.debug("StructurePreview: invalid or unsupported world-generation template", e);
+            setStatus(statusPrefix + "unavailable");
+        }
+    }
+
     private void bake(Minecraft mc, List<PlacedBlock> placed) {
         SchematicLevel sl = new SchematicLevel(mc.level);
         sl.renderMode = true;
@@ -261,7 +324,13 @@ public class StructurePreviewWidget {
             renderStatus(graphics);
             return;
         }
-        renderScene(graphics, partialTicks);
+        try {
+            renderScene(graphics, partialTicks);
+        } catch (Exception | LinkageError e) {
+            LOGGER.debug("StructurePreview: render failed", e);
+            setStatus("ponderer.ui.structure_picker.preview.load_failed");
+            renderStatus(graphics);
+        }
     }
 
     private void renderBackground(GuiGraphics graphics) {
@@ -280,17 +349,20 @@ public class StructurePreviewWidget {
         String key = statusKey != null ? statusKey : "ponderer.ui.structure_picker.preview.placeholder";
         Component text = Component.translatable(key);
         Minecraft mc = Minecraft.getInstance();
-        int tw = mc.font.width(text);
-        graphics.drawString(mc.font,
-            text,
-            x + (w - tw) / 2,
-            y + (h - mc.font.lineHeight) / 2,
-            0xAACCCCCC,
-            false);
+        var lines = mc.font.split(text, Math.max(1, w - 16));
+        int top = y + (h - lines.size() * mc.font.lineHeight) / 2;
+        for (int i = 0; i < lines.size(); i++) {
+            var line = lines.get(i);
+            graphics.drawString(mc.font, line, x + (w - mc.font.width(line)) / 2,
+                top + i * mc.font.lineHeight, 0xAACCCCCC, false);
+        }
     }
 
     private void renderScene(GuiGraphics graphics, float partialTicks) {
-        PoseStack pose = graphics.pose();
+        // Isolate the GUI's pose stack from third-party block entity renderers.
+        PoseStack pose = new PoseStack();
+        pose.last().pose().set(graphics.pose().last().pose());
+        pose.last().normal().set(graphics.pose().last().normal());
         SuperRenderTypeBuffer buffer = DefaultSuperRenderTypeBuffer.getInstance();
 
         RenderSystem.enableBlend();
@@ -298,6 +370,7 @@ public class StructurePreviewWidget {
         RenderSystem.setupLevelDiffuseLighting(DIFFUSE_LIGHT_0, DIFFUSE_LIGHT_1);
 
         pose.pushPose();
+        try {
         // Park the model deep in Mojang's GUI ortho visible window (view z ∈ [-11000, -1000])
         // — see MODEL_VIEW_Z comment for the diagnostic that pinpointed this. No projection
         // surgery needed; ortho is z-position-independent for visual scale.
@@ -323,9 +396,10 @@ public class StructurePreviewWidget {
         renderBlockEntities(pose, buffer, partialTicks);
 
         buffer.draw();
-        pose.popPose();
-
-        RenderSystem.disableBlend();
+        } finally {
+            pose.popPose();
+            RenderSystem.disableBlend();
+        }
     }
 
     private void renderBlockEntities(PoseStack pose, SuperRenderTypeBuffer buffer, float partialTicks) {
@@ -339,15 +413,22 @@ public class StructurePreviewWidget {
             pose.translate(p.getX(), p.getY(), p.getZ());
             try {
                 renderer.render(be, partialTicks, pose, buffer, FULL_BRIGHT, net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY);
-            } catch (Exception ex) {
+            } catch (Exception | LinkageError ex) {
                 LOGGER.debug("StructurePreview: BE render failed at {}", p, ex);
+            } finally {
+                pose.popPose();
             }
-            pose.popPose();
         }
     }
 
     public void dispose() {
-        cache.values().forEach(SuperByteBuffer::delete);
+        for (SuperByteBuffer buffer : cache.values()) {
+            try {
+                buffer.delete();
+            } catch (Exception | LinkageError e) {
+                LOGGER.debug("StructurePreview: failed to release preview buffer", e);
+            }
+        }
         cache.clear();
         level = null;
         dragYawDeg = 0.0f;

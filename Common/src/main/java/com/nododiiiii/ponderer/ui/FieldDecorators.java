@@ -62,6 +62,18 @@ public final class FieldDecorators {
         };
     }
 
+    public static FieldDecorator itemTagDropdown(String fieldId) {
+        return new FieldDecorator() {
+            @Override
+            public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
+                if (!(screen instanceof AbstractJeiAwareFormScreen form)) {
+                    throw new IllegalStateException("Item tag dropdown requires a JEI-aware form screen");
+                }
+                form.attachItemTagDropdown(fieldId, entry);
+            }
+        };
+    }
+
     public static FieldDecorator pointPick(PickState.TargetField target, boolean halfOffset) {
         return new FieldDecorator() {
             @Override

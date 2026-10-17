@@ -24,18 +24,30 @@ public class PonderTagListEntry extends ConfigScreenList.LabeledEntry implements
     private final List<ActionStripListEntry.ButtonModel> buttons;
 
     public PonderTagListEntry(String id, @Nullable PonderTag tag, BooleanSupplier selected, Runnable onToggle) {
+        this(id, tag, selected, onToggle, null, null);
+    }
+
+    public PonderTagListEntry(String id, @Nullable PonderTag tag, BooleanSupplier selected, Runnable onToggle,
+                              @Nullable Runnable onEdit, @Nullable Runnable onDelete) {
         super("");
         this.id = id;
         this.tag = tag;
         this.selected = selected;
-        this.buttons = List.of(ActionStripListEntry.button(
+        this.buttons = new ArrayList<>();
+        buttons.add(ActionStripListEntry.button(
             () -> UIText.of(selected.getAsBoolean()
                 ? "ponderer.ui.scene_tags.selected" : "ponderer.ui.scene_tags.select"),
             this::tooltip,
             onToggle,
             () -> selected.getAsBoolean() ? 0x80FF80 : 0xFFFFFF,
             () -> true));
-        listeners.add(buttons.getFirst().widget());
+        if (onEdit != null) {
+            buttons.add(ActionStripListEntry.button(UIText.of("ponderer.ui.custom_tag.edit"), null, onEdit));
+        }
+        if (onDelete != null) {
+            buttons.add(ActionStripListEntry.button(UIText.of("ponderer.ui.custom_tag.delete"), null, onDelete));
+        }
+        buttons.forEach(button -> listeners.add(button.widget()));
     }
 
     @Override
@@ -66,7 +78,7 @@ public class PonderTagListEntry extends ConfigScreenList.LabeledEntry implements
         } else {
             graphics.drawString(Minecraft.getInstance().font, "?", x + 10, y + 12, 0xFFFFAA55);
         }
-        int controlWidth = 80;
+        int controlWidth = buttons.size() > 1 ? 156 : 80;
         int controlX = x + width - controlWidth - 4;
         int textX = x + 32;
         int textWidth = Math.max(8, controlX - textX - 8);

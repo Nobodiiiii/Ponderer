@@ -30,6 +30,9 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
         registrar.playToServer(DownloadStructurePayload.TYPE, DownloadStructurePayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> DownloadStructurePayload.handle(payload, (ServerPlayer) ctx.player()));
         });
+        registrar.playToServer(StructurePreviewRequestPayload.TYPE, StructurePreviewRequestPayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> StructurePreviewRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+        });
         registrar.playToServer(CaptureBlockEntityNbtRequestPayload.TYPE, CaptureBlockEntityNbtRequestPayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> CaptureBlockEntityNbtRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
         });
@@ -75,6 +78,9 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
         });
         registrar.playToClient(DownloadStructureResultPayload.TYPE, DownloadStructureResultPayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> DownloadStructureResultPayload.handle(payload));
+        });
+        registrar.playToClient(StructurePreviewResponsePayload.TYPE, StructurePreviewResponsePayload.CODEC, (payload, ctx) -> {
+            ctx.enqueueWork(() -> StructurePreviewResponsePayload.handle(payload));
         });
         registrar.playToClient(UploadResponsePayload.TYPE, UploadResponsePayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> UploadResponsePayload.handle(payload));

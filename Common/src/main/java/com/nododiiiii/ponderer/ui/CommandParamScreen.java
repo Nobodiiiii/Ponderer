@@ -13,6 +13,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -52,6 +54,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     private final Map<String, String> fieldDisablesToggle = new HashMap<>();
     private final Map<String, Map<String, Supplier<String>>> toggleAutoFill = new HashMap<>();
     private final Map<String, VisibilityRule> fieldVisibility = new HashMap<>();
+    private final Set<String> itemTagFields = new HashSet<>();
 
     private boolean suppressFieldResponder = false;
     private boolean collectingEntries = false;
@@ -84,6 +87,10 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
 
     public void showFieldWhenValue(String fieldId, String controllerFieldId, String expectedValue) {
         fieldVisibility.put(fieldId, new VisibilityRule(controllerFieldId, expectedValue));
+    }
+
+    public void enableItemTagDropdown(String fieldId) {
+        itemTagFields.add(fieldId);
     }
 
     @Override
@@ -256,7 +263,14 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
                 toggleStates.put(dependency.getKey(), false);
             }
         }
-        rebuildListPreservingScroll();
+        // Toggles read their state each frame. Keep the text widget (and its open dropdown)
+        // attached while editing unless a visibility rule actually needs a new form layout.
+        boolean affectsVisibility = fieldVisibility.values().stream().anyMatch(rule ->
+            rule.controllerFieldId().equals(toggleToDisable)
+                || toggleToDisable.equals(toggleDependencies.get(rule.controllerFieldId())));
+        if (affectsVisibility) {
+            rebuildListPreservingScroll();
+        }
     }
 
     private void handleToggle(String id) {
@@ -411,6 +425,9 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         List<FieldDecorator> specs = new ArrayList<>();
         if (textDef.jeiMode != null) {
             specs.add(FieldDecorators.jei(textDef.jeiMode));
+        }
+        if (itemTagFields.contains(textDef.id)) {
+            specs.add(FieldDecorators.itemTagDropdown(textDef.id));
         }
         if (textDef.sceneSelector) {
             specs.add(FieldDecorators.sceneSelector(() -> openSceneSelector(textDef.id, textDef.sceneMultiSelect)));

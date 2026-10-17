@@ -1,7 +1,9 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
+import net.createmod.catnip.animation.AnimationTickHolder;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -27,6 +29,7 @@ public class IngredientSlotWidget extends AbstractWidget {
 
     public static final int SIZE = 18;
     private static final ResourceLocation SLOT_SPRITE = ResourceLocation.withDefaultNamespace("container/slot");
+    private static final int TAG_CYCLE_TICKS = 20;
 
     private final IdFieldMode mode;
     private final Supplier<String> valueGetter;
@@ -37,6 +40,8 @@ public class IngredientSlotWidget extends AbstractWidget {
     private String previewId;
     @Nullable
     private ScreenElement previewIngredient;
+    private int tagPreviewIndex = -1;
+    private int lastTagCycleTick;
 
     public IngredientSlotWidget(IdFieldMode mode, Supplier<String> valueGetter, @Nullable String tooltipText) {
         super(0, 0, SIZE, SIZE, CommonComponents.EMPTY);
@@ -105,12 +110,22 @@ public class IngredientSlotWidget extends AbstractWidget {
             }
         }
         id = id.substring(0, suffix).trim();
-        if (id.equals(previewId)) {
+        boolean tagBinding = (mode == IdFieldMode.ITEM || mode == IdFieldMode.INGREDIENT)
+            && SceneItemBindings.isTag(id);
+        boolean bindingChanged = !id.equals(previewId);
+        if (!bindingChanged && !tagBinding) {
             return;
         }
-        previewId = id;
-        slot.set(ItemStack.EMPTY);
-        previewIngredient = null;
+        if (bindingChanged) {
+            previewId = id;
+            slot.set(ItemStack.EMPTY);
+            previewIngredient = null;
+            tagPreviewIndex = -1;
+        }
+        if (tagBinding) {
+            updateTagPreview(id, bindingChanged);
+            return;
+        }
         ResourceLocation key = ResourceLocation.tryParse(id);
         if (key == null) {
             return;
@@ -142,5 +157,25 @@ public class IngredientSlotWidget extends AbstractWidget {
             previewIngredient = JeiCompat.resolveIngredientById(id);
         }
         slot.set(previewStack);
+    }
+
+    private void updateTagPreview(String binding, boolean bindingChanged) {
+        // Include paused ticks so previews keep cycling in single-player configuration screens.
+        int now = AnimationTickHolder.getTicks(true);
+        int elapsed = now - lastTagCycleTick;
+        if (!bindingChanged && elapsed >= 0 && elapsed < TAG_CYCLE_TICKS) {
+            return;
+        }
+        lastTagCycleTick = now;
+
+        // Resolve again each cycle to pick up tag updates without rebuilding the screen.
+        List<ResourceLocation> items = SceneItemBindings.resolve(List.of(binding));
+        if (items.isEmpty()) {
+            tagPreviewIndex = -1;
+            slot.set(ItemStack.EMPTY);
+            return;
+        }
+        tagPreviewIndex = (tagPreviewIndex + 1) % items.size();
+        slot.set(new ItemStack(BuiltInRegistries.ITEM.get(items.get(tagPreviewIndex))));
     }
 }

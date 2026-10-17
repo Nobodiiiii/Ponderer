@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.CustomPonderTags;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -41,6 +42,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     private String draftSceneId;
     private boolean workingEditable;
     private List<String> workingTags;
+    private Map<String, DslScene.CustomTag> workingCustomTags;
 
     @Nullable
     private LocalizedTextListEntry ponderTitleEntry;
@@ -122,12 +124,13 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         entries.add(FieldSpecs.labeledButton(
             "ponderer.ui.scene_tags",
             "ponderer.ui.scene_tags.tooltip",
-            () -> ScreenOpener.open(new SceneTagsScreen(this, workingTags, tags -> {
+            () -> ScreenOpener.open(new SceneTagsScreen(this, scene, workingTags, workingCustomTags, (tags, definitions) -> {
                 workingTags = new ArrayList<>(tags);
+                workingCustomTags = CustomPonderTags.copy(definitions);
                 clearStatusMessages();
             })),
             () -> UIText.of("ponderer.ui.scene_tags.edit", workingTags.size()),
-            () -> SceneTagsScreen.summarize(workingTags)));
+            () -> SceneTagsScreen.summarize(workingTags, workingCustomTags)));
 
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.scene_desc.editable",
@@ -153,6 +156,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
 
         candidate.title = copyLocalizedText(workingPonderTitle);
         candidate.tags = List.copyOf(workingTags);
+        candidate.customTags = CustomPonderTags.copy(workingCustomTags);
         candidate.editable = workingEditable;
         if (!newPonderId.isEmpty()) {
             candidate.id = newPonderId;
@@ -197,6 +201,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         snapshot.put("scene_id", draftSceneId);
         snapshot.put("editable", String.valueOf(workingEditable));
         snapshot.put("tag_count", String.valueOf(workingTags.size()));
+        snapshot.put("custom_tags", CustomPonderTags.encode(workingCustomTags));
         for (int i = 0; i < workingTags.size(); i++) {
             snapshot.put("tag_" + i, workingTags.get(i));
         }
@@ -213,6 +218,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         draftSceneId = snapshot.getOrDefault("scene_id", "");
         workingEditable = Boolean.parseBoolean(snapshot.getOrDefault("editable", "true"));
         workingTags = new ArrayList<>();
+        workingCustomTags = CustomPonderTags.decode(snapshot.getOrDefault("custom_tags", "{}"));
         int tagCount = Integer.parseInt(snapshot.getOrDefault("tag_count", "0"));
         for (int i = 0; i < tagCount; i++) {
             workingTags.add(snapshot.getOrDefault("tag_" + i, ""));
@@ -259,6 +265,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     private void applySavedScene(DslScene candidate) {
         scene.title = candidate.title;
         scene.tags = candidate.tags;
+        scene.customTags = candidate.customTags;
         scene.id = candidate.id;
         if (hasMultiScene && candidate.scenes != null && scene.scenes != null
             && sceneIndex >= 0 && sceneIndex < candidate.scenes.size() && sceneIndex < scene.scenes.size()) {
@@ -274,6 +281,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         originalPonderId = scene.id != null ? scene.id : "";
         draftPonderId = originalPonderId;
         workingEditable = scene.isEditable(Config.DEFAULT_EDITABLE.get());
+        workingCustomTags = CustomPonderTags.copy(scene.customTags);
         workingTags = new ArrayList<>();
         if (scene.tags != null) {
             for (String tag : scene.tags) {
