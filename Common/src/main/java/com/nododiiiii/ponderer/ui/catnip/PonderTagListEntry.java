@@ -74,13 +74,13 @@ public class PonderTagListEntry extends ConfigScreenList.LabeledEntry implements
             graphics.fill(x, y, x + width, y + height, 0x303F8F3F);
         }
         if (tag != null) {
-            tag.render(graphics, x + 6, y + (height - 16) / 2);
+            tag.render(graphics, EntryTextSupport.contentLeft(x), y + (height - 16) / 2);
         } else {
-            graphics.drawString(Minecraft.getInstance().font, "?", x + 10, y + 12, 0xFFFFAA55);
+            graphics.drawString(Minecraft.getInstance().font, "?", EntryTextSupport.contentLeft(x), y + 12, 0xFFFFAA55);
         }
         int controlWidth = buttons.size() > 1 ? 156 : 80;
-        int controlX = x + width - controlWidth - 4;
-        int textX = x + 32;
+        int controlX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
+        int textX = EntryTextSupport.contentLeft(x) + 26;
         int textWidth = Math.max(8, controlX - textX - 8);
         var font = Minecraft.getInstance().font;
         int titleColor = selected.getAsBoolean() ? 0xFF80FF80

@@ -409,6 +409,11 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     private ConfigScreenList createCenteredList(int height, int top) {
         return new ConfigScreenList(minecraft, listWidth, height, top, getEntryHeight()) {
             @Override
+            public int getRowWidth() {
+                return getWidth() - 2 * com.nododiiiii.ponderer.ui.UILayoutConstants.LIST_ROW_MARGIN;
+            }
+
+            @Override
             public int getRowLeft() {
                 // Vanilla adds two pixels here, shifting equal row padding off-center.
                 return getX() + (getWidth() - getRowWidth()) / 2;

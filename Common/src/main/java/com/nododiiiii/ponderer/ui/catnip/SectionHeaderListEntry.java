@@ -38,8 +38,9 @@ public class SectionHeaderListEntry extends ConfigScreenList.LabeledEntry implem
         var font = Minecraft.getInstance().font;
         int color = annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFCCCC77;
         boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
-        graphics.drawString(font, title, x + 4, compact ? y + 8 : y + 11, color);
+        graphics.drawString(font, font.plainSubstrByWidth(title, EntryTextSupport.contentWidth(width)),
+            EntryTextSupport.contentLeft(x), compact ? y + 8 : y + 11, color);
         int lineY = compact ? y + height - 3 : y + height - 10;
-        graphics.fill(x + 4, lineY, x + width - 4, lineY + 1, 0x40FFFFFF);
+        graphics.fill(EntryTextSupport.contentLeft(x), lineY, EntryTextSupport.contentRight(x, width), lineY + 1, 0x40FFFFFF);
     }
 }

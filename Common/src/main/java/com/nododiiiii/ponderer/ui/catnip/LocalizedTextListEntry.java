@@ -43,14 +43,14 @@ public class LocalizedTextListEntry extends PlainTextListEntry {
 
     @Override
     protected int getTrailingWidth() {
-        return LANG_BUTTON_WIDTH + CONTROL_GAP;
+        return EntryTextSupport.boxVisualWidth(LANG_BUTTON_WIDTH) + CONTROL_GAP;
     }
 
     @Override
     protected void renderTrailing(GuiGraphics graphics, int y, int x, int width, int height,
                                   int mouseX, int mouseY, float partialTicks) {
         langText.withText(shortLang(langGetter.get()));
-        langButton.setX(x + width - 4 - LANG_BUTTON_WIDTH);
+        langButton.setX(EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - LANG_BUTTON_WIDTH);
         langButton.setY(y + 10);
         langButton.setWidth(LANG_BUTTON_WIDTH);
         langButton.setHeight(height - 20);

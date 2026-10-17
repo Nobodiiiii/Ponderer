@@ -68,10 +68,10 @@ public class DynamicActionRowListEntry extends ConfigScreenList.LabeledEntry imp
     public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
         int controlWidth = Math.min(150, Math.max(96, width / 2));
-        int controlX = x + width - 4 - controlWidth;
-        int textX = x + 4;
+        int controlX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
+        int textX = EntryTextSupport.contentLeft(x);
         if (iconStackGetter != null) {
-            renderIcon(graphics, x + 4, y + Math.max(0, (height - ICON_SIZE) / 2));
+            renderIcon(graphics, textX, y + Math.max(0, (height - ICON_SIZE) / 2));
             textX += ICON_SLOT_WIDTH;
         }
         int textWidth = Math.max(20, controlX - textX - 8);

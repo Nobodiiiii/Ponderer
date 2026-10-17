@@ -8,6 +8,7 @@ import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
 import com.nododiiiii.ponderer.ui.catnip.FormBoxWidget;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.util.SafePaths;
@@ -53,9 +54,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private static AiGenerationTask cachedGenerationTask;
 
     private static final int PREVIEW_HEIGHT = UILayoutConstants.LIST_ENTRY_H * 2;
-    private static final int PREVIEW_INSET = 4;
     private static final int NAV_BUTTON_SIZE = 18;
-    private static final int NAV_BUTTON_GAP = 8;
     private static final int HEADER_TITLE_COLOR = 0xFFCCCC77;
     private static final int HEADER_TEXT_COLOR = 0xFFFFFFFF;
     private static final int HEADER_MUTED_TEXT_COLOR = 0xFFAAAAAA;
@@ -700,9 +699,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         @Override
         public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                            int mouseX, int mouseY, boolean hovered, float partialTicks) {
-            previewX = x + PREVIEW_INSET;
+            previewX = EntryTextSupport.contentLeft(x);
             previewY = y + 2;
-            previewW = Math.max(0, width - PREVIEW_INSET * 2);
+            previewW = EntryTextSupport.contentWidth(width);
             previewH = Math.max(0, PREVIEW_HEIGHT - 4);
             preview.setShowDefaultPlaceholder(!hasStructures());
             preview.setBounds(previewX, previewY, previewW, previewH);
@@ -757,14 +756,16 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                            int mouseX, int mouseY, boolean hovered, float partialTicks) {
             int buttonY = y + Math.max(4, (height - NAV_BUTTON_SIZE) / 2);
-            layoutButton(previousButton, x + NAV_BUTTON_GAP, buttonY);
-            layoutButton(nextButton, x + width - NAV_BUTTON_GAP - NAV_BUTTON_SIZE, buttonY);
+            layoutButton(previousButton, EntryTextSupport.contentLeft(x) + EntryTextSupport.boxBorder(), buttonY);
+            layoutButton(nextButton, EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - NAV_BUTTON_SIZE, buttonY);
 
             previousButton.render(graphics, mouseX, mouseY, partialTicks);
             nextButton.render(graphics, mouseX, mouseY, partialTicks);
 
             var font = Minecraft.getInstance().font;
-            int textWidth = Math.max(20, width - (NAV_BUTTON_SIZE + NAV_BUTTON_GAP + 12) * 2);
+            int textWidth = Math.max(20, nextButton.getX() - EntryTextSupport.boxBorder()
+                - previousButton.getX() - NAV_BUTTON_SIZE - EntryTextSupport.boxBorder()
+                - 2 * EntryTextSupport.rightControlGap());
             String structureName = font.plainSubstrByWidth(currentStructureName(), textWidth);
             int nameColor = hasStructures() ? HEADER_TEXT_COLOR : HEADER_MUTED_TEXT_COLOR;
             graphics.drawCenteredString(font, structureName, x + width / 2, y + 8, nameColor);

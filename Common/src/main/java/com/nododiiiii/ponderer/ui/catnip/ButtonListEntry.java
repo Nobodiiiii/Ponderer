@@ -13,9 +13,6 @@ import java.util.function.Supplier;
 
 public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int BOX_WIDGET_VISUAL_INSET = 4;
-    private static final int TEXT_FIELD_BORDER_NUDGE = 2;
-
     private final String searchText;
     private final BoxWidget button;
     private final Supplier<String> labelGetter;
@@ -107,13 +104,10 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
         EntryTextSupport.AlignedControlBounds controlBounds = EntryTextSupport.rightAlignedControlBounds(
             x, width, getLabelWidth(width), controlWidthScale, getMinimumControlWidth());
         int renderedButtonWidth = Math.min(controlBounds.width(), getRenderedButtonWidth(controlBounds.width()));
-        int visibleButtonX = controlBounds.rightAlignedContentX(renderedButtonWidth) - TEXT_FIELD_BORDER_NUDGE;
-        int widgetX = visibleButtonX + BOX_WIDGET_VISUAL_INSET;
-        int widgetWidth = Math.max(1, renderedButtonWidth - BOX_WIDGET_VISUAL_INSET * 2);
+        int visibleButtonX = controlBounds.rightAlignedContentX(renderedButtonWidth);
         int buttonHeight = Math.max(16, height - 20);
-        button.setX(widgetX);
+        EntryTextSupport.setBoxHorizontalBounds(button, visibleButtonX, renderedButtonWidth);
         button.setY(y + 10);
-        button.setWidth(widgetWidth);
         button.setHeight(buttonHeight);
         button.render(graphics, mouseX, mouseY, partialTicks);
 

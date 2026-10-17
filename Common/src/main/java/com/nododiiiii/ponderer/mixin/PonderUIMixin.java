@@ -196,7 +196,7 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
             }
         }
         graphics.pose().popPose();
-        ponderer$getFreePreview().renderTooltips(graphics, mouseX, mouseY);
+        ponderer$getFreePreview().renderButtonTooltip(graphics, mouseX, mouseY);
     }
 
     @Inject(method = "renderWindow", at = @At("HEAD"))
@@ -204,23 +204,9 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
             CallbackInfo ci) {
         if (ponderer$getFreePreview().isActive()) {
             ((PonderUIAccessor) this).ponderer$setIdentifyMode(true);
-            ponderer$getFreePreview().updateHoveredBlock(mouseX, mouseY);
+            PonderUI self = (PonderUI) (Object) this;
+            self.updateIdentifiedItem(self.getActiveScene());
         }
-    }
-
-    // This member's descriptor contains only the unmapped PonderScene API type.
-    @Inject(method = "updateIdentifiedItem", at = @At("HEAD"), cancellable = true, remap = false)
-    private void ponderer$usePreviewBlockNames(PonderScene scene, CallbackInfo ci) {
-        if (ponderer$getFreePreview().isActive()) {
-            ci.cancel();
-        }
-    }
-
-    @Redirect(method = "renderWidgets", at = @At(value = "FIELD",
-        target = "Lnet/createmod/ponder/foundation/ui/PonderUI;identifyMode:Z", remap = false))
-    private boolean ponderer$usePreviewTooltips(PonderUI ui) {
-        // Preview draws its own hover hints, without the native identify-mode shortcut prompt.
-        return ((PonderUIAccessor) ui).ponderer$getIdentifyMode() && !ponderer$getFreePreview().isActive();
     }
 
     @Redirect(method = "mouseClicked", at = @At(value = "INVOKE",

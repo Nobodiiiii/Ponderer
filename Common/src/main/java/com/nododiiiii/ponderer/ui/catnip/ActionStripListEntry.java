@@ -18,7 +18,6 @@ import java.util.function.Supplier;
 
 public class ActionStripListEntry extends ConfigScreenList.Entry implements SearchableListEntry {
 
-    private static final int OUTER_GAP = 8;
     private static final int INNER_GAP = 8;
     private static final int ICON_BUTTON_SIZE = 18;
 
@@ -101,7 +100,7 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
     @Override
     public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
-        renderButtonCluster(graphics, buttons, x + OUTER_GAP, Math.max(40, width - OUTER_GAP * 2), y, height,
+        renderButtonCluster(graphics, buttons, EntryTextSupport.contentLeft(x), EntryTextSupport.contentWidth(width), y, height,
             mouseX, mouseY, partialTicks);
     }
 
@@ -117,6 +116,10 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
         if (buttons.isEmpty()) {
             return;
         }
+
+        // The cluster's bounds include the outer borders of its first and last buttons.
+        x += EntryTextSupport.boxBorder();
+        width -= 2 * EntryTextSupport.boxBorder();
 
         int count = buttons.size();
         int totalGap = INNER_GAP * Math.max(0, count - 1);
@@ -139,7 +142,7 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
         int buttonHeight = Math.max(16, Math.min(18, height - 12));
         int buttonY = y + Math.max(4, (height - buttonHeight) / 2);
         int usedWidth = fixedWidth + stretchWidth * stretchCount + stretchExtra + totalGap;
-        int currentX = stretchCount > 0 ? x : x + (width - usedWidth) / 2;
+        int currentX = stretchCount > 0 ? x : x + width - usedWidth;
 
         boolean extraAssigned = false;
         for (int i = 0; i < count; i++) {

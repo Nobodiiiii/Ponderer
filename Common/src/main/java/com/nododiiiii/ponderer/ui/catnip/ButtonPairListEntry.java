@@ -14,7 +14,6 @@ import java.util.function.Supplier;
 
 public class ButtonPairListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int HORIZONTAL_PADDING = 4;
     private static final int GAP = 8;
 
     private record ButtonModel(BoxWidget widget, Supplier<String> labelGetter,
@@ -76,13 +75,15 @@ public class ButtonPairListEntry extends ConfigScreenList.LabeledEntry implement
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
         int buttonHeight = Math.max(16, height - 16);
         int buttonY = y + Math.max(4, (height - buttonHeight) / 2);
-        int contentWidth = width - 2 * HORIZONTAL_PADDING;
+        int contentLeft = EntryTextSupport.contentLeft(x) + EntryTextSupport.boxBorder();
+        int contentRight = EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder();
+        int contentWidth = contentRight - contentLeft;
         int buttonWidth = right == null ? contentWidth : (contentWidth - GAP) / 2;
 
-        renderButton(graphics, left, x + HORIZONTAL_PADDING, buttonY, buttonWidth, buttonHeight,
+        renderButton(graphics, left, contentLeft, buttonY, buttonWidth, buttonHeight,
             mouseX, mouseY, partialTicks);
         if (right != null) {
-            renderButton(graphics, right, x + width - HORIZONTAL_PADDING - buttonWidth,
+            renderButton(graphics, right, contentRight - buttonWidth,
                 buttonY, buttonWidth, buttonHeight,
                 mouseX, mouseY, partialTicks);
         }

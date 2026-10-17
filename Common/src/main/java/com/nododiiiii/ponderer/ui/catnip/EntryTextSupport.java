@@ -1,10 +1,12 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.createmod.catnip.lang.FontHelper;
 import net.createmod.catnip.lang.FontHelper.Palette;
+import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -15,6 +17,8 @@ import java.util.Locale;
 public final class EntryTextSupport {
 
     private static final int RIGHT_CONTROL_GAP = 8;
+    // Catnip's BoxElement draws its default border four pixels outside the widget.
+    private static final int BOX_BORDER = 4;
     private static final float HALF_WIDTH_CONTROL_SCALE = 0.5f;
 
     public record AlignedControlBounds(int x, int width) {
@@ -60,7 +64,7 @@ public final class EntryTextSupport {
     }
 
     public static int controlAreaWidth(int totalWidth, int labelWidth) {
-        return Math.max(60, totalWidth - labelWidth - 8);
+        return Math.max(60, totalWidth - labelWidth - RIGHT_CONTROL_GAP - UILayoutConstants.ENTRY_CONTENT_PADDING);
     }
 
     public static int scaledControlWidth(int totalWidth, int labelWidth, float controlWidthScale, int minimumWidth) {
@@ -76,7 +80,33 @@ public final class EntryTextSupport {
     }
 
     public static int rightAlignedControlX(int x, int totalWidth, int renderedControlWidth) {
-        return x + totalWidth - 4 - renderedControlWidth;
+        return contentRight(x, totalWidth) - renderedControlWidth;
+    }
+
+    public static int contentLeft(int x) {
+        return x + UILayoutConstants.ENTRY_CONTENT_PADDING;
+    }
+
+    public static int contentRight(int x, int totalWidth) {
+        return x + totalWidth - UILayoutConstants.ENTRY_CONTENT_PADDING;
+    }
+
+    public static int contentWidth(int totalWidth) {
+        return Math.max(0, totalWidth - 2 * UILayoutConstants.ENTRY_CONTENT_PADDING);
+    }
+
+    public static int boxBorder() {
+        return BOX_BORDER;
+    }
+
+    public static int boxVisualWidth(int widgetWidth) {
+        return widgetWidth + 2 * BOX_BORDER;
+    }
+
+    /** Positions a BoxWidget by its visible border, just like an EditBox. */
+    public static void setBoxHorizontalBounds(BoxWidget widget, int visibleX, int visibleWidth) {
+        widget.setX(visibleX + BOX_BORDER);
+        widget.setWidth(Math.max(1, visibleWidth - 2 * BOX_BORDER));
     }
 
     public static float halfWidthControlScale() {

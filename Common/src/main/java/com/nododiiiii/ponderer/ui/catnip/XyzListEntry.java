@@ -99,7 +99,7 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         int labelWidth = getLabelWidth(width);
-        int buttonsWidth = trailingButtons.isEmpty() ? 0 : CONTROL_GAP;
+        int buttonsWidth = trailingButtons.isEmpty() ? 0 : CONTROL_GAP + 2 * EntryTextSupport.boxBorder();
         for (int i = 0; i < trailingButtons.size(); i++) {
             buttonsWidth += trailingButtons.get(i).width();
             if (i + 1 < trailingButtons.size()) {
@@ -115,7 +115,7 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         int xWidth = baseFieldWidth;
         int yWidth = baseFieldWidth;
         int zWidth = baseFieldWidth + remainder;
-        int fieldX = x + labelWidth + 4;
+        int fieldX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
         int fieldY = y + 8;
 
         xField.setX(fieldX);
@@ -136,7 +136,7 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         zField.setHeight(20);
         zField.render(graphics, mouseX, mouseY, partialTicks);
 
-        int cursorX = x + width - 4;
+        int cursorX = EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder();
         int buttonY = y + 10;
         int buttonHeight = Math.max(16, height - 20);
         var font = Minecraft.getInstance().font;

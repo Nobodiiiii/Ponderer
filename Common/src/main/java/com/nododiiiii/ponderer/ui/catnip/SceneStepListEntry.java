@@ -17,7 +17,6 @@ import java.util.function.Supplier;
 
 public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int OUTER_GAP = 8;
     private static final int BUTTON_GAP = 8;
     private static final int BUTTON_WIDTH = 18;
     private static final int BUTTON_HEIGHT = 16;
@@ -133,7 +132,8 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
 
     @Override
     protected int getLabelWidth(int totalWidth) {
-        return Math.max(100, totalWidth - controlAreaWidth() - 12);
+        return Math.max(100, EntryTextSupport.contentWidth(totalWidth) - controlAreaWidth()
+            - 2 * EntryTextSupport.boxBorder() - BUTTON_GAP);
     }
 
     @Override
@@ -149,8 +149,8 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
 
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
-        int clusterWidth = controlAreaWidth() - OUTER_GAP - 4;
-        int buttonX = x + width - OUTER_GAP - clusterWidth;
+        int clusterWidth = controlAreaWidth();
+        int buttonX = EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - clusterWidth;
         int buttonY = y + Math.max(4, (height - BUTTON_HEIGHT) / 2);
         for (ActionButton button : buttons) {
             renderButton(graphics, button, buttonX, buttonY, mouseX, mouseY, partialTicks);
@@ -186,7 +186,7 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
         if (buttons.isEmpty()) {
             return 0;
         }
-        return buttons.size() * BUTTON_WIDTH + Math.max(0, buttons.size() - 1) * BUTTON_GAP + OUTER_GAP + 4;
+        return buttons.size() * BUTTON_WIDTH + Math.max(0, buttons.size() - 1) * BUTTON_GAP;
     }
 
     private boolean isInsideMainArea(double mouseX, double mouseY) {
@@ -198,8 +198,8 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
 
     @Nullable
     private ActionButton findButtonAt(double mouseX, double mouseY) {
-        int clusterWidth = controlAreaWidth() - OUTER_GAP - 4;
-        int buttonX = lastX + lastWidth - OUTER_GAP - clusterWidth;
+        int clusterWidth = controlAreaWidth();
+        int buttonX = EntryTextSupport.contentRight(lastX, lastWidth) - EntryTextSupport.boxBorder() - clusterWidth;
         int buttonY = lastY + Math.max(4, (lastHeight - BUTTON_HEIGHT) / 2);
         for (ActionButton actionButton : buttons) {
             if (mouseX >= buttonX && mouseX < buttonX + BUTTON_WIDTH

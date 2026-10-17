@@ -76,14 +76,14 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         int labelWidth = getLabelWidth(width);
-        int buttonWidth = 20;
+        int buttonWidth = EntryTextSupport.boxVisualWidth(20);
         int equalsWidth = Minecraft.getInstance().font.width("=");
         int minControlWidth = 48 * 2 + buttonWidth + equalsWidth + CONTROL_GAP * 3;
         int controlWidth = Math.max(minControlWidth, EntryTextSupport.controlAreaWidth(width, labelWidth));
         int fieldsWidth = controlWidth - buttonWidth - equalsWidth - CONTROL_GAP * 3;
         int keyWidth = Math.max(48, fieldsWidth / 2);
         int valueWidth = Math.max(48, fieldsWidth - keyWidth);
-        int fieldX = x + labelWidth + 4;
+        int fieldX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
         int fieldY = y + 8;
 
         keyField.setX(fieldX);
@@ -106,9 +106,8 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
             0xA0A0A0);
 
         int buttonHeight = Math.max(16, height - 20);
-        removeButton.setX(valueX + valueWidth + CONTROL_GAP);
+        EntryTextSupport.setBoxHorizontalBounds(removeButton, valueX + valueWidth + CONTROL_GAP, buttonWidth);
         removeButton.setY(y + 10);
-        removeButton.setWidth(buttonWidth);
         removeButton.setHeight(buttonHeight);
         removeButton.render(graphics, mouseX, mouseY, partialTicks);
     }

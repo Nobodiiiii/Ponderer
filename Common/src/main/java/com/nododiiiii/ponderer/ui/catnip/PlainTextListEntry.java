@@ -199,7 +199,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
             width += Minecraft.getInstance().font.width(trailingText) + CONTROL_GAP;
         }
         if (!trailingButtons.isEmpty()) {
-            width += CONTROL_GAP;
+            width += CONTROL_GAP + 2 * EntryTextSupport.boxBorder();
         }
         for (int i = 0; i < trailingButtons.size(); i++) {
             width += trailingButtons.get(i).width();
@@ -212,7 +212,10 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
     protected void renderTrailing(GuiGraphics graphics, int y, int x, int width, int height,
                                   int mouseX, int mouseY, float partialTicks) {
-        int cursorX = x + width - 4;
+        int cursorX = EntryTextSupport.contentRight(x, width);
+        if (!trailingButtons.isEmpty()) {
+            cursorX -= EntryTextSupport.boxBorder();
+        }
         int buttonY = y + 10;
         int buttonHeight = Math.max(16, height - 20);
         var font = Minecraft.getInstance().font;
@@ -231,6 +234,10 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
                 button.getY() + (button.getHeight() - 8) / 2,
                 trailingButton.colorGetter().getAsInt());
             cursorX -= CONTROL_GAP;
+        }
+
+        if (!trailingButtons.isEmpty()) {
+            cursorX -= EntryTextSupport.boxBorder();
         }
 
         String trailingText = getTrailingText();

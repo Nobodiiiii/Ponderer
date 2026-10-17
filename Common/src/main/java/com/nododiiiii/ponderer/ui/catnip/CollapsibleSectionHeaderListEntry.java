@@ -16,7 +16,6 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
 
     private static final int BUTTON_WIDTH = 12;
     private static final int BUTTON_HEIGHT = 8;
-    private static final int OUTER_GAP = 4;
 
     private final Supplier<String> titleGetter;
     private final BooleanSupplier collapsedGetter;
@@ -64,7 +63,7 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
         boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
         int buttonHeight = BUTTON_HEIGHT;
         int buttonY = y + Math.max(4, (height - buttonHeight) / 2);
-        int buttonX = x + width - OUTER_GAP - BUTTON_WIDTH;
+        int buttonX = EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - BUTTON_WIDTH;
         toggleButton.setX(buttonX);
         toggleButton.setY(buttonY);
         toggleButton.setWidth(BUTTON_WIDTH);
@@ -76,11 +75,13 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
         String title = titleGetter.get();
         var font = Minecraft.getInstance().font;
         int color = annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFCCCC77;
-        int titleWidth = Math.max(20, buttonX - x - OUTER_GAP * 3);
-        graphics.drawString(font, font.plainSubstrByWidth(title, titleWidth), x + OUTER_GAP,
+        int contentLeft = EntryTextSupport.contentLeft(x);
+        int titleRight = buttonX - EntryTextSupport.boxBorder() - EntryTextSupport.rightControlGap();
+        int titleWidth = Math.max(20, titleRight - contentLeft);
+        graphics.drawString(font, font.plainSubstrByWidth(title, titleWidth), contentLeft,
             compact ? y + 8 : y + 11, color);
         int lineY = compact ? y + height - 3 : y + height - 10;
-        graphics.fill(x + OUTER_GAP, lineY, buttonX - OUTER_GAP, lineY + 1, 0x40FFFFFF);
+        graphics.fill(contentLeft, lineY, titleRight, lineY + 1, 0x40FFFFFF);
 
         String symbol = collapsedGetter.getAsBoolean() ? "+" : "-";
         graphics.drawCenteredString(font, symbol, toggleButton.getX() + toggleButton.getWidth() / 2,

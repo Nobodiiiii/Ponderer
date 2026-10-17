@@ -1,5 +1,231 @@
 # Changelog
 
+## 1.11.0
+
+### 新增功能 / New Features
+
+- **物品标签挂载**：支持用 `#物品标签` 批量挂载思索，并可附加 NBT 匹配条件。
+  Added item-tag bindings with optional NBT filters to attach a Ponder to every matching item.
+
+- **多物品挂载**：可添加、移除多组物品 ID 或标签，每组独立设置 NBT 条件。
+  Added multiple item ID or tag bindings, each with its own NBT filter and add/remove controls.
+
+- **思索分类标签**：描述编辑页新增标签选择器，支持搜索、图标预览和多选，并关联全部分场景与挂载物品。
+  Added a searchable category picker with icons and multiple selection, linking tags to all segments and bound items.
+
+- **自定义思索标签**：可创建、编辑、重命名和删除标签，设置中英文名称、说明与物品图标，ID 自动添加 `ponderer:` 前缀。
+  Added custom-category creation, editing, renaming, and deletion with bilingual text, item icons, and an automatic `ponderer:` namespace.
+
+- **从世界捕获界面**：正常打开目标容器即可捕获来源、开屏数据、槽位和可见方块上下文，保存后可在思索中回放。
+  Added world capture for container sources, opening data, slots, and visible block context for replay inside Ponder.
+
+- **界面试用模式**：新增“试一试”、重置和退出操作，可暂停教程并在独立演示环境中操作容器。
+  Added Try, Reset, and Exit controls to pause tutorials and interact with containers in a separate demo environment.
+
+- **界面槽位脚本**：新增 `set_interface_slots`，可写入带数量和数据组件的物品，并叠加流体等非物品配料图标。
+  Added `set_interface_slots` for item counts and components, plus display-only non-item ingredient overlays.
+
+- **界面数值动画**：新增 `set_interface_data`，可按指定时长改变容器数据槽数值。
+  Added `set_interface_data` to animate menu data-slot values over a specified duration.
+
+- **界面玩家上下文**：新增 `set_interface_context`，可设置演示玩家的游戏模式、经验、背包和选中快捷栏。
+  Added `set_interface_context` for demo-player game mode, experience, inventory, and selected hotbar slot.
+
+- **界面操作脚本**：新增 `interface_action`，支持点击、拖动物品、快捷移动、滚动、输入文字与按键，并显示演示光标。
+  Added `interface_action` for clicks, item drags, quick moves, scrolling, text, and keys, with an animated demo cursor.
+
+- **界面隐藏脚本**：新增 `hide_interface`，可在时间线中关闭当前演示界面。
+  Added `hide_interface` to close the current demo interface from the timeline.
+
+- **界面练习脚本**：新增 `await_interface`，可等待玩家完成槽位目标，并设置提示、超时或跳过。
+  Added `await_interface` for slot-based exercises with hints, timeouts, and a skip control.
+
+- **粒子预设**：新增通用“粒子效果”步骤，提供成功、红石、烟雾、飞溅、物品碎屑和方块碎屑预设。
+  Added a generic Particle Effect step with success, redstone, smoke, spit, item, and block presets.
+
+- **自定义粒子**：支持填写原版或模组粒子 ID 及 SNBT 参数，保存时校验粒子与参数。
+  Added vanilla and modded particle IDs with SNBT parameters and validation when saving.
+
+- **粒子分布与发射**：可设置定点、方盒或球体分布，以及位置、范围、每刻数量、持续时间和初始速度。
+  Added point, box, and sphere distributions with position, spread, count per tick, emission duration, and initial velocity.
+
+- **进度条自由定位**：支持点击和长按拖动到任意时间，并吸附附近关键帧及首尾位置，无关键帧时也可使用。
+  Added click-and-drag seeking at any time, with snapping to nearby keyframes and endpoints, including scenes without keyframes.
+
+- **播放倍速**：新增 `0.5x`、`1x`、`2x` 独立按钮，可直接选择播放速度。
+  Added dedicated `0.5x`, `1x`, and `2x` playback buttons.
+
+- **场景缩放滑条**：新增 `0.2x–5x` 缩放滑条，中点为 `1x`，右键可重置。
+  Added a `0.2x–5x` scene zoom slider with `1x` at the midpoint and right-click reset.
+
+- **暂停自由预览**：可用按钮或空格暂停，悬停查看方块名称，并用左键旋转、右键平移和滚轮缩放，退出后恢复视角。
+  Added button/Space toggling for paused block inspection, left-drag rotation, right-drag panning, and wheel zoom, restoring the view on exit.
+
+- **世界生成结构预览**：结构列表可读取服务器可用结构，预览可用的起始模板，再确认选择或清空。
+  Added server-backed world-generation structure selection with available starting-template previews and confirm/clear controls.
+
+- **AI 多轮生成**：改为多轮工具调用流程，可查询信息、检查草稿并修正后提交，最大轮次可设为 `2–12`。
+  Reworked AI generation into a tool-driven query, review, and revision loop with a configurable limit of `2–12` turns.
+
+- **AI 结构查询**：可按概览、层、坐标、区域或方块查询所选结构，并读取相关 NBT。
+  Added AI queries for structure summaries, layers, positions, regions, blocks, and related NBT.
+
+- **AI 注册表查询**：可按名称查找物品等注册项，并读取方块属性、可用值及配料信息。
+  Added AI registry lookup by name and inspection of block properties, valid values, and ingredient information.
+
+- **AI 步骤规则查询**：可按需读取步骤字段、约束和示例，辅助生成场景脚本。
+  Added on-demand AI access to step fields, constraints, and examples.
+
+- **AI 参考资料检索**：可检索参考网页内容、读取相关图片，并按需检查已有场景的分段与步骤。
+  Added AI searches over reference pages and images, plus targeted inspection of existing scene segments and steps.
+
+- **AI 场景质量检查**：新增长文本、缺少视觉引导、等待时长、掉落物清理和中英文本完整性等检查。
+  Added checks for long text, missing visual guidance, wait durations, item cleanup, and bilingual text completeness.
+
+- **终止 AI 生成**：新增终止按钮，可取消模型请求、网页和图片读取，停止后不保存未完成场景。
+  Added cancellation for model requests, page and image fetching, without saving unfinished scenes.
+
+- **远程待处理更新**：新增冲突列表，可逐项或一键忽略、覆盖，忽略记录跨重连保留并在远端出现新版本时重新提示。
+  Added pending remote updates with individual/bulk ignore or overwrite, persistent ignores, and renewed notices for newer versions.
+
+- **自动同步客户端设置**：新增自动、始终开启和始终关闭三种模式，自动模式单人关闭、联机及局域网开启。
+  Added Auto, Always On, and Always Off sync modes; Auto disables sync in singleplayer and enables it in multiplayer and LAN.
+
+- **AE2 界面适配**：支持从 AE2 方块或线缆部件创建对应的本地演示菜单。
+  Added local demo-menu opening for AE2 blocks and cable-bus parts.
+
+### 改进 / Improvements
+
+- **物品与标签候选**：悬停 ID 输入框可展开所属标签，支持点击或滚轮切换，标签图标会轮播成员物品。
+  Added hover dropdowns and wheel selection for item IDs and their tags, with cycling tag-member icons.
+
+- **挂载功能联动**：物品目录、快捷触发和投影仪同步识别多物品、标签及独立 NBT 条件，标签重载后刷新场景。
+  Item browsing, triggers, and projectors now resolve multiple bindings, tags, and per-binding NBT, refreshing scenes after tag reloads.
+
+- **自定义标签引用保护**：其他思索仍引用的标签不能重命名或删除，未注册的已有标签可保留或移除。
+  Protected custom categories referenced by other scenes from renaming/deletion, while keeping unavailable saved tags editable.
+
+- **背包物品选择**：多处物品字段的“+”改为展开背包选择，可回填物品 ID 与 NBT。
+  Changed item-field “+” controls to open an inventory picker and fill the selected item ID and NBT.
+
+- **新建思索物品捕获**：移除“使用手持物品”选项，改用背包选择，并以“同时捕获 NBT”控制是否填入 NBT。
+  Simplified new-Ponder item selection to an inventory picker with an optional Capture NBT toggle.
+
+- **JEI 字段填入**：物品、方块和实体等字段改用可预览的配料槽，可直接拖入对应 JEI 配料。
+  Replaced JEI field toggles with preview slots accepting matching item, block, entity, and other ingredient drops.
+
+- **实体物品识别**：实体字段除刷怪蛋外，也可从船等实体物品解析对应实体 ID。
+  Entity fields now resolve boats and other matching entity items in addition to spawn eggs.
+
+- **JEI 显隐设置**：编辑器保留 JEI 原有显隐状态，列表未显示时提示对应快捷键或空间不足。
+  Editors now preserve JEI visibility preferences and explain how to reveal a hidden or space-constrained ingredient list.
+
+- **界面槽位编辑**：支持拖动已有物品、右键清空及保存数量和数据组件，并通过实际菜单逻辑预览结果。
+  Slot editing now supports existing-item drags, right-click clearing, counts, and components through the actual menu logic.
+
+- **界面回放共用实现**：NeoForge 与 Fabric 共用客户端演示环境，容器操作与网络发送从实际游戏状态中隔离。
+  Unified NeoForge and Fabric interface replay in a client-side demo environment with isolated container operations and networking.
+
+- **旧界面步骤兼容**：旧的显示界面、更改槽位和点击界面步骤可继续播放，并接入新的回放流程。
+  Kept legacy show, slot-change, and click interface steps compatible with the new replay flow.
+
+- **界面叠层定位**：文本、槽位图标与 JEI 使用嵌入容器的实际范围定位，并支持槽位物品识别。
+  Text, slot overlays, and JEI now use the embedded container bounds, with ingredient lookup for its slots.
+
+- **旧粒子步骤兼容**：成功与红石提示仍可直接播放，编辑保存后转为通用粒子步骤并保留位置和关键帧。
+  Legacy success and redstone steps still play, and convert on save while preserving position and keyframes.
+
+- **粒子 Java 导出**：Java 模组导出支持通用粒子及其分布、发射数量、速度和持续时间。
+  Added Java export for generic particles, distributions, counts, velocity, and emission duration.
+
+- **思索标签 Java 导出**：导出标签注册、物品关联和翻译，自定义标签自动使用目标模组前缀。
+  Java export now includes category registration, item associations, and translations under the target mod's custom-category namespace.
+
+- **物品标签 Java 导出**：标签挂载按当前解析出的物品列表导出，并提示标签展开与 NBT 条件未保留的限制。
+  Java export expands item tags into their currently resolved item IDs and reports tag expansion and omitted NBT filters.
+
+- **文本进度默认设置**：可配置进入思索时是否显示文本进度，右键“舒适阅读”按钮可切换并保存默认值。
+  Added a default text-progress setting, also saved by right-clicking the Comfy Reading button.
+
+- **视角平移与缩放**：调整视角改为前半程缓动平移、后半程缓动缩放，并在设定时长内到达目标。
+  View adjustments now ease through panning followed by zooming, reaching their targets within the configured duration.
+
+- **相机旋转**：改用 Ponder 原生缓出旋转，时长控制开始旋转后的等待时间，零时长仍为瞬间切换。
+  Camera rotation now uses Ponder easing, with duration controlling the wait and zero duration remaining instantaneous.
+
+- **未保存修改提示**：统一返回与放弃修改对话框，明确提供保存返回、不保存返回和继续编辑选项。
+  Unified unsaved-change dialogs with explicit save, discard, and continue-editing choices.
+
+- **列表布局**：修正列表行居中位置，并移除点击条目时的白色选中边框。
+  Centered list rows correctly and removed their white selection outlines.
+
+- **场景渲染缓存**：定期回收闲置区段缓存，丢弃投影场景或切换世界时释放对应资源。
+  Added idle scene-cache cleanup and resource release when projector scenes are discarded or worlds change.
+
+- **手动远程拉取**：拉取指定场景或结构时直接覆盖本地，场景依赖的结构也会同步覆盖。
+  Pulling a specific remote scene or structure now overwrites its local copy, including a scene's dependent structures.
+
+- **AI 提交校验**：补充注册项、方块属性、结构引用和分场景 ID 校验，将错误反馈给模型修正。
+  Expanded AI validation for registry entries, block properties, structure references, and segment IDs, feeding errors back for revision.
+
+- **AI 生成反馈**：显示当前轮次与工具状态，保存工具调用记录，并支持自定义 `agent_system.txt` 提示词。
+  Added turn/tool progress, saved tool-call traces, and a customizable `agent_system.txt` prompt.
+
+- **本地验证入口**：启动脚本与 Gradle 支持界面回放自检、指定物品打开思索及超时退出。
+  Added interface-replay smoke checks and item-specific Ponder opening to the launcher and Gradle verification flow.
+
+- **本地玩家身份**：开发启动脚本改用固定 UUID，重复启动可沿用同一玩家数据。
+  Local development launches now use a fixed UUID to retain the same player data between runs.
+
+### 修复 / Fixes
+
+- **Ponder 文本框兼容**：修复 Ponder 1.0.87 移除旧提示字段后，打开编辑界面触发 `NoSuchFieldError` 的问题。
+  Fixed editor `NoSuchFieldError` failures after Ponder 1.0.87 removed the legacy hint field.
+
+- **界面捕获来源识别**：修复旧手持物品设置误判方块界面的问题，补齐代理方块、无点击来源及扩展开屏数据的捕获。
+  Fixed stale held-item settings misclassifying block captures and improved proxy-block, no-click, and extended opening-data capture.
+
+- **自动同步冲突保护**：保留本地修改和手动删除的场景或结构，避免自动覆盖或恢复，并提示前往远程管理处理。
+  Automatic sync now preserves locally edited or deleted scenes and structures, directing conflicts to remote management.
+
+- **列表滚动条拖动**：修复步骤列表等页面点击滚动条后丢失焦点、无法持续拖动的问题。
+  Fixed list scrollbars losing focus after clicks and failing to drag.
+
+- **放置方块入场选项**：移除动画模式中实际按向下入场处理的“无动画”选项，默认明确选择向下入场。
+  Removed the misleading None option from animated block entrances and explicitly defaulted to a downward entrance.
+
+- **选取物品回填**：创建掉落物时同步填入数量，选择无 NBT 物品时清除旧 NBT，避免沿用上次数据。
+  Item-entity picking now fills counts, and selecting items without NBT clears stale NBT values.
+
+- **结构预览渲染**：修复预览污染后续界面光照、第三方方块实体渲染干扰矩阵及上下拖动反向的问题。
+  Fixed preview lighting leaking into other UI, block-entity renderers disturbing transforms, and inverted vertical dragging.
+
+- **世界生成模板显示**：按 `final_state` 替换拼图方块，过滤结构辅助方块，并为缺失或过大的模板提供提示。
+  Applied jigsaw `final_state` replacements, hid structure helper blocks, and added missing/oversized-template feedback.
+
+- **倍速与拖动动画**：修正倍速下区段和叠层插值、完成提示，以及拖动进度条时的动画漂移。
+  Fixed section/overlay interpolation and completion hints at altered speeds, plus animation drift while scrubbing.
+
+- **NBT 物品预览与触发**：统一按 1.21.1 数据组件或旧 NBT 条件构造物品，供预览、触发和编辑返回使用。
+  Fixed stack construction from 1.21.1 components or legacy NBT for previews, triggers, and editor returns.
+
+- **JEI 拖入区域**：修正滚动后配料槽的有效区域，避免拖入屏幕外或被裁剪的字段。
+  Fixed JEI drop bounds after scrolling so offscreen or clipped fields cannot receive drops.
+
+- **投影仪模型朝向**：配置界面模型使用固定朝向，避免随世界中投影仪的放置方向变化。
+  Fixed the projector config preview to use a consistent facing independent of its world placement.
+
+- **参考网页图片**：修复相对图片路径解析，允许 AI 读取网页相对路径下的参考图片。
+  Fixed relative image URL resolution when fetching AI reference pages.
+
+- **本地模组包更新**：启动脚本改为暂存后替换 JAR，文件被占用时明确报错，避免覆盖运行中的模组包。
+  Local launchers now stage JAR replacements and report locked files instead of overwriting a running client's archive.
+
+- **Windows Java 启动**：为 Gradle 与测试客户端指定项目内 IPC 临时目录，规避 Java 21 本地回环连接失败。
+  Set a project-local IPC directory for Gradle and test clients to avoid Java 21 loopback initialization failures on Windows.
+
+---
+
 ## 1.10.6.1
 
 ### 修复 / Fixes

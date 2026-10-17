@@ -1,18 +1,14 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
-import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
@@ -29,10 +25,6 @@ public final class PonderFreePreview {
     private double panX;
     private double panY;
     private int dragButton = -1;
-    private WorldSectionElement hoveredSection;
-    private BlockPos hoveredPos;
-    private Component hoveredName;
-    private double nearestHitDistance;
 
     public PonderFreePreview(PonderUI ui) {
         this.ui = ui;
@@ -86,9 +78,6 @@ public final class PonderFreePreview {
         pitch = yaw = 0;
         panX = panY = 0;
         dragButton = -1;
-        hoveredSection = null;
-        hoveredPos = null;
-        hoveredName = null;
         ((PonderUiZoomAccess) ui).ponderer$setUserZoom(originalZoom);
         ((PonderUIAccessor) ui).ponderer$setIdentifyMode(false);
         updateButton();
@@ -148,48 +137,9 @@ public final class PonderFreePreview {
             return false;
         }
         dragButton = mouseButton;
-        hoveredName = null;
         scene.deselect();
         ui.setFocused(null);
         return true;
-    }
-
-    /** Use the same section ray traces as PonderScene, including the base plate and excluding misses. */
-    public void updateHoveredBlock(double mouseX, double mouseY) {
-        if (!isActive()) {
-            return;
-        }
-        hoveredSection = null;
-        hoveredPos = null;
-        hoveredName = null;
-        scene.deselect();
-        if (dragButton != -1 || mouseY >= ui.height - 80 || isOverWidget(mouseX, mouseY)) {
-            return;
-        }
-        PonderScene.SceneTransform transform = scene.getTransform();
-        Vec3 from = transform.screenToScene(mouseX, mouseY, 1000, partialTicks);
-        Vec3 to = transform.screenToScene(mouseX, mouseY, -100, partialTicks);
-        nearestHitDistance = Double.POSITIVE_INFINITY;
-        scene.forEachVisible(WorldSectionElement.class, section -> {
-            var hit = section.rayTrace(scene.getWorld(), from, to);
-            if (hit == null || hit.getSecond().getType() != HitResult.Type.BLOCK) {
-                return;
-            }
-            BlockPos pos = hit.getSecond().getBlockPos();
-            if (!scene.getWorld().getBounds().isInside(pos) || scene.getWorld().getBlockState(pos).isAir()) {
-                return;
-            }
-            double distance = hit.getFirst().distanceToSqr(from);
-            if (distance < nearestHitDistance) {
-                nearestHitDistance = distance;
-                hoveredSection = section;
-                hoveredPos = pos;
-            }
-        });
-        if (hoveredSection != null) {
-            hoveredSection.selectBlock(hoveredPos);
-            hoveredName = scene.getWorld().getBlockState(hoveredPos).getBlock().getName();
-        }
     }
 
     public boolean mouseDragged(int mouseButton, double deltaX, double deltaY) {
@@ -228,19 +178,17 @@ public final class PonderFreePreview {
         return true;
     }
 
-    public void renderTooltips(GuiGraphics graphics, int mouseX, int mouseY) {
+    public void renderButtonTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (button == null || !button.visible || !button.isVisible() || !button.isMouseOver(mouseX, mouseY)) {
+            return;
+        }
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER + 500);
-        if (button != null && button.visible && button.isVisible() && button.isMouseOver(mouseX, mouseY)) {
-            graphics.renderComponentTooltip(ui.getFontRenderer(),
-                List.of(Component.translatable("ponderer.ui.preview.shortcut").withStyle(ChatFormatting.WHITE),
-                    Component.translatable("ponderer.ui.preview.rotate").withStyle(ChatFormatting.GRAY),
-                    Component.translatable("ponderer.ui.preview.pan").withStyle(ChatFormatting.GRAY),
-                    Component.translatable("ponderer.ui.preview.zoom").withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
-        } else if (isActive() && dragButton == -1 && mouseY < ui.height - 80
-            && !isOverWidget(mouseX, mouseY) && hoveredName != null) {
-            graphics.renderTooltip(ui.getFontRenderer(), hoveredName, mouseX, mouseY);
-        }
+        graphics.renderComponentTooltip(ui.getFontRenderer(),
+            List.of(Component.translatable("ponderer.ui.preview.shortcut").withStyle(ChatFormatting.WHITE),
+                Component.translatable("ponderer.ui.preview.rotate").withStyle(ChatFormatting.GRAY),
+                Component.translatable("ponderer.ui.preview.pan").withStyle(ChatFormatting.GRAY),
+                Component.translatable("ponderer.ui.preview.zoom").withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
         graphics.pose().popPose();
     }
 }

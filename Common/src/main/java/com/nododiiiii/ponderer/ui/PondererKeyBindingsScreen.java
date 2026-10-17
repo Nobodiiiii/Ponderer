@@ -238,7 +238,6 @@ public class PondererKeyBindingsScreen extends AbstractDeclarativeListScreen {
 
     private final class KeyBindingEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-        private static final int BINDING_VISUAL_INSET = 4;
         private static final int CONTROL_GAP = EntryTextSupport.rightControlGap();
 
         private final ModKeyBindings.ManagedBinding binding;
@@ -302,12 +301,13 @@ public class PondererKeyBindingsScreen extends AbstractDeclarativeListScreen {
                 width,
                 labelWidth,
                 EntryTextSupport.halfWidthControlScale(),
-                BINDING_BUTTON_MIN_WIDTH + CONTROL_GAP + RESET_BUTTON_WIDTH);
+                BINDING_BUTTON_MIN_WIDTH + CONTROL_GAP + EntryTextSupport.boxVisualWidth(RESET_BUTTON_WIDTH));
 
             int buttonY = y + 10;
             int buttonHeight = Math.max(16, height - 20);
 
-            int resetX = controlBounds.right() - RESET_BUTTON_WIDTH;
+            int resetVisualX = controlBounds.right() - EntryTextSupport.boxVisualWidth(RESET_BUTTON_WIDTH);
+            int resetX = resetVisualX + EntryTextSupport.boxBorder();
             resetButton.setX(resetX);
             resetButton.setY(buttonY);
             resetButton.setWidth(RESET_BUTTON_WIDTH);
@@ -315,13 +315,10 @@ public class PondererKeyBindingsScreen extends AbstractDeclarativeListScreen {
             updateButtonState(resetButton, !binding.isDefault());
             resetButton.render(graphics, mouseX, mouseY, partialTicks);
 
-            int bindingWidth = Math.max(BINDING_BUTTON_MIN_WIDTH, resetX - CONTROL_GAP - controlBounds.x());
+            int bindingWidth = Math.max(BINDING_BUTTON_MIN_WIDTH, resetVisualX - CONTROL_GAP - controlBounds.x());
             int bindingVisualX = controlBounds.x();
-            int bindingWidgetX = bindingVisualX + BINDING_VISUAL_INSET;
-            int bindingWidgetWidth = Math.max(1, bindingWidth - BINDING_VISUAL_INSET * 2);
-            bindingButton.setX(bindingWidgetX);
+            EntryTextSupport.setBoxHorizontalBounds(bindingButton, bindingVisualX, bindingWidth);
             bindingButton.setY(buttonY);
-            bindingButton.setWidth(bindingWidgetWidth);
             bindingButton.setHeight(buttonHeight);
             bindingButton.render(graphics, mouseX, mouseY, partialTicks);
 

@@ -27,6 +27,10 @@ public final class UILayoutConstants {
     public static final int LIST_ENTRY_H = 40;
     /** Compact entry height used by menu-style selection lists. */
     public static final int COMPACT_LIST_ENTRY_H = 24;
+    /** Equal space between either list edge and its rows. */
+    public static final int LIST_ROW_MARGIN = 8;
+    /** Equal inset for labels and the visible outer edges of row controls. */
+    public static final int ENTRY_CONTENT_PADDING = 10;
     /** Y offset from window top to first form row. */
     public static final int FORM_TOP = 26;
     /** Left margin for labels. */

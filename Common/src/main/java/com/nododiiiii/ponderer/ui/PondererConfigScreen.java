@@ -5,7 +5,6 @@ import com.nododiiiii.ponderer.ui.catnip.ButtonPairListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 
 import javax.annotation.Nullable;
@@ -83,17 +82,6 @@ public class PondererConfigScreen extends AbstractReadonlyDeclarativeListScreen 
     }
 
     private static SectionHeaderListEntry compactSectionHeader(String title) {
-        return new SectionHeaderListEntry(title) {
-            @Override
-            public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
-                               int mouseX, int mouseY, boolean hovered, float partialTicks) {
-                var font = Minecraft.getInstance().font;
-                int color = annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFCCCC77;
-                int titleY = y + 8;
-                int lineY = y + height - 3;
-                graphics.drawString(font, title, x + 4, titleY, color);
-                graphics.fill(x + 4, lineY, x + width - 4, lineY + 1, 0x40FFFFFF);
-            }
-        };
+        return new SectionHeaderListEntry(title);
     }
 }

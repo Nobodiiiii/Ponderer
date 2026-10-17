@@ -18,7 +18,6 @@ import java.util.function.Supplier;
 
 public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements SearchableListEntry {
 
-    private static final int OUTER_GAP = 8;
     private static final int INNER_GAP = 8;
     private static final int BUTTON_WIDTH = 22;
     private static final int BUTTON_HEIGHT = 16;
@@ -90,15 +89,16 @@ public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements 
             width / 8 * 7, new Color(0xdd_000000));
 
         int buttonsWidth = buttons.size() * BUTTON_WIDTH + Math.max(0, buttons.size() - 1) * INNER_GAP;
-        int buttonX = x + width - OUTER_GAP - buttonsWidth;
+        int buttonX = EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - buttonsWidth;
         int buttonY = y + Math.max(4, (height - BUTTON_HEIGHT) / 2);
-        int textRight = buttonX - INNER_GAP;
+        int textRight = buttonX - EntryTextSupport.boxBorder() - INNER_GAP;
 
         var font = Minecraft.getInstance().font;
-        String title = font.plainSubstrByWidth(titleGetter.get(), Math.max(20, textRight - x - 10));
-        String subtitle = font.plainSubstrByWidth(subtitleGetter.get(), Math.max(20, textRight - x - 10));
-        graphics.drawString(font, title, x + 10, y + 8, UIRenderHelper.COLOR_TEXT_STRONG_ACCENT.getFirst().getRGB());
-        graphics.drawString(font, subtitle, x + 10, y + 22, UIRenderHelper.COLOR_TEXT.getSecond().getRGB());
+        int textX = EntryTextSupport.contentLeft(x);
+        String title = font.plainSubstrByWidth(titleGetter.get(), Math.max(20, textRight - textX));
+        String subtitle = font.plainSubstrByWidth(subtitleGetter.get(), Math.max(20, textRight - textX));
+        graphics.drawString(font, title, textX, y + 8, UIRenderHelper.COLOR_TEXT_STRONG_ACCENT.getFirst().getRGB());
+        graphics.drawString(font, subtitle, textX, y + 22, UIRenderHelper.COLOR_TEXT.getSecond().getRGB());
 
         for (HeaderButton button : buttons) {
             renderButton(graphics, button, buttonX, buttonY, mouseX, mouseY, partialTicks);

@@ -15,7 +15,6 @@ import java.util.function.Supplier;
 
 public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int OUTER_GAP = 4;
     private static final int INNER_GAP = 8;
     private static final int BUTTON_WIDTH = 22;
 
@@ -87,7 +86,7 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         int buttonHeight = compact ? 16 : Math.max(16, height - 20);
         int buttonY = compact ? y + 4 : y + 10;
 
-        prevButton.setX(x + OUTER_GAP);
+        prevButton.setX(EntryTextSupport.contentLeft(x) + EntryTextSupport.boxBorder());
         prevButton.setY(buttonY);
         prevButton.setWidth(BUTTON_WIDTH);
         prevButton.setHeight(buttonHeight);
@@ -95,7 +94,7 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         prevButton.updateGradientFromState();
         prevButton.render(graphics, mouseX, mouseY, partialTicks);
 
-        nextButton.setX(x + width - OUTER_GAP - BUTTON_WIDTH);
+        nextButton.setX(EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - BUTTON_WIDTH);
         nextButton.setY(buttonY);
         nextButton.setWidth(BUTTON_WIDTH);
         nextButton.setHeight(buttonHeight);

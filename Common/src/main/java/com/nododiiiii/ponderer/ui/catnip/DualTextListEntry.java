@@ -92,7 +92,7 @@ public class DualTextListEntry extends ConfigScreenList.LabeledEntry implements 
         if (widthOverflow > 0) {
             secondWidth = Math.max(40, secondWidth - widthOverflow);
         }
-        int fieldX = x + labelWidth + 4;
+        int fieldX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
         int fieldY = y + 8;
 
         firstField.setX(fieldX);
