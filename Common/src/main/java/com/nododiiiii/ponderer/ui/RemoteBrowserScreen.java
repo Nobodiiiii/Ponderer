@@ -91,10 +91,11 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     @Override
     protected void init() {
         super.init();
+        useConfirmationActionIcons();
         if (saveChanges != null) {
             saveChanges.visible = true;
             saveChanges.withCallback(() -> overwriteUpdates(PendingRemoteUpdates.list()));
-            PonderIconStencils.attachFail(saveChanges, PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_SAVE));
+            PonderIconStencils.attachFail(saveChanges, PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIRM));
             setActionButtonTooltip(saveChanges, "ponderer.ui.remote_browser.action.overwrite_all",
                 "ponderer.ui.remote_browser.action.overwrite_all.tooltip");
         }

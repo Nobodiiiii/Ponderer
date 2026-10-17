@@ -72,6 +72,15 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
         return new ButtonModel(widget, null, tooltipGetter, () -> 0xFFFFFF, activeGetter, ICON_BUTTON_SIZE);
     }
 
+    public static ButtonModel iconButton(PondererGuiIcons icon,
+                                         Runnable action,
+                                         @Nullable Supplier<List<Component>> tooltipGetter,
+                                         BooleanSupplier activeGetter) {
+        BoxWidget widget = new FormBoxWidget(0, 0, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE).withPadding(2, 2).withCallback(action);
+        icon.attach(widget);
+        return new ButtonModel(widget, null, tooltipGetter, () -> 0xFFFFFF, activeGetter, ICON_BUTTON_SIZE);
+    }
+
     public static ButtonModel failIconButton(PonderGuiTextures texture,
                                              Runnable action,
                                              @Nullable Supplier<List<Component>> tooltipGetter,

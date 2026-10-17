@@ -1,91 +1,82 @@
 {
-  "source": "https://nikoichu.itch.io/pixel-icons",
-  "author": "Nikoichu",
-  "license": "CC0-1.0",
-  "pack": "1-bit_Pixel_Icons.zip (upload 15668268, v1.2)",
+  "license": "Mixed; see action_icons.LICENSE.txt",
   "size": [
     48,
     48
   ],
   "cell_size": 16,
-  "processing": "Retain only fully opaque pure-white source pixels; all other pixels are transparent. Keep original 16x16 positions.",
+  "processing": "Preserve the original 16x16 pixel positions. Nikoichu sprites retain only opaque pure-white pixels. The Create folder icon retains its nonblack alpha mask, normalized to opaque white. All other pixels are transparent.",
   "icons": [
     {
-      "name": "PICK_BLOCK",
+      "name": "PICK_POSITION",
+      "aliases": [
+        "PICK_BLOCK",
+        "PICK_NBT",
+        "CAPTURE"
+      ],
       "x": 0,
       "y": 0,
-      "source": "Sprites/Boardgames_Dice_Cube_D6_Six_Clean.png"
-    },
-    {
-      "name": "PICK_NBT",
-      "x": 16,
-      "y": 0,
-      "source": "Sprites/Tools_Crafting_Graphic_Design_Eyedropper_Color_Picker.png"
+      "source": "Sprites/Software_Window_Fullscreen_Mode_Select_2.png"
     },
     {
       "name": "PICK_ITEM",
-      "x": 32,
+      "x": 16,
       "y": 0,
       "source": "Sprites/Travel_Backpack_Bag_School.png"
     },
     {
-      "name": "CAPTURE",
-      "x": 0,
-      "y": 16,
-      "source": "Sprites/Media_Camera_Photo_Shoot_1.png"
-    },
-    {
       "name": "ADD",
-      "x": 16,
-      "y": 16,
+      "aliases": [
+        "INSERT"
+      ],
+      "x": 32,
+      "y": 0,
       "source": "Sprites/Software_Signs_Maths_Plus_Addition_Bonus_Add_New.png"
     },
     {
-      "name": "INSERT",
-      "x": 32,
+      "name": "EDIT_NBT",
+      "x": 0,
       "y": 16,
-      "source": "Sprites/Software_File_Document_Page_Plus_Add_New.png"
+      "source": "Sprites/Software_Terminal_Window_CMD_Command_Line_Development_Code_Programming.png"
     },
     {
       "name": "COPY",
-      "x": 0,
-      "y": 32,
+      "x": 16,
+      "y": 16,
       "source": "Sprites/Software_Windowed_Mode_Floating_Maximize.png"
     },
     {
       "name": "PASTE",
-      "x": 16,
-      "y": 32,
+      "x": 32,
+      "y": 16,
       "source": "Sprites/Software_Clipbaord_List_File_Copy_Paste.png"
     },
     {
       "name": "LIST",
-      "x": 32,
+      "aliases": [
+        "STRUCTURE"
+      ],
+      "x": 0,
       "y": 32,
       "source": "Sprites/Software_Text_Document_Credits_Roll_Attributions.png"
-    }
-  ],
-  "native_icons": [
-    {
-      "name": "PICK_POSITION",
-      "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_PONDER_IDENTIFY",
-      "rotation_degrees": 0
-    },
-    {
-      "name": "EDIT_NBT",
-      "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_CONFIG_OPEN",
-      "rotation_degrees": 0
-    },
-    {
-      "name": "STRUCTURE",
-      "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_CONFIG_OPEN",
-      "rotation_degrees": 0
     },
     {
       "name": "BROWSE_FOLDER",
-      "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_CONFIG_OPEN",
-      "rotation_degrees": 0
-    },
+      "x": 16,
+      "y": 32,
+      "source": "ref/1.21.1/Create/src/main/resources/assets/create/textures/gui/icons.png",
+      "source_icon": "com.simibubi.create.foundation.gui.AllIcons.I_OPEN_FOLDER",
+      "source_rect": [
+        32,
+        16,
+        16,
+        16
+      ],
+      "author": "The Create Team / The Creators of Create",
+      "license": "All Rights Reserved (assets)"
+    }
+  ],
+  "native_icons": [
     {
       "name": "REMOVE",
       "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_CONFIG_DISCARD",
@@ -100,6 +91,23 @@
       "name": "COLLAPSE",
       "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_PONDER_RIGHT",
       "rotation_degrees": 90
+    }
+  ],
+  "sources": [
+    {
+      "name": "1-bit Pixel Icons",
+      "url": "https://nikoichu.itch.io/pixel-icons",
+      "author": "Nikoichu",
+      "license": "CC0-1.0",
+      "pack": "1-bit_Pixel_Icons.zip (upload 15668268, v1.2)"
+    },
+    {
+      "name": "Create I_OPEN_FOLDER",
+      "repository": "https://github.com/Creators-of-Create/Create",
+      "ref": "mc1.21.1/dev",
+      "author": "The Create Team / The Creators of Create",
+      "license": "All Rights Reserved (assets)",
+      "license_file": "ref/1.21.1/Create/LICENSE.md"
     }
   ]
 }

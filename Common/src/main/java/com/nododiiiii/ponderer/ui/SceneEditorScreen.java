@@ -19,8 +19,6 @@ import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.catnip.lang.FontHelper;
-import net.createmod.catnip.lang.FontHelper.Palette;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -180,8 +178,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                         () -> pasteAfter(stepIndex),
                         null,
                         () -> clipboard != null),
-                    SceneStepListEntry.dangerIconButton(
-                        PonderIconStencils.centered(PonderGuiTextures.ICON_DISABLE, STEP_ACTION_ICON_SIZE),
+                    SceneStepListEntry.iconButton(
+                        PondererGuiIcons.REMOVE,
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.delete"))),
                         () -> removeStepAndSave(stepIndex),
                         null,
@@ -257,7 +255,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             goBack.withCallback(this::reloadAndExit);
             goBack.visible = true;
             goBack.active = true;
-            setActionButtonTooltip(goBack, "ponderer.ui.scene_editor.back");
+            setActionButtonTooltip(goBack, "ponderer.ui.back", "ponderer.ui.scene_editor.back.tooltip");
         }
         relayoutSidebarButtons();
     }
@@ -293,19 +291,10 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             .withPadding(6, 6)
             .withCallback(callback);
         PonderIconStencils.attach(button, icon);
-        configureSidebarTooltip(
-            button,
-            Component.translatable(tooltipTitleKey),
-            Component.translatable(tooltipBodyKey));
+        setActionButtonTooltip(button, tooltipTitleKey, tooltipBodyKey);
         button.updateGradientFromState();
         addRenderableWidget(button);
         return button;
-    }
-
-    private void configureSidebarTooltip(BoxWidget button, Component title, Component detail) {
-        button.getToolTip().clear();
-        button.getToolTip().add(title);
-        button.getToolTip().addAll(FontHelper.cutTextComponent(detail, Palette.ALL_GRAY));
     }
 
     private void relayoutSidebarButtons() {

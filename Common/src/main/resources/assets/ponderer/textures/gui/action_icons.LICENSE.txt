@@ -1,9 +1,17 @@
-1-bit Pixel Icons by Nikoichu
+Local action icon atlas (8 sprites)
+
+7 sprites: 1-bit Pixel Icons by Nikoichu
 https://nikoichu.itch.io/pixel-icons
-
-Licensed under CC0 1.0 Universal.
+License: CC0 1.0 Universal
 https://creativecommons.org/publicdomain/zero/1.0/
+These sprites retain only opaque pure-white pixels; black outlines are removed.
 
-This atlas selects 9 original 16x16 sprites from the v1.2 pack.
-Only opaque pure-white pixels are retained; black outlines are removed.
-See action_icons.json for the source filename and atlas coordinates of each icon.
+1 sprite: Create I_OPEN_FOLDER
+Source: Creators of Create, mc1.21.1/dev
+https://github.com/Creators-of-Create/Create
+Source texture: assets/create/textures/gui/icons.png, rectangle (32, 16, 16, 16).
+Copyright (c) The Create Team / The Creators of Create
+License: All Rights Reserved (assets), as stated in ref/1.21.1/Create/LICENSE.md.
+The original opaque gray pixels are normalized to pure white, preserving their positions.
+
+See action_icons.json for per-icon sources, atlas coordinates and aliases.

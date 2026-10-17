@@ -55,7 +55,7 @@ public final class PonderIconStencils {
         return button.showingElement(icon.withElementRenderer(renderer));
     }
 
-    private static FadableScreenElement failGradient(BoxWidget button) {
+    static FadableScreenElement failGradient(BoxWidget button) {
         return (graphics, width, height, alpha) -> {
             Couple<Color> colors = button.active ? AbstractSimiWidget.COLOR_FAIL : button.getColorDisabled();
             UIRenderHelper.angledGradient(graphics, 0, 0, height / 2, height, width, colors);

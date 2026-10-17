@@ -78,8 +78,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     @Override
     protected void init() {
         super.init();
+        useConfirmationActionIcons();
         applyCachedStatus();
-        refreshGenerationActionButton();
+        refreshGenerationActionButton(true);
         if (!cachedStructurePaths.isEmpty()) {
             loadPreviewForCurrent();
         } else {
@@ -577,28 +578,24 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     }
 
     private void refreshGenerationActionButton() {
+        refreshGenerationActionButton(false);
+    }
+
+    private void refreshGenerationActionButton(boolean force) {
         if (saveChanges == null) {
             return;
         }
         boolean shouldShowStop = cachedGenerating;
-        if (showingStopAction == shouldShowStop) {
+        if (!force && showingStopAction == shouldShowStop) {
             return;
         }
         showingStopAction = shouldShowStop;
         PonderGuiTextures texture = shouldShowStop
-            ? PonderGuiTextures.ICON_CONFIG_DISCARD
-            : PonderGuiTextures.ICON_CONFIG_SAVE;
+            ? PonderGuiTextures.ICON_DISABLE
+            : PonderGuiTextures.ICON_CONFIRM;
         saveChanges.showingElement(texture.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
-        if (shouldShowStop) {
-            setActionButtonTooltip(saveChanges,
-                "ponderer.ui.ai_generate.stop",
-                "ponderer.ui.ai_generate.stop.tooltip");
-        } else {
-            setActionButtonTooltip(saveChanges,
-                "ponderer.ui.save",
-                "ponderer.ui.sidebar.save.tooltip");
-        }
+        setActionButtonTooltip(saveChanges, shouldShowStop ? "ponderer.ui.cancel" : "ponderer.ui.confirm");
     }
 
     private void applyCachedStatus() {

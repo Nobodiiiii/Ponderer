@@ -72,6 +72,12 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen {
         return new Builder(titleKey);
     }
 
+    @Override
+    protected void init() {
+        super.init();
+        useConfirmationActionIcons();
+    }
+
     public void setDefaultValue(String fieldId, String value) {
         defaultValues.put(fieldId, value);
     }

@@ -2,8 +2,13 @@ package com.nododiiiii.ponderer.ui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.Config;
+import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
 import com.nododiiiii.ponderer.ponder.TextIndexStore;
+import net.createmod.catnip.gui.UIRenderHelper;
+import net.createmod.catnip.gui.element.BoxElement;
+import net.createmod.ponder.enums.PonderGuiTextures;
 import net.createmod.ponder.foundation.PonderScene;
+import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -38,21 +43,18 @@ public class PonderTextListWidget extends AbstractWidget {
     private static final int PADDING_X = 7;
     private static final int CONTENT_RIGHT_PAD = 10;
 
-    // Catnip-style blue/navy palette.
-    private static final int BG_FILL          = 0xFF_000000;
-    private static final int BG_OUTER_BORDER  = 0xC0_28324a;
-    private static final int BG_INNER_BORDER  = 0x60_3d5070;
-    private static final int HEADER_RULE      = 0x80_4a6080;
-    private static final int HEADER_TEXT      = 0xFF_d6e4ff;
-    private static final int SUBHEADER_TEXT   = 0xFF_8ab6d6;
-    private static final int ACCENT_PLAYED    = 0xFF_8ab6d6;
-    private static final int ACCENT_UNPLAYED  = 0xFF_3a4666;
-    private static final int TEXT_PLAYED      = 0xFF_d8e6fa;
-    private static final int TEXT_HOVER       = 0xFF_ffffff;
-    private static final int TEXT_UNPLAYED    = 0xFF_707a90;
-    private static final int ROW_HOVER_BG     = 0x60_3a5a8a;
-    private static final int SCROLL_TRACK     = 0x40_28324a;
-    private static final int SCROLL_THUMB     = 0xC0_8ab6d6;
+    // Share Ponder's speech-box, text and button colors rather than a separate panel palette.
+    private static final int HEADER_RULE     = PonderUI.COLOR_IDLE.getSecond().getRGB();
+    private static final int HEADER_TEXT     = UIRenderHelper.COLOR_TEXT.getFirst().getRGB();
+    private static final int SUBHEADER_TEXT  = UIRenderHelper.COLOR_TEXT_DARKER.getFirst().getRGB();
+    private static final int ACCENT_PLAYED   = PonderUI.COLOR_HIGHLIGHT.getFirst().getRGB();
+    private static final int ACCENT_UNPLAYED = PonderUI.COLOR_IDLE.getFirst().getRGB();
+    private static final int TEXT_PLAYED     = UIRenderHelper.COLOR_TEXT.getFirst().getRGB();
+    private static final int TEXT_HOVER      = UIRenderHelper.COLOR_TEXT_ACCENT.getFirst().getRGB();
+    private static final int TEXT_UNPLAYED   = UIRenderHelper.COLOR_TEXT_DARKER.getSecond().getRGB();
+    private static final int ROW_HOVER_BG    = PonderButton.COLOR_IDLE.getSecond().getRGB();
+    private static final int SCROLL_TRACK    = PonderUI.COLOR_IDLE.getSecond().getRGB();
+    private static final int SCROLL_THUMB    = PonderButton.COLOR_IDLE.getFirst().getRGB();
 
     private final PonderUI ponderUi;
     private boolean configuredDefault;
@@ -128,12 +130,12 @@ public class PonderTextListWidget extends AbstractWidget {
         int w = getWidth() - 2 * BORDER_SIZE;
         int h = getHeight() - 2 * BORDER_SIZE;
 
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 100);
+        renderSpeechBox(graphics, x, y, w, h);
+        // BoxElement draws immediately and writes depth; keep the list above its background.
+        graphics.pose().translate(0, 0, 20);
         RenderSystem.enableBlend();
-
-        // Keep both border layers inside the widget's declared bounds.
-        graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), BG_OUTER_BORDER);
-        graphics.fill(getX() + 1, getY() + 1, getX() + getWidth() - 1, getY() + getHeight() - 1, BG_INNER_BORDER);
-        graphics.fill(x, y, x + w, y + h, BG_FILL);
 
         Font font = Minecraft.getInstance().font;
 
@@ -198,11 +200,35 @@ public class PonderTextListWidget extends AbstractWidget {
             graphics.fill(barX, trackTop, barX + 2, trackBottom, SCROLL_TRACK);
             graphics.fill(barX, thumbY, barX + 2, thumbY + thumbH, SCROLL_THUMB);
         }
+        graphics.pose().popPose();
 
         TextIndexStore.Entry hoveredEntry = entryAt(mouseX, mouseY, entries, listTop, listBottom, visibleRows);
         if (hoveredEntry != null) {
             graphics.renderTooltip(font, Component.literal(previewLabel(hoveredEntry)), mouseX, mouseY);
         }
+    }
+
+    private void renderSpeechBox(GuiGraphics graphics, int x, int y, int w, int h) {
+        PonderButton readingButton = ((PonderUIAccessor) ponderUi).ponderer$getSlowMode();
+        var borderColors = readingButton.isHoveredOrFocused() ? PonderButton.COLOR_HOVER : PonderButton.COLOR_IDLE;
+        graphics.flush();
+        RenderSystem.enableDepthTest();
+        new BoxElement()
+            .withBackground(PonderUI.BACKGROUND_FLAT)
+            .gradientBorder(borderColors)
+            .withBorderOffset(0)
+            .at(x, y, 0)
+            .withBounds(w, h)
+            .render(graphics);
+
+        // Use the same downward divot as "Next Up", aligned to the actual Comfy Reading button.
+        int pointerX = readingButton.getX() + readingButton.getWidth() / 2
+            - PonderGuiTextures.SPEECH_TOOLTIP_BACKGROUND.getWidth() / 2 + 1;
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 10);
+        PonderGuiTextures.SPEECH_TOOLTIP_BACKGROUND.render(graphics, pointerX, y + h - 1);
+        PonderGuiTextures.SPEECH_TOOLTIP_COLOR.render(graphics, pointerX, y + h - 1, borderColors.getSecond());
+        graphics.pose().popPose();
     }
 
     private FormattedCharSequence truncate(Font font, TextIndexStore.Entry e, int maxWidth) {

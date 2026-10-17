@@ -59,8 +59,7 @@ public class StructureListScreen extends AbstractDeclarativeListScreen {
     protected void init() {
         if (!catalogRequested) reloadLocalStructures();
         super.init();
-        setActionButtonTooltip(saveChanges, "ponderer.ui.confirm");
-        setActionButtonTooltip(discardChanges, "ponderer.ui.structure_picker.clear_selection");
+        useConfirmationActionIcons();
         if (discardChanges != null) discardChanges.withCallback(this::discardEdits);
         layoutPreviewPanel();
         if (!catalogRequested) {

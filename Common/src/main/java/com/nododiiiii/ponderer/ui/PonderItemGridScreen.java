@@ -393,12 +393,14 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
     }
 
     private void configureActionButtons() {
+        if (mode == Mode.MULTI_SELECT) {
+            useConfirmationActionIcons();
+        }
         if (saveChanges != null) {
             if (mode == Mode.MULTI_SELECT) {
                 saveChanges.visible = true;
                 saveChanges.active = true;
                 saveChanges.withCallback(this::confirmSelection);
-                setActionButtonTooltip(saveChanges, "ponderer.ui.confirm");
             } else {
                 saveChanges.visible = false;
                 saveChanges.active = false;
@@ -410,7 +412,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 discardChanges.visible = true;
                 discardChanges.active = true;
                 discardChanges.withCallback(this::cancelSelection);
-                setActionButtonTooltip(discardChanges, "ponderer.ui.cancel");
             } else {
                 discardChanges.visible = false;
                 discardChanges.active = false;

@@ -263,13 +263,6 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
         int gutterX = gutterX();
         graphics.fill(gutterX - 3, editor.getY(), gutterX - 2, editor.getY() + editor.getHeight(), 0x40_FFFFFF);
         positionRowButtons();
-        for (RowPickButton rowButton : rowButtons) {
-            BoxWidget button = rowButton.button();
-            if (!button.visible) {
-                continue;
-            }
-            PondererGuiIcons.PICK_POSITION.renderCentered(graphics, button);
-        }
     }
 
     @Override
@@ -366,6 +359,7 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
             }
             BoxWidget button = new BoundedBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .withCallback(() -> startCoordinatePick(candidate));
+            PondererGuiIcons.PICK_POSITION.attach(button);
             button.getToolTip().add(Component.literal(UIText.of("ponderer.ui.nbt_editor.pick.tooltip")));
             rowButtons.add(new RowPickButton(candidate, button));
             addRenderableWidget(button);

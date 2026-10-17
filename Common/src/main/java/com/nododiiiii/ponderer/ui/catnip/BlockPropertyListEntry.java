@@ -4,7 +4,6 @@ import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -33,7 +32,7 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
         this.keyField.setHint(Component.literal("facing"));
         this.valueField.setHint(Component.literal("north"));
         this.removeButton = new FormBoxWidget(0, 0, 20, 16).withCallback(onRemove);
-        PonderIconStencils.attachFail(removeButton, PonderIconStencils.centered(PonderGuiTextures.ICON_DISABLE));
+        PondererGuiIcons.REMOVE.attach(removeButton);
         listeners.add(keyField);
         listeners.add(valueField);
         listeners.add(removeButton);

@@ -38,8 +38,9 @@ public abstract class PonderProgressBarMixin extends AbstractSimiWidget {
     private void ponderer$renderDragHint(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks,
             CallbackInfo ci) {
         if (active && visible && isHovered()) {
+            int hintTop = getY() + getHeight() + 4;
             PonderSmallHint.render(graphics, Component.translatable("ponderer.ui.playback.drag_hint"),
-                getX() + getWidth() / 2, getY() + getHeight() + 4, ponder.height - 16,
+                getX() + getWidth() / 2, hintTop, hintTop + PonderSmallHint.getRowHeight(ponder),
                 UIRenderHelper.COLOR_TEXT_DARKER.getFirst().getRGB());
         }
     }

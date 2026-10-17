@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.ponder.PonderInterpolationSnapshot;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.PonderSpeedButton;
@@ -83,6 +84,15 @@ public abstract class PonderPlaybackMixin extends Screen {
     private void ponderer$setSpeedButtonSelected(PonderSpeedButton button, boolean selected) {
         button.withCustomTheme(selected ? PonderButton.COLOR_CLICK : PonderButton.COLOR_IDLE,
             selected ? PonderButton.COLOR_CLICK : PonderButton.COLOR_HOVER, null, null);
+    }
+
+    @Inject(method = "renderNextUp", at = @At(value = "INVOKE",
+        target = "Lnet/createmod/ponder/foundation/ui/PonderUI;renderSpeechBox(Lnet/minecraft/client/gui/GuiGraphics;IIIIZLnet/createmod/catnip/math/Pointing;Z)V"))
+    private void ponderer$writeNextUpBackgroundDepth(GuiGraphics graphics, float partialTicks,
+            PonderScene nextScene, CallbackInfo ci) {
+        // Speech-box geometry is immediate; make it write depth before the lower speed buttons render.
+        graphics.flush();
+        RenderSystem.enableDepthTest();
     }
 
     @Inject(method = "renderHoverTooltips", at = @At("TAIL"))

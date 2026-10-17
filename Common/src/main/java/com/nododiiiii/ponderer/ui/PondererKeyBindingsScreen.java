@@ -171,9 +171,8 @@ public class PondererKeyBindingsScreen extends AbstractDeclarativeListScreen {
             discardChanges.visible = true;
             discardChanges.withCallback(this::resetAllBindings);
             PonderIconStencils.attach(discardChanges, PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_RESET));
-            discardChanges.getToolTip().clear();
-            discardChanges.getToolTip().add(Component.literal(UIText.of("ponderer.ui.keybindings.reset_all")));
-            discardChanges.getToolTip().add(Component.literal(UIText.of("ponderer.ui.keybindings.reset_all.tooltip")));
+            setActionButtonTooltip(discardChanges, "ponderer.ui.keybindings.reset_all",
+                "ponderer.ui.keybindings.reset_all.tooltip");
             discardChanges.active = hasAnyNonDefaultBinding();
             discardChanges.updateGradientFromState();
         }

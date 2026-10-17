@@ -73,7 +73,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             .withCallback(this::saveEdits);
         saveChanges.showingElement(PonderGuiTextures.ICON_CONFIG_SAVE.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
-        setActionButtonTooltip(saveChanges, "ponderer.ui.save", "ponderer.ui.sidebar.save.tooltip");
+        setActionButtonTooltip(saveChanges, "ponderer.ui.save");
         addRenderableWidget(saveChanges);
 
         discardChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter + 1, 28, 28)
@@ -81,7 +81,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             .withCallback(this::confirmDiscardChanges);
         discardChanges.showingElement(PonderGuiTextures.ICON_CONFIG_DISCARD.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(discardChanges)));
-        setActionButtonTooltip(discardChanges, "ponderer.ui.cancel", "ponderer.ui.sidebar.cancel.tooltip");
+        setActionButtonTooltip(discardChanges, "ponderer.ui.cancel");
         addRenderableWidget(discardChanges);
 
         goBack = new ScreenTooltipBoxWidget(actionLeft, yCenter + 61, 28, 28)
@@ -337,21 +337,36 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         return hasUnsavedChanges();
     }
 
-    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey) {
-        setActionButtonTooltip(button, titleKey, null);
+    protected final void useConfirmationActionIcons() {
+        if (saveChanges != null) {
+            saveChanges.showingElement(PonderGuiTextures.ICON_CONFIRM.asStencil()
+                .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
+            setActionButtonTooltip(saveChanges, "ponderer.ui.confirm");
+        }
+        if (discardChanges != null) {
+            discardChanges.showingElement(PonderGuiTextures.ICON_DISABLE.asStencil()
+                .withElementRenderer(BoxWidget.gradientFactory.apply(discardChanges)));
+            setActionButtonTooltip(discardChanges, "ponderer.ui.cancel");
+        }
     }
 
-    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey,
-                                                @Nullable String detailKey) {
+    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey) {
         if (button == null) {
             return;
         }
 
         button.getToolTip().clear();
         button.getToolTip().add(Component.literal(UIText.of(titleKey)));
-        if (detailKey != null && !detailKey.isBlank()) {
-            button.getToolTip().addAll(FontHelper.cutTextComponent(Component.literal(UIText.of(detailKey)), Palette.ALL_GRAY));
+    }
+
+    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey,
+                                                String detailKey) {
+        if (button == null) {
+            return;
         }
+
+        setActionButtonTooltip(button, titleKey);
+        button.getToolTip().addAll(FontHelper.cutTextComponent(Component.literal(UIText.of(detailKey)), Palette.ALL_GRAY));
     }
 
     private void relayoutListViewport() {

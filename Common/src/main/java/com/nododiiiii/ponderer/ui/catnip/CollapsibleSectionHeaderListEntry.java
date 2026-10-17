@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.createmod.catnip.gui.element.RenderElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -24,6 +25,8 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
     @Nullable
     private final Supplier<String> expandedTooltipGetter;
     private final BoxWidget toggleButton;
+    private final RenderElement expandIcon;
+    private final RenderElement collapseIcon;
 
     public CollapsibleSectionHeaderListEntry(Supplier<String> titleGetter,
                                              BooleanSupplier collapsedGetter,
@@ -36,6 +39,8 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
         this.collapsedTooltipGetter = collapsedTooltipGetter;
         this.expandedTooltipGetter = expandedTooltipGetter;
         this.toggleButton = new FormBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withPadding(2, 2).withCallback(onToggle);
+        this.expandIcon = PondererGuiIcons.EXPAND.asElement(toggleButton);
+        this.collapseIcon = PondererGuiIcons.COLLAPSE.asElement(toggleButton);
         listeners.add(toggleButton);
     }
 
@@ -70,6 +75,7 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
         toggleButton.setHeight(buttonHeight);
         toggleButton.active = true;
         toggleButton.updateGradientFromState();
+        toggleButton.showingElement(collapsedGetter.getAsBoolean() ? expandIcon : collapseIcon);
         toggleButton.render(graphics, mouseX, mouseY, partialTicks);
 
         String title = titleGetter.get();
@@ -83,8 +89,6 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
         int lineY = compact ? y + height - 3 : y + height - 10;
         graphics.fill(contentLeft, lineY, titleRight, lineY + 1, 0x40FFFFFF);
 
-        PondererGuiIcons icon = collapsedGetter.getAsBoolean() ? PondererGuiIcons.EXPAND : PondererGuiIcons.COLLAPSE;
-        icon.renderCentered(graphics, toggleButton);
     }
 
     private void refreshTooltip() {
