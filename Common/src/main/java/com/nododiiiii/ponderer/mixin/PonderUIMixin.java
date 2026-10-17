@@ -69,6 +69,9 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
     @Unique
     private boolean ponderer$previewSpaceHeld;
 
+    @Unique
+    private boolean ponderer$previewResumeHeld;
+
     @Override
     public PonderFreePreview ponderer$getFreePreview() {
         if (ponderer$freePreview == null) {
@@ -546,6 +549,12 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
      */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_Q
+            && (ponderer$getFreePreview().isActive() || ponderer$previewResumeHeld)) {
+            ponderer$previewResumeHeld = true;
+            ponderer$getFreePreview().stop();
+            return true;
+        }
         if (keyCode == GLFW.GLFW_KEY_SPACE && !PickState.isActive()
             && !NbtExpandedPickState.isActive() && !InterfaceSlotEditState.isActive()) {
             if (!ponderer$previewSpaceHeld) {
@@ -577,6 +586,10 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
 
     @Override
     public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_Q && ponderer$previewResumeHeld) {
+            ponderer$previewResumeHeld = false;
+            return true;
+        }
         if (keyCode == GLFW.GLFW_KEY_SPACE) {
             ponderer$previewSpaceHeld = false;
             return true;
@@ -776,6 +789,7 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
     @Inject(method = "removed", at = @At("TAIL"))
     private void ponderer$onRemoved(CallbackInfo ci) {
         ponderer$previewSpaceHeld = false;
+        ponderer$previewResumeHeld = false;
         ponderer$getFreePreview().stop();
         if (PickState.isActive()) {
             PickState.reset();

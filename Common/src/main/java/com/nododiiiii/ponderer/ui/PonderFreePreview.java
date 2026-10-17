@@ -32,9 +32,9 @@ public final class PonderFreePreview {
 
     public PonderSpeedButton createButton(PonderZoomSlider slider) {
         Component label = Component.translatable("ponderer.ui.preview.pause");
-        int width = Minecraft.getInstance().font.width(label) + 12;
-        button = new PonderSpeedButton(slider.getX() + slider.getWidth() - width,
-            slider.getY() + slider.getHeight() + 6, width, label,
+        int width = Minecraft.getInstance().font.width(label) + 20;
+        button = new PonderSpeedButton(slider.getBarRight() - width,
+            slider.getPreviewButtonY(), width, label,
             Component.translatable("ponderer.ui.preview.shortcut"), this::toggle);
         button.active = canToggle();
         button.visible = button.active;

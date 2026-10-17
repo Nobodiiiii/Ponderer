@@ -8,12 +8,14 @@ import net.minecraft.network.chat.Component;
 public class PonderSpeedButton extends PonderButton {
     private Component label;
 
-    public PonderSpeedButton(int x, int y, String label, Component description, Runnable callback) {
-        this(x, y, 20, Component.literal(label), description, callback);
+    /** Aligns the complete box around a native Ponder button's content origin. */
+    public PonderSpeedButton(int contentX, int contentY, String label, Component description, Runnable callback) {
+        this(contentX - 4, contentY - 4, 28, Component.literal(label), description, callback);
     }
 
     public PonderSpeedButton(int x, int y, int width, Component label, Component description, Runnable callback) {
-        super(x, y, width, 10);
+        super(x, y, width, 18);
+        box.withBorderOffset(-2);
         this.label = label;
         withPadding(0, 0);
         setMessage(description);
@@ -23,6 +25,12 @@ public class PonderSpeedButton extends PonderButton {
 
     public void setLabel(Component label) {
         this.label = label;
+    }
+
+    @Override
+    public boolean isMouseOver(double mouseX, double mouseY) {
+        return active && visible && mouseX >= getX() && mouseY >= getY()
+            && mouseX < getX() + getWidth() && mouseY < getY() + getHeight();
     }
 
     @Override

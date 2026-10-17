@@ -18,8 +18,8 @@ import java.util.function.Supplier;
 
 public class ActionStripListEntry extends ConfigScreenList.Entry implements SearchableListEntry {
 
-    private static final int INNER_GAP = 8;
-    private static final int ICON_BUTTON_SIZE = 18;
+    private static final int INNER_GAP = 0;
+    private static final int ICON_BUTTON_SIZE = 26;
 
     public record ButtonModel(
         BoxWidget widget,
@@ -54,7 +54,7 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
                                      Runnable action,
                                      IntSupplier colorGetter,
                                      BooleanSupplier activeGetter) {
-        return new ButtonModel(new FormBoxWidget(0, 0, 60, 18).withPadding(2, 2).withCallback(action),
+        return new ButtonModel(new FormBoxWidget(0, 0, 68, 26).withPadding(2, 2).withCallback(action),
             labelGetter,
             tooltipGetter,
             colorGetter,
@@ -117,13 +117,9 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
             return;
         }
 
-        // The cluster's bounds include the outer borders of its first and last buttons.
-        x += EntryTextSupport.boxBorder();
-        width -= 2 * EntryTextSupport.boxBorder();
-
         int count = buttons.size();
         int totalGap = INNER_GAP * Math.max(0, count - 1);
-        int availableWidth = Math.max(40, width - totalGap);
+        int availableWidth = Math.max(count == 1 ? 48 : 1, width - totalGap);
         int fixedWidth = 0;
         int stretchCount = 0;
         for (ButtonModel button : buttons) {
@@ -134,13 +130,13 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
             }
         }
         int stretchWidth = stretchCount <= 0
-            ? Math.max(28, availableWidth / count)
-            : Math.max(28, (availableWidth - fixedWidth) / stretchCount);
+            ? Math.max(36, availableWidth / count)
+            : Math.max(36, (availableWidth - fixedWidth) / stretchCount);
         int stretchExtra = stretchCount <= 0
             ? 0
             : Math.max(0, availableWidth - fixedWidth - stretchWidth * stretchCount);
-        int buttonHeight = Math.max(16, Math.min(18, height - 12));
-        int buttonY = y + Math.max(4, (height - buttonHeight) / 2);
+        int buttonHeight = Math.max(24, Math.min(26, height - 4));
+        int buttonY = y + Math.max(0, (height - buttonHeight) / 2);
         int usedWidth = fixedWidth + stretchWidth * stretchCount + stretchExtra + totalGap;
         int currentX = stretchCount > 0 ? x : x + width - usedWidth;
 
@@ -172,8 +168,70 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
         var font = Minecraft.getInstance().font;
         int color = widget.active ? button.colorGetter().getAsInt() : 0x777777;
         if (button.labelGetter() != null) {
-            String label = font.plainSubstrByWidth(button.labelGetter().get(), Math.max(8, width - 8));
+            String label = font.plainSubstrByWidth(button.labelGetter().get(), Math.max(8, width - 16));
             graphics.drawCenteredString(font, label, x + width / 2, y + (height - 8) / 2, color);
+        }
+    }
+
+    static void renderMultiControlCluster(GuiGraphics graphics, List<ButtonModel> buttons, int x, int width, int y, int height,
+                                    int mouseX, int mouseY, float partialTicks) {
+        if (buttons.size() <= 1) {
+            renderButtonCluster(graphics, buttons, x, width, y, height, mouseX, mouseY, partialTicks);
+            return;
+        }
+
+        int count = buttons.size();
+        int totalGap = EntryTextSupport.multiControlGap() * Math.max(0, count - 1);
+        int availableWidth = Math.max(1, width - totalGap);
+        int fixedWidth = 0;
+        int stretchCount = 0;
+        for (ButtonModel button : buttons) {
+            if (isSquare(button)) {
+                fixedWidth += EntryTextSupport.squareSize();
+            } else {
+                stretchCount++;
+            }
+        }
+        int stretchWidth = stretchCount <= 0
+            ? 0
+            : Math.max(1, (availableWidth - fixedWidth) / stretchCount);
+        int stretchExtra = stretchCount <= 0
+            ? 0
+            : Math.max(0, availableWidth - fixedWidth - stretchWidth * stretchCount);
+        int usedWidth = fixedWidth + stretchWidth * stretchCount + stretchExtra + totalGap;
+        int currentX = stretchCount > 0 ? x : x + width - usedWidth;
+
+        boolean extraAssigned = false;
+        for (int i = 0; i < count; i++) {
+            ButtonModel button = buttons.get(i);
+            int currentWidth = isSquare(button) ? EntryTextSupport.squareSize() : stretchWidth;
+            if (!isSquare(button) && !extraAssigned) {
+                currentWidth += stretchExtra;
+                extraAssigned = true;
+            }
+            renderMultiControlButton(graphics, button, currentX, y, currentWidth, height, mouseX, mouseY, partialTicks);
+            currentX += currentWidth + EntryTextSupport.multiControlGap();
+        }
+    }
+
+    private static boolean isSquare(ButtonModel button) {
+        return button.fixedWidth() > 0 || EntryTextSupport.isSquareButton(
+            button.labelGetter() == null ? null : button.labelGetter().get());
+    }
+
+    private static void renderMultiControlButton(GuiGraphics graphics, ButtonModel button, int x, int y, int width, int height,
+                                     int mouseX, int mouseY, float partialTicks) {
+        refreshTooltip(button);
+        BoxWidget widget = button.widget();
+        EntryTextSupport.setRowButtonBounds(widget, x, width, y, height);
+        widget.active = button.activeGetter().getAsBoolean();
+        widget.updateGradientFromState();
+        widget.render(graphics, mouseX, mouseY, partialTicks);
+
+        var font = Minecraft.getInstance().font;
+        int color = widget.active ? button.colorGetter().getAsInt() : 0x777777;
+        if (button.labelGetter() != null) {
+            EntryTextSupport.drawButtonLabel(graphics, widget, button.labelGetter().get(), color);
         }
     }
 

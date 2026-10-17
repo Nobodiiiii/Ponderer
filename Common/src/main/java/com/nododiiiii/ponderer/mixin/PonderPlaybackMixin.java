@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.ponder.PonderInterpolationSnapshot;
+import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.PonderSpeedButton;
 import com.nododiiiii.ponderer.ui.PonderUiPreviewAccess;
 import net.createmod.ponder.foundation.PonderScene;
@@ -53,6 +54,11 @@ public abstract class PonderPlaybackMixin extends Screen {
             Component.translatable("ponderer.ui.playback.normal"), () -> ponderer$selectSpeed(1)));
         ponderer$doubleSpeed = addRenderableWidget(new PonderSpeedButton(right.getX(), buttonY, "2x",
             Component.translatable("ponderer.ui.playback.double"), () -> ponderer$selectSpeed(2)));
+        // Compensate for the raised widget pass so the next-up speech box stays above these buttons.
+        int buttonZ = PonderRuntimeZLayers.PONDER_TEXT_BASELINE_LAYER - PonderRuntimeZLayers.PONDER_BUTTON_LAYER;
+        ponderer$halfSpeed.atZLevel(buttonZ);
+        ponderer$normalSpeed.atZLevel(buttonZ);
+        ponderer$doubleSpeed.atZLevel(buttonZ);
         ponderer$updateSpeedButtons();
     }
 

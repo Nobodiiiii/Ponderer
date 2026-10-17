@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -46,12 +47,8 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
             "ponderer.ui.show_structure.structure.tooltip",
             UIText.of("ponderer.ui.show_structure.structure.hint"),
             105,
-            FieldDecorators.textAction(
-                20,
-                this::openFilePicker,
-                () -> "S",
-                () -> 0xFFFFFF,
-                UIText.of("ponderer.ui.show_structure.browse.tooltip"))));
+            FieldDecorators.iconAction(PondererGuiIcons.STRUCTURE,
+                UIText.of("ponderer.ui.show_structure.browse.tooltip"), this::openFilePicker)));
         entries.add(FieldSpecs.number(
             scaleField,
             "ponderer.ui.show_structure.scale",

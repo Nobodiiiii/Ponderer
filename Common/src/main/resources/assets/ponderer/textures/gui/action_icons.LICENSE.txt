@@ -1,0 +1,9 @@
+1-bit Pixel Icons by Nikoichu
+https://nikoichu.itch.io/pixel-icons
+
+Licensed under CC0 1.0 Universal.
+https://creativecommons.org/publicdomain/zero/1.0/
+
+This atlas selects 9 original 16x16 sprites from the v1.2 pack.
+Only opaque pure-white pixels are retained; black outlines are removed.
+See action_icons.json for the source filename and atlas coordinates of each icon.

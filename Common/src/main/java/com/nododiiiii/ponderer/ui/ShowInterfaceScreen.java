@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.interfaces.capture.InterfaceCapture;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.core.BlockPos;
@@ -110,7 +111,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
                         entry.field().setEditable(false);
                         entry.field().setCanLoseFocus(true);
                     },
-                    FieldDecorators.textAction("+", 0x66FF66,
+                    FieldDecorators.iconAction(PondererGuiIcons.CAPTURE,
                         UIText.of("ponderer.interface.capture.tooltip"),
                         () -> InterfaceCapture.start(snapshotForm(), createReturnContext()))));
             }

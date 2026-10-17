@@ -15,6 +15,7 @@ import java.util.Locale;
 public class PonderZoomSlider extends AbstractSliderButton {
     public static final float MIN_ZOOM = 0.2f;
     public static final float MAX_ZOOM = 5f;
+    private static final int PREVIEW_HINT_HEIGHT = 18;
 
     private final PonderUiZoomAccess zoom;
 
@@ -36,6 +37,14 @@ public class PonderZoomSlider extends AbstractSliderButton {
 
     private static int left(int screenWidth) {
         return screenWidth - 31 - sliderWidth(screenWidth);
+    }
+
+    public int getBarRight() {
+        return getX() + getWidth() - 2;
+    }
+
+    public int getPreviewButtonY() {
+        return getY() + getHeight() / 2 + 5 + PREVIEW_HINT_HEIGHT;
     }
 
     public void refreshValue() {
@@ -73,7 +82,8 @@ public class PonderZoomSlider extends AbstractSliderButton {
         boolean highlighted = isHoveredOrFocused();
         new BoxElement().withBackground(PonderUI.BACKGROUND_FLAT)
             .gradientBorder(highlighted ? PonderUI.COLOR_HOVER : PonderUI.COLOR_IDLE)
-            .at(barX, barY, 400).withBounds(barWidth, 1).render(graphics);
+            .withBorderOffset(-2)
+            .at(barX - 4, barY - 4, 400).withBounds(barWidth + 8, 9).render(graphics);
 
         graphics.pose().pushPose();
         graphics.pose().translate(barX - 2, barY - 2, 410);
@@ -101,7 +111,7 @@ public class PonderZoomSlider extends AbstractSliderButton {
         if (isHovered()) {
             int hintTop = barY + 5;
             PonderSmallHint.render(graphics, Component.translatable("ponderer.ui.zoom.hint"),
-                barX + barWidth / 2, hintTop, hintTop + 12,
+                barX + barWidth / 2, hintTop, getPreviewButtonY(),
                 UIRenderHelper.COLOR_TEXT_DARKER.getFirst().getRGB());
         }
     }

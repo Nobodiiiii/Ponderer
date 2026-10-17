@@ -66,26 +66,26 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
         int yCenter = height / 2;
         int listLeft = width / 2 - listWidth / 2 + listHorizontalOffset();
-        int actionLeft = listLeft + listWidth + 10;
+        int actionLeft = listLeft + listWidth + 6;
 
-        saveChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter - 25, 20, 20)
-            .withPadding(2, 2)
+        saveChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter - 29, 28, 28)
+            .withPadding(6, 6)
             .withCallback(this::saveEdits);
         saveChanges.showingElement(PonderGuiTextures.ICON_CONFIG_SAVE.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
         setActionButtonTooltip(saveChanges, "ponderer.ui.save", "ponderer.ui.sidebar.save.tooltip");
         addRenderableWidget(saveChanges);
 
-        discardChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter + 5, 20, 20)
-            .withPadding(2, 2)
+        discardChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter + 1, 28, 28)
+            .withPadding(6, 6)
             .withCallback(this::confirmDiscardChanges);
         discardChanges.showingElement(PonderGuiTextures.ICON_CONFIG_DISCARD.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(discardChanges)));
         setActionButtonTooltip(discardChanges, "ponderer.ui.cancel", "ponderer.ui.sidebar.cancel.tooltip");
         addRenderableWidget(discardChanges);
 
-        goBack = new ScreenTooltipBoxWidget(actionLeft, yCenter + 65, 20, 20)
-            .withPadding(2, 2)
+        goBack = new ScreenTooltipBoxWidget(actionLeft, yCenter + 61, 28, 28)
+            .withPadding(6, 6)
             .withCallback(this::attemptBackToParent);
         goBack.showingElement(PonderGuiTextures.ICON_CONFIG_BACK.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(goBack)));
@@ -97,6 +97,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         addRenderableWidget(list);
 
         search = new ClippedConfigTextField(font, width / 2 - listWidth / 2 + listHorizontalOffset(), height - 35, listWidth, 20);
+        EntryTextSupport.setInputBounds(search, search.getX(), height - 36, listWidth, EntryTextSupport.inputOuterHeight());
         search.setResponder(this::updateFilter);
         search.setHint(Component.translatable("catnip.ui.search_hint"));
         search.moveCursorToStart(false);

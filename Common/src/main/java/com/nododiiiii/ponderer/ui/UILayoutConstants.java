@@ -29,7 +29,7 @@ public final class UILayoutConstants {
     public static final int COMPACT_LIST_ENTRY_H = 24;
     /** Equal space between either list edge and its rows. */
     public static final int LIST_ROW_MARGIN = 8;
-    /** Equal inset for labels and the visible outer edges of row controls. */
+    /** Equal inset for labels and allocated row control bounds. */
     public static final int ENTRY_CONTENT_PADDING = 10;
     /** Y offset from window top to first form row. */
     public static final int FORM_TOP = 26;
@@ -43,6 +43,17 @@ public final class UILayoutConstants {
     public static final int FIELD_LEFT = 70;
 
     // ─── Fields ─────────────────────────────────────────────────────────
+    /** Transparent space outside every input's visible bounds, on all four sides. */
+    public static final int INPUT_OUTER_PADDING = 1;
+    public static final int INPUT_HORIZONTAL_INSET = INPUT_OUTER_PADDING;
+    /** Shared input height for ordinary and multi-control list rows. */
+    public static final int LIST_INPUT_H = 20;
+    /** Input height including its transparent outer padding. */
+    public static final int LIST_INPUT_OUTER_H = LIST_INPUT_H + 2 * INPUT_OUTER_PADDING;
+    /** Gap between allocated control bounds in labeled multi-control list rows. */
+    public static final int MULTI_CONTROL_GAP = 0;
+    /** Square buttons in multi-control rows. */
+    public static final int MULTI_SQUARE_SIZE = LIST_INPUT_OUTER_H;
     /** Standard text / number field height. */
     public static final int FIELD_H = 18;
     /** Small number field height. */

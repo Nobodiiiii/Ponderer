@@ -42,18 +42,22 @@ public class LocalizedTextListEntry extends PlainTextListEntry {
     }
 
     @Override
+    protected boolean hasMultipleControls() {
+        return true;
+    }
+
+    @Override
     protected int getTrailingWidth() {
-        return EntryTextSupport.boxVisualWidth(LANG_BUTTON_WIDTH) + CONTROL_GAP;
+        return EntryTextSupport.buttonWidth(shortLang(langGetter.get()), LANG_BUTTON_WIDTH) + EntryTextSupport.inputControlGap();
     }
 
     @Override
     protected void renderTrailing(GuiGraphics graphics, int y, int x, int width, int height,
                                   int mouseX, int mouseY, float partialTicks) {
         langText.withText(shortLang(langGetter.get()));
-        langButton.setX(EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - LANG_BUTTON_WIDTH);
-        langButton.setY(y + 10);
-        langButton.setWidth(LANG_BUTTON_WIDTH);
-        langButton.setHeight(height - 20);
+        int buttonWidth = EntryTextSupport.buttonWidth(shortLang(langGetter.get()), LANG_BUTTON_WIDTH);
+        EntryTextSupport.setRowButtonBounds(langButton, EntryTextSupport.contentRight(x, width) - buttonWidth,
+            buttonWidth, y, height);
         langButton.render(graphics, mouseX, mouseY, partialTicks);
     }
 

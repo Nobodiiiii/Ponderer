@@ -19,9 +19,12 @@ import java.util.function.Supplier;
 
 public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    protected static final int CONTROL_GAP = EntryTextSupport.rightControlGap();
+    protected static final int CONTROL_GAP = EntryTextSupport.multiControlGap();
 
     protected record TrailingButton(BoxWidget widget, int width, Supplier<String> labelGetter, IntSupplier colorGetter) {
+        int renderedWidth() {
+            return EntryTextSupport.buttonWidth(labelGetter.get(), width);
+        }
     }
 
     protected final ConfigTextField textField;
@@ -106,6 +109,11 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         return button;
     }
 
+    public BoxWidget addTrailingIcon(PondererGuiIcons icon, Runnable onClick, @Nullable String tooltipText) {
+        BoxWidget button = addTrailingButton(EntryTextSupport.squareSize(), onClick, () -> "", () -> 0xFFFFFF, tooltipText);
+        return icon.attach(button);
+    }
+
     public void setTrailingText(@Nullable Supplier<String> trailingTextGetter) {
         this.trailingTextGetter = trailingTextGetter;
     }
@@ -157,6 +165,10 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         }
     }
 
+    protected boolean hasMultipleControls() {
+        return ingredientSlot != null || !trailingButtons.isEmpty();
+    }
+
     @Override
     public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
@@ -164,7 +176,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
         int labelWidth = getLabelWidth(width);
         int trailingWidth = getTrailingWidth();
-        int leadingWidth = ingredientSlot == null ? 0 : IngredientSlotWidget.SIZE + CONTROL_GAP;
+        int leadingWidth = ingredientSlot == null ? 0 : IngredientSlotWidget.OUTER_SIZE + EntryTextSupport.inputControlGap();
         int controlMinimum = minimumControlWidth > 0 ? minimumControlWidth : leadingWidth + trailingWidth + 60;
         if (preferredFieldWidth > 0) {
             controlMinimum = Math.max(controlMinimum, preferredFieldWidth + leadingWidth + trailingWidth);
@@ -175,18 +187,15 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         int fieldX = controlBounds.x() + leadingWidth;
 
         if (ingredientSlot != null) {
-            ingredientSlot.setX(controlBounds.x());
-            ingredientSlot.setY(y + 9);
+            ingredientSlot.setX(EntryTextSupport.inputX(controlBounds.x()));
+            ingredientSlot.setY(EntryTextSupport.inputY(EntryTextSupport.controlY(y, height)));
             ingredientSlotArea = new Rect2i(ingredientSlot.getX(), ingredientSlot.getY(),
                 IngredientSlotWidget.SIZE, IngredientSlotWidget.SIZE);
             ingredientSlot.render(graphics, mouseX, mouseY, partialTicks);
         }
 
-        textField.setX(fieldX);
-        textField.setY(y + 8);
-        textField.setWidth(actualFieldWidth);
-        textField.setHeight(20);
-        renderedFieldArea = new Rect2i(fieldX, y + 8, actualFieldWidth, 20);
+        EntryTextSupport.setRowInputBounds(textField, fieldX, actualFieldWidth, y, height);
+        renderedFieldArea = new Rect2i(textField.getX(), textField.getY(), textField.getWidth(), textField.getHeight());
         textField.render(graphics, mouseX, mouseY, partialTicks);
 
         renderTrailing(graphics, y, x, width, height, mouseX, mouseY, partialTicks);
@@ -196,55 +205,43 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         int width = 0;
         String trailingText = getTrailingText();
         if (!trailingText.isEmpty()) {
-            width += Minecraft.getInstance().font.width(trailingText) + CONTROL_GAP;
-        }
-        if (!trailingButtons.isEmpty()) {
-            width += CONTROL_GAP + 2 * EntryTextSupport.boxBorder();
+            width += Minecraft.getInstance().font.width(trailingText);
+            if (!trailingButtons.isEmpty()) {
+                width += CONTROL_GAP;
+            }
         }
         for (int i = 0; i < trailingButtons.size(); i++) {
-            width += trailingButtons.get(i).width();
+            width += trailingButtons.get(i).renderedWidth();
             if (i + 1 < trailingButtons.size()) {
                 width += CONTROL_GAP;
             }
         }
-        return width;
+        return width == 0 ? 0 : width + (hasMultipleControls()
+            ? EntryTextSupport.inputControlGap() : EntryTextSupport.rightControlGap());
     }
 
     protected void renderTrailing(GuiGraphics graphics, int y, int x, int width, int height,
                                   int mouseX, int mouseY, float partialTicks) {
         int cursorX = EntryTextSupport.contentRight(x, width);
-        if (!trailingButtons.isEmpty()) {
-            cursorX -= EntryTextSupport.boxBorder();
-        }
-        int buttonY = y + 10;
-        int buttonHeight = Math.max(16, height - 20);
         var font = Minecraft.getInstance().font;
 
         for (int i = trailingButtons.size() - 1; i >= 0; i--) {
             TrailingButton trailingButton = trailingButtons.get(i);
             BoxWidget button = trailingButton.widget();
-            cursorX -= trailingButton.width();
-            button.setX(cursorX);
-            button.setY(buttonY);
-            button.setWidth(trailingButton.width());
-            button.setHeight(buttonHeight);
+            int buttonWidth = trailingButton.renderedWidth();
+            cursorX -= buttonWidth;
+            EntryTextSupport.setRowButtonBounds(button, cursorX, buttonWidth, y, height);
             button.render(graphics, mouseX, mouseY, partialTicks);
-            graphics.drawCenteredString(font, trailingButton.labelGetter().get(),
-                button.getX() + button.getWidth() / 2,
-                button.getY() + (button.getHeight() - 8) / 2,
+            EntryTextSupport.drawButtonLabel(graphics, button, trailingButton.labelGetter().get(),
                 trailingButton.colorGetter().getAsInt());
             cursorX -= CONTROL_GAP;
-        }
-
-        if (!trailingButtons.isEmpty()) {
-            cursorX -= EntryTextSupport.boxBorder();
         }
 
         String trailingText = getTrailingText();
         if (!trailingText.isEmpty()) {
             graphics.drawString(font, trailingText,
                 cursorX - font.width(trailingText),
-                y + 14,
+                EntryTextSupport.controlY(y, height) + (EntryTextSupport.controlHeight() - 8) / 2,
                 0xA0A0A0);
         }
     }

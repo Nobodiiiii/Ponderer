@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.ui.catnip;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
+import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.animation.AnimationTickHolder;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.minecraft.client.Minecraft;
@@ -27,7 +28,9 @@ import java.util.function.Supplier;
 /** A client-side ingredient slot bound to an ID field. */
 public class IngredientSlotWidget extends AbstractWidget {
 
-    public static final int SIZE = 18;
+    /** Allocated bounds include the same transparent padding as an input field. */
+    public static final int OUTER_SIZE = UILayoutConstants.LIST_INPUT_OUTER_H;
+    public static final int SIZE = OUTER_SIZE - 2 * UILayoutConstants.INPUT_OUTER_PADDING;
     private static final ResourceLocation SLOT_SPRITE = ResourceLocation.withDefaultNamespace("container/slot");
     private static final int TAG_CYCLE_TICKS = 20;
 
@@ -55,8 +58,8 @@ public class IngredientSlotWidget extends AbstractWidget {
         graphics.blitSprite(SLOT_SPRITE, getX(), getY(), SIZE, SIZE);
         updatePreview();
         ItemStack stack = slot.getItem();
-        int itemX = getX() + 1;
-        int itemY = getY() + 1;
+        int itemX = getX() + (SIZE - 16) / 2;
+        int itemY = getY() + (SIZE - 16) / 2;
         if (slot.hasItem()) {
             graphics.renderItem(stack, itemX, itemY);
             graphics.renderItemDecorations(Minecraft.getInstance().font, stack, itemX, itemY);

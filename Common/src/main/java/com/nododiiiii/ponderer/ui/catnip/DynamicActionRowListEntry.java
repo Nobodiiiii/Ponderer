@@ -85,7 +85,7 @@ public class DynamicActionRowListEntry extends ConfigScreenList.LabeledEntry imp
         if (!detail.isBlank()) {
             graphics.drawString(font, detail, textX, y + 18, detailColor);
         }
-        ActionStripListEntry.renderButtonCluster(graphics, buttons, controlX, controlWidth, y, height,
+        ActionStripListEntry.renderMultiControlCluster(graphics, buttons, controlX, controlWidth, y, height,
             mouseX, mouseY, partialTicks);
     }
 

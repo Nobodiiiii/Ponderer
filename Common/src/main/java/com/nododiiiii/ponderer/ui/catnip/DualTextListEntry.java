@@ -10,7 +10,7 @@ import javax.annotation.Nullable;
 
 public class DualTextListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int FIELD_GAP = EntryTextSupport.rightControlGap();
+    private static final int FIELD_GAP = EntryTextSupport.inputGap();
 
     private final String searchText;
     private final ConfigTextField firstField;
@@ -93,18 +93,10 @@ public class DualTextListEntry extends ConfigScreenList.LabeledEntry implements 
             secondWidth = Math.max(40, secondWidth - widthOverflow);
         }
         int fieldX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
-        int fieldY = y + 8;
-
-        firstField.setX(fieldX);
-        firstField.setY(fieldY);
-        firstField.setWidth(firstWidth);
-        firstField.setHeight(20);
+        EntryTextSupport.setRowInputBounds(firstField, fieldX, firstWidth, y, height);
         firstField.render(graphics, mouseX, mouseY, partialTicks);
 
-        secondField.setX(fieldX + firstWidth + FIELD_GAP);
-        secondField.setY(fieldY);
-        secondField.setWidth(secondWidth);
-        secondField.setHeight(20);
+        EntryTextSupport.setRowInputBounds(secondField, fieldX + firstWidth + FIELD_GAP, secondWidth, y, height);
         secondField.render(graphics, mouseX, mouseY, partialTicks);
     }
 }

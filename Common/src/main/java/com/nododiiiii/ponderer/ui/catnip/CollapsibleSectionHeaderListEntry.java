@@ -14,8 +14,8 @@ import java.util.function.Supplier;
 
 public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int BUTTON_WIDTH = 12;
-    private static final int BUTTON_HEIGHT = 8;
+    private static final int BUTTON_WIDTH = 20;
+    private static final int BUTTON_HEIGHT = 16;
 
     private final Supplier<String> titleGetter;
     private final BooleanSupplier collapsedGetter;
@@ -62,8 +62,8 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
 
         boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
         int buttonHeight = BUTTON_HEIGHT;
-        int buttonY = y + Math.max(4, (height - buttonHeight) / 2);
-        int buttonX = EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - BUTTON_WIDTH;
+        int buttonY = y + Math.max(0, (height - buttonHeight) / 2);
+        int buttonX = EntryTextSupport.contentRight(x, width) - BUTTON_WIDTH;
         toggleButton.setX(buttonX);
         toggleButton.setY(buttonY);
         toggleButton.setWidth(BUTTON_WIDTH);
@@ -76,16 +76,15 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
         var font = Minecraft.getInstance().font;
         int color = annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFCCCC77;
         int contentLeft = EntryTextSupport.contentLeft(x);
-        int titleRight = buttonX - EntryTextSupport.boxBorder() - EntryTextSupport.rightControlGap();
+        int titleRight = buttonX - EntryTextSupport.rightControlGap();
         int titleWidth = Math.max(20, titleRight - contentLeft);
         graphics.drawString(font, font.plainSubstrByWidth(title, titleWidth), contentLeft,
             compact ? y + 8 : y + 11, color);
         int lineY = compact ? y + height - 3 : y + height - 10;
         graphics.fill(contentLeft, lineY, titleRight, lineY + 1, 0x40FFFFFF);
 
-        String symbol = collapsedGetter.getAsBoolean() ? "+" : "-";
-        graphics.drawCenteredString(font, symbol, toggleButton.getX() + toggleButton.getWidth() / 2,
-            toggleButton.getY() + (toggleButton.getHeight() - 8) / 2, 0xFFFFFF);
+        PondererGuiIcons icon = collapsedGetter.getAsBoolean() ? PondererGuiIcons.EXPAND : PondererGuiIcons.COLLAPSE;
+        icon.renderCentered(graphics, toggleButton);
     }
 
     private void refreshTooltip() {

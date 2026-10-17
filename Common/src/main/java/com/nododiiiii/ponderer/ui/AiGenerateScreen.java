@@ -11,6 +11,7 @@ import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
 import com.nododiiiii.ponderer.ui.catnip.FormBoxWidget;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.ConfirmationScreen;
@@ -54,7 +55,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private static AiGenerationTask cachedGenerationTask;
 
     private static final int PREVIEW_HEIGHT = UILayoutConstants.LIST_ENTRY_H * 2;
-    private static final int NAV_BUTTON_SIZE = 18;
+    private static final int NAV_BUTTON_SIZE = 26;
     private static final int HEADER_TITLE_COLOR = 0xFFCCCC77;
     private static final int HEADER_TEXT_COLOR = 0xFFFFFFFF;
     private static final int HEADER_MUTED_TEXT_COLOR = 0xFFAAAAAA;
@@ -196,7 +197,8 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                         entry.field().setCanLoseFocus(true);
                     }
                 },
-                FieldDecorators.textAction("-", 0xFF6666, null, () -> removeUrl(index))));
+                FieldDecorators.iconAction(PondererGuiIcons.REMOVE,
+                    UIText.of("ponderer.ui.ai_generate.remove_url.tooltip"), () -> removeUrl(index))));
         }
         entries.add(FieldSpecs.fullButton(
             UIText.of("ponderer.ui.ai_generate.add_url"),
@@ -755,16 +757,16 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         @Override
         public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                            int mouseX, int mouseY, boolean hovered, float partialTicks) {
-            int buttonY = y + Math.max(4, (height - NAV_BUTTON_SIZE) / 2);
-            layoutButton(previousButton, EntryTextSupport.contentLeft(x) + EntryTextSupport.boxBorder(), buttonY);
-            layoutButton(nextButton, EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - NAV_BUTTON_SIZE, buttonY);
+            int buttonY = y + Math.max(0, (height - NAV_BUTTON_SIZE) / 2);
+            layoutButton(previousButton, EntryTextSupport.contentLeft(x), buttonY);
+            layoutButton(nextButton, EntryTextSupport.contentRight(x, width) - NAV_BUTTON_SIZE, buttonY);
 
             previousButton.render(graphics, mouseX, mouseY, partialTicks);
             nextButton.render(graphics, mouseX, mouseY, partialTicks);
 
             var font = Minecraft.getInstance().font;
-            int textWidth = Math.max(20, nextButton.getX() - EntryTextSupport.boxBorder()
-                - previousButton.getX() - NAV_BUTTON_SIZE - EntryTextSupport.boxBorder()
+            int textWidth = Math.max(20, nextButton.getX()
+                - previousButton.getX() - NAV_BUTTON_SIZE
                 - 2 * EntryTextSupport.rightControlGap());
             String structureName = font.plainSubstrByWidth(currentStructureName(), textWidth);
             int nameColor = hasStructures() ? HEADER_TEXT_COLOR : HEADER_MUTED_TEXT_COLOR;

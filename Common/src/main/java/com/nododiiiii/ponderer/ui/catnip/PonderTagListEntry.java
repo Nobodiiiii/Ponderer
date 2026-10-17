@@ -87,7 +87,7 @@ public class PonderTagListEntry extends ConfigScreenList.LabeledEntry implements
             : annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFE8E8E8;
         graphics.drawString(font, font.plainSubstrByWidth(title(), textWidth), textX, y + 6, titleColor);
         graphics.drawString(font, font.plainSubstrByWidth(id, textWidth), textX, y + 18, 0xFF999999);
-        ActionStripListEntry.renderButtonCluster(graphics, buttons, controlX, controlWidth, y, height,
+        ActionStripListEntry.renderMultiControlCluster(graphics, buttons, controlX, controlWidth, y, height,
             mouseX, mouseY, partialTicks);
     }
 

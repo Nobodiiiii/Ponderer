@@ -148,9 +148,9 @@ final class ItemTagDropdown {
         new BoxElement()
             .withBackground(BoxElement.COLOR_BACKGROUND_FLAT)
             .gradientBorder(AbstractSimiWidget.COLOR_IDLE)
-            .withBorderOffset(0)
-            .withBounds(bounds.getWidth() - 4, bounds.getHeight() - 4)
-            .at(left + 2, top + 2)
+            .withBorderOffset(-2)
+            .withBounds(bounds.getWidth(), bounds.getHeight())
+            .at(left, top)
             .render(graphics);
         for (int row = 0; row < visibleRows; row++) {
             int index = firstVisible + row;

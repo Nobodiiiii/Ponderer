@@ -18,9 +18,10 @@ import java.util.function.Supplier;
 
 public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements SearchableListEntry {
 
-    private static final int INNER_GAP = 8;
-    private static final int BUTTON_WIDTH = 22;
-    private static final int BUTTON_HEIGHT = 16;
+    private static final int BUTTON_GAP = 0;
+    private static final int TEXT_GAP = 8;
+    private static final int BUTTON_WIDTH = 30;
+    private static final int BUTTON_HEIGHT = 24;
 
     public record HeaderButton(
         BoxWidget widget,
@@ -88,10 +89,10 @@ public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements 
         UIRenderHelper.streak(graphics, 180, x + (int) (width * 1.35f) + 10, y + height / 2, height - 6,
             width / 8 * 7, new Color(0xdd_000000));
 
-        int buttonsWidth = buttons.size() * BUTTON_WIDTH + Math.max(0, buttons.size() - 1) * INNER_GAP;
-        int buttonX = EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - buttonsWidth;
-        int buttonY = y + Math.max(4, (height - BUTTON_HEIGHT) / 2);
-        int textRight = buttonX - EntryTextSupport.boxBorder() - INNER_GAP;
+        int buttonsWidth = buttons.size() * BUTTON_WIDTH + Math.max(0, buttons.size() - 1) * BUTTON_GAP;
+        int buttonX = EntryTextSupport.contentRight(x, width) - buttonsWidth;
+        int buttonY = y + Math.max(0, (height - BUTTON_HEIGHT) / 2);
+        int textRight = buttonX - TEXT_GAP;
 
         var font = Minecraft.getInstance().font;
         int textX = EntryTextSupport.contentLeft(x);
@@ -102,7 +103,7 @@ public class WorkspaceHeaderListEntry extends ConfigScreenList.Entry implements 
 
         for (HeaderButton button : buttons) {
             renderButton(graphics, button, buttonX, buttonY, mouseX, mouseY, partialTicks);
-            buttonX += BUTTON_WIDTH + INNER_GAP;
+            buttonX += BUTTON_WIDTH + BUTTON_GAP;
         }
     }
 

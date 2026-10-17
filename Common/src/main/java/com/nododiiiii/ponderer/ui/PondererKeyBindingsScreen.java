@@ -23,7 +23,7 @@ import java.util.List;
 public class PondererKeyBindingsScreen extends AbstractDeclarativeListScreen {
 
     private static final int BINDING_BUTTON_MIN_WIDTH = 110;
-    private static final int RESET_BUTTON_WIDTH = 20;
+    private static final int RESET_BUTTON_WIDTH = UILayoutConstants.MULTI_SQUARE_SIZE;
 
     @Nullable
     private ModKeyBindings.ManagedBinding listeningBinding;
@@ -238,7 +238,7 @@ public class PondererKeyBindingsScreen extends AbstractDeclarativeListScreen {
 
     private final class KeyBindingEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-        private static final int CONTROL_GAP = EntryTextSupport.rightControlGap();
+        private static final int CONTROL_GAP = EntryTextSupport.multiControlGap();
 
         private final ModKeyBindings.ManagedBinding binding;
         private final String searchText;
@@ -301,31 +301,21 @@ public class PondererKeyBindingsScreen extends AbstractDeclarativeListScreen {
                 width,
                 labelWidth,
                 EntryTextSupport.halfWidthControlScale(),
-                BINDING_BUTTON_MIN_WIDTH + CONTROL_GAP + EntryTextSupport.boxVisualWidth(RESET_BUTTON_WIDTH));
+                BINDING_BUTTON_MIN_WIDTH + CONTROL_GAP + RESET_BUTTON_WIDTH);
 
-            int buttonY = y + 10;
-            int buttonHeight = Math.max(16, height - 20);
-
-            int resetVisualX = controlBounds.right() - EntryTextSupport.boxVisualWidth(RESET_BUTTON_WIDTH);
-            int resetX = resetVisualX + EntryTextSupport.boxBorder();
-            resetButton.setX(resetX);
-            resetButton.setY(buttonY);
-            resetButton.setWidth(RESET_BUTTON_WIDTH);
-            resetButton.setHeight(buttonHeight);
+            int resetVisualX = controlBounds.right() - RESET_BUTTON_WIDTH;
+            EntryTextSupport.setRowButtonBounds(resetButton, resetVisualX, RESET_BUTTON_WIDTH, y, height);
             updateButtonState(resetButton, !binding.isDefault());
             resetButton.render(graphics, mouseX, mouseY, partialTicks);
 
-            int bindingWidth = Math.max(BINDING_BUTTON_MIN_WIDTH, resetVisualX - CONTROL_GAP - controlBounds.x());
-            int bindingVisualX = controlBounds.x();
-            EntryTextSupport.setBoxHorizontalBounds(bindingButton, bindingVisualX, bindingWidth);
-            bindingButton.setY(buttonY);
-            bindingButton.setHeight(buttonHeight);
+            String bindingLabel = bindingButtonLabel(binding);
+            int bindingWidth = EntryTextSupport.isSquareButton(bindingLabel) ? EntryTextSupport.squareSize()
+                : Math.max(BINDING_BUTTON_MIN_WIDTH, resetVisualX - CONTROL_GAP - controlBounds.x());
+            int bindingVisualX = resetVisualX - CONTROL_GAP - bindingWidth;
+            EntryTextSupport.setRowButtonBounds(bindingButton, bindingVisualX, bindingWidth, y, height);
             bindingButton.render(graphics, mouseX, mouseY, partialTicks);
 
-            graphics.drawCenteredString(Minecraft.getInstance().font, bindingButtonLabel(binding),
-                bindingButton.getX() + bindingButton.getWidth() / 2,
-                bindingButton.getY() + (bindingButton.getHeight() - 8) / 2,
-                bindingButtonColor(binding));
+            EntryTextSupport.drawButtonLabel(graphics, bindingButton, bindingLabel, bindingButtonColor(binding));
         }
 
         private void refreshButtonTooltips() {

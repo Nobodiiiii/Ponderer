@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.ponder.JavaModuleExportResult;
 import com.nododiiiii.ponderer.ponder.JavaModuleExportService;
 import com.nododiiiii.ponderer.ponder.JavaModuleScanResult;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
@@ -41,12 +42,8 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
             "ponderer.ui.export_java.target_root.tooltip",
             "ponderer.ui.export_java.target_root.hint",
             130,
-            FieldDecorators.textAction(
-                20,
-                this::openFolderPicker,
-                () -> "...",
-                () -> 0xFFFFFF,
-                UIText.of("ponderer.ui.export_java.browse.tooltip"))));
+            FieldDecorators.iconAction(PondererGuiIcons.BROWSE_FOLDER,
+                UIText.of("ponderer.ui.export_java.browse.tooltip"), this::openFolderPicker)));
         entries.add(FieldSpecs.labeledButton(
             "ponderer.ui.export.scene",
             null,

@@ -7,6 +7,7 @@ import com.nododiiiii.ponderer.ui.catnip.DualTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.XyzListEntry;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 
@@ -363,9 +364,10 @@ public final class FieldSpecs {
                             stepScreen.rebuildFormPreservingState();
                         }
                     },
-                    () -> "+",
-                    () -> 0x80FF80,
-                    UIText.of("ponderer.ui.block_properties"));
+                    () -> "",
+                    () -> 0xFFFFFF,
+                    UIText.of("ponderer.ui.block_properties"))
+                    .withIcon(PondererGuiIcons.ADD);
                 screen.appendBuiltEntry(addEntry);
             }
 

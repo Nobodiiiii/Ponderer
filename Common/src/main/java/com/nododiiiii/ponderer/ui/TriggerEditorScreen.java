@@ -10,6 +10,7 @@ import net.createmod.catnip.gui.ConfirmationScreen;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.ButtonListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.component.DataComponents;
@@ -233,12 +234,8 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
                 null,
                 UIText.of("ponderer.ui.trigger_editor.hint.trigger_structure"),
                 124,
-                FieldDecorators.textAction(
-                    20,
-                    this::openStructureList,
-                    () -> "L",
-                    () -> 0xFFFFFF,
-                    UIText.of("ponderer.ui.scene_desc.structure_list_title"))));
+                FieldDecorators.iconAction(PondererGuiIcons.LIST,
+                    UIText.of("ponderer.ui.scene_desc.structure_list_title"), this::openStructureList)));
         } else if ("coordinate".equals(mode)) {
             entries.add(FieldSpecs.xyz(
                 coord1Field,
@@ -247,12 +244,8 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
                 "X",
                 "Y",
                 "Z",
-                FieldDecorators.xyzAction(
-                    20,
-                    this::startCoordinatePick,
-                    () -> "+",
-                    () -> 0x80FFFF,
-                    UIText.of("ponderer.ui.pick.tooltip"))));
+                FieldDecorators.xyzIconAction(PondererGuiIcons.PICK_POSITION,
+                    UIText.of("ponderer.ui.pick.tooltip"), this::startCoordinatePick)));
             entries.add(FieldSpecs.xyz(
                 coord2Field,
                 "ponderer.ui.trigger_editor.trigger_coord2",
@@ -260,12 +253,8 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
                 "X",
                 "Y",
                 "Z",
-                FieldDecorators.xyzAction(
-                    20,
-                    this::startCoordinatePick,
-                    () -> "+",
-                    () -> 0x80FFFF,
-                    UIText.of("ponderer.ui.pick.tooltip"))));
+                FieldDecorators.xyzIconAction(PondererGuiIcons.PICK_POSITION,
+                    UIText.of("ponderer.ui.pick.tooltip"), this::startCoordinatePick)));
         }
     }
 
@@ -290,10 +279,11 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             nbtDecorators.add(FieldDecorators.nbtPick(nbtKey));
             nbtDecorators.add(FieldDecorators.nbtExpand(nbtKey));
             if (itemBindings.size() > 1) {
-                nbtDecorators.add(FieldDecorators.textAction(20, () -> {
-                    itemBindings.remove(index);
-                    rebuildFormPreservingState();
-                }, () -> "×", () -> 0xFF8080, UIText.of("ponderer.ui.scene_desc.remove_item")));
+                nbtDecorators.add(FieldDecorators.iconAction(PondererGuiIcons.REMOVE,
+                    UIText.of("ponderer.ui.scene_desc.remove_item"), () -> {
+                        itemBindings.remove(index);
+                        rebuildFormPreservingState();
+                    }));
             }
             entries.add(FieldSpecs.text(
                 FieldBindings.string(nbtKey,
@@ -309,7 +299,8 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             "", null, 40, () -> {
                 itemBindings.addEmpty();
                 rebuildFormPreservingState();
-            }, () -> "+", () -> 0x80FF80, UIText.of("ponderer.ui.scene_desc.add_item"))));
+            }, () -> "", () -> 0xFFFFFF, UIText.of("ponderer.ui.scene_desc.add_item"))
+            .withIcon(PondererGuiIcons.ADD)));
     }
 
     private void applyHeldItem(int index, ItemStack stack) {

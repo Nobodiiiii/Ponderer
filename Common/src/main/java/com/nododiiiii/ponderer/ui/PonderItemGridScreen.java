@@ -1017,7 +1017,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             Color background = null;
             int iconX = x + 2;
             int iconY = y + 2;
-            int iconSize = 16;
 
             if (selectionState == 2) {
                 border = AbstractSimiWidget.COLOR_SUCCESS;
@@ -1034,8 +1033,9 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 new BoxElement()
                     .withBackground(background)
                     .gradientBorder(border.getFirst(), border.getSecond())
-                    .at(iconX + 1, iconY + 1, 0)
-                    .withBounds(iconSize - 2, iconSize - 2)
+                    .withBorderOffset(-2)
+                    .at(x - 1, y - 1, 0)
+                    .withBounds(CELL_SIZE + 2, CELL_SIZE + 2)
                     .render(graphics);
             }
 

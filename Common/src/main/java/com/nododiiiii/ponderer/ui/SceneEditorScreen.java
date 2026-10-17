@@ -11,6 +11,7 @@ import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.ScreenTooltipBoxWidget;
 import com.nododiiiii.ponderer.ui.catnip.SceneStepListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
@@ -41,8 +42,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private static final Gson STEP_GSON = new GsonBuilder()
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
         .create();
-    private static final int SIDEBAR_BUTTON_SIZE = 20;
-    private static final int SIDEBAR_BUTTON_GAP = 10;
+    private static final int SIDEBAR_BUTTON_SIZE = 28;
+    private static final int SIDEBAR_BUTTON_GAP = 2;
     private static final int STEP_ACTION_ICON_SIZE = 12;
     private static final HistorySession HISTORY_SESSION = new HistorySession();
 
@@ -161,26 +162,23 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                         () -> moveStepDown(stepIndex),
                         null,
                         () -> !isActionDisabled(1, stepIndex)),
-                    SceneStepListEntry.button(
-                        "+",
+                    SceneStepListEntry.iconButton(
+                        PondererGuiIcons.INSERT,
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.insert"))),
                         () -> openInsertAfter(stepIndex),
                         null,
-                        () -> 0xFF80FF80,
                         () -> !isActionDisabled(2, stepIndex)),
-                    SceneStepListEntry.button(
-                        "C",
+                    SceneStepListEntry.iconButton(
+                        PondererGuiIcons.COPY,
                         this::copyButtonTooltip,
                         () -> copyStep(stepIndex),
                         null,
-                        () -> 0xFF80C0FF,
                         () -> true),
-                    SceneStepListEntry.button(
-                        "P",
+                    SceneStepListEntry.iconButton(
+                        PondererGuiIcons.PASTE,
                         this::pasteButtonTooltip,
                         () -> pasteAfter(stepIndex),
                         null,
-                        () -> 0xFFFFD080,
                         () -> clipboard != null),
                     SceneStepListEntry.dangerIconButton(
                         PonderIconStencils.centered(PonderGuiTextures.ICON_DISABLE, STEP_ACTION_ICON_SIZE),
@@ -285,14 +283,14 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private int actionButtonX() {
-        return width / 2 + currentListWidthValue() / 2 + 10;
+        return width / 2 + currentListWidthValue() / 2 + 6;
     }
 
     private BoxWidget createHistoryButton(int x, int y, Runnable callback,
                                           net.createmod.catnip.gui.element.DelegatedStencilElement icon,
                                           String tooltipTitleKey, String tooltipBodyKey) {
         BoxWidget button = new ScreenTooltipBoxWidget(x, y, SIDEBAR_BUTTON_SIZE, SIDEBAR_BUTTON_SIZE)
-            .withPadding(2, 2)
+            .withPadding(6, 6)
             .withCallback(callback);
         PonderIconStencils.attach(button, icon);
         configureSidebarTooltip(

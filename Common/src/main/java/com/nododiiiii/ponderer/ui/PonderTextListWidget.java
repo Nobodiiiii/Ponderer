@@ -32,6 +32,7 @@ public class PonderTextListWidget extends AbstractWidget {
     public static final int TOP_Y = 70;
     public static final int BOTTOM_PAD = 60; // leave room for the bottom button row
 
+    private static final int BORDER_SIZE = 2;
     private static final int ROW_HEIGHT = 11;
     private static final int HEADER_HEIGHT = 14;
     private static final int PADDING_X = 7;
@@ -59,8 +60,9 @@ public class PonderTextListWidget extends AbstractWidget {
     private int scrollOffset;
 
     public PonderTextListWidget(PonderUI ponderUi) {
-        super(computeLeft(ponderUi.width), top(ponderUi.width),
-            computeWidth(ponderUi.width), Math.max(60, ponderUi.height - top(ponderUi.width) - BOTTOM_PAD),
+        super(computeLeft(ponderUi.width) - BORDER_SIZE, top(ponderUi.width) - BORDER_SIZE,
+            computeWidth(ponderUi.width) + 2 * BORDER_SIZE,
+            Math.max(60, ponderUi.height - top(ponderUi.width) - BOTTOM_PAD) + 2 * BORDER_SIZE,
             Component.empty());
         this.ponderUi = ponderUi;
         this.configuredDefault = Config.DEFAULT_TEXT_PROGRESS.get();
@@ -121,17 +123,17 @@ public class PonderTextListWidget extends AbstractWidget {
             return;
         }
 
-        int x = getX();
-        int y = getY();
-        int w = getWidth();
-        int h = getHeight();
+        int x = getX() + BORDER_SIZE;
+        int y = getY() + BORDER_SIZE;
+        int w = getWidth() - 2 * BORDER_SIZE;
+        int h = getHeight() - 2 * BORDER_SIZE;
 
         RenderSystem.enableBlend();
 
-        // Outer border + inner border + fill (catnip-style dark navy box)
-        graphics.fill(x - 2, y - 2, x + w + 2, y + h + 2, BG_OUTER_BORDER);
-        graphics.fill(x - 1, y - 1, x + w + 1, y + h + 1, BG_INNER_BORDER);
-        graphics.fill(x,     y,     x + w,     y + h,     BG_FILL);
+        // Keep both border layers inside the widget's declared bounds.
+        graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), BG_OUTER_BORDER);
+        graphics.fill(getX() + 1, getY() + 1, getX() + getWidth() - 1, getY() + getHeight() - 1, BG_INNER_BORDER);
+        graphics.fill(x, y, x + w, y + h, BG_FILL);
 
         Font font = Minecraft.getInstance().font;
 
@@ -225,8 +227,8 @@ public class PonderTextListWidget extends AbstractWidget {
 
     private TextIndexStore.Entry entryAt(int mouseX, int mouseY, List<TextIndexStore.Entry> entries,
                                           int listTop, int listBottom, int visibleRows) {
-        int x = getX();
-        int w = getWidth();
+        int x = getX() + BORDER_SIZE;
+        int w = getWidth() - 2 * BORDER_SIZE;
         if (mouseX < x + 3 || mouseX >= x + w - CONTENT_RIGHT_PAD) return null;
         if (mouseY < listTop || mouseY >= listBottom) return null;
         int row = (mouseY - listTop) / ROW_HEIGHT;
@@ -243,8 +245,8 @@ public class PonderTextListWidget extends AbstractWidget {
         List<TextIndexStore.Entry> entries = currentEntries();
         if (entries.isEmpty()) return false;
 
-        int y = getY();
-        int h = getHeight();
+        int y = getY() + BORDER_SIZE;
+        int h = getHeight() - 2 * BORDER_SIZE;
         int listTop = y + HEADER_HEIGHT + 4;
         int listBottom = y + h - 4;
         int visibleRows = Math.max(0, (listBottom - listTop) / ROW_HEIGHT);
@@ -262,8 +264,8 @@ public class PonderTextListWidget extends AbstractWidget {
         List<TextIndexStore.Entry> entries = currentEntries();
         if (entries.isEmpty()) return false;
 
-        int listTop = getY() + HEADER_HEIGHT + 4;
-        int listBottom = getY() + getHeight() - 4;
+        int listTop = getY() + BORDER_SIZE + HEADER_HEIGHT + 4;
+        int listBottom = getY() + getHeight() - BORDER_SIZE - 4;
         int visibleRows = Math.max(0, (listBottom - listTop) / ROW_HEIGHT);
         int maxScroll = Math.max(0, entries.size() - visibleRows);
         if (maxScroll <= 0) return true;

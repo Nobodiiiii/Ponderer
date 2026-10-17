@@ -2,13 +2,12 @@ package com.nododiiiii.ponderer.ui.catnip;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * A BoxWidget that can render tooltips outside a ConfigScreenList scissor.
  */
-public class FormBoxWidget extends BoxWidget {
+public class FormBoxWidget extends BoundedBoxWidget {
 
     public FormBoxWidget() {
         super();

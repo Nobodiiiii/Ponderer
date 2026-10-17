@@ -17,9 +17,10 @@ import java.util.function.Supplier;
 
 public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int BUTTON_GAP = 8;
-    private static final int BUTTON_WIDTH = 18;
-    private static final int BUTTON_HEIGHT = 16;
+    private static final int BUTTON_GAP = EntryTextSupport.multiControlGap();
+    private static final int BUTTON_WIDTH = 26;
+    private static final int BUTTON_HEIGHT = 24;
+    private static final int MULTI_BUTTON_MIN_WIDTH = 18;
 
     public record ActionButton(
         BoxWidget widget,
@@ -37,7 +38,6 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
     private final List<ActionButton> buttons;
     private int lastX;
     private int lastY;
-    private int lastWidth;
     private int lastHeight;
     private int lastLabelWidth;
 
@@ -88,6 +88,16 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
         return createIconButton(widget, tooltipGetter, secondaryClick, activeGetter);
     }
 
+    public static ActionButton iconButton(PondererGuiIcons icon,
+                                          @Nullable Supplier<List<Component>> tooltipGetter,
+                                          Runnable primaryClick,
+                                          @Nullable Runnable secondaryClick,
+                                          BooleanSupplier activeGetter) {
+        BoxWidget widget = new FormBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(primaryClick);
+        icon.attach(widget);
+        return createIconButton(widget, tooltipGetter, secondaryClick, activeGetter);
+    }
+
     public static ActionButton dangerIconButton(DelegatedStencilElement icon,
                                                 @Nullable Supplier<List<Component>> tooltipGetter,
                                                 Runnable primaryClick,
@@ -132,8 +142,12 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
 
     @Override
     protected int getLabelWidth(int totalWidth) {
+        if (buttons.size() <= 1) {
+            return Math.max(100, EntryTextSupport.contentWidth(totalWidth) - controlAreaWidth()
+                - EntryTextSupport.rightControlGap());
+        }
         return Math.max(100, EntryTextSupport.contentWidth(totalWidth) - controlAreaWidth()
-            - 2 * EntryTextSupport.boxBorder() - BUTTON_GAP);
+            - BUTTON_GAP);
     }
 
     @Override
@@ -143,18 +157,17 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
         refreshLabelTooltip();
         lastX = x;
         lastY = y;
-        lastWidth = width;
         lastHeight = height;
         lastLabelWidth = getLabelWidth(width);
 
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         int clusterWidth = controlAreaWidth();
-        int buttonX = EntryTextSupport.contentRight(x, width) - EntryTextSupport.boxBorder() - clusterWidth;
-        int buttonY = y + Math.max(4, (height - BUTTON_HEIGHT) / 2);
+        boolean multiple = buttons.size() > 1;
+        int buttonX = EntryTextSupport.contentRight(x, width) - clusterWidth;
         for (ActionButton button : buttons) {
-            renderButton(graphics, button, buttonX, buttonY, mouseX, mouseY, partialTicks);
-            buttonX += BUTTON_WIDTH + BUTTON_GAP;
+            renderButton(graphics, button, buttonX, y, height, multiple, mouseX, mouseY, partialTicks);
+            buttonX += (multiple ? buttonWidth(button) : BUTTON_WIDTH) + BUTTON_GAP;
         }
     }
 
@@ -186,7 +199,15 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
         if (buttons.isEmpty()) {
             return 0;
         }
-        return buttons.size() * BUTTON_WIDTH + Math.max(0, buttons.size() - 1) * BUTTON_GAP;
+        if (buttons.size() == 1) {
+            return BUTTON_WIDTH;
+        }
+        return buttons.stream().mapToInt(SceneStepListEntry::buttonWidth).sum()
+            + Math.max(0, buttons.size() - 1) * BUTTON_GAP;
+    }
+
+    private static int buttonWidth(ActionButton button) {
+        return EntryTextSupport.buttonWidth(button.labelGetter() == null ? null : button.labelGetter().get(), MULTI_BUTTON_MIN_WIDTH);
     }
 
     private boolean isInsideMainArea(double mouseX, double mouseY) {
@@ -198,15 +219,10 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
 
     @Nullable
     private ActionButton findButtonAt(double mouseX, double mouseY) {
-        int clusterWidth = controlAreaWidth();
-        int buttonX = EntryTextSupport.contentRight(lastX, lastWidth) - EntryTextSupport.boxBorder() - clusterWidth;
-        int buttonY = lastY + Math.max(4, (lastHeight - BUTTON_HEIGHT) / 2);
         for (ActionButton actionButton : buttons) {
-            if (mouseX >= buttonX && mouseX < buttonX + BUTTON_WIDTH
-                && mouseY >= buttonY && mouseY < buttonY + BUTTON_HEIGHT) {
+            if (actionButton.widget().isMouseOver(mouseX, mouseY)) {
                 return actionButton;
             }
-            buttonX += BUTTON_WIDTH + BUTTON_GAP;
         }
         return null;
     }
@@ -216,14 +232,18 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
         labelTooltip.add(Component.literal(labelGetter.get()));
     }
 
-    private static void renderButton(GuiGraphics graphics, ActionButton button, int x, int y,
+    private static void renderButton(GuiGraphics graphics, ActionButton button, int x, int y, int rowHeight, boolean multiple,
                                      int mouseX, int mouseY, float partialTicks) {
         refreshTooltip(button);
         BoxWidget widget = button.widget();
-        widget.setX(x);
-        widget.setY(y);
-        widget.setWidth(BUTTON_WIDTH);
-        widget.setHeight(BUTTON_HEIGHT);
+        if (multiple) {
+            EntryTextSupport.setRowButtonBounds(widget, x, buttonWidth(button), y, rowHeight);
+        } else {
+            widget.setX(x);
+            widget.setY(y + Math.max(0, (rowHeight - BUTTON_HEIGHT) / 2));
+            widget.setWidth(BUTTON_WIDTH);
+            widget.setHeight(BUTTON_HEIGHT);
+        }
         widget.active = button.activeGetter().getAsBoolean();
         widget.updateGradientFromState();
         widget.render(graphics, mouseX, mouseY, partialTicks);
@@ -234,8 +254,7 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
 
         var font = Minecraft.getInstance().font;
         int color = widget.active ? button.colorGetter().getAsInt() : 0x777777;
-        String label = font.plainSubstrByWidth(button.labelGetter().get(), BUTTON_WIDTH - 4);
-        graphics.drawCenteredString(font, label, x + BUTTON_WIDTH / 2, y + (BUTTON_HEIGHT - 8) / 2, color);
+        EntryTextSupport.drawButtonLabel(graphics, widget, button.labelGetter().get(), color);
     }
 
     private static void refreshTooltip(ActionButton button) {

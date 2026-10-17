@@ -33,7 +33,7 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
         this.tooltipGetter = tooltipGetter;
         this.colorGetter = colorGetter;
         this.activeGetter = activeGetter;
-        this.button = new FormBoxWidget(0, 0, 200, 18).withCallback(onClick);
+        this.button = new FormBoxWidget(0, 0, 200, 26).withCallback(onClick);
         listeners.add(button);
         refreshTooltip();
     }
@@ -65,10 +65,10 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
         refreshTooltip();
 
         boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
-        int buttonY = compact ? y + 4 : y + 10;
+        int buttonY = compact ? y : y + 6;
         int buttonWidth = Math.max(40, EntryTextSupport.contentWidth(width));
         int buttonX = EntryTextSupport.contentLeft(x);
-        int buttonHeight = compact ? 16 : Math.max(16, height - 20);
+        int buttonHeight = compact ? 24 : Math.max(24, height - 12);
         EntryTextSupport.setBoxHorizontalBounds(button, buttonX, buttonWidth);
         button.setY(buttonY);
         button.setHeight(buttonHeight);

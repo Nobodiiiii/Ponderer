@@ -19,6 +19,7 @@ import com.nododiiiii.ponderer.projector.client.ProjectorSceneBundle;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneCompiler;
 import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
 import com.nododiiiii.ponderer.registry.ModBlocks;
+import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
 import dev.engine_room.flywheel.lib.transform.TransformStack;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
@@ -1937,10 +1938,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         private final int backgroundHeight;
 
         private ProjectorEditBox(Font font, int x, int y, int width, int height, Component narration) {
-            super(font, x + 4, y + 5, Math.max(1, width - 8), 8, narration);
-            this.backgroundX = x;
+            super(font, EntryTextSupport.inputX(x + 4), y + 5, EntryTextSupport.inputWidth(width - 8), 8, narration);
+            this.backgroundX = EntryTextSupport.inputX(x);
             this.backgroundY = y;
-            this.backgroundWidth = width;
+            this.backgroundWidth = EntryTextSupport.inputWidth(width);
             this.backgroundHeight = height;
             setBordered(false);
         }

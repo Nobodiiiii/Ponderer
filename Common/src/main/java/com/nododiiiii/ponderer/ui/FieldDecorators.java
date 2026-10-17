@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
 import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.XyzListEntry;
 import net.minecraft.world.item.ItemStack;
 
@@ -48,6 +49,24 @@ public final class FieldDecorators {
         return xyzAction(20, onClick, () -> label, () -> color, tooltipText);
     }
 
+    public static FieldDecorator iconAction(PondererGuiIcons icon, @Nullable String tooltipText, Runnable onClick) {
+        return new FieldDecorator() {
+            @Override
+            public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
+                entry.addTrailingIcon(icon, onClick, tooltipText);
+            }
+        };
+    }
+
+    public static FieldDecorator xyzIconAction(PondererGuiIcons icon, @Nullable String tooltipText, Runnable onClick) {
+        return new FieldDecorator() {
+            @Override
+            public void applyXyz(AbstractDeclarativeFormScreen screen, XyzListEntry entry) {
+                entry.addTrailingIcon(icon, onClick, tooltipText);
+            }
+        };
+    }
+
     public static FieldDecorator jei(IdFieldMode mode) {
         return new FieldDecorator() {
             @Override
@@ -81,11 +100,9 @@ public final class FieldDecorators {
                 if (!(screen instanceof PointPickButtonHost host)) {
                     throw new IllegalStateException("Point pick decorator requires screen to implement PointPickButtonHost");
                 }
-                entry.addTrailingButton(
-                    20,
+                entry.addTrailingIcon(
+                    PondererGuiIcons.PICK_POSITION,
                     () -> host.startPointPickFromButton(target, halfOffset),
-                    () -> "+",
-                    () -> 0x80FFFF,
                     UIText.of("ponderer.ui.pick.tooltip"));
             }
         };
@@ -102,11 +119,9 @@ public final class FieldDecorators {
                 if (!(screen instanceof NbtPickButtonHost host)) {
                     throw new IllegalStateException("Block pick decorator requires screen to implement NbtPickButtonHost");
                 }
-                entry.addTrailingButton(
-                    FormTextButtonSpec.DEFAULT_WIDTH,
+                entry.addTrailingIcon(
+                    PondererGuiIcons.PICK_BLOCK,
                     () -> host.startNbtPickFromButton(nbtSnapshotKey, true),
-                    () -> "+",
-                    () -> 0x66FF66,
                     UIText.of("ponderer.ui.block_pick.tooltip"));
             }
         };
@@ -119,11 +134,9 @@ public final class FieldDecorators {
                 if (!(screen instanceof NbtPickButtonHost host)) {
                     throw new IllegalStateException("NBT pick decorator requires screen to implement NbtPickButtonHost");
                 }
-                entry.addTrailingButton(
-                    FormTextButtonSpec.DEFAULT_WIDTH,
+                entry.addTrailingIcon(
+                    PondererGuiIcons.PICK_NBT,
                     () -> host.startNbtPickFromButton(nbtSnapshotKey, false),
-                    () -> "+",
-                    () -> 0x66FF66,
                     UIText.of("ponderer.ui.nbt_pick.tooltip"));
             }
         };
@@ -136,11 +149,9 @@ public final class FieldDecorators {
                 if (!(screen instanceof NbtExpandButtonHost host)) {
                     throw new IllegalStateException("NBT expand decorator requires screen to implement NbtExpandButtonHost");
                 }
-                entry.addTrailingButton(
-                    FormTextButtonSpec.DEFAULT_WIDTH,
+                entry.addTrailingIcon(
+                    PondererGuiIcons.EDIT_NBT,
                     () -> host.startNbtExpandFromButton(nbtSnapshotKey),
-                    () -> "V",
-                    () -> 0x80FFFF,
                     UIText.of("ponderer.ui.nbt_editor.expand.tooltip"));
             }
         };
@@ -153,18 +164,16 @@ public final class FieldDecorators {
                 if (!(screen instanceof HeldItemButtonHost host)) {
                     throw new IllegalStateException("Held item decorator requires screen to implement HeldItemButtonHost");
                 }
-                entry.addTrailingButton(
-                    FormTextButtonSpec.DEFAULT_WIDTH,
+                entry.addTrailingIcon(
+                    PondererGuiIcons.PICK_ITEM,
                     () -> host.openInventoryPickerFromButton(entry, onItemPicked),
-                    () -> "+",
-                    () -> 0x66FF66,
                     UIText.of("ponderer.ui.inventory_pick.tooltip"));
             }
         };
     }
 
     public static FieldDecorator sceneSelector(Runnable onClick) {
-        return textAction("S", 0x80FFFF, UIText.of("ponderer.ui.scene_desc.structure_list_title"), onClick);
+        return iconAction(PondererGuiIcons.STRUCTURE, UIText.of("ponderer.ui.scene_desc.structure_list_title"), onClick);
     }
 
     public static FieldDecorator langToggle(Supplier<String> langGetter, Runnable onToggle) {

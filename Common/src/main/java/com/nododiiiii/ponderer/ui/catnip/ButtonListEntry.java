@@ -22,6 +22,7 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
     protected final int buttonWidth;
     private int minimumControlWidth = -1;
     private float controlWidthScale = 1.0f;
+    private boolean hasIcon;
 
     public ButtonListEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                            Runnable onClick, Supplier<String> labelGetter, IntSupplier colorGetter,
@@ -42,13 +43,19 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
 
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
-        this.button = new FormBoxWidget(0, 0, buttonWidth, 16).withCallback(onClick);
+        this.button = new FormBoxWidget(0, 0, buttonWidth, 24).withCallback(onClick);
         listeners.add(button);
         refreshButtonTooltip();
     }
 
     public BoxWidget button() {
         return button;
+    }
+
+    public ButtonListEntry withIcon(PondererGuiIcons icon) {
+        hasIcon = true;
+        icon.attach(button);
+        return this;
     }
 
     public ButtonListEntry setControlWidthScale(float controlWidthScale) {
@@ -105,16 +112,18 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
             x, width, getLabelWidth(width), controlWidthScale, getMinimumControlWidth());
         int renderedButtonWidth = Math.min(controlBounds.width(), getRenderedButtonWidth(controlBounds.width()));
         int visibleButtonX = controlBounds.rightAlignedContentX(renderedButtonWidth);
-        int buttonHeight = Math.max(16, height - 20);
+        int buttonHeight = Math.max(24, height - 12);
         EntryTextSupport.setBoxHorizontalBounds(button, visibleButtonX, renderedButtonWidth);
-        button.setY(y + 10);
+        button.setY(y + 6);
         button.setHeight(buttonHeight);
         button.render(graphics, mouseX, mouseY, partialTicks);
 
-        graphics.drawCenteredString(Minecraft.getInstance().font, labelGetter.get(),
-            button.getX() + button.getWidth() / 2,
-            button.getY() + (button.getHeight() - 8) / 2,
-            colorGetter.getAsInt());
+        if (!hasIcon) {
+            graphics.drawCenteredString(Minecraft.getInstance().font, labelGetter.get(),
+                button.getX() + button.getWidth() / 2,
+                button.getY() + (button.getHeight() - 8) / 2,
+                colorGetter.getAsInt());
+        }
     }
 
     private void refreshButtonTooltip() {
