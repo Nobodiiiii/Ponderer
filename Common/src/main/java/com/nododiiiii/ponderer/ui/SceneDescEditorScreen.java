@@ -25,6 +25,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     private final DslScene scene;
     private final int sceneIndex;
     private final boolean hasMultiScene;
+    private boolean newSegment;
 
     private LocalizedText originalPonderTitle;
     private LocalizedText workingPonderTitle;
@@ -50,9 +51,14 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     private LocalizedTextListEntry sceneTitleEntry;
 
     public SceneDescEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
+        this(scene, sceneIndex, parent, false);
+    }
+
+    public SceneDescEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent, boolean newSegment) {
         super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_desc");
         this.scene = scene;
         this.sceneIndex = sceneIndex;
+        this.newSegment = newSegment;
         this.hasMultiScene = scene.scenes != null
             && !scene.scenes.isEmpty()
             && sceneIndex >= 0
@@ -129,7 +135,9 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
                 workingCustomTags = CustomPonderTags.copy(definitions);
                 clearStatusMessages();
             })),
-            () -> UIText.of("ponderer.ui.scene_tags.edit", workingTags.size()),
+            () -> workingTags.isEmpty()
+                ? UIText.of("ponderer.ui.scene_tags.edit")
+                : UIText.of("ponderer.ui.scene_tags.selected_tags", workingTags.size()),
             () -> SceneTagsScreen.summarize(workingTags, workingCustomTags)));
 
         entries.add(FieldSpecs.toggle(
@@ -137,6 +145,11 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
             "ponderer.ui.scene_desc.editable.tooltip",
             () -> workingEditable,
             this::toggleEditable));
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
+        return newSegment || super.isSaveButtonActive();
     }
 
     @Override
@@ -182,6 +195,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
 
         syncStateFromScene();
         markStateSaved();
+        newSegment = false;
         rebuildListPreservingScroll();
         setInfoMessage(UIText.of("ponderer.ui.scene_desc.saved"));
         return true;

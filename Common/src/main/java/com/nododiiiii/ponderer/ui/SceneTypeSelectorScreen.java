@@ -12,7 +12,7 @@ public class SceneTypeSelectorScreen extends AbstractReadonlyDeclarativeListScre
     private final SceneEditorScreen parent;
 
     public SceneTypeSelectorScreen(SceneEditorScreen parent) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_selector.title", UILayoutConstants.EDITOR_LIST_W);
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_selector", UILayoutConstants.EDITOR_LIST_W);
         this.parent = parent;
     }
 

@@ -404,7 +404,7 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen implem
         if (pack.isEmpty()) {
             return UIText.of("ponderer.ui.function_page.select_pack");
         }
-        return UIText.of("ponderer.ui.function_page.selected_pack", pack);
+        return UIText.of("ponderer.ui.function_page.selected_packs", 1);
     }
 
     private int selectedSceneCount(String rawValue) {

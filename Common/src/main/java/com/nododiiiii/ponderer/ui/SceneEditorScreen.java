@@ -693,8 +693,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         undoManager().saveState(getSteps());
         int newSceneIndex = -1;
 
-        if (scene.scenes != null && !scene.scenes.isEmpty()
-            && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
+        boolean firstSegment = scene.scenes == null || scene.scenes.isEmpty();
+        if (firstSegment || (sceneIndex >= 0 && sceneIndex < scene.scenes.size())) {
             DslScene.SceneSegment newScene = new DslScene.SceneSegment();
             newScene.steps = new ArrayList<>();
             DslScene.DslStep startStep = new DslScene.DslStep();
@@ -704,12 +704,12 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             idleStep.type = "idle";
             idleStep.duration = 20;
             newScene.steps.add(idleStep);
-            newScene.id = generateUniqueSegmentId(scene);
+            newScene.id = firstSegment ? "scene_1" : generateUniqueSegmentId(scene);
             if (!(scene.scenes instanceof ArrayList)) {
-                scene.scenes = new ArrayList<>(scene.scenes);
+                scene.scenes = scene.scenes == null ? new ArrayList<>() : new ArrayList<>(scene.scenes);
             }
-            scene.scenes.add(sceneIndex + 1, newScene);
-            newSceneIndex = sceneIndex + 1;
+            newSceneIndex = firstSegment ? 0 : sceneIndex + 1;
+            scene.scenes.add(newSceneIndex, newScene);
         } else {
             DslScene.DslStep ns = new DslScene.DslStep();
             ns.type = "next_scene";
@@ -728,7 +728,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             sceneIndex = newSceneIndex;
             rememberListScroll(0);
             clearCurrentPonderHistory();
-            ScreenOpener.open(new SceneDescEditorScreen(scene, sceneIndex, this));
+            ScreenOpener.open(new SceneDescEditorScreen(scene, sceneIndex, this, true));
             return;
         }
 

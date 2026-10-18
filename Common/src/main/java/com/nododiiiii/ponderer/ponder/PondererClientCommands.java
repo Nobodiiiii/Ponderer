@@ -698,36 +698,14 @@ public final class PondererClientCommands {
             scene.nbtFilter = nbt.toString();
         }
 
-        DslScene.SceneSegment seg = new DslScene.SceneSegment();
-        seg.id = "scene_1";
-        seg.title = LocalizedText.ofMap(Map.of(
-                "en_us", "Scene 1",
-                "zh_cn", "场景 1"));
-
-        DslScene.DslStep showStep = new DslScene.DslStep();
-        showStep.type = "show_structure";
-        showStep.attachKeyFrame = true;
-
-        DslScene.DslStep idleStep = new DslScene.DslStep();
-        idleStep.type = "idle";
-        idleStep.duration = 20;
-
-        DslScene.DslStep textStep = new DslScene.DslStep();
-        textStep.type = "text";
-        textStep.duration = 60;
-        textStep.text = LocalizedText.ofMap(Map.of(
-                "en_us", "Edit this ponder scene!",
-                "zh_cn", "编辑这个思索场景!"));
-        textStep.point = List.of(2.5, 2.0, 2.5);
-        textStep.placeNearTarget = true;
-        textStep.attachKeyFrame = true;
-
-        seg.steps = List.of(showStep, idleStep, textStep);
-        scene.scenes = List.of(seg);
-
         if (SceneStore.saveSceneToLocal(scene)) {
             SceneStore.reloadFromDisk();
-            Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+            Minecraft.getInstance().execute(() -> {
+                ProjectorClientCaches.reloadPonderIndexAndInvalidate();
+                net.createmod.catnip.gui.ScreenOpener.open(
+                    new com.nododiiiii.ponderer.ui.SceneTypeSelectorScreen(
+                        new com.nododiiiii.ponderer.ui.SceneEditorScreen(scene, 0)));
+            });
             notifyClient(Component.translatable("ponderer.cmd.new.created", sceneId, binding));
             return 1;
         } else {
