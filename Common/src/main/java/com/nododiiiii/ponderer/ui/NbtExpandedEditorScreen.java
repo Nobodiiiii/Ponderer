@@ -57,7 +57,12 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
     private final Deque<EditorHistoryState> redoHistory = new ArrayDeque<>();
     private boolean captureScrollInSnapshot = false;
 
-    public NbtExpandedEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent,
+    public NbtExpandedEditorScreen(SnapshotReturnContext parentContext, Map<String, String> parentSnapshot,
+                                   String targetSnapshotKey) {
+        this(null, -1, null, parentContext, parentSnapshot, targetSnapshotKey);
+    }
+
+    public NbtExpandedEditorScreen(@Nullable DslScene scene, int sceneIndex, @Nullable SceneEditorScreen parent,
                                    SnapshotReturnContext parentContext,
                                    Map<String, String> parentSnapshot,
                                    String targetSnapshotKey) {
@@ -352,6 +357,11 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
             removeWidget(rowButton.button());
         }
         rowButtons.clear();
+
+        // Standalone forms can edit NBT before a scene exists for coordinate picking.
+        if (scene == null) {
+            return;
+        }
 
         for (NbtCoordinateDetector.Candidate candidate : candidates) {
             if (candidate.lineNumber() < 0) {

@@ -48,10 +48,10 @@ public class ParticleEffectScreen extends AbstractStepEditorScreen {
             ParticleEffectSpec.DISTRIBUTIONS.size(), () -> {},
             () -> UIText.of(PREFIX + ".distribution." + ParticleEffectSpec.DISTRIBUTIONS.get(distributionIndex)),
             () -> 0xFFFFFF));
-        entries.add(FieldSpecs.xyz(spread, PREFIX + ".spread", PREFIX + ".spread.tooltip"));
+        entries.add(FieldSpecs.xyz(spread, PREFIX + ".spread", PREFIX + ".spread.tooltip", FieldType.VECTOR));
         entries.add(FieldSpecs.number(count, PREFIX + ".count", PREFIX + ".count.tooltip", "10", 65, null));
         entries.add(FieldSpecs.ticksNumber(duration, PREFIX + ".duration", PREFIX + ".duration.tooltip", "2", 65));
-        entries.add(FieldSpecs.xyz(motion, PREFIX + ".motion", PREFIX + ".motion.tooltip"));
+        entries.add(FieldSpecs.xyz(motion, PREFIX + ".motion", PREFIX + ".motion.tooltip", FieldType.VECTOR));
     }
 
     private int presetIndex() {

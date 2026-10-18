@@ -3,13 +3,14 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.minecraft.client.Minecraft;
 
+import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 
 public record NbtExpandedEditorContext(
-    DslScene scene,
+    @Nullable DslScene scene,
     int sceneIndex,
-    SceneEditorScreen parent,
+    @Nullable SceneEditorScreen parent,
     SnapshotReturnContext parentContext,
     Map<String, String> parentSnapshot,
     String targetSnapshotKey

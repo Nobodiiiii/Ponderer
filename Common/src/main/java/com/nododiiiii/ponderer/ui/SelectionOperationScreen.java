@@ -86,18 +86,12 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
             posField,
             "ponderer.ui." + stepType + ".pos_from",
             "ponderer.ui." + stepType + ".pos_from.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS1)));
+            PickState.TargetField.POS1));
         entries.add(FieldSpecs.xyz(
             pos2Field,
             "ponderer.ui." + stepType + ".pos_to",
             "ponderer.ui." + stepType + ".pos_to.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS2)));
+            PickState.TargetField.POS2));
         if (supportsEntranceAnimation()) {
             entries.add(FieldSpecs.cycle(
                 entranceAnimationBinding,
@@ -125,7 +119,8 @@ public class SelectionOperationScreen extends AbstractStepEditorScreen {
                 () -> 0xFFFFFF));
         }
         if (withLinkId) {
-            entries.add(FieldSpecs.text(
+            entries.add(FieldSpecs.typedText(
+                FieldType.SECTION_LINK,
                 linkIdField,
                 "ponderer.ui." + stepType + ".link",
                 "ponderer.ui." + stepType + ".link.tooltip",

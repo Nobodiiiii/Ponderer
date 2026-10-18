@@ -20,8 +20,9 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
     public BlockPropertyListEntry(String labelKey, @Nullable String tooltipKey,
                                   String keyValue, String propertyValue, Runnable onRemove) {
         super(UIText.of(labelKey));
-        this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
-        EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        String sharedTooltip = labelKey.isBlank() ? null : "ponderer.ui.block_properties.tooltip";
+        this.searchText = EntryTextSupport.createSearchText(labelKey, sharedTooltip, tooltipKey);
+        EntryTextSupport.applyTooltip(this, labelKey, sharedTooltip != null ? sharedTooltip : tooltipKey);
 
         this.keyField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 70, 20);
         this.valueField = new ClippedConfigTextField(Minecraft.getInstance().font, 0, 0, 70, 20);
@@ -32,6 +33,7 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
         this.keyField.setHint(Component.literal("facing"));
         this.valueField.setHint(Component.literal("north"));
         this.removeButton = new FormBoxWidget(0, 0, 20, 16).withCallback(onRemove);
+        this.removeButton.getToolTip().add(Component.literal(UIText.of("ponderer.ui.block_properties.remove.tooltip")));
         PondererGuiIcons.REMOVE.attach(removeButton);
         listeners.add(keyField);
         listeners.add(valueField);

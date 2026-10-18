@@ -7,9 +7,6 @@ import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.TagParser;
@@ -42,7 +39,7 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     private final KeyValueListState capturedBlockProperties = new KeyValueListState("prop", 0);
 
     private final StepTextFieldHandle itemField = new StepTextFieldHandle("item");
-    private final StepTextFieldHandle itemNbtField = new StepTextFieldHandle("item_nbt");
+    private final StepTextFieldHandle itemNbtField = new StepTextFieldHandle(ITEM_NBT_SNAPSHOT_KEY);
 
     private final StepTextFieldHandle uiIdField = new StepTextFieldHandle("ui_id");
 
@@ -134,23 +131,13 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
                     UIText.of("ponderer.ui.show_interface.held_item.hint"),
                     124,
                     FieldDecorators.jei(IdFieldMode.ITEM),
-                    FieldDecorators.heldItem(stack -> {
-                        itemField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
-                        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
-                        if (customData != null && !customData.isEmpty()) {
-                            itemNbtField.setValue(customData.copyTag().toString());
-                        } else {
-                            itemNbtField.setValue("");
-                        }
-                    })));
-                entries.add(FieldSpecs.text(
+                    FieldDecorators.heldItem(itemField, itemNbtField)));
+                entries.add(FieldSpecs.nbt(
                     itemNbtField,
                     "ponderer.ui.show_interface.item_nbt",
                     "ponderer.ui.show_interface.item_nbt.tooltip",
-                    "{}",
                     124,
-                    FieldDecorators.nbtPick(ITEM_NBT_SNAPSHOT_KEY),
-                    FieldDecorators.nbtExpand(ITEM_NBT_SNAPSHOT_KEY)));
+                    ITEM_NBT_SNAPSHOT_KEY));
             }
             case SOURCE_UI_ID -> entries.add(FieldSpecs.text(
                 uiIdField,

@@ -7,8 +7,10 @@ import com.nododiiiii.ponderer.ui.catnip.ButtonPairListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,9 +23,16 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
     }
 
     private final List<Section> sections = new ArrayList<>();
+    @Nullable
+    private final PonderScreenNavigation.ReturnState ponderReturnState;
 
     public FunctionScreen() {
-        super(null, "ponderer.ui.scope.editor", "ponderer.ui.function_page.title", UILayoutConstants.EDITOR_LIST_W);
+        this(null, null);
+    }
+
+    public FunctionScreen(@Nullable Screen parent, @Nullable PonderScreenNavigation.ReturnState ponderReturnState) {
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.function_page.title", UILayoutConstants.EDITOR_LIST_W);
+        this.ponderReturnState = ponderReturnState;
 
         sections.add(new Section("ponderer.ui.function_page.scene_management", List.of(
             new ButtonDef("ponderer.ui.function_page.new_scene",
@@ -55,7 +64,10 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 "ponderer.ui.function_page.pull.tooltip"),
             new ButtonDef("ponderer.ui.function_page.remote_browser",
                 () -> Minecraft.getInstance().setScreen(new RemoteBrowserScreen(this)),
-                "ponderer.ui.function_page.remote_browser.tooltip")
+                "ponderer.ui.function_page.remote_browser.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.permissions",
+                () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
+                "ponderer.ui.function_page.permissions.tooltip")
         )));
 
         sections.add(new Section("ponderer.ui.function_page.import_export", List.of(
@@ -82,12 +94,21 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
         sections.add(new Section(
             "ponderer.ui.function_page.settings",
             List.of(
-                new ButtonDef("ponderer.ui.function_page.permissions",
-                    () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
-                    "ponderer.ui.function_page.permissions.tooltip"),
-                new ButtonDef("ponderer.ui.function_page.mod_config",
-                    () -> Minecraft.getInstance().setScreen(new PondererConfigScreen(this)),
-                    "ponderer.ui.function_page.mod_config.tooltip"))));
+                new ButtonDef("ponderer.ui.mod_config.category.general",
+                    () -> Minecraft.getInstance().setScreen(new PondererGeneralConfigScreen(this)),
+                    "ponderer.ui.mod_config.category.general.tooltip"),
+                new ButtonDef("ponderer.ui.function_page.ai_config",
+                    () -> Minecraft.getInstance().setScreen(new AiConfigScreen(this)),
+                    "ponderer.ui.function_page.ai_config.tooltip"),
+                new ButtonDef("ponderer.ui.mod_config.category.blueprint",
+                    () -> Minecraft.getInstance().setScreen(new BlueprintItemConfigScreen(this)),
+                    "ponderer.ui.mod_config.category.blueprint.tooltip"),
+                new ButtonDef("ponderer.ui.mod_config.category.projector",
+                    () -> Minecraft.getInstance().setScreen(new ProjectorFeatureConfigScreen(this)),
+                    "ponderer.ui.mod_config.category.projector.tooltip"),
+                new ButtonDef("ponderer.ui.function_page.keybindings",
+                    () -> Minecraft.getInstance().setScreen(new PondererKeyBindingsScreen(this)),
+                    "ponderer.ui.function_page.keybindings.tooltip"))));
     }
 
     @Override
@@ -111,6 +132,17 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
     @Override
     protected int getEntryHeight() {
         return UILayoutConstants.COMPACT_LIST_ENTRY_H;
+    }
+
+    @Override
+    protected void attemptBackToParent() {
+        if (ponderReturnState == null) {
+            super.attemptBackToParent();
+            return;
+        }
+
+        PonderScreenNavigation.restoreReturnState(ponderReturnState);
+        Minecraft.getInstance().setScreen(parent);
     }
 
     private void runOnPageStatus(Runnable command) {
@@ -168,7 +200,7 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
         CommandParamScreen screen = CommandParamScreen.builder("ponderer.ui.function_page.new_scene.title")
             .itemField("item_id", "ponderer.ui.scene_desc.item_id",
                 "ponderer.ui.scene_desc.hint.item_id", true)
-            .textField("nbt", "ponderer.ui.function_page.param.nbt",
+            .nbtField("nbt", "ponderer.ui.function_page.param.nbt",
                 "ponderer.ui.function_page.param.nbt.hint", false)
             .toggleField("capture_nbt", "ponderer.ui.function_page.new.capture_nbt", false)
             .onExecute(values -> PondererClientCommands.newSceneForBindingSnbt(

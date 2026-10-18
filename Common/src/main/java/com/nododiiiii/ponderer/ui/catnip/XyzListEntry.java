@@ -24,7 +24,10 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         }
     }
 
-    private final String searchText;
+    private final String labelKey;
+    @Nullable
+    private final String contextTooltipKey;
+    private String searchText;
     private final ConfigTextField xField;
     private final ConfigTextField yField;
     private final ConfigTextField zField;
@@ -33,6 +36,8 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
     public XyzListEntry(String labelKey, @Nullable String tooltipKey,
                         @Nullable String xHint, @Nullable String yHint, @Nullable String zHint) {
         super(UIText.of(labelKey));
+        this.labelKey = labelKey;
+        this.contextTooltipKey = tooltipKey;
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
@@ -52,6 +57,11 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
 
     public ConfigTextField xField() {
         return xField;
+    }
+
+    public void setSharedTooltip(String tooltipKey) {
+        EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey, contextTooltipKey);
     }
 
     public ConfigTextField yField() {

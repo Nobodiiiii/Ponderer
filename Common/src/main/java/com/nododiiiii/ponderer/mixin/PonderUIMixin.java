@@ -14,7 +14,7 @@ import com.nododiiiii.ponderer.ui.PonderUiZoomAccess;
 import com.nododiiiii.ponderer.ui.PonderUiPreviewAccess;
 import com.nododiiiii.ponderer.ui.PonderFreePreview;
 import com.nododiiiii.ponderer.ui.PonderZoomSlider;
-import com.nododiiiii.ponderer.ui.PondererConfigScreen;
+import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.ReadonlyPackImportPromptScreen;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
@@ -182,7 +182,7 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
                         PonderScreenNavigation.ReturnState returnState = PonderScreenNavigation.captureReturnState();
                         dialog.closeToSource();
                         PonderScreenNavigation.suppressNextPonderReturn();
-                        Minecraft.getInstance().setScreen(new PondererConfigScreen(source, returnState));
+                        Minecraft.getInstance().setScreen(new FunctionScreen(source, returnState));
                     }),
                 PondererDialogScreen.closeButton(Component.translatable("ponderer.ui.cancel"))))
             .open();

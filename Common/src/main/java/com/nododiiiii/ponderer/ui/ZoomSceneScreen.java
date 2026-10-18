@@ -38,7 +38,8 @@ public class ZoomSceneScreen extends AbstractStepEditorScreen {
             "ponderer.ui.zoom_scene.scale.tooltip",
             "1.0",
             60,
-            null));
+            null,
+            FieldDecorators.type(FieldType.SCALE)));
         entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",

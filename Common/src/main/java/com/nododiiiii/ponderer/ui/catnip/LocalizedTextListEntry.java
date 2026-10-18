@@ -1,9 +1,12 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.FieldType;
+import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.gui.element.TextStencilElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
 import java.util.function.Consumer;
@@ -21,12 +24,14 @@ public class LocalizedTextListEntry extends PlainTextListEntry {
                                   String initialValue, Supplier<String> langGetter,
                                   Runnable onToggle, Consumer<String> responder) {
         super(labelKey, tooltipKey, hintKey, initialValue, responder);
+        setSharedTooltip(FieldType.LOCALIZED_TEXT.tooltipKey());
         this.langGetter = langGetter;
         this.langText = new TextStencilElement(Minecraft.getInstance().font, "en_us")
             .centered(true, true);
         this.langButton = new FormBoxWidget(0, 0, LANG_BUTTON_WIDTH, 16)
             .showingElement(langText)
             .withCallback(onToggle);
+        this.langButton.getToolTip().add(Component.literal(UIText.of("ponderer.ui.language.toggle.tooltip")));
         this.langText.withElementRenderer(BoxWidget.gradientFactory.apply(langButton));
         listeners.add(langButton);
     }

@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -50,8 +49,7 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 UIText.of("ponderer.ui." + stepType + ".id.hint"),
                 124,
                 FieldDecorators.jei(jeiMode),
-                FieldDecorators.heldItem(
-                    stack -> idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString()))));
+                FieldDecorators.heldItem(idField, null)));
         } else {
             entries.add(FieldSpecs.text(
                 idField,
@@ -61,7 +59,8 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 124,
                 FieldDecorators.jei(jeiMode)));
         }
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.typedText(
+            FieldType.ENTITY_LINK,
             linkIdField,
             "ponderer.ui.entity_link",
             "ponderer.ui." + stepType + ".link.tooltip",

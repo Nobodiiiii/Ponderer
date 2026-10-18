@@ -179,6 +179,11 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         return PickState.TargetField.UI_POINT;
     }
 
+    @Override
+    public FieldType pointPickFieldType(PickState.TargetField target, boolean halfOffset) {
+        return PointPickButtonHost.super.pointPickFieldType(resolvePointPickTarget(target), halfOffset);
+    }
+
     private boolean isInterfaceStartScene() {
         if (scene.scenes == null || scene.scenes.isEmpty()) {
             return false;

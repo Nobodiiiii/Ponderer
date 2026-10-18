@@ -44,30 +44,22 @@ public class ModifyBlockEntityNbtScreen extends AbstractStepEditorScreen {
             posField,
             "ponderer.ui.modify_block_entity_nbt.pos_from",
             "ponderer.ui.modify_block_entity_nbt.pos_from.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS1)));
+            PickState.TargetField.POS1));
         entries.add(FieldSpecs.xyz(
             pos2Field,
             "ponderer.ui.modify_block_entity_nbt.pos_to",
             "ponderer.ui.modify_block_entity_nbt.pos_to.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS2)));
+            PickState.TargetField.POS2));
         entries.add(FieldSpecs.blockProperties(
             blockProperties,
             "ponderer.ui.modify_block_entity_nbt.properties",
             "ponderer.ui.modify_block_entity_nbt.properties.tooltip"));
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.nbt(
             nbtField,
             "ponderer.ui.modify_block_entity_nbt.nbt",
             "ponderer.ui.modify_block_entity_nbt.nbt.tooltip",
-            "{CustomName:'\"Demo\"'}",
             124,
-            FieldDecorators.nbtPick("nbt"),
-            FieldDecorators.nbtExpand("nbt")));
+            "nbt"));
         entries.add(FieldSpecs.toggle(
             redrawBinding,
             "ponderer.ui.modify_block_entity_nbt.redraw",

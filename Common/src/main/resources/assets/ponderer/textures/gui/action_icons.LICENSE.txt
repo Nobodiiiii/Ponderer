@@ -1,6 +1,6 @@
-Local action icon atlas (8 sprites)
+Local action icon atlas (13 sprites)
 
-7 sprites: 1-bit Pixel Icons by Nikoichu
+10 sprites: 1-bit Pixel Icons by Nikoichu
 https://nikoichu.itch.io/pixel-icons
 License: CC0 1.0 Universal
 https://creativecommons.org/publicdomain/zero/1.0/
@@ -13,5 +13,11 @@ Source texture: assets/create/textures/gui/icons.png, rectangle (32, 16, 16, 16)
 Copyright (c) The Create Team / The Creators of Create
 License: All Rights Reserved (assets), as stated in ref/1.21.1/Create/LICENSE.md.
 The original opaque gray pixels are normalized to pure white, preserving their positions.
+
+2 sprites: Ponderer projector pull and derived upload
+Source texture: assets/ponderer/textures/gui/projector.png, rectangle (0, 441, 16, 16).
+The upload icon reverses only the arrow vertically; the tray remains unchanged.
+Opaque nonblack pixels are normalized to pure white without resampling.
+These sprites reuse an existing Ponderer project asset.
 
 See action_icons.json for per-icon sources, atlas coordinates and aliases.

@@ -30,7 +30,8 @@ public class EncapsulateBoundsScreen extends AbstractStepEditorScreen {
         entries.add(FieldSpecs.xyz(
             boundsField,
             "ponderer.ui.encapsulate_bounds.bounds",
-            "ponderer.ui.encapsulate_bounds.bounds.tooltip"));
+            "ponderer.ui.encapsulate_bounds.bounds.tooltip",
+            FieldType.SIZE));
     }
 
     @Override

@@ -32,14 +32,16 @@ public class RotateCameraScreen extends AbstractStepEditorScreen {
             "ponderer.ui.rotate_camera.degrees.tooltip",
             "90",
             60,
-            "ponderer.ui.rotate_camera.degrees.unit"));
+            "ponderer.ui.rotate_camera.degrees.unit",
+            FieldDecorators.type(FieldType.ANGLE)));
         entries.add(FieldSpecs.number(
             degreesXField,
             "ponderer.ui.rotate_camera.degrees_x",
             "ponderer.ui.rotate_camera.degrees_x.tooltip",
             "0",
             60,
-            "ponderer.ui.rotate_camera.degrees.unit"));
+            "ponderer.ui.rotate_camera.degrees.unit",
+            FieldDecorators.type(FieldType.ANGLE)));
         entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",

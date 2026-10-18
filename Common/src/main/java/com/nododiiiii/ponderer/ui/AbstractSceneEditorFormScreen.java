@@ -17,8 +17,10 @@ import java.util.Map;
 public abstract class AbstractSceneEditorFormScreen extends AbstractInventoryPickerFormScreen
     implements NbtPickButtonHost, NbtExpandButtonHost {
 
+    @Nullable
     protected final DslScene scene;
     protected final int sceneIndex;
+    @Nullable
     protected final SceneEditorScreen parent;
     @Nullable
     protected Screen returnScreen;
@@ -36,7 +38,7 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractInventoryPic
     @Nullable
     private Map<String, String> pendingBaselineRestore = null;
 
-    protected AbstractSceneEditorFormScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent,
+    protected AbstractSceneEditorFormScreen(@Nullable DslScene scene, int sceneIndex, @Nullable SceneEditorScreen parent,
                                             String scopeKey, String titleKey, int preferredListWidth) {
         super(parent, scopeKey, titleKey, preferredListWidth);
         this.scene = scene;

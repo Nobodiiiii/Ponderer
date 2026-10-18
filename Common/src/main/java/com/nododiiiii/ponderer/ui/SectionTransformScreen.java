@@ -37,7 +37,8 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.typedText(
+            FieldType.SECTION_LINK,
             linkIdField,
             "ponderer.ui." + stepType + ".link",
             "ponderer.ui." + stepType + ".link.tooltip",
@@ -56,7 +57,8 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
         entries.add(FieldSpecs.xyz(
             xyzField,
             "ponderer.ui." + stepType + ".xyz",
-            "ponderer.ui." + stepType + ".xyz.tooltip"));
+            "ponderer.ui." + stepType + ".xyz.tooltip",
+            rotationMode ? FieldType.ROTATION : FieldType.VECTOR));
         entries.add(FieldSpecs.ticksNumber(
             durationField,
             "ponderer.ui.duration",

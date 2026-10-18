@@ -14,6 +14,8 @@ import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
 import java.util.Locale;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 public final class EntryTextSupport {
 
@@ -33,22 +35,35 @@ public final class EntryTextSupport {
     private EntryTextSupport() {
     }
 
-    public static String createSearchText(String labelKey, @Nullable String tooltipKey) {
+    public static String createSearchText(String labelKey, @Nullable String... tooltipKeys) {
         StringBuilder builder = new StringBuilder(UIText.of(labelKey));
-        if (tooltipKey != null && !tooltipKey.isBlank()) {
-            builder.append(' ').append(UIText.of(tooltipKey));
+        for (String tooltip : tooltipTexts(tooltipKeys)) {
+            builder.append(' ').append(tooltip);
         }
         return builder.toString().toLowerCase(Locale.ROOT);
     }
 
-    public static void applyTooltip(ConfigScreenList.LabeledEntry entry, String labelKey, @Nullable String tooltipKey) {
+    public static void applyTooltip(ConfigScreenList.LabeledEntry entry, String labelKey, @Nullable String... tooltipKeys) {
         entry.getLabelTooltip().clear();
         entry.getLabelTooltip().add(Component.literal(UIText.of(labelKey)).withStyle(ChatFormatting.WHITE));
-        if (tooltipKey != null && !tooltipKey.isBlank()) {
+        for (String tooltip : tooltipTexts(tooltipKeys)) {
             entry.getLabelTooltip().addAll(FontHelper.cutTextComponent(
-                Component.literal(UIText.of(tooltipKey)),
+                Component.literal(tooltip),
                 Palette.ALL_GRAY));
         }
+    }
+
+    private static Set<String> tooltipTexts(@Nullable String[] tooltipKeys) {
+        Set<String> texts = new LinkedHashSet<>();
+        if (tooltipKeys != null) {
+            for (String key : tooltipKeys) {
+                if (key != null && !key.isBlank()) {
+                    String text = UIText.of(key);
+                    if (!text.isBlank()) texts.add(text);
+                }
+            }
+        }
+        return texts;
     }
 
     public static void applyHint(@Nullable EditBox field, @Nullable String hintKey) {

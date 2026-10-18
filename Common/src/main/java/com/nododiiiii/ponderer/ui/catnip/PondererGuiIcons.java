@@ -26,6 +26,11 @@ public enum PondererGuiIcons {
     STRUCTURE(0, 2),
     LIST(0, 2),
     BROWSE_FOLDER(1, 2),
+    PULL(3, 0),
+    UPLOAD(3, 1),
+    HISTORY(2, 2),
+    IGNORE(3, 2),
+    OVERWRITE(0, 3),
     REMOVE(PonderGuiTextures.ICON_CONFIG_DISCARD),
     EXPAND(PonderGuiTextures.ICON_PONDER_RIGHT),
     COLLAPSE(PonderGuiTextures.ICON_PONDER_RIGHT, 90);
@@ -34,7 +39,7 @@ public enum PondererGuiIcons {
         ResourceLocation.fromNamespaceAndPath("ponderer", "textures/gui/action_icons.png");
     private static final int TEXTURE_ICON_SIZE = 16;
     private static final int RENDERED_ICON_SIZE = 12;
-    private static final int SHEET_SIZE = 48;
+    private static final int SHEET_SIZE = 64;
 
     @Nullable
     private final PonderGuiTextures nativeIcon;
@@ -65,21 +70,26 @@ public enum PondererGuiIcons {
     }
 
     public RenderElement asElement(BoxWidget button) {
-        return new DelegatedStencilElement()
-            .withStencilRenderer((graphics, width, height, alpha) ->
-                renderStencil(graphics, width / 2f, height / 2f))
+        return asStencil(RENDERED_ICON_SIZE)
             .withElementRenderer(this == REMOVE
                 ? PonderIconStencils.failGradient(button)
                 : BoxWidget.gradientFactory.apply(button));
     }
 
-    private void renderStencil(GuiGraphics graphics, float centerX, float centerY) {
+    public DelegatedStencilElement asStencil(int iconSize) {
+        return new DelegatedStencilElement()
+            .withStencilRenderer((graphics, width, height, alpha) ->
+                renderStencil(graphics, width / 2f, height / 2f, iconSize))
+            .withBounds(iconSize, iconSize);
+    }
+
+    private void renderStencil(GuiGraphics graphics, float centerX, float centerY, int iconSize) {
         float[] previousColor = RenderSystem.getShaderColor().clone();
         graphics.setColor(1, 1, 1, 1);
         graphics.pose().pushPose();
         try {
             graphics.pose().translate(centerX, centerY, 0);
-            float scale = RENDERED_ICON_SIZE / (float) TEXTURE_ICON_SIZE;
+            float scale = iconSize / (float) TEXTURE_ICON_SIZE;
             graphics.pose().scale(scale, scale, 1);
             if (rotation != 0) {
                 graphics.pose().mulPose(Axis.ZP.rotationDegrees(rotation));

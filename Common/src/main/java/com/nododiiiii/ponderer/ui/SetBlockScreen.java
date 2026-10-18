@@ -88,30 +88,22 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
             blockProperties,
             "ponderer.ui.block_properties",
             "ponderer.ui.block_properties.tooltip"));
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.nbt(
             nbtField,
             "ponderer.ui.set_block.nbt",
             "ponderer.ui.set_block.nbt.tooltip",
-            "{CustomName:'\"Demo\"'}",
             124,
-            FieldDecorators.nbtPick("nbt"),
-            FieldDecorators.nbtExpand("nbt")));
+            "nbt"));
         entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui.set_block.pos_from",
             "ponderer.ui.set_block.pos_from.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS1)));
+            PickState.TargetField.POS1));
         entries.add(FieldSpecs.xyz(
             pos2Field,
             "ponderer.ui.set_block.pos_to",
             "ponderer.ui.set_block.pos_to.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS2)));
+            PickState.TargetField.POS2));
         entries.add(FieldSpecs.cycle(
             entranceModeBinding,
             "ponderer.ui.set_block.entrance_mode",
@@ -152,7 +144,8 @@ public class SetBlockScreen extends AbstractStepEditorScreen {
                     "ponderer.ui.show_controls.direction",
                     SelectionAnimationOptions.DIRECTIONS[directionIndex]),
                 () -> 0xFFFFFF));
-            entries.add(FieldSpecs.text(
+            entries.add(FieldSpecs.typedText(
+                FieldType.SECTION_LINK,
                 linkIdField,
                 "ponderer.ui.show_section_and_merge.link",
                 "ponderer.ui.show_section_and_merge.link.tooltip",

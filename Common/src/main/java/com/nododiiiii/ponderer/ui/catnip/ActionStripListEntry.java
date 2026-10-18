@@ -91,6 +91,21 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
         return new ButtonModel(widget, null, tooltipGetter, () -> 0xFFFFFF, activeGetter, ICON_BUTTON_SIZE);
     }
 
+    public static ButtonModel rowIconButton(DelegatedStencilElement icon,
+                                            Runnable action,
+                                            @Nullable Supplier<List<Component>> tooltipGetter,
+                                            BooleanSupplier activeGetter,
+                                            boolean danger) {
+        int size = EntryTextSupport.squareSize();
+        BoxWidget widget = new FormBoxWidget(0, 0, size, size).withCallback(action);
+        if (danger) {
+            PonderIconStencils.attachFail(widget, icon);
+        } else {
+            PonderIconStencils.attach(widget, icon);
+        }
+        return new ButtonModel(widget, null, tooltipGetter, () -> 0xFFFFFF, activeGetter, size);
+    }
+
     @Override
     public boolean matchesQuery(String query) {
         return false;
@@ -184,7 +199,8 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
 
     static void renderMultiControlCluster(GuiGraphics graphics, List<ButtonModel> buttons, int x, int width, int y, int height,
                                     int mouseX, int mouseY, float partialTicks) {
-        if (buttons.size() <= 1) {
+        if (buttons.isEmpty() || (buttons.size() == 1
+            && buttons.getFirst().fixedWidth() != EntryTextSupport.squareSize())) {
             renderButtonCluster(graphics, buttons, x, width, y, height, mouseX, mouseY, partialTicks);
             return;
         }

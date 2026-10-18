@@ -96,7 +96,8 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.typedText(
+            FieldType.STRUCTURE,
             structureField,
             "ponderer.ui.show_extra_structure.structure",
             "ponderer.ui.show_extra_structure.structure.tooltip",
@@ -109,10 +110,7 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
             posField,
             "ponderer.ui.show_extra_structure.pos",
             "ponderer.ui.show_extra_structure.pos.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS1)));
+            PickState.TargetField.POS1));
 
         entries.add(FieldSpecs.cycle(
             rotationBinding,
@@ -170,7 +168,8 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
                     "ponderer.ui.show_controls.direction",
                     SelectionAnimationOptions.DIRECTIONS[directionIndex]),
                 () -> 0xFFFFFF));
-            entries.add(FieldSpecs.text(
+            entries.add(FieldSpecs.typedText(
+                FieldType.SECTION_LINK,
                 linkIdField,
                 "ponderer.ui.show_section_and_merge.link",
                 "ponderer.ui.show_section_and_merge.link.tooltip",

@@ -67,7 +67,11 @@ public class DynamicActionRowListEntry extends ConfigScreenList.LabeledEntry imp
     @Override
     public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
-        int controlWidth = Math.min(150, Math.max(96, width / 2));
+        boolean fixedButtons = buttons.stream().allMatch(button -> button.fixedWidth() > 0);
+        int controlWidth = fixedButtons
+            ? buttons.size() * EntryTextSupport.squareSize()
+                + Math.max(0, buttons.size() - 1) * EntryTextSupport.multiControlGap()
+            : Math.min(150, Math.max(96, width / 2));
         int controlX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
         int textX = EntryTextSupport.contentLeft(x);
         if (iconStackGetter != null) {

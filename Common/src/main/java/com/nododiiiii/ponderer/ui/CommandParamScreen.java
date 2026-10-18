@@ -20,7 +20,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class CommandParamScreen extends AbstractInventoryPickerFormScreen {
+public class CommandParamScreen extends AbstractInventoryPickerFormScreen implements NbtExpandButtonHost {
 
     private static final int CHOICE_BUTTON_WIDTH = 100;
 
@@ -30,7 +30,7 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen {
     public record TextFieldDef(String id, String labelKey, @Nullable String hintKey, boolean required,
                                @Nullable IdFieldMode jeiMode,
                                boolean sceneSelector, boolean sceneMultiSelect,
-                               boolean packSelector) implements FieldDef {
+                               boolean packSelector, boolean nbtEditor) implements FieldDef {
     }
 
     public record ChoiceFieldDef(String id, String labelKey, List<String> optionLabelKeys,
@@ -113,6 +113,15 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen {
     }
 
     @Override
+    public void startNbtExpandFromButton(String nbtSnapshotKey) {
+        clearStatusMessages();
+        Minecraft.getInstance().setScreen(new NbtExpandedEditorScreen(snapshot -> {
+            restoreSnapshot(snapshot);
+            Minecraft.getInstance().setScreen(this);
+        }, snapshotState(), nbtSnapshotKey));
+    }
+
+    @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         textInputs.clear();
         collectingEntries = true;
@@ -149,7 +158,7 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen {
                             value -> handleTextChanged(textDef.id, value)),
                         textDef.labelKey,
                         null,
-                        textDef.hintKey,
+                        textDef.nbtEditor ? "{}" : textDef.hintKey,
                         -1,
                         entry -> {
                             entry.field().setMaxLength(32500);
@@ -455,6 +464,9 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen {
         if (textDef.sceneSelector) {
             specs.add(FieldDecorators.sceneSelector(() -> openSceneSelector(textDef.id, textDef.sceneMultiSelect)));
         }
+        if (textDef.nbtEditor) {
+            specs.add(FieldDecorators.nbtEditor(textDef.id));
+        }
         return specs.toArray(FieldDecorator[]::new);
     }
 
@@ -522,28 +534,33 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen {
         }
 
         public Builder textField(String id, String labelKey, String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, false, false));
+            return this;
+        }
+
+        public Builder nbtField(String id, String labelKey, String hintKey, boolean required) {
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, false, true));
             return this;
         }
 
         public Builder itemField(String id, String labelKey, String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, IdFieldMode.ITEM, false, false, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, IdFieldMode.ITEM, false, false, false, false));
             return this;
         }
 
         public Builder sceneIdField(String id, String labelKey, @Nullable String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, false, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, false, false, false));
             return this;
         }
 
         public Builder sceneIdField(String id, String labelKey, @Nullable String hintKey, boolean required,
                                     boolean multiSelect) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, multiSelect, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, multiSelect, false, false));
             return this;
         }
 
         public Builder packIdField(String id, String labelKey, @Nullable String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, true));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, true, false));
             return this;
         }
 

@@ -8,6 +8,9 @@ import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.XyzListEntry;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.component.CustomData;
 
 import javax.annotation.Nullable;
 import java.util.function.IntSupplier;
@@ -19,6 +22,20 @@ public final class FieldDecorators {
     }
 
     private FieldDecorators() {
+    }
+
+    public static FieldDecorator type(FieldType type) {
+        return new FieldDecorator() {
+            @Override
+            public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
+                entry.setSharedTooltip(type.tooltipKey());
+            }
+
+            @Override
+            public void applyXyz(AbstractDeclarativeFormScreen screen, XyzListEntry entry) {
+                entry.setSharedTooltip(type.tooltipKey());
+            }
+        };
     }
 
     public static FieldDecorator textAction(int width, Runnable onClick, Supplier<String> labelGetter,
@@ -74,6 +91,7 @@ public final class FieldDecorators {
                 if (!(screen instanceof JeiAwareScreen)) {
                     throw new IllegalStateException("JEI decorator requires screen to implement JeiAwareScreen");
                 }
+                entry.setSharedTooltip(FieldType.forId(mode).tooltipKey());
                 entry.addIngredientSlot(
                     mode,
                     JeiCompat.isAvailable() ? UIText.of("ponderer.ui.jei_browse.tooltip") : null);
@@ -88,6 +106,7 @@ public final class FieldDecorators {
                 if (!(screen instanceof AbstractJeiAwareFormScreen form)) {
                     throw new IllegalStateException("Item tag dropdown requires a JEI-aware form screen");
                 }
+                entry.setSharedTooltip(FieldType.ITEM_TAG.tooltipKey());
                 form.attachItemTagDropdown(fieldId, entry);
             }
         };
@@ -100,6 +119,7 @@ public final class FieldDecorators {
                 if (!(screen instanceof PointPickButtonHost host)) {
                     throw new IllegalStateException("Point pick decorator requires screen to implement PointPickButtonHost");
                 }
+                entry.setSharedTooltip(host.pointPickFieldType(target, halfOffset).tooltipKey());
                 entry.addTrailingIcon(
                     PondererGuiIcons.PICK_POSITION,
                     () -> host.startPointPickFromButton(target, halfOffset),
@@ -119,6 +139,7 @@ public final class FieldDecorators {
                 if (!(screen instanceof NbtPickButtonHost host)) {
                     throw new IllegalStateException("Block pick decorator requires screen to implement NbtPickButtonHost");
                 }
+                entry.setSharedTooltip(FieldType.BLOCK.tooltipKey());
                 entry.addTrailingIcon(
                     PondererGuiIcons.PICK_BLOCK,
                     () -> host.startNbtPickFromButton(nbtSnapshotKey, true),
@@ -149,12 +170,44 @@ public final class FieldDecorators {
                 if (!(screen instanceof NbtExpandButtonHost host)) {
                     throw new IllegalStateException("NBT expand decorator requires screen to implement NbtExpandButtonHost");
                 }
+                entry.setSharedTooltip(FieldType.NBT.tooltipKey());
                 entry.addTrailingIcon(
                     PondererGuiIcons.EDIT_NBT,
                     () -> host.startNbtExpandFromButton(nbtSnapshotKey),
                     UIText.of("ponderer.ui.nbt_editor.expand.tooltip"));
             }
         };
+    }
+
+    /** Every NBT input has an expanded editor; forms with scene context also support picking. */
+    public static FieldDecorator nbtEditor(String snapshotKey) {
+        return new FieldDecorator() {
+            @Override
+            public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
+                if (screen instanceof NbtPickButtonHost) {
+                    nbtPick(snapshotKey).applyText(screen, entry);
+                }
+                nbtExpand(snapshotKey).applyText(screen, entry);
+            }
+        };
+    }
+
+    public static FieldDecorator heldItem(StepTextFieldHandle item, @Nullable StepTextFieldHandle nbt) {
+        return heldItem(item, nbt, null);
+    }
+
+    public static FieldDecorator heldItem(StepTextFieldHandle item, @Nullable StepTextFieldHandle nbt,
+                                           @Nullable StepTextFieldHandle count) {
+        return heldItem(stack -> {
+            item.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+            if (nbt != null) nbt.setValue(itemCustomData(stack));
+            if (count != null) count.setValue(String.valueOf(stack.getCount()));
+        });
+    }
+
+    public static String itemCustomData(ItemStack stack) {
+        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
+        return data == null || data.isEmpty() ? "" : data.copyTag().toString();
     }
 
     public static FieldDecorator heldItem(java.util.function.Consumer<ItemStack> onItemPicked) {

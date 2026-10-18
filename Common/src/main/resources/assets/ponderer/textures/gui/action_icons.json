@@ -1,11 +1,11 @@
 {
   "license": "Mixed; see action_icons.LICENSE.txt",
   "size": [
-    48,
-    48
+    64,
+    64
   ],
   "cell_size": 16,
-  "processing": "Preserve the original 16x16 pixel positions. Nikoichu sprites retain only opaque pure-white pixels. The Create folder icon retains its nonblack alpha mask, normalized to opaque white. All other pixels are transparent.",
+  "processing": "Preserve the original 16x16 pixel positions without resampling. Nikoichu sprites retain only opaque pure-white pixels. The Create folder and projector pull/upload icons retain their nonblack alpha masks, normalized to opaque white. All other pixels are transparent.",
   "icons": [
     {
       "name": "PICK_POSITION",
@@ -74,6 +74,50 @@
       ],
       "author": "The Create Team / The Creators of Create",
       "license": "All Rights Reserved (assets)"
+    },
+    {
+      "name": "PULL",
+      "x": 48,
+      "y": 0,
+      "source": "Common/src/main/resources/assets/ponderer/textures/gui/projector.png",
+      "source_rect": [
+        0,
+        441,
+        16,
+        16
+      ],
+      "source_icon": "ProjectorConfigScreen.ButtonVisual.ACTION_ICON_REMOTE_PULL"
+    },
+    {
+      "name": "UPLOAD",
+      "x": 48,
+      "y": 16,
+      "source": "Common/src/main/resources/assets/ponderer/textures/gui/projector.png",
+      "source_rect": [
+        0,
+        441,
+        16,
+        16
+      ],
+      "modifications": "Flip only the arrow vertically inside (5, 3, 12, 11); preserve the tray and every other pixel."
+    },
+    {
+      "name": "HISTORY",
+      "x": 32,
+      "y": 32,
+      "source": "Sprites/Software_Clock_Time_Wait_2.png"
+    },
+    {
+      "name": "IGNORE",
+      "x": 48,
+      "y": 32,
+      "source": "Sprites/Arrows_Media_Controls_Next.png"
+    },
+    {
+      "name": "OVERWRITE",
+      "x": 0,
+      "y": 48,
+      "source": "Sprites/Software_File_Document_Page_Arrow_Send_Import.png"
     }
   ],
   "native_icons": [
@@ -91,6 +135,12 @@
       "name": "COLLAPSE",
       "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_PONDER_RIGHT",
       "rotation_degrees": 90
+    },
+    {
+      "name": "ROLLBACK",
+      "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_CONFIG_RESET",
+      "mirror_x": true,
+      "rendered_by": "RemoteBrowserScreen via PonderIconStencils.mirrored"
     }
   ],
   "sources": [

@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 
@@ -53,16 +52,7 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
                 UIText.of("ponderer.ui." + stepType + ".id.hint"),
                 124,
                 FieldDecorators.jei(jeiMode),
-                FieldDecorators.heldItem(
-                stack -> {
-                    idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
-                    net.minecraft.world.item.component.CustomData customData = stack.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
-                    if (customData != null && !customData.isEmpty()) {
-                        nbtField.setValue(customData.copyTag().toString());
-                    } else {
-                        nbtField.setValue("");
-                    }
-                })));
+                FieldDecorators.heldItem(idField, nbtField)));
         } else {
             entries.add(FieldSpecs.text(
                 idField,
@@ -72,7 +62,8 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
                 124,
                 FieldDecorators.jei(jeiMode)));
         }
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.typedText(
+            FieldType.ENTITY_LINK,
             linkIdField,
             "ponderer.ui.entity_link",
             "ponderer.ui." + stepType + ".link.tooltip",
@@ -88,19 +79,18 @@ public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
             "ponderer.ui." + stepType + ".pos_to",
             "ponderer.ui." + stepType + ".pos_to.tooltip",
             PickState.TargetField.POS2));
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.nbt(
             nbtField,
             "ponderer.ui." + stepType + ".nbt",
             "ponderer.ui." + stepType + ".nbt.tooltip",
-            "{NoGravity:1b}",
             124,
-            FieldDecorators.nbtPick("nbt"),
-            FieldDecorators.nbtExpand("nbt")));
+            "nbt"));
         if ("modify_entities_nbt".equals(stepType)) {
             entries.add(FieldSpecs.xyz(
                 moveField,
                 "ponderer.ui.modify_entities_nbt.move",
-                "ponderer.ui.modify_entities_nbt.move.tooltip"));
+                "ponderer.ui.modify_entities_nbt.move.tooltip",
+                FieldType.VECTOR));
             entries.add(FieldSpecs.ticksNumber(
                 moveDurationField,
                 "ponderer.ui.modify_entities_nbt.move_duration",

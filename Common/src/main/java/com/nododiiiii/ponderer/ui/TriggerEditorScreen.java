@@ -13,8 +13,6 @@ import com.nododiiiii.ponderer.ui.catnip.ButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -228,7 +226,8 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
         String mode = TRIGGER_MODES[triggerModeIndex];
         if ("structure".equals(mode)) {
-            entries.add(FieldSpecs.text(
+            entries.add(FieldSpecs.typedText(
+                FieldType.STRUCTURE,
                 structureField,
                 "ponderer.ui.trigger_editor.trigger_structure",
                 null,
@@ -241,18 +240,14 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
                 coord1Field,
                 "ponderer.ui.trigger_editor.trigger_coord1",
                 null,
-                "X",
-                "Y",
-                "Z",
+                FieldType.WORLD_POSITION,
                 FieldDecorators.xyzIconAction(PondererGuiIcons.PICK_POSITION,
                     UIText.of("ponderer.ui.world_pick.tooltip"), this::startCoordinatePick)));
             entries.add(FieldSpecs.xyz(
                 coord2Field,
                 "ponderer.ui.trigger_editor.trigger_coord2",
                 null,
-                "X",
-                "Y",
-                "Z",
+                FieldType.WORLD_POSITION,
                 FieldDecorators.xyzIconAction(PondererGuiIcons.PICK_POSITION,
                     UIText.of("ponderer.ui.world_pick.tooltip"), this::startCoordinatePick)));
         }
@@ -271,13 +266,11 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
                 "ponderer.ui.scene_desc.item_id.tooltip",
                 UIText.of("ponderer.ui.scene_desc.hint.item_id"),
                 124,
-                FieldDecorators.itemTagDropdown(itemKey),
                 FieldDecorators.jei(IdFieldMode.ITEM),
+                FieldDecorators.itemTagDropdown(itemKey),
                 FieldDecorators.heldItem(stack -> applyHeldItem(index, stack))));
 
             List<FieldDecorator> nbtDecorators = new ArrayList<>();
-            nbtDecorators.add(FieldDecorators.nbtPick(nbtKey));
-            nbtDecorators.add(FieldDecorators.nbtExpand(nbtKey));
             if (itemBindings.size() > 1) {
                 nbtDecorators.add(FieldDecorators.iconAction(PondererGuiIcons.REMOVE,
                     UIText.of("ponderer.ui.scene_desc.remove_item"), () -> {
@@ -285,14 +278,14 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
                         rebuildFormPreservingState();
                     }));
             }
-            entries.add(FieldSpecs.text(
+            entries.add(FieldSpecs.nbt(
                 FieldBindings.string(nbtKey,
                     () -> index < itemBindings.size() ? itemBindings.get(index).value() : "",
                     value -> itemBindings.updateValue(index, value)),
                 "ponderer.ui.scene_desc.item_nbt",
-                null,
-                UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
+                "ponderer.ui.scene_desc.item_nbt.tooltip",
                 124,
+                nbtKey,
                 nbtDecorators.toArray(FieldDecorator[]::new)));
         }
         entries.add(screen -> screen.appendBuiltEntry(new ButtonListEntry(
@@ -306,12 +299,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
     private void applyHeldItem(int index, ItemStack stack) {
         String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         itemBindings.updateKey(index, itemId);
-        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
-        if (customData != null && !customData.isEmpty()) {
-            itemBindings.updateValue(index, customData.copyTag().toString());
-        } else {
-            itemBindings.updateValue(index, "");
-        }
+        itemBindings.updateValue(index, FieldDecorators.itemCustomData(stack));
         rebuildFormPreservingState();
     }
 

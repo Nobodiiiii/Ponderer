@@ -6,6 +6,7 @@ Build, copy, and quickplay local Ponderer client instances.
 from __future__ import annotations
 
 import argparse
+import errno
 import glob
 import io
 import json
@@ -109,6 +110,7 @@ SUCCESS_PATTERNS = (
 
 INTERFACE_SMOKE_PASS = re.compile(r"\[PondererSmoke\] interfaces PASS")
 INTERFACE_SMOKE_FAIL = re.compile(r"\[PondererSmoke\] interfaces FAIL")
+WORLD_LOCKED_PATTERN = re.compile(r"session\.lock: already locked \(possibly by other Minecraft instance\?\)")
 
 # Extra JVM system properties for the launched client (set from command-line flags).
 EXTRA_JVM_ARGS: list[str] = []
@@ -395,6 +397,39 @@ def resolve_world(instance: Path, requested_world: str | None) -> str:
     return world
 
 
+def world_is_locked(instance: Path, world: str) -> bool:
+    """Probe the existing session lock without changing the save or creating a lock file."""
+    try:
+        handle = (instance / "saves" / world / "session.lock").open("r+b")
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        if getattr(exc, "winerror", None) in (32, 33):
+            return True
+        raise
+
+    with handle:
+        if os.name == "nt":
+            import msvcrt
+
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                if exc.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    return True
+                raise
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            try:
+                fcntl.lockf(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.lockf(handle, fcntl.LOCK_UN)
+    return False
+
+
 def run_build(targets: list[PlatformSpec], offline: bool) -> None:
     gradlew = PROJECT_ROOT / ("gradlew.bat" if platform.system() == "Windows" else "gradlew")
     if not gradlew.exists():
@@ -511,10 +546,12 @@ def entered_world(log_text: str) -> bool:
 
 def smoke_outcome(log_text: str, interfaces: bool) -> bool | None:
     """True/False once the smoke outcome is known from the log, None while still pending."""
+    if interfaces and INTERFACE_SMOKE_FAIL.search(log_text):
+        return False
+    if WORLD_LOCKED_PATTERN.search(log_text):
+        return True
     if not interfaces:
         return True if entered_world(log_text) else None
-    if INTERFACE_SMOKE_FAIL.search(log_text):
-        return False
     if INTERFACE_SMOKE_PASS.search(log_text):
         return True
     return None
@@ -640,6 +677,10 @@ def smoke_target(
         print(f"  args: {len(command)}")
         return SmokeResult(spec.target, True, latest_log_candidates(instance)[0])
 
+    if world_is_locked(instance, world):
+        print(f"[SMOKE][SKIP] {instance.name}: world '{world}' is in use; treating as success")
+        return SmokeResult(spec.target, True, latest_log_candidates(instance)[0])
+
     timer_done = threading.Event()
     stop_timer = threading.Event()
     launched = threading.Event()
@@ -695,7 +736,9 @@ def smoke_target(
         process = process_holder.get("process")
         exit_code = process.poll() if process else None
 
-        if ok:
+        if ok and WORLD_LOCKED_PATTERN.search(log_text):
+            print(f"[SMOKE][SKIP] {instance.name}: world '{world}' is in use; treating as success")
+        elif ok:
             print(
                 f"[SMOKE][PASS] {instance.name}: {goal} reached within {timeout}s; "
                 f"waiting {POST_ENTRY_SETTLE_SECONDS:g}s before cleanup"
@@ -746,8 +789,18 @@ def run_smoke(
     if not args.skip_build:
         run_build(targets, offline=not args.online_build)
 
+    launch_targets = []
+    for target in targets:
+        instance = instance_dir(target, mc_version)
+        if not args.dry_run and world_is_locked(instance, worlds[target]):
+            print(f"[SMOKE][SKIP] {instance.name}: world '{worlds[target]}' is in use; treating as success")
+        else:
+            launch_targets.append(target)
+    if not launch_targets:
+        return 0
+
     if not args.no_copy:
-        for target in targets:
+        for target in launch_targets:
             destination = copy_mod_jar(target, props, instance_dir(target, mc_version))
             print(f"[COPY] {destination}")
 
@@ -763,7 +816,7 @@ def run_smoke(
             args.dry_run,
             args.smoke_interfaces,
         )
-        for target in targets
+        for target in launch_targets
     ]
     return 0 if all(result.ok for result in results) else 1
 
@@ -776,7 +829,7 @@ def main() -> int:
     parser.add_argument("--online-build", action="store_true")
     parser.add_argument("--no-copy", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Build/copy as requested, but print launch targets instead of starting clients.")
-    parser.add_argument("--smoke", action="store_true", help="Build, quickplay, wait for a world-entry log marker, then clean up.")
+    parser.add_argument("--smoke", action="store_true", help="Build, quickplay, wait for a world-entry log marker, then clean up; occupied worlds count as success.")
     parser.add_argument("--smoke-timeout", type=int, default=DEFAULT_SMOKE_TIMEOUT)
     parser.add_argument("--smoke-log-lines", type=int, default=DEFAULT_SMOKE_LOG_LINES)
     parser.add_argument("--smoke-interfaces", action="store_true",

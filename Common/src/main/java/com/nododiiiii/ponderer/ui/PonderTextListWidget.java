@@ -34,7 +34,6 @@ public class PonderTextListWidget extends AbstractWidget {
     public static final int DESIRED_PANEL_WIDTH = 144;
     /** Right padding — matches the slowMode button's right padding. */
     public static final int DESIRED_RIGHT_PADDING = 30;
-    public static final int TOP_Y = 70;
     public static final int BOTTOM_PAD = 60; // leave room for the bottom button row
 
     private static final int BORDER_SIZE = 2;
@@ -64,17 +63,17 @@ public class PonderTextListWidget extends AbstractWidget {
     private int scrollOffset;
 
     public PonderTextListWidget(PonderUI ponderUi) {
-        super(computeLeft(ponderUi.width) - BORDER_SIZE, top(ponderUi.width) - BORDER_SIZE,
+        super(computeLeft(ponderUi.width) - BORDER_SIZE, top(ponderUi) - BORDER_SIZE,
             computeWidth(ponderUi.width) + 2 * BORDER_SIZE,
-            Math.max(60, ponderUi.height - top(ponderUi.width) - BOTTOM_PAD) + 2 * BORDER_SIZE,
+            Math.max(60, ponderUi.height - top(ponderUi) - BOTTOM_PAD) + 2 * BORDER_SIZE,
             Component.empty());
         this.ponderUi = ponderUi;
         this.configuredDefault = Config.DEFAULT_TEXT_PROGRESS.get();
         this.panelVisible = configuredDefault;
     }
 
-    private static int top(int screenWidth) {
-        return screenWidth < 480 ? TOP_Y + 28 : TOP_Y;
+    private static int top(PonderUI ponderUi) {
+        return ((PonderUiPreviewAccess) ponderUi).ponderer$getFreePreview().getTextPanelTop() + BORDER_SIZE;
     }
 
     public boolean isPanelVisible() {

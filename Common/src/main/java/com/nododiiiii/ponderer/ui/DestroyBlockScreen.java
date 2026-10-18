@@ -33,18 +33,12 @@ public class DestroyBlockScreen extends AbstractStepEditorScreen {
             posField,
             "ponderer.ui.destroy_block.pos_from",
             "ponderer.ui.destroy_block.pos_from.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS1)));
+            PickState.TargetField.POS1));
         entries.add(FieldSpecs.xyz(
             pos2Field,
             "ponderer.ui.destroy_block.pos_to",
             "ponderer.ui.destroy_block.pos_to.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS2)));
+            PickState.TargetField.POS2));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.destroy_block.particles",
             "ponderer.ui.destroy_block.particles.tooltip",

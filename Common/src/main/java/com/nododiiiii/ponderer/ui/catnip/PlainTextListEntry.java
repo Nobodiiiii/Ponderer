@@ -28,7 +28,10 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     }
 
     protected final ConfigTextField textField;
-    private final String searchText;
+    private final String labelKey;
+    @Nullable
+    private final String contextTooltipKey;
+    private String searchText;
     protected final List<TrailingButton> trailingButtons = new ArrayList<>();
     @Nullable
     private Supplier<String> trailingTextGetter;
@@ -47,6 +50,8 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     public PlainTextListEntry(String labelKey, @Nullable String tooltipKey, @Nullable String hintKey,
                               String initialValue, Consumer<String> responder) {
         super(UIText.of(labelKey));
+        this.labelKey = labelKey;
+        this.contextTooltipKey = tooltipKey;
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
@@ -61,6 +66,11 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
     public ConfigTextField field() {
         return textField;
+    }
+
+    public void setSharedTooltip(String tooltipKey) {
+        EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey, contextTooltipKey);
     }
 
     public void setValue(String value) {

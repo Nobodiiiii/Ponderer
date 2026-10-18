@@ -42,6 +42,11 @@ public final class PonderFreePreview {
         return button;
     }
 
+    public int getTextPanelTop() {
+        // The hint row above the button also separates its bottom from the panel's outer border.
+        return button.getY() + button.getHeight() + PonderSmallHint.getRowHeight(ui);
+    }
+
     public boolean isActive() {
         return scene != null;
     }
