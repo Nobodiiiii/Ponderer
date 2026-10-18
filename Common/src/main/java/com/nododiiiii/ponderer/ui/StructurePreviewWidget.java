@@ -8,6 +8,7 @@ import com.nododiiiii.ponderer.mixin.RenderSystemShaderLightsAccessor;
 import com.nododiiiii.ponderer.ponder.ExtraStructurePlanner;
 import com.nododiiiii.ponderer.ponder.ExtraStructurePlanner.PlacedBlock;
 import net.createmod.catnip.client.render.model.BakedModelBufferer;
+import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.levelWrappers.SchematicLevel;
 import net.createmod.catnip.render.DefaultSuperRenderTypeBuffer;
@@ -16,16 +17,22 @@ import net.createmod.catnip.render.SuperByteBufferBuilder;
 import net.createmod.catnip.render.SuperRenderTypeBuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -34,22 +41,41 @@ import org.joml.Vector3f;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Renders a slowly-rotating preview of an .nbt structure inside a Screen.
  *
- * Caching: on selection change, blocks are read via {@link ExtraStructurePlanner}, written into a
- * {@link SchematicLevel}, and baked once per {@link RenderType} into {@link SuperByteBuffer}.
- * Each frame only flushes the cached buffers — zero per-frame baking cost.
+ * Reads and plans structures on background workers. Schematic population and model baking stay
+ * on the render thread, split into bounded batches so loading does not monopolize a frame.
+ * Once loading finishes, each frame only flushes the cached buffers.
  */
 public class StructurePreviewWidget {
 
     private static final Logger LOGGER = LogUtils.getLogger();
+    private static final String PICKER_STATUS = "ponderer.ui.structure_picker.preview.";
+    private static final String TEMPLATE_STATUS = "ponderer.ui.structure_list.preview.";
+    private static final long BUILD_BUDGET_NANOS = 2_000_000L;
+    private static final int BUILD_BATCH_SIZE = 128;
+    private static final ThreadPoolExecutor LOAD_EXECUTOR = new ThreadPoolExecutor(
+        2, 2, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), task -> {
+            Thread thread = new Thread(task, "ponderer-structure-preview");
+            thread.setDaemon(true);
+            return thread;
+        });
 
     private static final int FULL_BRIGHT = 0xF000F0;
     // Match PonderUI's lighting: GUI rendering flips the model's Y axis.
@@ -90,7 +116,13 @@ public class StructurePreviewWidget {
 
     @Nullable
     private SchematicLevel level;
-    private final Map<RenderType, SuperByteBuffer> cache = new LinkedHashMap<>();
+    private final Map<RenderType, List<SuperByteBuffer>> cache = new LinkedHashMap<>();
+    @Nullable private FutureTask<PreparedPreview> pendingLoad;
+    @Nullable private PreviewBuild pendingBuild;
+    @Nullable private ClientLevel sourceLevel;
+    @Nullable private Screen confirmationParent;
+    private long loadVersion;
+    private String failureStatus = PICKER_STATUS + "load_failed";
     private double centerX, centerY, centerZ;
     private double scale = 1.0;
 
@@ -140,115 +172,95 @@ public class StructurePreviewWidget {
         this.showDefaultPlaceholder = showDefaultPlaceholder;
     }
 
-    /** Load + bake. Returns the number of placed blocks (0 on failure). */
-    public int load(Path nbtFile) {
+    /** Read once in the background; large previews ask before starting the incremental build. */
+    public void load(Path nbtFile, Screen parent) {
         dispose();
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
-            statusKey = "ponderer.ui.structure_picker.preview.unavailable";
-            return 0;
+            statusKey = PICKER_STATUS + "unavailable";
+            return;
         }
-
-        List<PlacedBlock> placed;
-        try {
-            placed = ExtraStructurePlanner.plan(nbtFile, BlockPos.ZERO, 0, true);
-        } catch (Exception e) {
-            LOGGER.warn("StructurePreview: failed to read {}", nbtFile, e);
-            statusKey = "ponderer.ui.structure_picker.preview.load_failed";
-            return 0;
-        }
-        if (placed.isEmpty()) {
-            statusKey = "ponderer.ui.structure_picker.preview.empty";
-            return 0;
-        }
-
-        try {
-            bake(mc, placed);
-            statusKey = null;
-        } catch (Exception e) {
-            LOGGER.warn("StructurePreview: bake failed for {}", nbtFile, e);
-            dispose();
-            statusKey = "ponderer.ui.structure_picker.preview.load_failed";
-        }
-        return placed.size();
+        sourceLevel = mc.level;
+        confirmationParent = parent;
+        failureStatus = PICKER_STATUS + "load_failed";
+        statusKey = PICKER_STATUS + "loading";
+        submitLoad(() -> {
+            List<PlacedBlock> placed = ExtraStructurePlanner.plan(nbtFile, BlockPos.ZERO, 0, true);
+            return new PreparedPreview(placed, placed.isEmpty() ? PICKER_STATUS + "empty" : null);
+        });
     }
 
-    /**
-     * Pre-count how many blocks the .nbt would produce — used by the picker to decide whether
-     * to prompt before baking a huge structure.
-     */
-    public static int countBlocks(Path nbtFile) {
-        try {
-            return ExtraStructurePlanner.plan(nbtFile, BlockPos.ZERO, 0, true).size();
-        } catch (Exception ignored) {
-            return 0;
-        }
-    }
-
-    /** Preview an untrusted world-generation template without placing it in the real world. */
-    public void loadTemplate(CompoundTag nbt) {
+    /** Decompress and validate an untrusted template off-thread, without touching the real world. */
+    public void loadTemplate(byte[] compressedTemplate) {
         dispose();
-        String statusPrefix = "ponderer.ui.structure_list.preview.";
-        try {
-            Minecraft mc = Minecraft.getInstance();
-            if (mc.level == null) {
-                setStatus(statusPrefix + "unavailable");
-                return;
-            }
-            ListTag size = nbt.getList("size", Tag.TAG_INT);
-            if (size.size() != 3) throw new IllegalArgumentException("Missing template size");
-            for (int i = 0; i < 3; i++) {
-                if (size.getInt(i) <= 0 || size.getInt(i) > 512) {
-                    setStatus(statusPrefix + "too_large");
-                    return;
-                }
-            }
-            // Some templates offer multiple palettes; preview the first variant.
-            if (!nbt.contains("palette", Tag.TAG_LIST)) {
-                ListTag palettes = nbt.getList("palettes", Tag.TAG_LIST);
-                if (!palettes.isEmpty()) nbt.put("palette", palettes.getList(0));
-            }
-            ListTag palette = nbt.getList("palette", Tag.TAG_COMPOUND);
-            ListTag blocks = nbt.getList("blocks", Tag.TAG_COMPOUND);
-            if (palette.isEmpty() || blocks.isEmpty()) {
-                setStatus(statusPrefix + "no_template");
-                return;
-            }
-            if (palette.size() > 8192 || blocks.size() > 131072) {
-                setStatus(statusPrefix + "too_large");
-                return;
-            }
-            for (int i = 0; i < blocks.size(); i++) {
-                CompoundTag block = blocks.getCompound(i);
-                ListTag pos = block.getList("pos", Tag.TAG_INT);
-                int state = block.getInt("state");
-                if (pos.size() != 3 || state < 0 || state >= palette.size()) {
-                    throw new IllegalArgumentException("Invalid template block");
-                }
-                for (int axis = 0; axis < 3; axis++) {
-                    if (pos.getInt(axis) < 0 || pos.getInt(axis) >= size.getInt(axis)) {
-                        throw new IllegalArgumentException("Template block outside bounds");
-                    }
-                }
-            }
-            List<PlacedBlock> placed = finishTemplateBlocks(mc,
-                ExtraStructurePlanner.plan(nbt, BlockPos.ZERO, 0, true));
-            if (placed.isEmpty()) {
-                setStatus(statusPrefix + "no_template");
-            } else if (placed.size() > DEFAULT_LARGE_THRESHOLD) {
-                setStatus(statusPrefix + "too_large");
-            } else {
-                bake(mc, placed);
-                statusKey = null;
-            }
-        } catch (Exception | LinkageError e) {
-            LOGGER.debug("StructurePreview: invalid or unsupported world-generation template", e);
-            setStatus(statusPrefix + "unavailable");
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            statusKey = TEMPLATE_STATUS + "unavailable";
+            return;
         }
+        sourceLevel = mc.level;
+        var blockLookup = sourceLevel.holderLookup(Registries.BLOCK);
+        failureStatus = TEMPLATE_STATUS + "unavailable";
+        statusKey = TEMPLATE_STATUS + "loading";
+        submitLoad(() -> {
+            try (var input = new ByteArrayInputStream(compressedTemplate)) {
+                CompoundTag nbt = NbtIo.readCompressed(input, new NbtAccounter(8 * 1024 * 1024L, 64));
+                return prepareTemplate(nbt, blockLookup);
+            }
+        });
+    }
+
+    private void submitLoad(Callable<PreparedPreview> task) {
+        pendingLoad = new FutureTask<>(task);
+        LOAD_EXECUTOR.execute(pendingLoad);
+    }
+
+    private static PreparedPreview prepareTemplate(CompoundTag nbt, HolderLookup<Block> blockLookup) {
+        ListTag size = nbt.getList("size", Tag.TAG_INT);
+        if (size.size() != 3) throw new IllegalArgumentException("Missing template size");
+        for (int i = 0; i < 3; i++) {
+            if (size.getInt(i) <= 0 || size.getInt(i) > 512) {
+                return new PreparedPreview(List.of(), TEMPLATE_STATUS + "too_large");
+            }
+        }
+        // Some templates offer multiple palettes; preview the first variant.
+        if (!nbt.contains("palette", Tag.TAG_LIST)) {
+            ListTag palettes = nbt.getList("palettes", Tag.TAG_LIST);
+            if (!palettes.isEmpty()) nbt.put("palette", palettes.getList(0));
+        }
+        ListTag palette = nbt.getList("palette", Tag.TAG_COMPOUND);
+        ListTag blocks = nbt.getList("blocks", Tag.TAG_COMPOUND);
+        if (palette.isEmpty() || blocks.isEmpty()) {
+            return new PreparedPreview(List.of(), TEMPLATE_STATUS + "no_template");
+        }
+        if (palette.size() > 8192 || blocks.size() > 131072) {
+            return new PreparedPreview(List.of(), TEMPLATE_STATUS + "too_large");
+        }
+        for (int i = 0; i < blocks.size(); i++) {
+            CompoundTag block = blocks.getCompound(i);
+            ListTag pos = block.getList("pos", Tag.TAG_INT);
+            int state = block.getInt("state");
+            if (pos.size() != 3 || state < 0 || state >= palette.size()) {
+                throw new IllegalArgumentException("Invalid template block");
+            }
+            for (int axis = 0; axis < 3; axis++) {
+                if (pos.getInt(axis) < 0 || pos.getInt(axis) >= size.getInt(axis)) {
+                    throw new IllegalArgumentException("Template block outside bounds");
+                }
+            }
+        }
+        List<PlacedBlock> placed = finishTemplateBlocks(blockLookup,
+            ExtraStructurePlanner.plan(nbt, BlockPos.ZERO, 0, true));
+        if (placed.isEmpty()) {
+            return new PreparedPreview(List.of(), TEMPLATE_STATUS + "no_template");
+        } else if (placed.size() > DEFAULT_LARGE_THRESHOLD) {
+            return new PreparedPreview(List.of(), TEMPLATE_STATUS + "too_large");
+        }
+        return new PreparedPreview(placed, null);
     }
 
     /** Match vanilla jigsaw final_state replacement without running world-generation processors. */
-    private static List<PlacedBlock> finishTemplateBlocks(Minecraft mc, List<PlacedBlock> blocks) {
+    private static List<PlacedBlock> finishTemplateBlocks(HolderLookup<Block> blockLookup, List<PlacedBlock> blocks) {
         List<PlacedBlock> result = new ArrayList<>(blocks.size());
         Map<String, BlockState> replacements = new LinkedHashMap<>();
         for (PlacedBlock block : blocks) {
@@ -261,7 +273,7 @@ public class StructurePreviewWidget {
                 if (state == null) {
                     try {
                         state = BlockStateParser.parseForBlock(
-                            mc.level.holderLookup(Registries.BLOCK), finalState, true).blockState();
+                            blockLookup, finalState, true).blockState();
                     } catch (Exception | LinkageError e) {
                         LOGGER.debug("StructurePreview: invalid jigsaw final_state '{}'", finalState, e);
                         state = Blocks.AIR.defaultBlockState();
@@ -278,28 +290,82 @@ public class StructurePreviewWidget {
         return result;
     }
 
-    private void bake(Minecraft mc, List<PlacedBlock> placed) {
-        SchematicLevel sl = new SchematicLevel(mc.level);
-        sl.renderMode = true;
-        for (PlacedBlock pb : placed) {
-            sl.setBlock(pb.pos, pb.state, 3);
+    private void advanceLoading() {
+        Minecraft mc = Minecraft.getInstance();
+        if (sourceLevel != null && sourceLevel != mc.level) {
+            setStatus(failureStatus);
+            return;
+        }
+        if (pendingLoad == null || !pendingLoad.isDone()) return;
+        // ConfirmationScreen renders its source screen as a background; wait until it is active.
+        if (confirmationParent != null && mc.screen != confirmationParent) return;
+        FutureTask<PreparedPreview> completed = pendingLoad;
+        pendingLoad = null;
+        try {
+            // isDone above guarantees this does not wait on the render thread.
+            PreparedPreview prepared = completed.get();
+            if (prepared.statusKey != null) {
+                setStatus(prepared.statusKey);
+            } else if (confirmationParent != null && prepared.blocks.size() > DEFAULT_LARGE_THRESHOLD) {
+                statusKey = PICKER_STATUS + "confirm_pending";
+                long version = loadVersion;
+                new ConfirmationScreen().centered()
+                    .withText(Component.translatable(PICKER_STATUS + "large", prepared.blocks.size()))
+                    .withAction(success -> {
+                        if (version != loadVersion) return;
+                        if (sourceLevel != Minecraft.getInstance().level) {
+                            setStatus(failureStatus);
+                        } else if (Boolean.TRUE.equals(success)) {
+                            beginBuild(prepared.blocks);
+                        } else {
+                            setStatus(PICKER_STATUS + "skipped");
+                        }
+                    }).open(confirmationParent);
+            } else {
+                beginBuild(prepared.blocks);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            setStatus(failureStatus);
+        } catch (ExecutionException | RuntimeException | LinkageError e) {
+            LOGGER.debug("StructurePreview: asynchronous load failed", e);
+            setStatus(failureStatus);
+        }
+    }
+
+    private void beginBuild(List<PlacedBlock> placed) {
+        level = new SchematicLevel(sourceLevel);
+        level.renderMode = true;
+        pendingBuild = new PreviewBuild(placed);
+        statusKey = confirmationParent == null ? TEMPLATE_STATUS + "loading" : PICKER_STATUS + "loading";
+    }
+
+    private void advanceBuild() {
+        if (pendingBuild == null || level == null) return;
+        PreviewBuild build = pendingBuild;
+        long deadline = System.nanoTime() + BUILD_BUDGET_NANOS;
+        int start = build.placedIndex;
+        while (build.placedIndex < build.blocks.size() && build.placedIndex - start < BUILD_BATCH_SIZE
+            && (build.placedIndex == start || System.nanoTime() < deadline)) {
+            PlacedBlock pb = build.blocks.get(build.placedIndex++);
+            level.setBlock(pb.pos, pb.state, 3);
             if (pb.nbt != null && !pb.nbt.isEmpty()) {
-                BlockEntity be = sl.getBlockEntity(pb.pos);
+                BlockEntity be = level.getBlockEntity(pb.pos);
                 if (be != null) {
                     try {
-                        CompoundTag saved = be.saveWithFullMetadata(sl.registryAccess());
+                        CompoundTag saved = be.saveWithFullMetadata(level.registryAccess());
                         saved.merge(pb.nbt.copy());
-                        be.loadWithComponents(saved, sl.registryAccess());
+                        be.loadWithComponents(saved, level.registryAccess());
                     } catch (Exception e) {
                         LOGGER.debug("StructurePreview: failed to apply BE nbt at {}", pb.pos, e);
                     }
                 }
             }
         }
-        this.level = sl;
-        recomputeScale();
+        // Populate all neighbors before baking; never populate and bake in the same frame.
+        if (build.placedIndex != start) return;
 
-        // Bake all layers in one pass; route by RenderType into per-layer builders.
+        // Finish each small batch independently; a final whole-structure mesh copy would stall.
         Map<RenderType, SuperByteBufferBuilder> builders = new LinkedHashMap<>();
         for (RenderType rt : RenderType.chunkBufferLayers()) {
             SuperByteBufferBuilder b = new SuperByteBufferBuilder();
@@ -307,12 +373,18 @@ public class StructurePreviewWidget {
             builders.put(rt, b);
         }
 
-        List<BlockPos> positions = new ArrayList<>(placed.size());
-        for (PlacedBlock pb : placed) {
-            positions.add(pb.pos);
-        }
-
-        BakedModelBufferer.bufferBlocks(positions.iterator(), sl, null, true,
+        int batchStart = build.bakedIndex;
+        Iterator<BlockPos> positions = new Iterator<>() {
+            @Override public boolean hasNext() {
+                return build.bakedIndex < build.blocks.size() && build.bakedIndex - batchStart < BUILD_BATCH_SIZE
+                    && (build.bakedIndex == batchStart || System.nanoTime() < deadline);
+            }
+            @Override public BlockPos next() {
+                if (build.bakedIndex >= build.blocks.size()) throw new NoSuchElementException();
+                return build.blocks.get(build.bakedIndex++).pos;
+            }
+        };
+        BakedModelBufferer.bufferBlocks(positions, level, null, true,
             (renderType, shaded, data) -> {
                 SuperByteBufferBuilder b = builders.get(renderType);
                 if (b != null) {
@@ -325,8 +397,26 @@ public class StructurePreviewWidget {
             if (sbb.isEmpty()) {
                 sbb.delete();
             } else {
-                cache.put(e.getKey(), sbb);
+                cache.computeIfAbsent(e.getKey(), key -> new ArrayList<>()).add(sbb);
             }
+        }
+        if (build.bakedIndex == build.blocks.size()) {
+            pendingBuild = null;
+            statusKey = null;
+            startMillis = System.currentTimeMillis();
+            recomputeScale();
+        }
+    }
+
+    private record PreparedPreview(List<PlacedBlock> blocks, @Nullable String statusKey) {}
+
+    private static final class PreviewBuild {
+        private final List<PlacedBlock> blocks;
+        private int placedIndex;
+        private int bakedIndex;
+
+        private PreviewBuild(List<PlacedBlock> blocks) {
+            this.blocks = blocks;
         }
     }
 
@@ -357,7 +447,14 @@ public class StructurePreviewWidget {
 
     public void render(GuiGraphics graphics, float partialTicks) {
         renderBackground(graphics);
-        if (level == null || cache.isEmpty()) {
+        try {
+            advanceLoading();
+            advanceBuild();
+        } catch (Exception | LinkageError e) {
+            LOGGER.debug("StructurePreview: incremental build failed", e);
+            setStatus(failureStatus);
+        }
+        if (pendingBuild != null || level == null || cache.isEmpty()) {
             renderStatus(graphics);
             return;
         }
@@ -428,10 +525,10 @@ public class StructurePreviewWidget {
         pose.scale((float) scale, (float) scale, (float) scale);
         pose.translate(-centerX, -centerY, -centerZ);
 
-        for (Map.Entry<RenderType, SuperByteBuffer> e : cache.entrySet()) {
-            e.getValue()
-                .light(FULL_BRIGHT)
-                .renderInto(pose, buffer.getBuffer(e.getKey()));
+        for (Map.Entry<RenderType, List<SuperByteBuffer>> e : cache.entrySet()) {
+            for (SuperByteBuffer batch : e.getValue()) {
+                batch.light(FULL_BRIGHT).renderInto(pose, buffer.getBuffer(e.getKey()));
+            }
         }
 
         renderBlockEntities(pose, buffer, partialTicks);
@@ -464,11 +561,22 @@ public class StructurePreviewWidget {
     }
 
     public void dispose() {
-        for (SuperByteBuffer buffer : cache.values()) {
-            try {
-                buffer.delete();
-            } catch (Exception | LinkageError e) {
-                LOGGER.debug("StructurePreview: failed to release preview buffer", e);
+        loadVersion++;
+        if (pendingLoad != null) {
+            pendingLoad.cancel(true);
+            LOAD_EXECUTOR.remove(pendingLoad);
+            pendingLoad = null;
+        }
+        pendingBuild = null;
+        sourceLevel = null;
+        confirmationParent = null;
+        for (List<SuperByteBuffer> batches : cache.values()) {
+            for (SuperByteBuffer buffer : batches) {
+                try {
+                    buffer.delete();
+                } catch (Exception | LinkageError e) {
+                    LOGGER.debug("StructurePreview: failed to release preview buffer", e);
+                }
             }
         }
         cache.clear();
@@ -485,7 +593,7 @@ public class StructurePreviewWidget {
 
     /** Begin drag: freeze the auto-rotation at its current angle so the drag continues from where it visually is. */
     public boolean onMouseDown(double mouseX, double mouseY) {
-        if (level == null || cache.isEmpty()) return false;
+        if (pendingBuild != null || level == null || cache.isEmpty()) return false;
         if (!isInside(mouseX, mouseY)) return false;
         lockedYawDeg = computeAutoYawDeg(0.0f);
         rotationLocked = true;

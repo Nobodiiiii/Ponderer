@@ -14,10 +14,10 @@ import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.ConfigScreenList;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
+import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
@@ -69,6 +70,8 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     @Nullable
     private Path loadedPreviewPath;
+    @Nullable
+    private CompletableFuture<StructureDescriber.StructureInfo> pendingStructureInfo;
 
     public AiGenerateScreen() {
         super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.ai_generate.title",
@@ -97,6 +100,10 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     @Override
     public void removed() {
         super.removed();
+        if (pendingStructureInfo != null) {
+            pendingStructureInfo.cancel(true);
+            pendingStructureInfo = null;
+        }
         preview.dispose();
         loadedPreviewPath = null;
     }
@@ -278,11 +285,12 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     }
 
     private void reopenFromStructurePicker(Map<String, String> snapshot) {
+        AiGenerateScreen screen = new AiGenerateScreen();
+        Minecraft.getInstance().setScreen(screen);
         String selected = snapshot.get("ai_generate_structure");
         if (selected != null && !selected.isBlank()) {
-            addStructureFromPicker(selected);
+            screen.addStructureFromPicker(selected);
         }
-        Minecraft.getInstance().setScreen(new AiGenerateScreen());
     }
 
     private void addStructureFromPicker(String structureId) {
@@ -301,16 +309,34 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             }
         }
 
-        try {
-            StructureDescriber.StructureInfo info = StructureDescriber.describe(path);
+        Minecraft mc = Minecraft.getInstance();
+        var level = mc.level;
+        preview.setStatus("ponderer.ui.structure_picker.preview.loading");
+        loadedPreviewPath = null;
+        CompletableFuture<StructureDescriber.StructureInfo> request = CompletableFuture.supplyAsync(() -> {
+            try {
+                return StructureDescriber.describe(path);
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+        }, Util.ioPool());
+        pendingStructureInfo = request;
+        request.whenCompleteAsync((info, error) -> {
+            if (pendingStructureInfo != request || mc.screen != this || mc.level != level) return;
+            pendingStructureInfo = null;
+            if (error != null) {
+                Throwable cause = error.getCause() == null ? error : error.getCause();
+                setCachedStatus("Failed to parse NBT: " + cause.getMessage(), true);
+                preview.setStatus("ponderer.ui.structure_picker.preview.load_failed");
+                return;
+            }
             cachedStructurePaths.add(path);
             cachedStructureInfos.add(info);
             cachedStructureIndex = cachedStructurePaths.size() - 1;
             setCachedStatus(null, false);
             loadPreviewForCurrent();
-        } catch (Exception e) {
-            setCachedStatus("Failed to parse NBT: " + e.getMessage(), true);
-        }
+            rebuildListPreservingScroll();
+        }, mc);
     }
 
     @Nullable
@@ -401,30 +427,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             return;
         }
         Path file = cachedStructurePaths.get(cachedStructureIndex);
-        int count = StructurePreviewWidget.countBlocks(file);
-        if (count <= 0) {
-            preview.setStatus("ponderer.ui.structure_picker.preview.empty");
-            loadedPreviewPath = null;
-            return;
-        }
-        if (count > StructurePreviewWidget.DEFAULT_LARGE_THRESHOLD) {
-            preview.setStatus("ponderer.ui.structure_picker.preview.confirm_pending");
-            loadedPreviewPath = null;
-            new ConfirmationScreen()
-                .centered()
-                .withText(Component.translatable("ponderer.ui.structure_picker.preview.large", count))
-                .withAction(success -> {
-                    if (Boolean.TRUE.equals(success)) {
-                        preview.load(file);
-                        loadedPreviewPath = file;
-                    } else {
-                        preview.setStatus("ponderer.ui.structure_picker.preview.skipped");
-                    }
-                })
-                .open(this);
-            return;
-        }
-        preview.load(file);
+        preview.load(file, this);
         loadedPreviewPath = file;
     }
 

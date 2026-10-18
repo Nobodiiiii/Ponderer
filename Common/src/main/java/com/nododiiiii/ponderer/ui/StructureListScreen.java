@@ -13,13 +13,9 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtAccounter;
-import net.minecraft.nbt.NbtIo;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
-import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -172,10 +168,7 @@ public class StructureListScreen extends AbstractDeclarativeListScreen {
                 preview.setStatus(response.statusKey());
                 return;
             }
-            try (var input = new ByteArrayInputStream(response.template())) {
-                CompoundTag nbt = NbtIo.readCompressed(input, new NbtAccounter(8 * 1024 * 1024L, 64));
-                preview.loadTemplate(nbt);
-            }
+            preview.loadTemplate(response.template());
         } catch (Exception | LinkageError e) {
             LOGGER.debug("Cannot load structure preview for {}", response.structureId(), e);
             preview.setStatus(STATUS_PREFIX + "unavailable");

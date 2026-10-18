@@ -6,6 +6,7 @@ import com.mojang.logging.LogUtils;
 import com.mojang.serialization.JsonOps;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import net.minecraft.Util;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -19,6 +20,7 @@ import org.slf4j.Logger;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /** Reads preview resources only; never generates a structure or loads a chunk. */
 public record StructurePreviewRequestPayload(long requestId, String structureId) implements CustomPacketPayload {
@@ -77,14 +79,25 @@ public record StructurePreviewRequestPayload(long requestId, String structureId)
                         } else {
                             // Minecraft 1.21 uses the singular data/<namespace>/structure directory.
                             ResourceLocation resourceId = templateId.withPath(path -> "structure/" + path + ".nbt");
-                            byte[] bytes;
-                            try (InputStream input = player.server.getResourceManager().open(resourceId)) {
-                                bytes = input.readNBytes(MAX_TEMPLATE_BYTES + 1);
-                            }
-                            response = bytes.length > MAX_TEMPLATE_BYTES
-                                ? failure(payload, "too_large")
-                                : new StructurePreviewResponsePayload(payload.requestId(), payload.structureId(),
-                                    List.of(), bytes, "");
+                            var server = player.server;
+                            var resources = server.getResourceManager();
+                            CompletableFuture.supplyAsync(() -> {
+                                try (InputStream input = resources.open(resourceId)) {
+                                    byte[] bytes = input.readNBytes(MAX_TEMPLATE_BYTES + 1);
+                                    return bytes.length > MAX_TEMPLATE_BYTES
+                                        ? failure(payload, "too_large")
+                                        : new StructurePreviewResponsePayload(payload.requestId(), payload.structureId(),
+                                            List.of(), bytes, "");
+                                } catch (Exception | LinkageError e) {
+                                    LOGGER.debug("Cannot read structure preview for {}", payload.structureId(), e);
+                                    return failure(payload, "unavailable");
+                                }
+                            }, Util.ioPool()).thenAcceptAsync(loaded -> {
+                                if (server.getPlayerList().getPlayer(player.getUUID()) == player) {
+                                    sendResponse(player, loaded);
+                                }
+                            }, server);
+                            return;
                         }
                     }
                 }
@@ -93,10 +106,14 @@ public record StructurePreviewRequestPayload(long requestId, String structureId)
             LOGGER.debug("Cannot read structure preview for {}", payload.structureId(), e);
             response = failure(payload, "unavailable");
         }
+        sendResponse(player, response);
+    }
+
+    private static void sendResponse(ServerPlayer player, StructurePreviewResponsePayload response) {
         try {
             PondererServices.NETWORK.sendToPlayer(player, response);
         } catch (Exception | LinkageError e) {
-            LOGGER.debug("Cannot send structure preview for {}", payload.structureId(), e);
+            LOGGER.debug("Cannot send structure preview for {}", response.structureId(), e);
         }
     }
 
