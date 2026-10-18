@@ -88,7 +88,7 @@ final class ItemTagDropdown {
             widest = Math.max(widest, font.width(option) + PADDING * 2 + 4);
         }
         int popupWidth = Math.min(widest, Math.max(1, screenWidth - PADDING * 2));
-        int left = Math.max(PADDING, Math.min(field.getX(), screenWidth - popupWidth - PADDING));
+        int left = Math.max(PADDING, Math.min(field.getX() - 1, screenWidth - popupWidth - PADDING));
         int below = screenHeight - PADDING - (field.getY() + field.getHeight());
         int above = field.getY() - PADDING;
         boolean openBelow = below >= PADDING * 2 + Math.min(3, options.size()) * ROW_HEIGHT

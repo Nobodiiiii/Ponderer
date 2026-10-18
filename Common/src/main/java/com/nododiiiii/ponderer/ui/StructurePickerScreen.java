@@ -5,7 +5,6 @@ import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
-import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.ConfigScreenList;
@@ -99,9 +98,7 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
             saveChanges.withCallback(this::confirmSelection);
         }
         if (discardChanges != null) {
-            PondererGuiIcons.REMOVE.attach(discardChanges);
             discardChanges.withCallback(this::clearSelection);
-            setActionButtonTooltip(discardChanges, "ponderer.ui.structure_picker.clear_selection");
         }
         layoutPreviewPanel();
         if (selectedPath != null && !selectedExternal && previewVisible) {

@@ -111,6 +111,14 @@ public final class PonderFreePreview {
         return partialTicks;
     }
 
+    public void refreshAfterSeek() {
+        if (isActive()) {
+            // Seeking lands on a whole tick; discard the previous frame's interpolation.
+            partialTicks = 0;
+            PonderUI.ponderPartialTicksPaused = 0;
+        }
+    }
+
     public float pitch() {
         return pitch;
     }

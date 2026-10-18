@@ -61,7 +61,9 @@ public abstract class AbstractInventoryPickerFormScreen extends AbstractJeiAware
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (inventoryPicker != null) {
-            if (button == 0) {
+            if (!inventoryPicker.contains(mouseX, mouseY)) {
+                closeInventoryPicker();
+            } else if (button == 0) {
                 inventoryPicker.pick(mouseX, mouseY);
             }
             return true;

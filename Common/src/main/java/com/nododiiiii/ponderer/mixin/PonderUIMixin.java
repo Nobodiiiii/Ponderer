@@ -45,6 +45,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 import java.util.List;
@@ -56,6 +57,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PonderUI.class)
 public abstract class PonderUIMixin extends AbstractPonderScreen implements PonderUiZoomAccess, PonderUiPreviewAccess {
+
+    @Shadow(remap = false)
+    protected abstract void replay();
 
     @Unique
     private float ponderer$userZoom = 1;
@@ -238,6 +242,24 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
     private void ponderer$popRenderWidgetsLift(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTicks, CallbackInfo ci) {
         graphics.pose().popPose();
+    }
+
+    @Redirect(method = "seekToTime", at = @At(value = "INVOKE",
+        target = "Lnet/createmod/ponder/foundation/ui/PonderUI;replay()V", remap = false), remap = false)
+    private void ponderer$rewindPreviewForSeek(PonderUI ui) {
+        if (ponderer$getFreePreview().isActive()) {
+            // Rebuild the timeline without replay's preview and camera teardown.
+            PonderScene scene = ui.getActiveScene();
+            scene.begin();
+            ponderer$resetCustomView(scene);
+        } else {
+            replay();
+        }
+    }
+
+    @Inject(method = "seekToTime", at = @At("TAIL"), remap = false)
+    private void ponderer$freezePreviewAfterSeek(int time, CallbackInfo ci) {
+        ponderer$getFreePreview().refreshAfterSeek();
     }
 
     @Inject(method = "replay", at = @At("HEAD"), remap = false)

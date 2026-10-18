@@ -66,6 +66,10 @@ final class PlayerInventoryPicker {
         graphics.pose().popPose();
     }
 
+    boolean contains(double mouseX, double mouseY) {
+        return mouseX >= x && mouseX < x + WIDTH && mouseY >= y && mouseY < y + HEIGHT;
+    }
+
     void pick(double mouseX, double mouseY) {
         ItemStack stack = stackAt(slotAt(mouseX, mouseY));
         if (!stack.isEmpty()) {

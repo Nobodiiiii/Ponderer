@@ -38,6 +38,8 @@ public class PonderTextListWidget extends AbstractWidget {
     public static final int BOTTOM_PAD = 60; // leave room for the bottom button row
 
     private static final int BORDER_SIZE = 2;
+    /** Screen margin measured to the outside of the panel's border. */
+    public static final int OUTER_RIGHT_PADDING = DESIRED_RIGHT_PADDING - BORDER_SIZE;
     private static final int ROW_HEIGHT = 11;
     private static final int HEADER_HEIGHT = 14;
     private static final int PADDING_X = 7;

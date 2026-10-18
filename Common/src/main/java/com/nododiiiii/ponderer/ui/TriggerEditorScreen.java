@@ -245,7 +245,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
                 "Y",
                 "Z",
                 FieldDecorators.xyzIconAction(PondererGuiIcons.PICK_POSITION,
-                    UIText.of("ponderer.ui.pick.tooltip"), this::startCoordinatePick)));
+                    UIText.of("ponderer.ui.world_pick.tooltip"), this::startCoordinatePick)));
             entries.add(FieldSpecs.xyz(
                 coord2Field,
                 "ponderer.ui.trigger_editor.trigger_coord2",
@@ -254,7 +254,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
                 "Y",
                 "Z",
                 FieldDecorators.xyzIconAction(PondererGuiIcons.PICK_POSITION,
-                    UIText.of("ponderer.ui.pick.tooltip"), this::startCoordinatePick)));
+                    UIText.of("ponderer.ui.world_pick.tooltip"), this::startCoordinatePick)));
         }
     }
 

@@ -2,8 +2,6 @@ package com.nododiiiii.ponderer.ui;
 
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
-import net.createmod.catnip.gui.element.DelegatedStencilElement;
-import net.createmod.ponder.enums.PonderGuiTextures;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.gui.GuiGraphics;
@@ -17,24 +15,17 @@ public class PonderZoomSlider extends AbstractSliderButton {
     public static final float MIN_ZOOM = 0.2f;
     public static final float MAX_ZOOM = 5f;
 
-    private static final int ICON_WIDTH = 24;
-    private static final int ICON_HEIGHT = 20;
-    private static final int ICON_GAP = 4;
+    // Align the bar and preview button with the text panel's outer right border.
+    private static final int HEADER_MARGIN = PonderTextListWidget.OUTER_RIGHT_PADDING;
+    private static final int LABEL_GAP = 4;
 
     private final PonderUI ponder;
     private final PonderUiZoomAccess zoom;
-    private final DelegatedStencilElement zoomIcon = new DelegatedStencilElement()
-        .withStencilRenderer((graphics, width, height, alpha) -> {
-            PonderGuiTextures.ICON_PONDER_IDENTIFY.render(graphics, 8, 0);
-            // Small plus and minus marks beside the magnifier's lower-left handle.
-            graphics.fill(0, 13, 5, 14, 0xFFFFFFFF);
-            graphics.fill(2, 11, 3, 16, 0xFFFFFFFF);
-            graphics.fill(6, 16, 11, 17, 0xFFFFFFFF);
-        });
+    private final Component label = Component.translatable("ponderer.ui.zoom.label");
     private Component multiplier = Component.empty();
 
     public PonderZoomSlider(PonderUI ponder) {
-        super(left(ponder.width), ponder.width < 480 ? 53 : 25, sliderWidth(ponder.width), 20,
+        super(left(ponder.width), HEADER_MARGIN - 6, sliderWidth(ponder.width), 20,
             Component.empty(), sliderValueForZoom(((PonderUiZoomAccess) ponder).ponderer$getUserZoom()));
         this.ponder = ponder;
         zoom = (PonderUiZoomAccess) ponder;
@@ -51,7 +42,8 @@ public class PonderZoomSlider extends AbstractSliderButton {
     }
 
     private static int left(int screenWidth) {
-        return screenWidth - 31 - sliderWidth(screenWidth);
+        // The bar's outer border ends two pixels before the widget's right edge.
+        return screenWidth - HEADER_MARGIN - sliderWidth(screenWidth) + 2;
     }
 
     public int getBarRight() {
@@ -95,10 +87,14 @@ public class PonderZoomSlider extends AbstractSliderButton {
         int barX = getX() + 6;
         int barY = getY() + getHeight() / 2;
         int barWidth = width - 12;
-        int iconX = getX() - ICON_GAP - ICON_WIDTH;
-        boolean iconHovered = mouseX >= iconX && mouseX < iconX + ICON_WIDTH
-            && mouseY >= getY() && mouseY < getY() + ICON_HEIGHT;
-        boolean highlighted = isHoveredOrFocused() || iconHovered;
+        var font = ponder.getFontRenderer();
+        int labelWidth = font.width(label);
+        int labelX = barX - 4 - LABEL_GAP - labelWidth;
+        int labelY = barY - (font.lineHeight - 1) / 2;
+        boolean labelHovered = mouseX >= labelX && mouseX < labelX + labelWidth
+            && mouseY >= labelY && mouseY < labelY + font.lineHeight;
+        boolean hovered = isHovered() || labelHovered;
+        boolean highlighted = hovered || isFocused();
         new BoxElement().withBackground(PonderUI.BACKGROUND_FLAT)
             .gradientBorder(highlighted ? PonderUI.COLOR_HOVER : PonderUI.COLOR_IDLE)
             .withBorderOffset(-2)
@@ -120,19 +116,20 @@ public class PonderZoomSlider extends AbstractSliderButton {
             handle.getFirst(), handle.getSecond());
         graphics.pose().popPose();
 
-        zoomIcon.withElementRenderer((iconGraphics, iconWidth, iconHeight, alpha) ->
-            UIRenderHelper.angledGradient(iconGraphics, 0, 0, iconHeight / 2, iconHeight, iconWidth,
-                highlighted ? PonderUI.COLOR_HOVER : PonderUI.COLOR_IDLE));
-        zoomIcon.at(iconX, getY(), 420).withBounds(ICON_WIDTH, ICON_HEIGHT).render(graphics);
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 420);
+        graphics.drawString(font, label, labelX, labelY, 0xFFFFFFFF, false);
+        graphics.pose().popPose();
 
-        if (highlighted) {
+        if (hovered) {
             float hintTop = barY + 5;
             float hintBottom = getPreviewButtonY();
             float barCenterY = barY + 0.5f;
             int hintCenterX = barX + barWidth / 2;
+            int multiplierCenterX = Math.round(barX - 2 + fill);
             int hintColor = UIRenderHelper.COLOR_TEXT_DARKER.getFirst().getRGB();
             PonderSmallHint.render(graphics, multiplier,
-                hintCenterX, 2 * barCenterY - hintBottom, 2 * barCenterY - hintTop, hintColor);
+                multiplierCenterX, 2 * barCenterY - hintBottom, 2 * barCenterY - hintTop, hintColor);
             PonderSmallHint.render(graphics, Component.translatable("ponderer.ui.zoom.hint"),
                 hintCenterX, hintTop, hintBottom, hintColor);
         }
