@@ -23,6 +23,7 @@ import com.nododiiiii.ponderer.ui.SceneEditorScreen;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.NbtExpandedPickState;
 import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -41,7 +42,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
@@ -75,6 +75,9 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
 
     @Unique
     private boolean ponderer$previewResumeHeld;
+
+    @Unique
+    private boolean ponderer$previewTextHeld;
 
     @Override
     public PonderFreePreview ponderer$getFreePreview() {
@@ -143,7 +146,7 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
 
         int bY = this.height - 20 - 31;
         PonderButton editButton = new PonderButton(this.width - 80 - 31, bY)
-                .showing(new ItemStack(Items.WRITABLE_BOOK))
+                .showing(PondererGuiIcons.EDIT_SCENE)
                 .enableFade(0, 5);
         editButton.withCallback(() -> {
             PonderUI current = (PonderUI) (Object) this;
@@ -220,6 +223,15 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
         target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z", remap = false))
     private boolean ponderer$skipPreviewClipboard() {
         return PonderIndex.editingModeActive() && !ponderer$getFreePreview().isActive();
+    }
+
+    @Redirect(method = "renderOverlay", at = @At(value = "FIELD",
+        target = "Lnet/createmod/ponder/foundation/ui/PonderUI;identifyMode:Z", ordinal = 0, remap = false))
+    private boolean ponderer$keepPreviewTextVisible(PonderUI ui) {
+        PonderFreePreview preview = ponderer$getFreePreview();
+        // Only bypass the overlay's early return; keep the paused interpolation below it.
+        return ((PonderUIAccessor) ui).ponderer$getIdentifyMode()
+            && (!preview.isActive() || !preview.isTextVisible());
     }
 
     /**
@@ -571,6 +583,14 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
      */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_T
+            && (ponderer$getFreePreview().isActive() || ponderer$previewTextHeld)) {
+            if (!ponderer$previewTextHeld) {
+                ponderer$previewTextHeld = true;
+                ponderer$getFreePreview().toggleTextVisibility();
+            }
+            return true;
+        }
         if (keyCode == GLFW.GLFW_KEY_Q
             && (ponderer$getFreePreview().isActive() || ponderer$previewResumeHeld)) {
             ponderer$previewResumeHeld = true;
@@ -608,6 +628,10 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
 
     @Override
     public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_T && ponderer$previewTextHeld) {
+            ponderer$previewTextHeld = false;
+            return true;
+        }
         if (keyCode == GLFW.GLFW_KEY_Q && ponderer$previewResumeHeld) {
             ponderer$previewResumeHeld = false;
             return true;
@@ -812,6 +836,7 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
     private void ponderer$onRemoved(CallbackInfo ci) {
         ponderer$previewSpaceHeld = false;
         ponderer$previewResumeHeld = false;
+        ponderer$previewTextHeld = false;
         ponderer$getFreePreview().stop();
         if (PickState.isActive()) {
             PickState.reset();

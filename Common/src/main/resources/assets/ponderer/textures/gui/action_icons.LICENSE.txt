@@ -1,10 +1,13 @@
-Local action icon atlas (13 sprites)
+Local action icon atlas (14 sprites)
 
-10 sprites: 1-bit Pixel Icons by Nikoichu
+11 sprites: 1-bit Pixel Icons by Nikoichu
 https://nikoichu.itch.io/pixel-icons
 License: CC0 1.0 Universal
 https://creativecommons.org/publicdomain/zero/1.0/
 These sprites retain only opaque pure-white pixels; black outlines are removed.
+The edit-scene parchment-and-quill mask uses Ponder's light-gray foreground and
+a lower-contour gray shadow offset two pixels downward. Internal gaps remain
+transparent, following the detached shadow style of the native bottom-row icons.
 
 1 sprite: Create I_OPEN_FOLDER
 Source: Creators of Create, mc1.21.1/dev

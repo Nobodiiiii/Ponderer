@@ -20,6 +20,7 @@ import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -41,6 +42,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private static final int SIDEBAR_BUTTON_SIZE = 28;
     private static final int SIDEBAR_BUTTON_GAP = 2;
     private static final int STEP_ACTION_ICON_SIZE = 12;
+    private static final int SCENE_LIST_WIDTH = 400;
     private static final HistorySession HISTORY_SESSION = new HistorySession();
 
     @Nullable
@@ -52,6 +54,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     @Nullable
     private final PonderScreenNavigation.ReturnState ponderReturnState;
     private int sceneIndex;
+    private final SceneEditorPreview preview = new SceneEditorPreview();
+    private boolean syncingListFromPreview;
 
     @Nullable
     private BoxWidget undoButton;
@@ -64,7 +68,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private SceneEditorScreen(DslScene scene, int sceneIndex,
                               @Nullable PonderScreenNavigation.ReturnState ponderReturnState) {
-        super(null, "ponderer.ui.scope.editor", "ponderer.ui.scene_editor", 400);
+        super(null, "ponderer.ui.scope.editor", "ponderer.ui.scene_editor", SCENE_LIST_WIDTH);
         this.scene = scene;
         this.sceneIndex = sceneIndex;
         this.ponderReturnState = ponderReturnState;
@@ -79,12 +83,105 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         super.init();
         configureActionButtons();
         initHistoryButtons();
+        preview.load(scene, sceneIndex);
+        layoutPreview();
         restoreRememberedListScroll();
+    }
+
+    @Override
+    protected int listHorizontalOffset() {
+        return listLeftEdge() - (width / 2 - currentListWidthValue() / 2);
+    }
+
+    @Override
+    protected int availableListWidth() {
+        return Math.max(1, width - listLeftEdge() - 40);
+    }
+
+    private int listLeftEdge() {
+        // Retain the previous slim list's left edge; widen only toward the right.
+        int previousWidth = Math.min(width - 80, UILayoutConstants.EDITOR_LIST_W);
+        return Math.min(width * 2 / 5 + 8, width - previousWidth - 40);
+    }
+
+    @Override
+    protected int listBottomPadding(int viewportHeight) {
+        // Let even the final step reach the top, including in lists shorter than the viewport.
+        return Math.max(0, viewportHeight - getEntryHeight());
+    }
+
+    @Override
+    protected void onListScrollChanged(int firstVisibleIndex) {
+        if (!syncingListFromPreview) preview.seekStep(firstVisibleIndex);
+    }
+
+    private void layoutPreview() {
+        int listLeft = width / 2 - currentListWidthValue() / 2 + listHorizontalOffset();
+        preview.setBounds(0, CONTENT_TOP, Math.max(1, Math.min(width * 2 / 5, listLeft - 8)),
+            Math.max(60, height - CONTENT_TOP - 10));
+    }
+
+    @Override
+    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.renderWindow(graphics, mouseX, mouseY, partialTicks);
+        preview.render(graphics, mouseX, mouseY, partialTicks);
+    }
+
+    private void scrollListToPreview() {
+        if (list == null) return;
+        syncingListFromPreview = true;
+        try {
+            list.setScrollAmount(preview.stepAtCursor() * (double) getEntryHeight() + 7);
+        } finally {
+            syncingListFromPreview = false;
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (preview.mouseClicked(mouseX, mouseY, button)) {
+            setFocused(null);
+            setDragging(button == 0);
+            if (preview.isScrubbing()) scrollListToPreview();
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (preview.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) {
+            if (preview.isScrubbing()) scrollListToPreview();
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (preview.mouseReleased(mouseX, mouseY, button)) {
+            setDragging(false);
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        return preview.mouseScrolled(mouseX, mouseY, scrollY)
+            || super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    @Override
+    public void removed() {
+        preview.close();
+        super.removed();
     }
 
     @Override
     public void tick() {
         super.tick();
+        preview.tick();
         refreshHistoryButtonState();
     }
 
@@ -280,7 +377,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private int actionButtonX() {
-        return width / 2 + currentListWidthValue() / 2 + 6;
+        return width / 2 + currentListWidthValue() / 2 + listHorizontalOffset() + 6;
     }
 
     private BoxWidget createHistoryButton(int x, int y, Runnable callback,
@@ -408,6 +505,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         sceneIndex = newIndex;
         clearStatusMessages();
         rebuildListAtTop();
+        preview.load(scene, sceneIndex);
+        preview.seekStep(0);
     }
 
     private void openSceneDescription() {
@@ -756,6 +855,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         com.nododiiiii.ponderer.ponder.SceneStore.LocalSaveResult result = com.nododiiiii.ponderer.ponder.SceneStore.saveSceneToLocalDetailed(scene);
         if (result.isSuccess()) {
             clearStatusMessages();
+            preview.load(scene, sceneIndex);
             com.nododiiiii.ponderer.ponder.SceneStore.reloadFromDisk();
             Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
             return true;

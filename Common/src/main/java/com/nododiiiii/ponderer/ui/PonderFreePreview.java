@@ -25,6 +25,7 @@ public final class PonderFreePreview {
     private double panX;
     private double panY;
     private int dragButton = -1;
+    private boolean textVisible = true;
 
     public PonderFreePreview(PonderUI ui) {
         this.ui = ui;
@@ -55,6 +56,16 @@ public final class PonderFreePreview {
         return scene == target;
     }
 
+    public boolean isTextVisible() {
+        return textVisible;
+    }
+
+    public void toggleTextVisibility() {
+        if (isActive()) {
+            textVisible = !textVisible;
+        }
+    }
+
     private boolean canToggle() {
         return !PickState.isActive() && !NbtExpandedPickState.isActive() && !InterfaceSlotEditState.isActive();
     }
@@ -63,6 +74,7 @@ public final class PonderFreePreview {
         if (isActive()) {
             stop();
         } else if (canToggle()) {
+            textVisible = true;
             partialTicks = PonderUI.getPartialTicks();
             originalZoom = ((PonderUiZoomAccess) ui).ponderer$getUserZoom();
             scene = ui.getActiveScene();
@@ -199,6 +211,8 @@ public final class PonderFreePreview {
         graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER + 500);
         graphics.renderComponentTooltip(ui.getFontRenderer(),
             List.of(Component.translatable("ponderer.ui.preview.shortcut").withStyle(ChatFormatting.WHITE),
+                Component.translatable(textVisible ? "ponderer.ui.preview.hide_text"
+                    : "ponderer.ui.preview.show_text").withStyle(ChatFormatting.GRAY),
                 Component.translatable("ponderer.ui.preview.rotate").withStyle(ChatFormatting.GRAY),
                 Component.translatable("ponderer.ui.preview.pan").withStyle(ChatFormatting.GRAY),
                 Component.translatable("ponderer.ui.preview.zoom").withStyle(ChatFormatting.GRAY)), mouseX, mouseY);

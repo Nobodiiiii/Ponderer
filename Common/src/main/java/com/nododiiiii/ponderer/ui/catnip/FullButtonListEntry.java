@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
-import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
@@ -64,11 +63,10 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
         refreshTooltip();
 
-        boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
-        int buttonY = compact ? y : y + 6;
+        int buttonY = EntryTextSupport.fullButtonY(y, height);
         int buttonWidth = Math.max(40, EntryTextSupport.contentWidth(width));
         int buttonX = EntryTextSupport.contentLeft(x);
-        int buttonHeight = compact ? 24 : Math.max(24, height - 12);
+        int buttonHeight = EntryTextSupport.fullButtonHeight(height);
         EntryTextSupport.setBoxHorizontalBounds(button, buttonX, buttonWidth);
         button.setY(buttonY);
         button.setHeight(buttonHeight);

@@ -24,6 +24,10 @@ public final class PonderSmallHint {
 
     public static int getRowHeight(PonderUI ponder) {
         var button = ((PonderUIAccessor) ponder).ponderer$getSlowMode();
+        if (button == null) {
+            // Embedded native progress bars have no Comfy Reading button or tooltip strip.
+            return Minecraft.getInstance().font.lineHeight;
+        }
         // Match the space from the text-progress button's outer border to its tooltip label.
         return ponder.height - 16 - (button.getY() + button.getHeight() + 4);
     }

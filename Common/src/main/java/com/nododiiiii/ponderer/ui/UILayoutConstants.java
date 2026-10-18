@@ -64,6 +64,10 @@ public final class UILayoutConstants {
     public static final int XYZ_GAP = 5;
 
     // ─── Buttons ────────────────────────────────────────────────────────
+    /** Minimum height of a full-width list button. */
+    public static final int FULL_BUTTON_MIN_H = 24;
+    /** Space above and below full-width buttons in regular list rows. */
+    public static final int FULL_BUTTON_VERTICAL_PADDING = 6;
     /** Inline action button width (JEI, Pick, etc.). */
     public static final int ACTION_BTN_W = 14;
     /** Inline action button height. */

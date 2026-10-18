@@ -8,6 +8,7 @@ import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
+import com.nododiiiii.ponderer.ui.catnip.SectionHeaderRenderer;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.data.Couple;
@@ -55,7 +56,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
     private static final int CELL_SIZE = 20;
     private static final int GRID_PAD_X = 12;
     private static final int GRID_PAD_Y = 8;
-    private static final int SECTION_HEADER_H = 16;
+    private static final int SECTION_HEADER_H = CELL_SIZE;
     private static final int SCROLL_SPEED = UILayoutConstants.SCROLL_SPEED;
 
     record ItemEntry(ItemStack stack, @Nullable String nbtFilter, List<String> sceneKeys) {
@@ -987,10 +988,8 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             for (PackSection section : visibleSections) {
                 int headerY = contentY;
                 if (headerY + SECTION_HEADER_H > getY() && headerY < getY() + getHeight()) {
-                    graphics.drawString(font, section.displayName, gridLeft() + 2, headerY + 3,
-                        UIRenderHelper.COLOR_TEXT_STRONG_ACCENT.getFirst().getRGB());
-                    graphics.fill(gridLeft(), headerY + SECTION_HEADER_H - 1, gridRight(),
-                        headerY + SECTION_HEADER_H, 0x20_FFFFFF);
+                    SectionHeaderRenderer.render(graphics, font, section.displayName,
+                        gridLeft(), gridRight(), headerY, SECTION_HEADER_H, false);
                 }
                 contentY += SECTION_HEADER_H;
 

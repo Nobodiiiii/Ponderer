@@ -62,7 +62,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         super.init();
         headerList = null;
 
-        listWidth = Math.min(width - 80, preferredListWidth);
+        listWidth = Math.min(availableListWidth(), preferredListWidth);
 
         int yCenter = height / 2;
         int listLeft = width / 2 - listWidth / 2 + listHorizontalOffset();
@@ -252,6 +252,17 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         return 0;
     }
 
+    protected int availableListWidth() {
+        return width - 80;
+    }
+
+    protected int listBottomPadding(int viewportHeight) {
+        return 0;
+    }
+
+    protected void onListScrollChanged(int firstVisibleIndex) {
+    }
+
     protected final int contentAreaTop() {
         return CONTENT_TOP;
     }
@@ -424,6 +435,21 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     private ConfigScreenList createCenteredList(int height, int top) {
         return new ConfigScreenList(minecraft, listWidth, height, top, getEntryHeight()) {
+            @Override
+            public int getMaxPosition() {
+                return super.getMaxPosition() + (this == list ? listBottomPadding(getHeight()) : 0);
+            }
+
+            @Override
+            public void setScrollAmount(double amount) {
+                super.setScrollAmount(amount);
+                if (this == list && !children().isEmpty()) {
+                    int first = Math.max(0, Math.min(children().size() - 1,
+                        Math.floorDiv(getY() - getRowTop(0) + 4, getEntryHeight())));
+                    onListScrollChanged(first);
+                }
+            }
+
             @Override
             public int getRowWidth() {
                 return getWidth() - 2 * com.nododiiiii.ponderer.ui.UILayoutConstants.LIST_ROW_MARGIN;

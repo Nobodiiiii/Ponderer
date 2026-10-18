@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
-import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.element.RenderElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
@@ -65,7 +64,6 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
         refreshTooltip();
 
-        boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
         int buttonHeight = BUTTON_HEIGHT;
         int buttonY = y + Math.max(0, (height - buttonHeight) / 2);
         int buttonX = EntryTextSupport.contentRight(x, width) - BUTTON_WIDTH;
@@ -78,17 +76,10 @@ public class CollapsibleSectionHeaderListEntry extends ConfigScreenList.LabeledE
         toggleButton.showingElement(collapsedGetter.getAsBoolean() ? expandIcon : collapseIcon);
         toggleButton.render(graphics, mouseX, mouseY, partialTicks);
 
-        String title = titleGetter.get();
-        var font = Minecraft.getInstance().font;
-        int color = annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFCCCC77;
         int contentLeft = EntryTextSupport.contentLeft(x);
         int titleRight = buttonX - EntryTextSupport.rightControlGap();
-        int titleWidth = Math.max(20, titleRight - contentLeft);
-        graphics.drawString(font, font.plainSubstrByWidth(title, titleWidth), contentLeft,
-            compact ? y + 8 : y + 11, color);
-        int lineY = compact ? y + height - 3 : y + height - 10;
-        graphics.fill(contentLeft, lineY, titleRight, lineY + 1, 0x40FFFFFF);
-
+        SectionHeaderRenderer.render(graphics, Minecraft.getInstance().font, titleGetter.get(),
+            contentLeft, titleRight, y, height, annotations.containsKey("highlight"));
     }
 
     private void refreshTooltip() {

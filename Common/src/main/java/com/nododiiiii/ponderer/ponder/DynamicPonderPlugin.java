@@ -36,6 +36,11 @@ import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstructio
 import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
 import net.createmod.ponder.foundation.instruction.RotateSceneInstruction;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
+import net.createmod.ponder.foundation.instruction.PonderInstruction;
+import net.createmod.ponder.foundation.registration.PonderLocalization;
+import net.createmod.ponder.foundation.registration.PonderSceneRegistry;
+import net.createmod.ponder.api.level.PonderLevel;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -681,7 +686,41 @@ public class DynamicPonderPlugin implements PonderPlugin {
         return result.toArray(ResourceLocation[]::new);
     }
 
+    /** Compile just the edited segment, using the same schematic resolution and storyboard as playback. */
+    public record EditorScene(PonderScene scene, List<Integer> stepTicks) {}
+
+    @Nullable
+    public EditorScene compileEditorScene(DslScene dsl, int segmentIndex) {
+        List<DslScene.SceneSegment> segments = normalizeScenes(dsl);
+        if (Minecraft.getInstance().level == null || segmentIndex < 0 || segmentIndex >= segments.size()) {
+            return null;
+        }
+        return ProjectorRenderContext.supply(() -> {
+            ResourceLocation schematic = resolveSceneSchematics(dsl, segments).get(segmentIndex);
+            PonderLevel level = new PonderLevel(BlockPos.ZERO, Minecraft.getInstance().level);
+            PonderSceneRegistry.loadSchematic(schematic).placeInWorld(level, BlockPos.ZERO, BlockPos.ZERO,
+                new StructurePlaceSettings(), level.random, Block.UPDATE_CLIENTS);
+            level.createBackup();
+            ResourceLocation component = SceneItemBindings.firstItem(dsl);
+            if (component == null) component = ResourceLocation.withDefaultNamespace("stick");
+            PonderScene compiled = new PonderScene(level, new PonderLocalization(), getModId(), component,
+                List.of(), List.of());
+            List<Integer> stepTicks = new ArrayList<>();
+            createStoryBoard(dsl, segments.get(segmentIndex), segmentIndex, segments.size(), stepTicks)
+                .program(compiled.builder(), compiled.getSceneBuildingUtil());
+            // Keep the last non-blocking step reachable through Ponder's native bounded timeline.
+            compiled.builder().idle(1);
+            compiled.begin();
+            return new EditorScene(compiled, stepTicks);
+        });
+    }
+
     private PonderStoryBoard createStoryBoard(DslScene scene, DslScene.SceneSegment sc, int index, int total) {
+        return createStoryBoard(scene, sc, index, total, null);
+    }
+
+    private PonderStoryBoard createStoryBoard(DslScene scene, DslScene.SceneSegment sc, int index, int total,
+                                             @Nullable List<Integer> stepTicks) {
         BoundingBox scanBox = preScanSegmentBounds(sc);
         return (builder, util) -> {
             try {
@@ -718,6 +757,18 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 }
 
                 for (DslScene.DslStep step : sc.steps) {
+                    if (stepTicks != null) {
+                        int stepIndex = stepTicks.size();
+                        stepTicks.add(0);
+                        // onScheduled runs in schedule order, after preceding blocking durations are counted.
+                        builder.addInstruction(new PonderInstruction() {
+                            @Override public void onScheduled(PonderScene ps) {
+                                stepTicks.set(stepIndex, ps.getTotalTime() + 1);
+                            }
+                            @Override public boolean isComplete() { return true; }
+                            @Override public void tick(PonderScene ps) {}
+                        });
+                    }
                     if (step == null || step.type == null) {
                         continue;
                     }

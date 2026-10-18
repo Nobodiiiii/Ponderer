@@ -5,7 +5,7 @@
     64
   ],
   "cell_size": 16,
-  "processing": "Preserve the original 16x16 pixel positions without resampling. Nikoichu sprites retain only opaque pure-white pixels. The Create folder and projector pull/upload icons retain their nonblack alpha masks, normalized to opaque white. All other pixels are transparent.",
+  "processing": "Preserve the original 16x16 pixel positions without resampling. Nikoichu sprites retain only opaque pure-white pixels. EDIT_SCENE uses that mask with Ponder's light-gray foreground and a gray lower-contour shadow offset two pixels downward, preserving the source's internal transparent gaps. The Create folder and projector pull/upload icons retain their nonblack alpha masks, normalized to opaque white. All other pixels are transparent.",
   "icons": [
     {
       "name": "PICK_POSITION",
@@ -118,6 +118,13 @@
       "x": 0,
       "y": 48,
       "source": "Sprites/Software_File_Document_Page_Arrow_Send_Import.png"
+    },
+    {
+      "name": "EDIT_SCENE",
+      "x": 16,
+      "y": 48,
+      "source": "Sprites/Tools_Crafting_Writing_Parchment_Scroll_Document_Quill_Pen.png",
+      "modifications": "Retain the pure-white mask as RGB (226, 226, 226). Project only the lowest foreground pixel in each column two pixels downward in RGB (142, 142, 142), clipped to the 16x16 cell. Preserve the source's internal transparent gaps instead of outlining the entire mask."
     }
   ],
   "native_icons": [

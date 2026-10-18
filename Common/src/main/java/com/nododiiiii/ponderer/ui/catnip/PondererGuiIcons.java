@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
 import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.catnip.gui.element.RenderElement;
+import net.createmod.catnip.gui.element.ScreenElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.gui.GuiGraphics;
@@ -11,8 +12,8 @@ import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
 
-/** Reuses Ponder icons when available, with a white-only atlas for the remaining actions. */
-public enum PondererGuiIcons {
+/** Reuses Ponder icons when available, with a local atlas for the remaining actions. */
+public enum PondererGuiIcons implements ScreenElement {
     PICK_POSITION(0, 0),
     PICK_BLOCK(0, 0),
     PICK_NBT(0, 0),
@@ -31,6 +32,7 @@ public enum PondererGuiIcons {
     HISTORY(2, 2),
     IGNORE(3, 2),
     OVERWRITE(0, 3),
+    EDIT_SCENE(1, 3),
     REMOVE(PonderGuiTextures.ICON_CONFIG_DISCARD),
     EXPAND(PonderGuiTextures.ICON_PONDER_RIGHT),
     COLLAPSE(PonderGuiTextures.ICON_PONDER_RIGHT, 90);
@@ -69,6 +71,22 @@ public enum PondererGuiIcons {
         return button.showingElement(asElement(button));
     }
 
+    @Override
+    public void render(GuiGraphics graphics, int x, int y) {
+        graphics.pose().pushPose();
+        graphics.pose().translate(x + TEXTURE_ICON_SIZE / 2f, y + TEXTURE_ICON_SIZE / 2f, 0);
+        if (rotation != 0) {
+            graphics.pose().mulPose(Axis.ZP.rotationDegrees(rotation));
+        }
+        if (nativeIcon != null) {
+            nativeIcon.render(graphics, -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2);
+        } else {
+            graphics.blit(TEXTURE, -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2,
+                u, v, TEXTURE_ICON_SIZE, TEXTURE_ICON_SIZE, SHEET_SIZE, SHEET_SIZE);
+        }
+        graphics.pose().popPose();
+    }
+
     public RenderElement asElement(BoxWidget button) {
         return asStencil(RENDERED_ICON_SIZE)
             .withElementRenderer(this == REMOVE
@@ -91,15 +109,7 @@ public enum PondererGuiIcons {
             graphics.pose().translate(centerX, centerY, 0);
             float scale = iconSize / (float) TEXTURE_ICON_SIZE;
             graphics.pose().scale(scale, scale, 1);
-            if (rotation != 0) {
-                graphics.pose().mulPose(Axis.ZP.rotationDegrees(rotation));
-            }
-            if (nativeIcon != null) {
-                nativeIcon.render(graphics, -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2);
-            } else {
-                graphics.blit(TEXTURE, -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2,
-                    u, v, TEXTURE_ICON_SIZE, TEXTURE_ICON_SIZE, SHEET_SIZE, SHEET_SIZE);
-            }
+            render(graphics, -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2);
         } finally {
             graphics.pose().popPose();
             graphics.setColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3]);

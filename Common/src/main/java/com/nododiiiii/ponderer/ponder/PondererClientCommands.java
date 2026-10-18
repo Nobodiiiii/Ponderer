@@ -698,20 +698,14 @@ public final class PondererClientCommands {
             scene.nbtFilter = nbt.toString();
         }
 
-        if (SceneStore.saveSceneToLocal(scene)) {
-            SceneStore.reloadFromDisk();
-            Minecraft.getInstance().execute(() -> {
-                ProjectorClientCaches.reloadPonderIndexAndInvalidate();
-                net.createmod.catnip.gui.ScreenOpener.open(
-                    new com.nododiiiii.ponderer.ui.SceneTypeSelectorScreen(
-                        new com.nododiiiii.ponderer.ui.SceneEditorScreen(scene, 0)));
-            });
-            notifyClient(Component.translatable("ponderer.cmd.new.created", sceneId, binding));
-            return 1;
-        } else {
-            notifyClient(Component.translatable("ponderer.cmd.new.failed", binding));
-            return 0;
-        }
+        // Keep the ponder as a draft until its first segment type is selected.
+        // Returning from the selector can then discard it without touching local files.
+        Minecraft mc = Minecraft.getInstance();
+        net.minecraft.client.gui.screens.Screen returnScreen = mc.screen;
+        mc.execute(() -> net.createmod.catnip.gui.ScreenOpener.open(
+            new com.nododiiiii.ponderer.ui.SceneTypeSelectorScreen(
+                new com.nododiiiii.ponderer.ui.SceneEditorScreen(scene, 0), returnScreen)));
+        return 1;
     }
 
     private static boolean sceneExists(String id) {

@@ -109,6 +109,17 @@ public final class EntryTextSupport {
         return Math.max(0, totalWidth - 2 * UILayoutConstants.ENTRY_CONTENT_PADDING);
     }
 
+    public static int fullButtonY(int rowY, int rowHeight) {
+        return rowHeight <= UILayoutConstants.COMPACT_LIST_ENTRY_H ? rowY
+            : rowY + UILayoutConstants.FULL_BUTTON_VERTICAL_PADDING;
+    }
+
+    public static int fullButtonHeight(int rowHeight) {
+        return rowHeight <= UILayoutConstants.COMPACT_LIST_ENTRY_H ? UILayoutConstants.FULL_BUTTON_MIN_H
+            : Math.max(UILayoutConstants.FULL_BUTTON_MIN_H,
+                rowHeight - 2 * UILayoutConstants.FULL_BUTTON_VERTICAL_PADDING);
+    }
+
     public static int inputX(int layoutX) {
         return layoutX + UILayoutConstants.INPUT_OUTER_PADDING;
     }

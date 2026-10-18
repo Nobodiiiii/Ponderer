@@ -52,6 +52,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
+    private static final int LIST_ACTION_ICON_SIZE = 12;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
         .withZone(ZoneId.systemDefault());
 
@@ -294,7 +295,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
                         () -> uploadLocal(entry), false, () -> canUpload && hasLocalScene(entry)),
                     actionButton(PondererGuiIcons.HISTORY, "ponderer.ui.remote_browser.action.history", "ponderer.ui.remote_browser.action.history.tooltip",
                         () -> requestHistory(entry), false, () -> true),
-                    actionButton(PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_DISCARD), "ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
+                    actionButton(PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_DISCARD, LIST_ACTION_ICON_SIZE), "ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
                         () -> delete(entry), true, () -> canManage)),
                 row::iconStack,
                 row.comparison()::priority));
@@ -317,7 +318,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
                         () -> pull(entry, false), false, () -> canPull),
                     actionButton(PondererGuiIcons.HISTORY, "ponderer.ui.remote_browser.action.history", "ponderer.ui.remote_browser.action.history.tooltip",
                         () -> requestHistory(entry), false, () -> true),
-                    actionButton(PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_DISCARD), "ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
+                    actionButton(PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_DISCARD, LIST_ACTION_ICON_SIZE), "ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
                         () -> delete(entry), true, () -> canManage)),
                 row::iconStack,
                 row.comparison()::priority));
@@ -358,7 +359,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
                 () -> UIText.of("ponderer.ui.remote_browser.history.row", entry.revision(), entry.action()),
                 () -> historyDetail(entry),
                 () -> entry.revision() + " " + entry.action() + " " + entry.actor(),
-                List.of(actionButton(PonderIconStencils.mirrored(PonderGuiTextures.ICON_CONFIG_RESET), "ponderer.ui.remote_browser.action.rollback", "ponderer.ui.remote_browser.action.rollback.tooltip",
+                List.of(actionButton(PonderIconStencils.mirrored(PonderGuiTextures.ICON_CONFIG_RESET, LIST_ACTION_ICON_SIZE), "ponderer.ui.remote_browser.action.rollback", "ponderer.ui.remote_browser.action.rollback.tooltip",
                     () -> rollback(entry.revision()), false, () -> historyCanManage))));
         }
     }
@@ -593,7 +594,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     private static ActionStripListEntry.ButtonModel actionButton(PondererGuiIcons icon, String labelKey, String tooltipKey,
                                                                  Runnable action, boolean danger,
                                                                  BooleanSupplier activeGetter) {
-        return actionButton(icon.asStencil(16), labelKey, tooltipKey, action, danger, activeGetter);
+        return actionButton(icon.asStencil(LIST_ACTION_ICON_SIZE), labelKey, tooltipKey, action, danger, activeGetter);
     }
 
     private static ActionStripListEntry.ButtonModel actionButton(DelegatedStencilElement icon, String labelKey, String tooltipKey,
