@@ -24,7 +24,7 @@ public class LocalizedTextListEntry extends PlainTextListEntry {
                                   String initialValue, Supplier<String> langGetter,
                                   Runnable onToggle, Consumer<String> responder) {
         super(labelKey, tooltipKey, hintKey, initialValue, responder);
-        setSharedTooltip(FieldType.LOCALIZED_TEXT.tooltipKey());
+        setSharedField(FieldType.LOCALIZED_TEXT);
         this.langGetter = langGetter;
         this.langText = new TextStencilElement(Minecraft.getInstance().font, "en_us")
             .centered(true, true);

@@ -30,8 +30,8 @@ public class BlockPropertyListEntry extends ConfigScreenList.LabeledEntry implem
         this.valueField.setValue(propertyValue);
         this.keyField.moveCursorToStart(false);
         this.valueField.moveCursorToStart(false);
-        this.keyField.setHint(Component.literal("facing"));
-        this.valueField.setHint(Component.literal("north"));
+        EntryTextSupport.applyHint(keyField, "ponderer.ui.block_properties.hint.name");
+        EntryTextSupport.applyHint(valueField, "ponderer.ui.block_properties.hint.value");
         this.removeButton = new FormBoxWidget(0, 0, 20, 16).withCallback(onRemove);
         this.removeButton.getToolTip().add(Component.literal(UIText.of("ponderer.ui.block_properties.remove.tooltip")));
         PondererGuiIcons.REMOVE.attach(removeButton);

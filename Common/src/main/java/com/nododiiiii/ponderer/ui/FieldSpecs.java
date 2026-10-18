@@ -106,7 +106,7 @@ public final class FieldSpecs {
 
     public static FieldSpec nbt(FieldBinding<String> binding, String labelKey, @Nullable String tooltipKey,
                                 int fieldWidth, String snapshotKey, FieldDecorator... decorators) {
-        return text(binding, labelKey, tooltipKey, "{}", fieldWidth,
+        return text(binding, labelKey, tooltipKey, FieldType.NBT.hintKey(), fieldWidth,
             prepend(FieldDecorators.nbtEditor(snapshotKey), decorators));
     }
 
@@ -128,6 +128,7 @@ public final class FieldSpecs {
                                    String hintKey, int fieldWidth, @Nullable String unitKey,
                                    FieldDecorator... decorators) {
         return text(binding, labelKey, tooltipKey, hintKey, fieldWidth, entry -> {
+            entry.setDefaultHint(hintKey);
             entry.setHalfWidthControl(Math.max(HALF_WIDTH_CONTROL_MIN, fieldWidth));
             if (unitKey != null) {
                 entry.setTrailingText(() -> UIText.of(unitKey));
@@ -276,7 +277,7 @@ public final class FieldSpecs {
             @Override
             public void build(AbstractDeclarativeFormScreen screen) {
                 XyzListEntry entry = new XyzListEntry(labelKey, tooltipKey, xHint, yHint, zHint);
-                entry.setSharedTooltip(FieldType.XYZ.tooltipKey());
+                entry.setSharedField(FieldType.XYZ);
                 attachWidget(handle.xHandle(), (HintableTextFieldWidget) entry.xField());
                 attachWidget(handle.yHandle(), (HintableTextFieldWidget) entry.yField());
                 attachWidget(handle.zHandle(), (HintableTextFieldWidget) entry.zField());

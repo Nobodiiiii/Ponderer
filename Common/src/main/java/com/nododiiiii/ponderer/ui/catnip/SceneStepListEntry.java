@@ -4,8 +4,10 @@ import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.createmod.catnip.lang.FontHelper;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -33,6 +35,7 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
     }
 
     private final Supplier<String> labelGetter;
+    private final Supplier<String> previewGetter;
     @Nullable
     private final Runnable mainClick;
     private final List<ActionButton> buttons;
@@ -42,16 +45,18 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
     private int lastLabelWidth;
 
     public SceneStepListEntry(Supplier<String> labelGetter,
+                              Supplier<String> previewGetter,
                               @Nullable Runnable mainClick,
                               List<ActionButton> buttons) {
         super("");
         this.labelGetter = labelGetter;
+        this.previewGetter = previewGetter;
         this.mainClick = mainClick;
         this.buttons = new ArrayList<>(buttons);
         for (ActionButton button : this.buttons) {
             listeners.add(button.widget());
         }
-        refreshLabelTooltip();
+        refreshLabelTooltip(labelGetter.get(), previewGetter.get());
     }
 
     public static ActionButton button(String label,
@@ -123,7 +128,7 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
 
     @Override
     public boolean matchesQuery(String query) {
-        return labelGetter.get().toLowerCase(Locale.ROOT).contains(query);
+        return (labelGetter.get() + " " + previewGetter.get()).toLowerCase(Locale.ROOT).contains(query);
     }
 
     @Override
@@ -153,14 +158,28 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
     @Override
     public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
-        label.withText(labelGetter.get());
-        refreshLabelTooltip();
+        String title = labelGetter.get();
+        String preview = previewGetter.get();
+        refreshLabelTooltip(title, preview);
         lastX = x;
         lastY = y;
         lastHeight = height;
         lastLabelWidth = getLabelWidth(width);
 
+        Font font = Minecraft.getInstance().font;
+        int textWidth = Math.max(0, lastLabelWidth - 20);
+        int titleWidth = preview.isEmpty() ? textWidth
+            : Math.max(textWidth * 3 / 5, textWidth - font.width(" " + preview));
+        String visibleTitle = ellipsize(font, title, titleWidth);
+        label.withText(visibleTitle);
+
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
+
+        if (!preview.isEmpty()) {
+            int previewX = x + 10 + font.width(visibleTitle);
+            String visiblePreview = ellipsize(font, " " + preview, textWidth - font.width(visibleTitle));
+            graphics.drawString(font, visiblePreview, previewX, y + height / 2 - 4, 0xFFB0B0B0, false);
+        }
 
         int clusterWidth = controlAreaWidth();
         boolean multiple = buttons.size() > 1;
@@ -227,9 +246,19 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
         return null;
     }
 
-    private void refreshLabelTooltip() {
+    private void refreshLabelTooltip(String title, String preview) {
         labelTooltip.clear();
-        labelTooltip.add(Component.literal(labelGetter.get()));
+        labelTooltip.add(Component.literal(title));
+        if (!preview.isEmpty()) {
+            labelTooltip.addAll(FontHelper.cutTextComponent(Component.literal(preview), FontHelper.Palette.ALL_GRAY));
+        }
+    }
+
+    private static String ellipsize(Font font, String text, int width) {
+        if (font.width(text) <= width) return text;
+        String ellipsis = "…";
+        if (width < font.width(ellipsis)) return "";
+        return font.plainSubstrByWidth(text, width - font.width(ellipsis)) + ellipsis;
     }
 
     private static void renderButton(GuiGraphics graphics, ActionButton button, int x, int y, int rowHeight, boolean multiple,

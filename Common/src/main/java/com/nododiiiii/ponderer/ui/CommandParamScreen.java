@@ -158,7 +158,7 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen implem
                             value -> handleTextChanged(textDef.id, value)),
                         textDef.labelKey,
                         null,
-                        textDef.nbtEditor ? "{}" : textDef.hintKey,
+                        textDef.nbtEditor ? FieldType.NBT.hintKey() : textDef.hintKey,
                         -1,
                         entry -> {
                             entry.field().setMaxLength(32500);

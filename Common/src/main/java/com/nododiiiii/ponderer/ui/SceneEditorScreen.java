@@ -3,8 +3,6 @@ package com.nododiiiii.ponderer.ui;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.Config;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
-import com.nododiiiii.ponderer.interfaces.model.LegacyInterfaceMigrator;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
@@ -145,7 +143,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         for (int i = 0; i < steps.size(); i++) {
             int stepIndex = i;
             entries.add(new SceneStepListEntry(
-                () -> (stepIndex + 1) + ". " + formatStep(steps.get(stepIndex)),
+                () -> (stepIndex + 1) + ". " + StepPreviewText.title(steps.get(stepIndex)),
+                () -> StepPreviewText.summary(steps.get(stepIndex)),
                 () -> openEditorForStep(stepIndex),
                 List.of(
                     SceneStepListEntry.iconButton(
@@ -578,115 +577,6 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             }
         }
         return scene.id != null ? scene.id : String.valueOf(sceneIndex + 1);
-    }
-
-    private String formatStep(DslScene.DslStep step) {
-        if (step == null || step.type == null) {
-            return UIText.of("ponderer.ui.invalid");
-        }
-        return switch (step.type.toLowerCase(Locale.ROOT)) {
-            case "show_structure" ->
-                UIText.of("ponderer.ui.step.summary.show_structure", stepTypeName("show_structure"));
-            case "show_extra_structure" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("show_extra_structure"),
-                step.structure != null && !step.structure.isBlank() ? step.structure : "?");
-            case "idle" -> UIText.of("ponderer.ui.step.summary.idle", stepTypeName("idle"), step.durationOrDefault(20),
-                UIText.of("ponderer.ui.ticks"));
-            case "text" -> UIText.of("ponderer.ui.step.summary.text", stepTypeName("text"),
-                truncate(step.text != null ? step.text.resolve() : "", 20));
-            case "shared_text" -> UIText.of("ponderer.ui.step.summary.shared_text", stepTypeName("shared_text"),
-                step.key != null ? step.key : "?");
-            case "create_entity" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("create_entity"),
-                step.entity != null ? step.entity : "?");
-            case "create_item_entity" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("create_item_entity"), step.item != null ? step.item : "?");
-            case "rotate_camera_y" -> UIText.of("ponderer.ui.step.summary.rotate_camera",
-                stepTypeName("rotate_camera_y"), step.degrees != null ? step.degrees : 90);
-            case "zoom_scene" -> stepTypeName("zoom_scene");
-            case "highlight_section" -> stepTypeName("highlight_section");
-            case "show_controls" -> UIText.of(
-                "ponderer.ui.step.summary.show_controls_action_item",
-                stepTypeName("show_controls"),
-                controlActionName(step.action),
-                step.item != null && !step.item.isBlank() ? step.item : UIText.of("ponderer.ui.none"));
-            case "show_interface" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("show_interface"), interfaceTargetSummary(step));
-            case "change_interface_slot" -> UIText.of("ponderer.ui.step.summary.slot_count",
-                stepTypeName("change_interface_slot"),
-                step.interfaceSlots != null ? step.interfaceSlots.stream()
-                    .filter(binding -> binding != null && !InterfaceSlotEditState.isClearBinding(binding)).count() : 0);
-            case "click_interface" -> stepTypeName("click_interface");
-            case "encapsulate_bounds" -> stepTypeName("encapsulate_bounds");
-            case "play_sound" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("play_sound"),
-                step.sound != null ? step.sound : "?");
-            case "set_block" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("set_block"),
-                step.block != null ? step.block : "?");
-            case "destroy_block" -> stepTypeName("destroy_block");
-            case "replace_blocks" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("replace_blocks"),
-                step.block != null ? step.block : "?");
-            case "hide_section" -> stepTypeName("hide_section");
-            case "show_section_and_merge" -> stepTypeName("show_section_and_merge");
-            case "toggle_redstone_power" -> stepTypeName("toggle_redstone_power");
-            case "modify_block_entity_nbt" -> stepTypeName("modify_block_entity_nbt");
-            case "rotate_section" -> stepTypeName("rotate_section");
-            case "move_section" -> stepTypeName("move_section");
-            case "indicate_redstone" -> stepTypeName("indicate_redstone");
-            case "indicate_success" -> stepTypeName("indicate_success");
-            case "spawn_particles" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("spawn_particles"),
-                step.particle != null ? step.particle : "?");
-            case "clear_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("clear_entities"), entityTargetSummary(step.entity, step.linkId));
-            case "clear_item_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("clear_item_entities"), entityTargetSummary(step.item, step.linkId));
-            case "modify_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("modify_entities_nbt"), entityTargetSummary(step.entity, step.linkId));
-            case "modify_item_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("modify_item_entities_nbt"), entityTargetSummary(step.item, step.linkId));
-            case "next_scene" -> UIText.of("ponderer.ui.step.summary.next_scene");
-            default -> step.type;
-        };
-    }
-
-    private String interfaceTargetSummary(DslScene.DslStep step) {
-        InterfaceDescriptor descriptor = LegacyInterfaceMigrator.fromStep(step);
-        if (descriptor.menuType != null) {
-            return descriptor.menuType;
-        }
-        if (descriptor.block != null) {
-            return descriptor.block;
-        }
-        if (descriptor.item != null && !descriptor.item.id().isBlank()) {
-            return descriptor.item.id();
-        }
-        return "?";
-    }
-
-    private String entityTargetSummary(@Nullable String id, @Nullable String linkId) {
-        String target = id != null && !id.isEmpty() ? id : "*";
-        if (linkId == null || linkId.isBlank()) {
-            return target;
-        }
-        return target + " #" + linkId;
-    }
-
-    private String stepTypeName(String type) {
-        return UIText.of("ponderer.ui.step.type." + type);
-    }
-
-    private String controlActionName(String action) {
-        if (action == null || action.isBlank()) {
-            return UIText.of("ponderer.ui.none");
-        }
-        String key = "ponderer.ui.show_controls.action." + action.toLowerCase(Locale.ROOT);
-        String translated = UIText.of(key);
-        return key.equals(translated) ? action : translated;
-    }
-
-    private String truncate(String text, int max) {
-        if (text == null) {
-            return "";
-        }
-        return text.length() > max ? text.substring(0, max) + "..." : text;
     }
 
     public void addStepAndSave(DslScene.DslStep newStep) {

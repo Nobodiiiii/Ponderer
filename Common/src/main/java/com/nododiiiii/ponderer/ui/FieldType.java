@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
-/** Concise input hints shared across forms. */
+/** Shared field descriptions and example placeholders. */
 public enum FieldType {
     ITEM("item"),
     BLOCK("block"),
@@ -25,13 +25,19 @@ public enum FieldType {
     LOCALIZED_TEXT("localized_text");
 
     private final String tooltipKey;
+    private final String hintKey;
 
     FieldType(String name) {
         tooltipKey = "ponderer.ui.field." + name + ".tooltip";
+        hintKey = "ponderer.ui.field." + name + ".hint";
     }
 
     public String tooltipKey() {
         return tooltipKey;
+    }
+
+    public String hintKey() {
+        return hintKey;
     }
 
     public static FieldType forId(IdFieldMode mode) {

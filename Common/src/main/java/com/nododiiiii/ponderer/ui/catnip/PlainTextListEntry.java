@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.ui.UIText;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
+import com.nododiiiii.ponderer.ui.FieldType;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.createmod.catnip.gui.widget.BoxWidget;
@@ -32,6 +33,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     @Nullable
     private final String contextTooltipKey;
     private String searchText;
+    private boolean preserveDefaultHint;
     protected final List<TrailingButton> trailingButtons = new ArrayList<>();
     @Nullable
     private Supplier<String> trailingTextGetter;
@@ -68,9 +70,19 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         return textField;
     }
 
-    public void setSharedTooltip(String tooltipKey) {
+    public void setSharedField(FieldType type) {
+        String tooltipKey = type.tooltipKey();
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        if (!preserveDefaultHint) {
+            EntryTextSupport.applyHint(textField, type.hintKey());
+        }
         searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey, contextTooltipKey);
+    }
+
+    /** Numeric defaults remain visible instead of the shared descriptive hint. */
+    public void setDefaultHint(String hintKey) {
+        preserveDefaultHint = true;
+        EntryTextSupport.applyHint(textField, hintKey);
     }
 
     public void setValue(String value) {

@@ -28,12 +28,12 @@ public final class FieldDecorators {
         return new FieldDecorator() {
             @Override
             public void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
-                entry.setSharedTooltip(type.tooltipKey());
+                entry.setSharedField(type);
             }
 
             @Override
             public void applyXyz(AbstractDeclarativeFormScreen screen, XyzListEntry entry) {
-                entry.setSharedTooltip(type.tooltipKey());
+                entry.setSharedField(type);
             }
         };
     }
@@ -91,7 +91,7 @@ public final class FieldDecorators {
                 if (!(screen instanceof JeiAwareScreen)) {
                     throw new IllegalStateException("JEI decorator requires screen to implement JeiAwareScreen");
                 }
-                entry.setSharedTooltip(FieldType.forId(mode).tooltipKey());
+                entry.setSharedField(FieldType.forId(mode));
                 entry.addIngredientSlot(
                     mode,
                     JeiCompat.isAvailable() ? UIText.of("ponderer.ui.jei_browse.tooltip") : null);
@@ -106,7 +106,7 @@ public final class FieldDecorators {
                 if (!(screen instanceof AbstractJeiAwareFormScreen form)) {
                     throw new IllegalStateException("Item tag dropdown requires a JEI-aware form screen");
                 }
-                entry.setSharedTooltip(FieldType.ITEM_TAG.tooltipKey());
+                entry.setSharedField(FieldType.ITEM_TAG);
                 form.attachItemTagDropdown(fieldId, entry);
             }
         };
@@ -119,7 +119,7 @@ public final class FieldDecorators {
                 if (!(screen instanceof PointPickButtonHost host)) {
                     throw new IllegalStateException("Point pick decorator requires screen to implement PointPickButtonHost");
                 }
-                entry.setSharedTooltip(host.pointPickFieldType(target, halfOffset).tooltipKey());
+                entry.setSharedField(host.pointPickFieldType(target, halfOffset));
                 entry.addTrailingIcon(
                     PondererGuiIcons.PICK_POSITION,
                     () -> host.startPointPickFromButton(target, halfOffset),
@@ -139,7 +139,7 @@ public final class FieldDecorators {
                 if (!(screen instanceof NbtPickButtonHost host)) {
                     throw new IllegalStateException("Block pick decorator requires screen to implement NbtPickButtonHost");
                 }
-                entry.setSharedTooltip(FieldType.BLOCK.tooltipKey());
+                entry.setSharedField(FieldType.BLOCK);
                 entry.addTrailingIcon(
                     PondererGuiIcons.PICK_BLOCK,
                     () -> host.startNbtPickFromButton(nbtSnapshotKey, true),
@@ -170,7 +170,7 @@ public final class FieldDecorators {
                 if (!(screen instanceof NbtExpandButtonHost host)) {
                     throw new IllegalStateException("NBT expand decorator requires screen to implement NbtExpandButtonHost");
                 }
-                entry.setSharedTooltip(FieldType.NBT.tooltipKey());
+                entry.setSharedField(FieldType.NBT);
                 entry.addTrailingIcon(
                     PondererGuiIcons.EDIT_NBT,
                     () -> host.startNbtExpandFromButton(nbtSnapshotKey),

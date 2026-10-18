@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.ui.FieldType;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.createmod.catnip.gui.widget.BoxWidget;
@@ -59,8 +60,12 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         return xField;
     }
 
-    public void setSharedTooltip(String tooltipKey) {
+    public void setSharedField(FieldType type) {
+        String tooltipKey = type.tooltipKey();
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        EntryTextSupport.applyHint(xField, type.hintKey());
+        EntryTextSupport.applyHint(yField, type.hintKey());
+        EntryTextSupport.applyHint(zField, type.hintKey());
         searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey, contextTooltipKey);
     }
 
