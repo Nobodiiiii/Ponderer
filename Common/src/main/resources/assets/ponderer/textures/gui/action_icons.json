@@ -5,7 +5,7 @@
     64
   ],
   "cell_size": 16,
-  "processing": "Preserve the original 16x16 pixel positions without resampling. Nikoichu sprites retain only opaque pure-white pixels. EDIT_SCENE uses that mask with Ponder's light-gray foreground and a gray lower-contour shadow offset two pixels downward, preserving the source's internal transparent gaps. The Create folder and projector pull/upload icons retain their nonblack alpha masks, normalized to opaque white. All other pixels are transparent.",
+  "processing": "Preserve source pixel sizes without resampling. Nikoichu sprites retain only opaque pure-white pixels. EDIT_SCENE uses that mask with Ponder's light-gray foreground and a gray lower-contour shadow offset two pixels downward, preserving the source's internal transparent gaps. The Create folder and projector pull/upload icons retain their nonblack alpha masks, normalized to opaque white. PULL and UPLOAD are translated one pixel left and up within their 16x16 atlas cells to center their visible bounds. All other pixels are transparent.",
   "icons": [
     {
       "name": "PICK_POSITION",
@@ -86,7 +86,8 @@
         16,
         16
       ],
-      "source_icon": "ProjectorConfigScreen.ButtonVisual.ACTION_ICON_REMOTE_PULL"
+      "source_icon": "ProjectorConfigScreen.ButtonVisual.ACTION_ICON_REMOTE_PULL",
+      "modifications": "Translate one pixel left and up within the 16x16 atlas cell, centering visible bounds at (2, 2, 14, 14). No resampling."
     },
     {
       "name": "UPLOAD",
@@ -99,7 +100,7 @@
         16,
         16
       ],
-      "modifications": "Flip only the arrow vertically inside (5, 3, 12, 11); preserve the tray and every other pixel."
+      "modifications": "Flip only the arrow vertically inside source rectangle (5, 3, 12, 11), preserving the tray shape. Then translate the whole icon one pixel left and up within the 16x16 atlas cell, centering visible bounds at (2, 2, 14, 14). No resampling."
     },
     {
       "name": "HISTORY",

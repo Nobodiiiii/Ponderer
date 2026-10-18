@@ -123,9 +123,9 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
                 setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.partial_to"));
                 return null;
             }
-            px2 = parseInt(pos2X, "To X");
-            py2 = parseInt(pos2Y, "To Y");
-            pz2 = parseInt(pos2Z, "To Z");
+            px2 = parseBlockCoordinate(pos2X, "To X");
+            py2 = parseBlockCoordinate(pos2Y, "To Y");
+            pz2 = parseBlockCoordinate(pos2Z, "To Z");
             if (px2 == null || py2 == null || pz2 == null) return null;
         }
 
@@ -157,6 +157,6 @@ public class SectionTransformScreen extends AbstractStepEditorScreen {
     private Integer parseOptionalInt(String raw, String label) {
         String trimmed = raw == null ? "" : raw.trim();
         if (trimmed.isEmpty()) return null;
-        return parseInt(trimmed, label);
+        return parseBlockCoordinate(trimmed, label);
     }
 }

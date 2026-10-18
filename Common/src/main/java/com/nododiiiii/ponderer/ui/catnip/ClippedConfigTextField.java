@@ -1,9 +1,13 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.FieldType;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
+
+import java.math.BigDecimal;
 
 public class ClippedConfigTextField extends ConfigTextField {
 
@@ -11,6 +15,10 @@ public class ClippedConfigTextField extends ConfigTextField {
     private final Font hintFont;
     private String clippedHint;
     private boolean consumeRightClick = false;
+    private double numericDragStep;
+    private double numericDragMin;
+    private double numericDragMax;
+    private boolean numericDragEditable = true;
 
     public ClippedConfigTextField(Font font, int x, int y, int width, int height) {
         super(font, x, y, width, height);
@@ -31,6 +39,55 @@ public class ClippedConfigTextField extends ConfigTextField {
 
     public void setConsumeRightClick(boolean consumeRightClick) {
         this.consumeRightClick = consumeRightClick;
+    }
+
+    public void setNumericDrag(FieldType type) {
+        numericDragStep = switch (type) {
+            case XYZ, BLOCK_POSITION, POSITION, WORLD_POSITION, UI_POSITION, VECTOR -> 0.5;
+            case TICKS -> 10;
+            default -> 0;
+        };
+        numericDragMin = type == FieldType.TICKS ? 0 : type == FieldType.UI_POSITION ? -2 : -Double.MAX_VALUE;
+        numericDragMax = type == FieldType.TICKS ? Integer.MAX_VALUE
+            : type == FieldType.UI_POSITION ? 2 : Double.MAX_VALUE;
+        setTooltip(numericDragStep == 0 ? null : Tooltip.create(Component.translatable(
+            type == FieldType.TICKS ? "ponderer.ui.field.drag.ticks.tooltip"
+                : type == FieldType.BLOCK_POSITION || type == FieldType.WORLD_POSITION
+                    ? "ponderer.ui.field.drag.block_coordinate.tooltip"
+                : "ponderer.ui.field.drag.coordinate.tooltip")));
+    }
+
+    public boolean supportsNumericDrag() {
+        return numericDragStep > 0 && active && visible && numericDragEditable;
+    }
+
+    @Override
+    public void setEditable(boolean editable) {
+        super.setEditable(editable);
+        numericDragEditable = editable;
+    }
+
+    public double numericDragValue() {
+        String value = getValue().trim();
+        if (value.isEmpty()) {
+            value = clippedHint == null || clippedHint.isBlank() ? "0" : clippedHint;
+        }
+        try {
+            return numericDragStep == 10 ? Integer.parseInt(value) : Double.parseDouble(value);
+        } catch (NumberFormatException ignored) {
+            return Double.NaN;
+        }
+    }
+
+    public void adjustDraggedValue(double initialValue, long steps) {
+        BigDecimal value = BigDecimal.valueOf(initialValue)
+            .add(BigDecimal.valueOf(numericDragStep).multiply(BigDecimal.valueOf(steps)))
+            .max(BigDecimal.valueOf(numericDragMin)).min(BigDecimal.valueOf(numericDragMax));
+        String text = value.stripTrailingZeros().toPlainString();
+        if (!text.equals(getValue())) {
+            setValue(text);
+            moveCursorToEnd(false);
+        }
     }
 
     @Override

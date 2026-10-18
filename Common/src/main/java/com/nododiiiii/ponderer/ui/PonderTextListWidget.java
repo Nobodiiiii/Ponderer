@@ -132,7 +132,8 @@ public class PonderTextListWidget extends AbstractWidget {
         int h = getHeight() - 2 * BORDER_SIZE;
 
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, 100);
+        // Both the ordinary and raised widget passes must place the entire panel below scene text.
+        graphics.pose().last().pose().m32(PonderRuntimeZLayers.TEXT_PROGRESS_LAYER);
         renderSpeechBox(graphics, x, y, w, h);
         // BoxElement draws immediately and writes depth; keep the list above its background.
         graphics.pose().translate(0, 0, 20);
@@ -201,12 +202,13 @@ public class PonderTextListWidget extends AbstractWidget {
             graphics.fill(barX, trackTop, barX + 2, trackBottom, SCROLL_TRACK);
             graphics.fill(barX, thumbY, barX + 2, thumbY + thumbH, SCROLL_THUMB);
         }
-        graphics.pose().popPose();
-
         TextIndexStore.Entry hoveredEntry = entryAt(mouseX, mouseY, entries, listTop, listBottom, visibleRows);
         if (hoveredEntry != null) {
             graphics.renderTooltip(font, Component.literal(previewLabel(hoveredEntry)), mouseX, mouseY);
         }
+        // Flush the panel and its tooltip together, retaining the same depth ordering in both passes.
+        graphics.flush();
+        graphics.pose().popPose();
     }
 
     private void renderSpeechBox(GuiGraphics graphics, int x, int y, int w, int h) {
@@ -321,6 +323,10 @@ public class PonderTextListWidget extends AbstractWidget {
         if (PickState.isActive() || InterfaceSlotEditState.isActive()) return false;
         PonderScene active = ponderUi.getActiveScene();
         return active != null;
+    }
+
+    boolean hasVisibleEntries() {
+        return shouldShow() && !currentEntries().isEmpty();
     }
 
     private List<TextIndexStore.Entry> currentEntries() {

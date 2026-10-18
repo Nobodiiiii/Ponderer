@@ -10,11 +10,14 @@ import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.gui.handlers.IGuiContainerHandler;
+import mezz.jei.api.gui.handlers.IGlobalGuiHandler;
 import mezz.jei.api.gui.handlers.IGuiProperties;
 import mezz.jei.api.registration.IGuiHandlerRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.createmod.ponder.foundation.ui.PonderUI;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
@@ -44,10 +47,20 @@ public class PondererJeiPlugin implements IModPlugin {
     @Override
     public void registerGuiHandlers(IGuiHandlerRegistration registration) {
         registration.addGuiScreenHandler(AbstractJeiAwareFormScreen.class, screen -> {
-            if (!screen.hasJeiIngredientFields()) return null;
+            if (!screen.shouldShowJei()) return null;
             return new JeiAwareGuiProperties(screen);
         });
         registration.addGhostIngredientHandler(AbstractJeiAwareFormScreen.class, new JeiAwareGhostHandler<>());
+        registration.addGlobalGuiHandler(new IGlobalGuiHandler() {
+            @Override
+            public List<Rect2i> getGuiExtraAreas() {
+                Screen screen = Minecraft.getInstance().screen;
+                if (screen instanceof AbstractJeiAwareFormScreen form && form.shouldShowJei()) {
+                    return form.getJeiExtraAreas();
+                }
+                return List.of();
+            }
+        });
 
         registration.addGuiContainerHandler(ProjectorConfigScreen.class, new ProjectorGuiContainerHandler());
 

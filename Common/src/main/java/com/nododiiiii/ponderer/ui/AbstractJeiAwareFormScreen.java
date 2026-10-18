@@ -36,6 +36,16 @@ public abstract class AbstractJeiAwareFormScreen extends AbstractStatefulDeclara
             entry instanceof PlainTextListEntry textEntry && textEntry.ingredientMode() != null);
     }
 
+    public final boolean shouldShowJei() {
+        // Screen events can query JEI before init has supplied valid dimensions.
+        return width > 0 && height > 0 && hasJeiIngredientFields();
+    }
+
+    public List<Rect2i> getJeiExtraAreas() {
+        return activeItemTagDropdown != null && isDropdownFieldVisible(activeItemTagDropdown)
+            ? List.of(activeItemTagDropdown.occupiedArea()) : List.of();
+    }
+
     @Override
     public List<IngredientTarget> getJeiIngredientTargets() {
         List<IngredientTarget> targets = new ArrayList<>();

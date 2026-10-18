@@ -50,17 +50,19 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
 
     @Override
     protected void renderWindowBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        if (!shouldUseSafeFabricBackground()) {
-            super.renderWindowBackground(graphics, mouseX, mouseY, partialTicks);
-            return;
-        }
-
         if (minecraft != null && minecraft.level != null) {
             graphics.fill(0, 0, width, height, 0xb0282c34);
-            return;
+        } else {
+            renderMenuBackground(graphics, partialTicks);
         }
 
-        renderMenuBackground(graphics, partialTicks);
+        if (!shouldUseSafeFabricBackground()) {
+            shadowElement.at(backgroundCogCenterX(), height * 0.5f, 0).render(graphics);
+        }
+    }
+
+    protected float backgroundCogCenterX() {
+        return width * 0.5f;
     }
 
     protected final void clearStatusMessages() {

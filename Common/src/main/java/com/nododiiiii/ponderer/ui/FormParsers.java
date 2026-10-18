@@ -66,16 +66,27 @@ public final class FormParsers {
         }
     }
 
-    public static ParseResult<Int3> requiredInt3(String x, String y, String z) {
-        ParseResult<Integer> px = requiredInt(x, "X");
+    /** Resolve fractional coordinates to the containing block, including negative coordinates. */
+    public static ParseResult<Integer> requiredBlockCoordinate(String raw, String fieldName) {
+        ParseResult<Double> parsed = requiredDouble(raw, fieldName);
+        if (parsed.failed()) return error(parsed.errorMessage());
+        double coordinate = Math.floor(parsed.value());
+        if (!Double.isFinite(coordinate) || coordinate < Integer.MIN_VALUE || coordinate > Integer.MAX_VALUE) {
+            return error(UIText.of("ponderer.ui.error.invalid_number", fieldName));
+        }
+        return success((int) coordinate);
+    }
+
+    public static ParseResult<Int3> requiredBlockPos(String x, String y, String z) {
+        ParseResult<Integer> px = requiredBlockCoordinate(x, "X");
         if (px.failed()) {
             return error(px.errorMessage());
         }
-        ParseResult<Integer> py = requiredInt(y, "Y");
+        ParseResult<Integer> py = requiredBlockCoordinate(y, "Y");
         if (py.failed()) {
             return error(py.errorMessage());
         }
-        ParseResult<Integer> pz = requiredInt(z, "Z");
+        ParseResult<Integer> pz = requiredBlockCoordinate(z, "Z");
         if (pz.failed()) {
             return error(pz.errorMessage());
         }
@@ -99,11 +110,11 @@ public final class FormParsers {
     }
 
     public static ParseResult<IntRange> intRange(StepXyzFieldHandle from, StepXyzFieldHandle to, String partialErrorMessage) {
-        ParseResult<Int3> fromResult = requiredInt3(from.x(), from.y(), from.z());
+        ParseResult<Int3> fromResult = requiredBlockPos(from.x(), from.y(), from.z());
         if (fromResult.failed()) {
             return error(fromResult.errorMessage());
         }
-        ParseResult<Int3> toResult = optionalInt3(to.x(), to.y(), to.z(), partialErrorMessage);
+        ParseResult<Int3> toResult = optionalBlockPos(to.x(), to.y(), to.z(), partialErrorMessage);
         if (toResult.failed()) {
             return error(toResult.errorMessage());
         }
@@ -194,7 +205,7 @@ public final class FormParsers {
         return value.isEmpty() ? null : Boolean.parseBoolean(value);
     }
 
-    private static ParseResult<Int3> optionalInt3(String x, String y, String z, String partialErrorMessage) {
+    private static ParseResult<Int3> optionalBlockPos(String x, String y, String z, String partialErrorMessage) {
         boolean any = !x.trim().isEmpty() || !y.trim().isEmpty() || !z.trim().isEmpty();
         if (!any) {
             return success(null);
@@ -202,7 +213,7 @@ public final class FormParsers {
         if (x.trim().isEmpty() || y.trim().isEmpty() || z.trim().isEmpty()) {
             return error(partialErrorMessage);
         }
-        return requiredInt3(x, y, z);
+        return requiredBlockPos(x, y, z);
     }
 
     private static ParseResult<Double3> optionalDouble3(String x, String y, String z, String partialErrorMessage) {

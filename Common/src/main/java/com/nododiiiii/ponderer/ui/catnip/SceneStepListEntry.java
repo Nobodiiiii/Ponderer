@@ -1,8 +1,10 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.createmod.catnip.data.Couple;
 import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
+import net.createmod.catnip.theme.Color;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -23,6 +25,9 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
     private static final int BUTTON_WIDTH = 26;
     private static final int BUTTON_HEIGHT = 24;
     private static final int MULTI_BUTTON_MIN_WIDTH = 18;
+    private static final Couple<Color> SELECTED_COLORS = Couple.create(
+        new Color(SectionHeaderRenderer.TEXT_COLOR),
+        new Color(SectionHeaderRenderer.TEXT_COLOR).scaleAlpha(0xDD / 255f)).map(Color::setImmutable);
 
     public record ActionButton(
         BoxWidget widget,
@@ -101,6 +106,19 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
         BoxWidget widget = new FormBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).withCallback(primaryClick);
         icon.attach(widget);
         return createIconButton(widget, tooltipGetter, secondaryClick, activeGetter);
+    }
+
+    public static ActionButton iconButton(PondererGuiIcons icon,
+                                          @Nullable Supplier<List<Component>> tooltipGetter,
+                                          Runnable primaryClick,
+                                          @Nullable Runnable secondaryClick,
+                                          BooleanSupplier activeGetter,
+                                          boolean selected) {
+        ActionButton button = iconButton(icon, tooltipGetter, primaryClick, secondaryClick, activeGetter);
+        if (selected) {
+            button.widget().withCustomTheme(SELECTED_COLORS, SELECTED_COLORS, SELECTED_COLORS, null);
+        }
+        return button;
     }
 
     public static ActionButton dangerIconButton(DelegatedStencilElement icon,

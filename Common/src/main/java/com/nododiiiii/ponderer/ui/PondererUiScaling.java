@@ -39,6 +39,11 @@ public final class PondererUiScaling {
         if (mc == null || screen == null) {
             return;
         }
+        // Catnip also initializes screens kept in its navigation history.
+        // Only the active screen may change the window's shared GUI scale.
+        if (mc.screen != screen) {
+            return;
+        }
 
         int target = computeTargetScale(mc);
         if (target < 1) {

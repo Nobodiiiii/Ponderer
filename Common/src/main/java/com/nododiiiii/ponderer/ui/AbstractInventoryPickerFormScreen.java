@@ -5,6 +5,7 @@ import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
 
@@ -56,6 +57,13 @@ public abstract class AbstractInventoryPickerFormScreen extends AbstractJeiAware
     @Override
     public List<IngredientTarget> getJeiIngredientTargets() {
         return inventoryPicker == null ? super.getJeiIngredientTargets() : List.of();
+    }
+
+    @Override
+    public List<Rect2i> getJeiExtraAreas() {
+        List<Rect2i> areas = new java.util.ArrayList<>(super.getJeiExtraAreas());
+        if (inventoryPicker != null) areas.add(inventoryPicker.occupiedArea(width));
+        return areas;
     }
 
     @Override

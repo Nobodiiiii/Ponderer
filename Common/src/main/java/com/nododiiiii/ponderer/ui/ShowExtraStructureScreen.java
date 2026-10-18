@@ -271,11 +271,11 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
             return null;
         }
 
-        Integer px = parseInt(posField.x(), "X");
+        Integer px = parseBlockCoordinate(posField.x(), "X");
         if (px == null) return null;
-        Integer py = parseInt(posField.y(), "Y");
+        Integer py = parseBlockCoordinate(posField.y(), "Y");
         if (py == null) return null;
-        Integer pz = parseInt(posField.z(), "Z");
+        Integer pz = parseBlockCoordinate(posField.z(), "Z");
         if (pz == null) return null;
 
         DslScene.DslStep step = new DslScene.DslStep();

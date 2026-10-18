@@ -442,14 +442,17 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             candidate.triggerCoord1 = null;
             candidate.triggerCoord2 = null;
         } else if ("coordinate".equals(triggerMode)) {
+            Integer x1 = parseBlockCoordinate(coord1Field.x().isBlank() ? "0" : coord1Field.x(), "X1");
+            Integer y1 = parseBlockCoordinate(coord1Field.y().isBlank() ? "0" : coord1Field.y(), "Y1");
+            Integer z1 = parseBlockCoordinate(coord1Field.z().isBlank() ? "0" : coord1Field.z(), "Z1");
+            Integer x2 = parseBlockCoordinate(coord2Field.x().isBlank() ? "0" : coord2Field.x(), "X2");
+            Integer y2 = parseBlockCoordinate(coord2Field.y().isBlank() ? "0" : coord2Field.y(), "Y2");
+            Integer z2 = parseBlockCoordinate(coord2Field.z().isBlank() ? "0" : coord2Field.z(), "Z2");
+            if (x1 == null || y1 == null || z1 == null || x2 == null || y2 == null || z2 == null) return false;
             candidate.triggerCoord1 = List.of(
-                parseIntOr(coord1Field.x(), 0),
-                parseIntOr(coord1Field.y(), 0),
-                parseIntOr(coord1Field.z(), 0));
+                x1, y1, z1);
             candidate.triggerCoord2 = List.of(
-                parseIntOr(coord2Field.x(), 0),
-                parseIntOr(coord2Field.y(), 0),
-                parseIntOr(coord2Field.z(), 0));
+                x2, y2, z2);
             candidate.triggerStructure = null;
             candidate.triggerStructureRange = null;
         } else {

@@ -10,6 +10,8 @@ import net.createmod.catnip.lang.FontHelper.Palette;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -45,6 +47,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     private final int preferredListWidth;
     private final List<ConfigScreenList.Entry> headerEntries = new java.util.ArrayList<>();
     private final ListScrollPreserver scrollPreserver = new ListScrollPreserver();
+    private final NumericFieldDrag numericFieldDrag = new NumericFieldDrag();
     private String searchQuery = "";
     private int listWidth;
 
@@ -59,6 +62,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     @Override
     protected void init() {
+        numericFieldDrag.cancel();
         super.init();
         headerList = null;
 
@@ -118,6 +122,36 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     }
 
     @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        // Navigatable screens may render a previous screen behind the current one.
+        boolean currentScreen = minecraft != null && minecraft.screen == this;
+        if (currentScreen) numericFieldDrag.beginFrame();
+        super.render(graphics, mouseX, mouseY, partialTicks);
+        if (currentScreen) numericFieldDrag.finishFrame(mouseY);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        return numericFieldDrag.drag(mouseX, mouseY, button, deltaX, deltaY)
+            || super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (numericFieldDrag.release(mouseX, mouseY, button)) {
+            setDragging(false);
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public void removed() {
+        numericFieldDrag.close();
+        super.removed();
+    }
+
+    @Override
     public void resize(Minecraft client, int width, int height) {
         double scroll = scrollPreserver.capture(list);
         init(client, width, height);
@@ -151,7 +185,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBreadcrumb(graphics, width / 2, 15);
+        renderBreadcrumb(graphics, breadcrumbCenterX(), 15);
         renderStatusMessage(graphics, width / 2 - listWidth / 2 + listHorizontalOffset(), height - 48, listWidth);
     }
 
@@ -178,6 +212,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             return;
         }
 
+        numericFieldDrag.cancel();
         rebuildHeaderEntries();
         list.children().clear();
         collectEntries(list.children());
@@ -250,6 +285,30 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
      */
     protected int listHorizontalOffset() {
         return 0;
+    }
+
+    @Override
+    protected float backgroundCogCenterX() {
+        return super.backgroundCogCenterX() + listHorizontalOffset();
+    }
+
+    protected int breadcrumbCenterX() {
+        return width / 2;
+    }
+
+    protected final List<Rect2i> occupiedWidgetAreas() {
+        List<Rect2i> areas = new java.util.ArrayList<>();
+        for (GuiEventListener child : children()) {
+            if (child instanceof AbstractWidget widget && widget.visible) {
+                areas.add(new Rect2i(widget.getX() - 4, widget.getY() - 4,
+                    widget.getWidth() + 8, widget.getHeight() + 8));
+            }
+        }
+        String breadcrumb = UIText.of("ponderer.ui.mod_name") + " > " + getBreadcrumbScopeText()
+            + " > " + getBreadcrumbTitleText();
+        int titleWidth = font.width(breadcrumb);
+        areas.add(new Rect2i(breadcrumbCenterX() - titleWidth / 2 - 2, 13, titleWidth + 4, font.lineHeight + 4));
+        return areas;
     }
 
     protected int availableListWidth() {
@@ -435,6 +494,30 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     private ConfigScreenList createCenteredList(int height, int top) {
         return new ConfigScreenList(minecraft, listWidth, height, top, getEntryHeight()) {
+            @Override
+            public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+                super.renderWidget(graphics, mouseX, mouseY, partialTicks);
+                if (isMouseOver(mouseX, mouseY)) {
+                    numericFieldDrag.hover(NumericFieldDrag.fieldAt(getEntryAtPosition(mouseX, mouseY), mouseX, mouseY));
+                }
+            }
+
+            @Override
+            public boolean mouseClicked(double mouseX, double mouseY, int button) {
+                if (button == 1 && isMouseOver(mouseX, mouseY)) {
+                    ConfigScreenList.Entry entry = getEntryAtPosition(mouseX, mouseY);
+                    if (entry instanceof SceneStepListEntry && entry.mouseClicked(mouseX, mouseY, button)) {
+                        return true;
+                    }
+                }
+                boolean handled = super.mouseClicked(mouseX, mouseY, button);
+                if (handled && button == GLFW.GLFW_MOUSE_BUTTON_LEFT && isMouseOver(mouseX, mouseY)) {
+                    numericFieldDrag.press(NumericFieldDrag.fieldAt(getEntryAtPosition(mouseX, mouseY), mouseX, mouseY),
+                        mouseX, mouseY);
+                }
+                return handled;
+            }
+
             @Override
             public int getMaxPosition() {
                 return super.getMaxPosition() + (this == list ? listBottomPadding(getHeight()) : 0);

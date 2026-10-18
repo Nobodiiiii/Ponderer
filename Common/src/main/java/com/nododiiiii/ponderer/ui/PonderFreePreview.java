@@ -6,12 +6,14 @@ import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
+import javax.annotation.Nullable;
 
 /** Temporary camera controls; the scripted camera and its animation chasers stay untouched. */
 public final class PonderFreePreview {
@@ -34,13 +36,33 @@ public final class PonderFreePreview {
     public PonderSpeedButton createButton(PonderZoomSlider slider) {
         Component label = Component.translatable("ponderer.ui.preview.pause");
         int width = Minecraft.getInstance().font.width(label) + 20;
-        button = new PonderSpeedButton(slider.getBarRight() - width,
-            slider.getPreviewButtonY(), width, label,
-            Component.translatable("ponderer.ui.preview.shortcut"), this::toggle);
+        button = new PreviewButton(slider.getBarRight() - width,
+            slider.getPreviewButtonY(), width, label);
         button.active = canToggle();
         button.visible = button.active;
         updateButton();
         return button;
+    }
+
+    @Nullable
+    static PonderFreePreview find(Screen screen) {
+        for (var child : screen.children()) {
+            if (child instanceof PonderFreePreview.PreviewButton previewButton) {
+                return previewButton.owner();
+            }
+        }
+        return null;
+    }
+
+    private final class PreviewButton extends PonderSpeedButton {
+        private PreviewButton(int x, int y, int width, Component label) {
+            super(x, y, width, label, Component.translatable("ponderer.ui.preview.shortcut"),
+                PonderFreePreview.this::toggle);
+        }
+
+        private PonderFreePreview owner() {
+            return PonderFreePreview.this;
+        }
     }
 
     public int getTextPanelTop() {
@@ -153,7 +175,8 @@ public final class PonderFreePreview {
     }
 
     private boolean isOverWidget(double x, double y) {
-        return ui.children().stream().anyMatch(child -> child.isMouseOver(x, y));
+        return ui.children().stream().anyMatch(child -> !(child instanceof PonderPreviewTooltip)
+            && child.isMouseOver(x, y));
     }
 
     public boolean mouseClicked(double x, double y, int mouseButton) {
@@ -209,13 +232,20 @@ public final class PonderFreePreview {
         }
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER + 500);
-        graphics.renderComponentTooltip(ui.getFontRenderer(),
-            List.of(Component.translatable("ponderer.ui.preview.shortcut").withStyle(ChatFormatting.WHITE),
-                Component.translatable(textVisible ? "ponderer.ui.preview.hide_text"
-                    : "ponderer.ui.preview.show_text").withStyle(ChatFormatting.GRAY),
-                Component.translatable("ponderer.ui.preview.rotate").withStyle(ChatFormatting.GRAY),
-                Component.translatable("ponderer.ui.preview.pan").withStyle(ChatFormatting.GRAY),
-                Component.translatable("ponderer.ui.preview.zoom").withStyle(ChatFormatting.GRAY)), mouseX, mouseY);
+        graphics.renderComponentTooltip(ui.getFontRenderer(), controlsTooltip(textVisible), mouseX, mouseY);
         graphics.pose().popPose();
+    }
+
+    static List<Component> controlsTooltip(boolean textVisible) {
+        return controlsTooltip("ponderer.ui.preview.shortcut", textVisible);
+    }
+
+    static List<Component> controlsTooltip(String titleKey, boolean textVisible) {
+        return List.of(Component.translatable(titleKey).withStyle(ChatFormatting.WHITE),
+            Component.translatable("ponderer.ui.preview.rotate").withStyle(ChatFormatting.GRAY),
+            Component.translatable("ponderer.ui.preview.pan").withStyle(ChatFormatting.GRAY),
+            Component.translatable("ponderer.ui.preview.zoom").withStyle(ChatFormatting.GRAY),
+            Component.translatable(textVisible ? "ponderer.ui.preview.hide_text"
+                : "ponderer.ui.preview.show_text").withStyle(ChatFormatting.GRAY));
     }
 }

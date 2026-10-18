@@ -50,9 +50,9 @@ public class IndicateEffectScreen extends AbstractStepEditorScreen {
     protected DslScene.DslStep buildStep() {
         clearStatusMessages();
 
-        Integer px = parseInt(posField.x(), "X");
-        Integer py = parseInt(posField.y(), "Y");
-        Integer pz = parseInt(posField.z(), "Z");
+        Integer px = parseBlockCoordinate(posField.x(), "X");
+        Integer py = parseBlockCoordinate(posField.y(), "Y");
+        Integer pz = parseBlockCoordinate(posField.z(), "Z");
         if (px == null || py == null || pz == null) return null;
 
         DslScene.DslStep s = new DslScene.DslStep();

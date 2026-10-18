@@ -21,6 +21,8 @@ The original opaque gray pixels are normalized to pure white, preserving their p
 Source texture: assets/ponderer/textures/gui/projector.png, rectangle (0, 441, 16, 16).
 The upload icon reverses only the arrow vertically; the tray remains unchanged.
 Opaque nonblack pixels are normalized to pure white without resampling.
+Both icons are translated one pixel left and up within their 16x16 atlas cells
+to center the visible pixels; their shapes and pixel sizes remain unchanged.
 These sprites reuse an existing Ponderer project asset.
 
 See action_icons.json for per-icon sources, atlas coordinates and aliases.

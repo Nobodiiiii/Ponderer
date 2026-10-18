@@ -854,7 +854,9 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
         if (com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen != null) {
             var ret = com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen;
             com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen = null;
-            Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(ret));
+            // removed() runs inside setScreen(). Defer the return so the outer
+            // transition cannot discard the list after its GUI scale is applied.
+            Minecraft.getInstance().tell(() -> Minecraft.getInstance().setScreen(ret));
         }
     }
 

@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
@@ -38,9 +39,14 @@ final class PlayerInventoryPicker {
         this.onItemPicked = onItemPicked;
     }
 
-    void render(GuiGraphics graphics, int mouseX, int mouseY, int screenWidth) {
+    Rect2i occupiedArea(int screenWidth) {
         x = Math.max(SCREEN_MARGIN, Math.min(anchor.getX(), screenWidth - WIDTH - SCREEN_MARGIN));
         y = anchor.getY() + anchor.getHeight() + GAP;
+        return new Rect2i(x, y, WIDTH, HEIGHT);
+    }
+
+    void render(GuiGraphics graphics, int mouseX, int mouseY, int screenWidth) {
+        occupiedArea(screenWidth);
         var font = Minecraft.getInstance().font;
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 400);

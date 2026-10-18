@@ -288,6 +288,16 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractInventoryPic
         }
     }
 
+    @Nullable
+    protected Integer parseBlockCoordinate(String value, String fieldName) {
+        FormParsers.ParseResult<Integer> result = FormParsers.requiredBlockCoordinate(value, fieldName);
+        if (result.failed()) {
+            setErrorMessage(result.errorMessage());
+            return null;
+        }
+        return result.value();
+    }
+
     protected abstract SnapshotReturnContext createReturnContext();
 
     private void ensureFormStateParticipants() {

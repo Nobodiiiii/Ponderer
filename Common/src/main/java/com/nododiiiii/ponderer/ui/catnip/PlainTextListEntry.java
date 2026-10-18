@@ -73,6 +73,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     public void setSharedField(FieldType type) {
         String tooltipKey = type.tooltipKey();
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        ((ClippedConfigTextField) textField).setNumericDrag(type);
         if (!preserveDefaultHint) {
             EntryTextSupport.applyHint(textField, type.hintKey());
         }

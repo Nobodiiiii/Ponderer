@@ -101,9 +101,9 @@ public class HighlightSectionScreen extends AbstractStepEditorScreen {
     protected DslScene.DslStep buildStep() {
         clearStatusMessages();
 
-        Integer p1x = parseInt(pos1Field.x(), "From X");
-        Integer p1y = parseInt(pos1Field.y(), "From Y");
-        Integer p1z = parseInt(pos1Field.z(), "From Z");
+        Integer p1x = parseBlockCoordinate(pos1Field.x(), "From X");
+        Integer p1y = parseBlockCoordinate(pos1Field.y(), "From Y");
+        Integer p1z = parseBlockCoordinate(pos1Field.z(), "From Z");
         if (p1x == null || p1y == null || p1z == null) return null;
 
         Integer p2x = parseOptionalInt(pos2Field.x(), "To X");
@@ -130,6 +130,6 @@ public class HighlightSectionScreen extends AbstractStepEditorScreen {
     private Integer parseOptionalInt(String raw, String label) {
         String trimmed = raw == null ? "" : raw.trim();
         if (trimmed.isEmpty()) return null;
-        return parseInt(trimmed, label);
+        return parseBlockCoordinate(trimmed, label);
     }
 }

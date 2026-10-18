@@ -162,9 +162,9 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
             String posZ = posField.z().trim();
             boolean hasPos1 = !posX.isEmpty() || !posY.isEmpty() || !posZ.isEmpty();
             if (hasPos1) {
-                px = parseInt(posX, "X");
-                py = parseInt(posY, "Y");
-                pz = parseInt(posZ, "Z");
+                px = parseBlockCoordinate(posX, "X");
+                py = parseBlockCoordinate(posY, "Y");
+                pz = parseBlockCoordinate(posZ, "Z");
                 if (px == null || py == null || pz == null) return null;
             } else if (linkId.isEmpty()) {
                 setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.target_required"));
@@ -180,9 +180,9 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                     setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.partial_to"));
                     return null;
                 }
-                px2 = parseInt(pos2X, "X2");
-                py2 = parseInt(pos2Y, "Y2");
-                pz2 = parseInt(pos2Z, "Z2");
+                px2 = parseBlockCoordinate(pos2X, "X2");
+                py2 = parseBlockCoordinate(pos2Y, "Y2");
+                pz2 = parseBlockCoordinate(pos2Z, "Z2");
                 if (px2 == null || py2 == null || pz2 == null) return null;
             }
         }

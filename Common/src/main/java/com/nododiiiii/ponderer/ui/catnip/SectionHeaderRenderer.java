@@ -6,7 +6,7 @@ import net.minecraft.client.gui.GuiGraphics;
 /** Shared section heading colors and spacing for button rows and compact item grid rows. */
 public final class SectionHeaderRenderer {
 
-    private static final int TEXT_COLOR = 0xFFCCCC77;
+    static final int TEXT_COLOR = 0xFFCCCC77;
     private static final int HIGHLIGHT_COLOR = 0xFFF3D46B;
     private static final int LINE_COLOR = 0x40FFFFFF;
     private static final int TEXT_LINE_GAP = 2;

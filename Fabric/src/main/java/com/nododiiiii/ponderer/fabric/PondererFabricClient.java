@@ -19,6 +19,8 @@ import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.NbtPickState;
 import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
+import com.nododiiiii.ponderer.ui.PonderPreviewTooltip;
+import com.nododiiiii.ponderer.ui.PonderSceneTextLayer;
 import net.createmod.catnip.config.ui.BaseConfigScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
@@ -29,6 +31,8 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.CommonLifecycleEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
@@ -86,6 +90,19 @@ public class PondererFabricClient implements ClientModInitializer {
 
         BlockEntityRendererRegistry.register(ModBlockEntities.PROJECTOR.get(), ctx -> new ProjectorBlockEntityRenderer());
         MenuScreens.register(ModMenuTypes.PROJECTOR.get(), ProjectorConfigScreen::new);
+        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
+            PonderPreviewTooltip tooltip = PonderPreviewTooltip.create(screen);
+            if (tooltip == null) return;
+            Screens.getButtons(screen).add(tooltip);
+            ScreenEvents.beforeRender(screen).register((scr, graphics, mouseX, mouseY, partialTick) ->
+                PonderSceneTextLayer.beforeRender(scr));
+            ScreenEvents.afterRender(screen).register((scr, graphics, mouseX, mouseY, partialTick) -> {
+                PonderSceneTextLayer.afterRender(scr, graphics);
+                tooltip.renderTooltip(graphics, mouseX, mouseY);
+            });
+            ScreenEvents.remove(screen).register(scr -> PonderSceneTextLayer.cancelPending());
+        });
+        ClientTickEvents.START_CLIENT_TICK.register(client -> PonderSceneTextLayer.cancelPending());
         WorldRenderEvents.START.register(context -> ProjectorWorldOverlayQueue.beginFrame());
         WorldRenderEvents.LAST.register(context -> {
             ProjectorWorldOverlayQueue.render();

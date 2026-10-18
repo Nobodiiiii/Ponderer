@@ -18,6 +18,8 @@ import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
 import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
+import com.nododiiiii.ponderer.ui.PonderPreviewTooltip;
+import com.nododiiiii.ponderer.ui.PonderSceneTextLayer;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
@@ -32,6 +34,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
@@ -66,6 +69,17 @@ public class PondererNeoForgeClient {
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseScrolled);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseInput);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onPlayerLoggedIn);
+        NeoForge.EVENT_BUS.addListener((ScreenEvent.Init.Post event) -> {
+            PonderPreviewTooltip tooltip = PonderPreviewTooltip.create(event.getScreen());
+            if (tooltip != null) event.addListener(tooltip);
+        });
+        NeoForge.EVENT_BUS.addListener((ScreenEvent.Render.Pre event) ->
+            PonderSceneTextLayer.beforeRender(event.getScreen()));
+        NeoForge.EVENT_BUS.addListener((ScreenEvent.Render.Post event) -> {
+            PonderSceneTextLayer.afterRender(event.getScreen(), event.getGuiGraphics());
+            PonderPreviewTooltip.render(event.getScreen(), event.getGuiGraphics(), event.getMouseX(), event.getMouseY());
+        });
+        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Pre event) -> PonderSceneTextLayer.cancelPending());
         NeoForge.EVENT_BUS.addListener((TagsUpdatedEvent event) -> {
             if (event.getUpdateCause() == TagsUpdatedEvent.UpdateCause.CLIENT_PACKET_RECEIVED) {
                 Minecraft.getInstance().execute(ProjectorClientCaches::onItemTagsUpdated);

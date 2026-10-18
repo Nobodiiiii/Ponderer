@@ -16,6 +16,8 @@ public final class PonderRuntimeZLayers {
     public static final int SCENE_UI_BASE = 400;
 
     public static final int PONDER_BACKGROUND_LAYER = SCENE_LIFT_BIAS;
+    /** Includes the progress panel's native tooltip offset while staying below scene text backgrounds. */
+    public static final int TEXT_PROGRESS_LAYER = SCENE_LIFT_BIAS + 400;
     public static final int SLOT_ONLY_LAYER = SCENE_LIFT_BIAS + 440;
     public static final int JEI_OVERLAY_LAYER = SCENE_LIFT_BIAS + 480;
     public static final int PONDER_TEXT_BASELINE_LAYER = SCENE_LIFT_BIAS + 500;

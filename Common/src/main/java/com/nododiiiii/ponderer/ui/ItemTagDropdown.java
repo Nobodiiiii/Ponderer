@@ -110,6 +110,10 @@ final class ItemTagDropdown {
         return contains(bounds, mouseX, mouseY);
     }
 
+    Rect2i occupiedArea() {
+        return bounds;
+    }
+
     boolean scroll(double mouseX, double mouseY, double delta) {
         if (delta == 0) return false;
         int direction = delta > 0 ? -1 : 1;

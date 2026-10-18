@@ -18,9 +18,11 @@ import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -28,6 +30,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,8 +48,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private static final int SCENE_LIST_WIDTH = 400;
     private static final HistorySession HISTORY_SESSION = new HistorySession();
 
-    @Nullable
-    private static DslScene.DslStep clipboard = null;
+    private static List<DslScene.DslStep> clipboard = List.of();
     @Nullable
     private static PonderScreenNavigation.ReturnState pendingPonderReturnState = null;
 
@@ -54,6 +56,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     @Nullable
     private final PonderScreenNavigation.ReturnState ponderReturnState;
     private int sceneIndex;
+    private final Map<DslScene.DslStep, DslScene.DslStep> copiedSteps = new IdentityHashMap<>();
     private final SceneEditorPreview preview = new SceneEditorPreview();
     private boolean syncingListFromPreview;
 
@@ -99,9 +102,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private int listLeftEdge() {
-        // Retain the previous slim list's left edge; widen only toward the right.
-        int previousWidth = Math.min(width - 80, UILayoutConstants.EDITOR_LIST_W);
-        return Math.min(width * 2 / 5 + 8, width - previousWidth - 40);
+        return width * 2 / 5 + 8;
     }
 
     @Override
@@ -116,15 +117,28 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void layoutPreview() {
-        int listLeft = width / 2 - currentListWidthValue() / 2 + listHorizontalOffset();
-        preview.setBounds(0, CONTENT_TOP, Math.max(1, Math.min(width * 2 / 5, listLeft - 8)),
-            Math.max(60, height - CONTENT_TOP - 10));
+        preview.layoutOnLeft(width, height);
+    }
+
+    SceneEditorPreview.ViewState previewViewState() {
+        return preview.viewState();
     }
 
     @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.renderWindow(graphics, mouseX, mouseY, partialTicks);
         preview.render(graphics, mouseX, mouseY, partialTicks);
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.render(graphics, mouseX, mouseY, partialTicks);
+        preview.renderTooltip(graphics, mouseX, mouseY);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        return preview.keyReleased(keyCode) || super.keyReleased(keyCode, scanCode, modifiers);
     }
 
     private void scrollListToPreview() {
@@ -232,6 +246,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     @Override
     protected void collectEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries) {
         List<DslScene.DslStep> steps = getSteps();
+        copiedSteps.keySet().retainAll(steps);
         if (steps.isEmpty()) {
             entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.scene_editor.no_steps")));
             return;
@@ -266,14 +281,15 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                         PondererGuiIcons.COPY,
                         this::copyButtonTooltip,
                         () -> copyStep(stepIndex),
-                        null,
-                        () -> true),
+                        () -> toggleStepCopy(stepIndex),
+                        () -> true,
+                        copiedSteps.containsKey(steps.get(stepIndex))),
                     SceneStepListEntry.iconButton(
                         PondererGuiIcons.PASTE,
                         this::pasteButtonTooltip,
                         () -> pasteAfter(stepIndex),
                         null,
-                        () -> clipboard != null),
+                        () -> !clipboard.isEmpty()),
                     SceneStepListEntry.iconButton(
                         PondererGuiIcons.REMOVE,
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.delete"))),
@@ -335,7 +351,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                 return true;
             }
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        if (super.keyPressed(keyCode, scanCode, modifiers)) return true;
+        return !(getFocused() instanceof EditBox) && !hasControlDown() && !hasAltDown()
+            && preview.keyPressed(keyCode);
     }
 
     private void configureActionButtons() {
@@ -503,6 +521,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             newIndex = 0;
         }
         sceneIndex = newIndex;
+        copiedSteps.clear();
         clearStatusMessages();
         rebuildListAtTop();
         preview.load(scene, sceneIndex);
@@ -561,7 +580,10 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private List<net.minecraft.network.chat.Component> copyButtonTooltip() {
-        return List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.copy")));
+        return List.of(
+            Component.literal(UIText.of("ponderer.ui.scene_editor.btn.copy")),
+            Component.literal(UIText.of("ponderer.ui.scene_editor.btn.copy.multi_select"))
+                .withStyle(ChatFormatting.DARK_GRAY));
     }
 
     private List<net.minecraft.network.chat.Component> pasteButtonTooltip() {
@@ -571,9 +593,35 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private void copyStep(int index) {
         List<DslScene.DslStep> steps = getSteps();
         if (index >= 0 && index < steps.size()) {
-            clipboard = deepCopy(steps.get(index));
+            copiedSteps.clear();
+            DslScene.DslStep step = steps.get(index);
+            copiedSteps.put(step, deepCopy(step));
+            updateClipboardFromSelection();
             rebuildListPreservingScroll();
         }
+    }
+
+    private void toggleStepCopy(int index) {
+        List<DslScene.DslStep> steps = getSteps();
+        if (index < 0 || index >= steps.size()) {
+            return;
+        }
+        DslScene.DslStep step = steps.get(index);
+        if (copiedSteps.containsKey(step)) {
+            copiedSteps.remove(step);
+        } else {
+            copiedSteps.put(step, deepCopy(step));
+        }
+        updateClipboardFromSelection();
+        rebuildListPreservingScroll();
+    }
+
+    private void updateClipboardFromSelection() {
+        // The list order, rather than the order of right-clicks, determines paste order.
+        clipboard = getSteps().stream()
+            .filter(copiedSteps::containsKey)
+            .map(copiedSteps::get)
+            .toList();
     }
 
     private void openInsertAfter(int afterIndex) {
@@ -582,10 +630,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void pasteAfter(int afterIndex) {
-        if (clipboard == null) {
+        if (!copiedSteps.isEmpty()) {
+            updateClipboardFromSelection();
+        }
+        if (clipboard.isEmpty()) {
             return;
         }
-        insertStepAndSave(afterIndex, deepCopy(clipboard));
+        insertStepsAndSave(afterIndex, clipboard.stream().map(SceneEditorScreen::deepCopy).toList());
         rebuildListPreservingScroll();
     }
 
@@ -610,6 +661,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void setMutableSteps(List<DslScene.DslStep> newSteps) {
+        copiedSteps.clear();
         if (scene.scenes != null && !scene.scenes.isEmpty()
             && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
             scene.scenes.get(sceneIndex).steps = new ArrayList<>(newSteps);
@@ -683,18 +735,19 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     public void insertStepAndSave(int afterIndex, DslScene.DslStep newStep) {
+        insertStepsAndSave(afterIndex, List.of(newStep));
+    }
+
+    private void insertStepsAndSave(int afterIndex, List<DslScene.DslStep> newSteps) {
         undoManager().saveState(getSteps());
         List<DslScene.DslStep> steps = getMutableSteps();
-        int insertedIndex;
-        if (afterIndex >= 0 && afterIndex < steps.size()) {
-            steps.add(afterIndex + 1, newStep);
-            insertedIndex = afterIndex + 1;
-        } else {
-            steps.add(newStep);
-            insertedIndex = steps.size() - 1;
-        }
-        if (isShowInterfaceStep(newStep)) {
-            pruneFollowingInterfaceSlotSteps(steps, insertedIndex);
+        int insertedIndex = afterIndex >= 0 && afterIndex < steps.size() ? afterIndex + 1 : steps.size();
+        for (DslScene.DslStep newStep : newSteps) {
+            steps.add(insertedIndex, newStep);
+            if (isShowInterfaceStep(newStep)) {
+                pruneFollowingInterfaceSlotSteps(steps, insertedIndex);
+            }
+            insertedIndex++;
         }
         saveToFile();
     }
