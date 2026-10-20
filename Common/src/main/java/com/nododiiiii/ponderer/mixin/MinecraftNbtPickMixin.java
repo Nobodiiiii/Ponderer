@@ -27,12 +27,10 @@ public class MinecraftNbtPickMixin {
             while (mc.options.keyPickItem.consumeClick()) {
                 NbtPickState.handleUseClick();
             }
-            mc.player.displayClientMessage(net.minecraft.network.chat.Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
             return;
         }
 
         if (CoordPickState.isActive()) {
-            CoordPickState.onClientTick();
             while (mc.options.keyPickItem.consumeClick()) {
                 CoordPickState.handleMiddleClick();
             }

@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ServerFeedback;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -10,12 +12,14 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
-public record SyncRequestPayload() implements CustomPacketPayload {
+public record SyncRequestPayload(String mode) implements CustomPacketPayload {
 
     public static final Type<SyncRequestPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, "sync_request"));
     public static final StreamCodec<RegistryFriendlyByteBuf, SyncRequestPayload> CODEC =
             StreamCodec.of(SyncRequestPayload::encode, SyncRequestPayload::decode);
+
+    public SyncRequestPayload() { this("check"); }
 
     @Override
     public Type<? extends CustomPacketPayload> type() {
@@ -23,10 +27,11 @@ public record SyncRequestPayload() implements CustomPacketPayload {
     }
 
     private static void encode(RegistryFriendlyByteBuf buf, SyncRequestPayload payload) {
+        buf.writeUtf(payload.mode());
     }
 
     private static SyncRequestPayload decode(RegistryFriendlyByteBuf buf) {
-        return new SyncRequestPayload();
+        return new SyncRequestPayload(buf.readUtf());
     }
 
     public static void handle(SyncRequestPayload payload, @Nullable ServerPlayer player) {
@@ -35,9 +40,9 @@ public record SyncRequestPayload() implements CustomPacketPayload {
         }
         UploadPermissions.ensurePullAccess(player);
         if (!UploadPermissions.canPull(player)) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.pull.no_permission"));
+            ServerFeedback.send(player, Component.translatable("ponderer.cmd.pull.no_permission"), FeedbackLevel.ERROR);
             return;
         }
-        SyncResponsePayload.sendBatched(player);
+        SyncResponsePayload.sendBatched(player, payload.mode());
     }
 }

@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.fabric;
 
+import com.nododiiiii.ponderer.feedback.ServerFeedback;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.network.*;
 import com.nododiiiii.ponderer.platform.services.NetworkHelper;
 import net.fabricmc.api.EnvType;
@@ -18,6 +20,9 @@ public class FabricNetworkHelper implements NetworkHelper {
 
     @Override
     public void registerPackets() {
+        PayloadTypeRegistry.playC2S().register(FeedbackRequestPayload.TYPE, FeedbackRequestPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(FeedbackResponsePayload.TYPE, FeedbackResponsePayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(FeedbackMessagePayload.TYPE, FeedbackMessagePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(UploadScenePayload.TYPE, UploadScenePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(SyncRequestPayload.TYPE, SyncRequestPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(AutoSyncPreferencePayload.TYPE, AutoSyncPreferencePayload.CODEC);
@@ -58,6 +63,8 @@ public class FabricNetworkHelper implements NetworkHelper {
     }
 
     private void registerServerHandlers() {
+        ServerPlayNetworking.registerGlobalReceiver(FeedbackRequestPayload.TYPE, (payload, context) ->
+            context.server().execute(() -> FeedbackRequestPayload.handle(payload, context.player())));
         ServerPlayNetworking.registerGlobalReceiver(StructurePreviewRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
             player.server.execute(() -> StructurePreviewRequestPayload.handle(payload, player));
@@ -134,6 +141,10 @@ public class FabricNetworkHelper implements NetworkHelper {
 
     @Environment(EnvType.CLIENT)
     private void registerClientHandlers() {
+        ClientPlayNetworking.registerGlobalReceiver(FeedbackResponsePayload.TYPE, (payload, context) ->
+            context.client().execute(() -> ClientFeedback.receive(payload)));
+        ClientPlayNetworking.registerGlobalReceiver(FeedbackMessagePayload.TYPE, (payload, context) ->
+            context.client().execute(() -> FeedbackMessagePayload.handle(payload)));
         ClientPlayNetworking.registerGlobalReceiver(StructurePreviewResponsePayload.TYPE, (payload, context) -> {
             context.client().execute(() -> StructurePreviewResponsePayload.handle(payload));
         });
@@ -178,7 +189,7 @@ public class FabricNetworkHelper implements NetworkHelper {
     @Override
     @Environment(EnvType.CLIENT)
     public void sendToServer(CustomPacketPayload packet) {
-        ClientPlayNetworking.send(packet);
+        ClientPlayNetworking.send(ClientFeedback.request(packet));
     }
 
     @Override
@@ -189,6 +200,6 @@ public class FabricNetworkHelper implements NetworkHelper {
 
     @Override
     public void sendToPlayer(ServerPlayer player, CustomPacketPayload packet) {
-        ServerPlayNetworking.send(player, packet);
+        ServerPlayNetworking.send(player, ServerFeedback.response(player, packet));
     }
 }

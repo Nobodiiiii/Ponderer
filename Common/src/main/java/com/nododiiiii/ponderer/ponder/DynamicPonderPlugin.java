@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
+import com.nododiiiii.ponderer.mixin.TickingInstructionAccessor;
 import com.nododiiiii.ponderer.projector.client.ProjectorCueMarkerInstruction;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
 import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
@@ -32,6 +33,7 @@ import net.createmod.ponder.api.scene.PonderStoryBoard;
 import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
 import net.createmod.ponder.foundation.PonderScene;
+import net.createmod.ponder.foundation.PonderSceneBuilder;
 import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstruction;
 import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
 import net.createmod.ponder.foundation.instruction.RotateSceneInstruction;
@@ -451,6 +453,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
                     scene.addKeyframe();
                     scene.idle(20);
 
+                    scene.overlay().showText(160)
+                        .text(I18n.get("ponderer.guide.blueprint.intro"))
+                        .pointAt(new Vec3(2.5, 1.0, 2.5))
+                        .placeNearTarget();
+                    scene.idle(170);
+
                     Vec3 firstPoint = new Vec3(1.5, 1.0, 1.5);
                     Vec3 secondPoint = new Vec3(3.5, 4.0, 3.5);
                     Vec3 resizePoint = new Vec3(2.5, 2.5, 1.5);
@@ -687,7 +695,67 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     /** Compile just the edited segment, using the same schematic resolution and storyboard as playback. */
-    public record EditorScene(PonderScene scene, List<Integer> stepTicks) {}
+    public record EditorScene(PonderScene scene, List<Integer> stepTicks,
+                              List<PonderInstruction> lastStepInstructions) {}
+
+    /** Capture actual instruction completion, including non-blocking effects and native fade times. */
+    private static final class EditorSceneBuilder extends PonderSceneBuilder {
+        private final List<PonderInstruction> lastStepInstructions = new ArrayList<>();
+        private int scheduledTicks;
+        private int lastStepEndTick;
+
+        EditorSceneBuilder(PonderScene scene) {
+            super(scene);
+        }
+
+        void beginStep() {
+            lastStepInstructions.clear();
+            lastStepEndTick = scheduledTicks;
+        }
+
+        void finishTimeline() {
+            int endTick = Math.max(scheduledTicks, lastStepEndTick);
+            // Apply the full effect duration on every begin/replay, after native keyframe scheduling.
+            // Only the final step's effects extend the timeline: earlier effects may overlap it.
+            super.addInstruction(new PonderInstruction() {
+                @Override public void onScheduled(PonderScene scene) {
+                    scene.addToSceneTime(Math.max(0, endTick - scene.getTotalTime()));
+                }
+                @Override public boolean isComplete() { return true; }
+                @Override public void tick(PonderScene scene) {}
+            });
+        }
+
+        @Override
+        public void addInstruction(PonderInstruction instruction) {
+            int nativeTicks = instruction instanceof TickingInstruction
+                ? ((TickingInstructionAccessor) instruction).ponderer$getTotalTicks() : 1;
+            int duration = Math.max(1, nativeTicks);
+            lastStepEndTick = Math.max(lastStepEndTick, scheduledTicks + duration);
+            if (instruction.isBlocking()) scheduledTicks += duration;
+            PonderInstruction tracked = new PonderInstruction() {
+                private boolean started;
+
+                @Override public boolean isBlocking() { return instruction.isBlocking(); }
+                @Override public boolean isComplete() { return started && instruction.isComplete(); }
+                @Override public void onScheduled(PonderScene scene) {
+                    instruction.onScheduled(scene);
+                    // Even a zero-duration blocking instruction consumes a native scheduling tick.
+                    if (instruction.isBlocking() && nativeTicks == 0) scene.addToSceneTime(1);
+                }
+                @Override public void reset(PonderScene scene) {
+                    started = false;
+                    instruction.reset(scene);
+                }
+                @Override public void tick(PonderScene scene) {
+                    started = true;
+                    instruction.tick(scene);
+                }
+            };
+            lastStepInstructions.add(tracked);
+            super.addInstruction(tracked);
+        }
+    }
 
     @Nullable
     public EditorScene compileEditorScene(DslScene dsl, int segmentIndex) {
@@ -706,12 +774,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
             PonderScene compiled = new PonderScene(level, new PonderLocalization(), getModId(), component,
                 List.of(), List.of());
             List<Integer> stepTicks = new ArrayList<>();
+            EditorSceneBuilder builder = new EditorSceneBuilder(compiled);
             createStoryBoard(dsl, segments.get(segmentIndex), segmentIndex, segments.size(), stepTicks)
-                .program(compiled.builder(), compiled.getSceneBuildingUtil());
-            // Keep the last non-blocking step reachable through Ponder's native bounded timeline.
-            compiled.builder().idle(1);
+                .program(builder, compiled.getSceneBuildingUtil());
+            builder.finishTimeline();
             compiled.begin();
-            return new EditorScene(compiled, stepTicks);
+            return new EditorScene(compiled, stepTicks, List.copyOf(builder.lastStepInstructions));
         });
     }
 
@@ -757,6 +825,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 }
 
                 for (DslScene.DslStep step : sc.steps) {
+                    if (builder instanceof EditorSceneBuilder editorBuilder) editorBuilder.beginStep();
                     if (stepTicks != null) {
                         int stepIndex = stepTicks.size();
                         stepTicks.add(0);

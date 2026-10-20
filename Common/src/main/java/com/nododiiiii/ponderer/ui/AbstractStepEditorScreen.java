@@ -1,13 +1,21 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
+import com.nododiiiii.ponderer.ui.catnip.ScreenTooltipBoxWidget;
+import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
+import net.createmod.catnip.gui.widget.BoxWidget;
+import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.Rect2i;
+import net.minecraft.world.phys.Vec3;
+import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -15,6 +23,8 @@ import java.util.List;
 public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormScreen implements PointPickButtonHost {
 
     protected static final int STEP_EDITOR_LIST_WIDTH = UILayoutConstants.EDITOR_LIST_W;
+    private static final int SIDEBAR_BUTTON_SIZE = 28;
+    private static final int SIDEBAR_BUTTON_GAP = 2;
 
     protected final int editIndex;
     @Nullable
@@ -23,6 +33,13 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     protected boolean attachKeyFrame = false;
     protected int insertAfterIndex = -1;
     private final SceneEditorPreview preview = new SceneEditorPreview();
+    @Nullable
+    private DslScene previewDraft;
+    private int previewDraftStepIndex;
+    @Nullable
+    private BoxWidget previousStepButton;
+    @Nullable
+    private BoxWidget nextStepButton;
 
     protected static final java.util.Map<String, Integer> PALETTE_COLORS = java.util.Map.ofEntries(
         java.util.Map.entry("white", 0xEEEEEE),
@@ -52,15 +69,146 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
             STEP_EDITOR_LIST_WIDTH);
         this.editIndex = editIndex;
         this.existingStep = existingStep;
+        preview.setStepPreviewAction(this::previewCurrentStep);
         if (parent != null) preview.restoreView(parent.previewViewState());
     }
 
     @Override
     protected void init() {
         super.init();
-        preview.load(scene, sceneIndex);
-        preview.seekStep(isEditMode() ? editIndex : Math.max(0, insertAfterIndex));
+        initStepActionButtons();
+        reloadStepPreview();
         preview.layoutOnLeft(width, height);
+    }
+
+    private void initStepActionButtons() {
+        if (saveChanges == null) return;
+
+        int x = saveChanges.getX();
+        int spacing = SIDEBAR_BUTTON_SIZE + SIDEBAR_BUTTON_GAP;
+        int top = height / 2 - (SIDEBAR_BUTTON_SIZE * 5 + SIDEBAR_BUTTON_GAP * 4) / 2;
+        previousStepButton = addStepNavigationButton(x, top, -1, PonderGuiTextures.ICON_PONDER_LEFT,
+            "ponderer.ui.step_editor.previous");
+        nextStepButton = addStepNavigationButton(x, top + spacing, 1, PonderGuiTextures.ICON_PONDER_RIGHT,
+            "ponderer.ui.step_editor.next");
+        saveChanges.setY(top + spacing * 2);
+        if (discardChanges != null) discardChanges.setY(top + spacing * 3);
+        if (goBack != null) goBack.setY(top + spacing * 4);
+    }
+
+    private void reloadStepPreview() {
+        preview.load(previewDraft != null ? previewDraft : scene, sceneIndex);
+        preview.seekStep(previewDraft != null ? previewDraftStepIndex
+            : isEditMode() ? editIndex : Math.max(0, insertAfterIndex));
+    }
+
+    private void previewCurrentStep() {
+        preview.cancelPointPick();
+        clearStatusMessages();
+        DslScene.DslStep step = buildStep();
+        if (step == null) return;
+        if (attachKeyFrame) step.attachKeyFrame = true;
+
+        // Compile an isolated draft so previewing cannot save or modify the scene's undo history.
+        DslScene draft = SceneStore.copyScene(scene);
+        if (draft == null || draft.scenes == null || sceneIndex < 0 || sceneIndex >= draft.scenes.size()) {
+            setErrorMessage(UIText.of("ponderer.ui.scene_editor.preview_unavailable"));
+            return;
+        }
+        DslScene.SceneSegment segment = draft.scenes.get(sceneIndex);
+        List<DslScene.DslStep> steps = segment.steps == null
+            ? new java.util.ArrayList<>() : new java.util.ArrayList<>(segment.steps);
+        segment.steps = steps;
+        if (isEditMode()) {
+            if (editIndex >= steps.size()) {
+                setErrorMessage(UIText.of("ponderer.ui.scene_editor.preview_unavailable"));
+                return;
+            }
+            steps.set(editIndex, step);
+        } else {
+            int index = insertAfterIndex >= 0 && insertAfterIndex < steps.size()
+                ? insertAfterIndex + 1 : steps.size();
+            steps.add(index, step);
+        }
+        // Sanitization may prepend scene setup when this is the first step being added.
+        SceneStore.sanitizeScene(draft);
+        int index = segment.steps.indexOf(step);
+        // Preview only this step and its prerequisites; later steps must not overlap its effects.
+        segment.steps = new java.util.ArrayList<>(segment.steps.subList(0, index + 1));
+        if (!preview.load(draft, sceneIndex)) {
+            setErrorMessage(UIText.of("ponderer.ui.scene_editor.preview_unavailable"));
+            return;
+        }
+        previewDraft = draft;
+        previewDraftStepIndex = index;
+        preview.playLastStep();
+        setInfoMessage(UIText.of("ponderer.ui.step_editor.preview.updated"));
+    }
+
+    @Override
+    protected void discardEdits() {
+        preview.cancelPointPick();
+        super.discardEdits();
+        previewDraft = null;
+        reloadStepPreview();
+    }
+
+    private BoxWidget addStepNavigationButton(int x, int y, int direction, PonderGuiTextures icon, String tooltipKey) {
+        BoxWidget button = new ScreenTooltipBoxWidget(x, y, SIDEBAR_BUTTON_SIZE, SIDEBAR_BUTTON_SIZE)
+            .withPadding(6, 6)
+            .withCallback(() -> attemptStepNavigation(direction));
+        PonderIconStencils.attach(button, PonderIconStencils.centered(icon));
+        setActionButtonTooltip(button, tooltipKey);
+        button.active = createAdjacentStepEditor(direction) != null;
+        button.updateGradientFromState();
+        addRenderableWidget(button);
+        return button;
+    }
+
+    @Nullable
+    private AbstractStepEditorScreen createAdjacentStepEditor(int direction) {
+        if (!isEditMode() || parent == null) return null;
+
+        List<DslScene.DslStep> steps = StepEditorContext.getStepsForScene(scene, sceneIndex);
+        if (steps == null) return null;
+
+        for (int index = editIndex + direction; index >= 0 && index < steps.size(); index += direction) {
+            AbstractStepEditorScreen editor = StepEditorFactory.createEditScreen(
+                steps.get(index), index, scene, sceneIndex, parent);
+            if (editor != null) return editor;
+        }
+        return null;
+    }
+
+    private void attemptStepNavigation(int direction) {
+        if (!hasUnsavedChanges()) {
+            openAdjacentStep(direction);
+            return;
+        }
+
+        showLeavingPrompt(response -> {
+            if (response == ConfirmationScreen.Response.Cancel) return;
+            if (response == ConfirmationScreen.Response.Confirm) {
+                if (!saveEdits()) return;
+            } else {
+                discardEdits();
+            }
+            openAdjacentStep(direction);
+        }, "ponderer.ui.step_editor.unsaved_changes.message",
+            "ponderer.ui.step_editor.unsaved_changes.save_and_switch",
+            "ponderer.ui.step_editor.unsaved_changes.discard_and_switch");
+    }
+
+    private void openAdjacentStep(int direction) {
+        // Saving an interface step can remove dependent steps, so resolve the target after saving.
+        AbstractStepEditorScreen editor = createAdjacentStepEditor(direction);
+        if (editor == null) {
+            updateButtonState(direction < 0 ? previousStepButton : nextStepButton, false);
+            return;
+        }
+
+        editor.preview.restoreView(preview.viewState());
+        Minecraft.getInstance().setScreen(editor);
     }
 
     private int formLeft() {
@@ -96,6 +244,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE && cancelPointPick()) return true;
         if (super.keyPressed(keyCode, scanCode, modifiers)) return true;
         return !(getFocused() instanceof EditBox) && !hasControlDown() && !hasAltDown()
             && preview.keyPressed(keyCode);
@@ -114,8 +263,21 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
 
     @Override
     public void removed() {
+        cancelPointPick();
+        if (parent != null) parent.restorePreviewView(preview.viewState());
         preview.close();
         super.removed();
+    }
+
+    @Override
+    public void onClose() {
+        if (!cancelPointPick()) super.onClose();
+    }
+
+    private boolean cancelPointPick() {
+        if (!preview.cancelPointPick()) return false;
+        clearStatusMessages();
+        return true;
     }
 
     @Override
@@ -289,6 +451,24 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     @Override
     public final void startPointPickFromButton(PickState.TargetField target, boolean halfOffset) {
         PickState.TargetField effectiveTarget = resolvePointPickTarget(target);
+        if (effectiveTarget != PickState.TargetField.UI_POINT) {
+            SceneEditorPreview.PointPickMode mode;
+            if (halfOffset || target == PickState.TargetField.POINT || target == PickState.TargetField.LOOK_AT) {
+                mode = SceneEditorPreview.PointPickMode.FACE_CENTER;
+            } else if ("set_block".equals(getStepType()) || "show_extra_structure".equals(getStepType())) {
+                mode = SceneEditorPreview.PointPickMode.ADJACENT_BLOCK;
+            } else {
+                mode = SceneEditorPreview.PointPickMode.BLOCK;
+            }
+            clearStatusMessages();
+            if (preview.startPointPick(mode, point -> applyPickedPoint(effectiveTarget, point))) {
+                setFocused(null);
+                setInfoMessage(UIText.of("ponderer.ui.pick.preview.active"));
+            } else {
+                setErrorMessage(UIText.of("ponderer.ui.scene_editor.preview_unavailable"));
+            }
+            return;
+        }
         PickState.startPick(
             effectiveTarget,
             snapshotForm(),
@@ -302,6 +482,25 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         PickState.openPonderUIForPick();
     }
 
+    private void applyPickedPoint(PickState.TargetField target, Vec3 point) {
+        String prefix = switch (target) {
+            case POS2 -> "pos2";
+            case LOOK_AT -> "lookAt";
+            case POINT, UI_POINT -> "point";
+            default -> "pos";
+        };
+        java.util.Map<String, String> snapshot = snapshotForm();
+        snapshot.put(prefix + "X", formatPickedCoordinate(point.x));
+        snapshot.put(prefix + "Y", formatPickedCoordinate(point.y));
+        snapshot.put(prefix + "Z", formatPickedCoordinate(point.z));
+        restoreFromSnapshot(snapshot);
+        setInfoMessage(UIText.of("ponderer.ui.pick.preview.filled"));
+    }
+
+    private static String formatPickedCoordinate(double value) {
+        return value == Math.rint(value) ? Long.toString(Math.round(value)) : Double.toString(value);
+    }
+
     private PickState.TargetField resolvePointPickTarget(PickState.TargetField target) {
         if (target != PickState.TargetField.POINT || !isInterfaceStartScene()) {
             return target;
@@ -312,6 +511,12 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     @Override
     public FieldType pointPickFieldType(PickState.TargetField target, boolean halfOffset) {
         return PointPickButtonHost.super.pointPickFieldType(resolvePointPickTarget(target), halfOffset);
+    }
+
+    @Override
+    public String pointPickTooltip(PickState.TargetField target) {
+        return UIText.of(resolvePointPickTarget(target) == PickState.TargetField.UI_POINT
+            ? "ponderer.ui.pick.ui.tooltip" : "ponderer.ui.pick.tooltip");
     }
 
     private boolean isInterfaceStartScene() {

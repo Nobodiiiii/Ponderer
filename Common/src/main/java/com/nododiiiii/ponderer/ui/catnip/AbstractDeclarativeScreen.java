@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.feedback.FeedbackTarget;
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.PondererUiScaling;
@@ -19,7 +21,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.function.Consumer;
 
-public abstract class AbstractDeclarativeScreen extends ConfigScreen implements PondererUiScaling.ScaledScreen {
+public abstract class AbstractDeclarativeScreen extends ConfigScreen implements PondererUiScaling.ScaledScreen, FeedbackTarget {
 
     protected final String scopeKey;
     protected final String titleKey;
@@ -28,6 +30,8 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
     private String errorMessage;
     @Nullable
     private String infoMessage;
+    @Nullable private Component feedbackMessage;
+    private FeedbackLevel feedbackLevel;
 
     protected AbstractDeclarativeScreen(@Nullable Screen parent, String scopeKey, String titleKey) {
         super(parent);
@@ -65,12 +69,22 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
         return width * 0.5f;
     }
 
+    @Override
+    public final void acceptFeedback(Component message, FeedbackLevel level) {
+        if (level == FeedbackLevel.ERROR) setErrorMessage(message.getString());
+        else setInfoMessage(message.getString());
+        feedbackMessage = message;
+        feedbackLevel = level;
+    }
+
     protected final void clearStatusMessages() {
+        feedbackMessage = null;
         errorMessage = null;
         infoMessage = null;
     }
 
     protected final void setErrorMessage(@Nullable String message) {
+        feedbackMessage = null;
         errorMessage = message;
         if (message != null && !message.isBlank()) {
             infoMessage = null;
@@ -78,6 +92,7 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
     }
 
     protected final void setInfoMessage(@Nullable String message) {
+        feedbackMessage = null;
         infoMessage = message;
         if (message != null && !message.isBlank()) {
             errorMessage = null;
@@ -107,8 +122,14 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
         int color = errorMessage != null && !errorMessage.isBlank()
             ? AbstractSimiWidget.COLOR_FAIL.getFirst().getRGB()
             : AbstractSimiWidget.COLOR_SUCCESS.getFirst().getRGB();
+        if (feedbackMessage != null) color = switch (feedbackLevel) {
+            case INFO -> 0xD0D0D0;
+            case SUCCESS -> AbstractSimiWidget.COLOR_SUCCESS.getFirst().getRGB();
+            case WARNING -> 0xFFCC55;
+            case ERROR -> AbstractSimiWidget.COLOR_FAIL.getFirst().getRGB();
+        };
         int lineHeight = minecraft.font.lineHeight;
-        List<FormattedCharSequence> lines = minecraft.font.split(Component.literal(message), Math.max(1, maxWidth));
+        List<FormattedCharSequence> lines = minecraft.font.split(feedbackMessage != null ? feedbackMessage : Component.literal(message), Math.max(1, maxWidth));
         int topY = y - Math.max(0, lines.size() - 1) * lineHeight;
         for (int i = 0; i < lines.size(); i++) {
             graphics.drawString(minecraft.font, lines.get(i), x, topY + i * lineHeight, color);
@@ -145,14 +166,20 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
     }
 
     protected void showLeavingPrompt(Consumer<ConfirmationScreen.Response> action) {
+        showLeavingPrompt(action, "ponderer.ui.unsaved_changes.message",
+            "ponderer.ui.unsaved_changes.save_and_back", "ponderer.ui.unsaved_changes.discard_and_back");
+    }
+
+    protected void showLeavingPrompt(Consumer<ConfirmationScreen.Response> action, String messageKey,
+                                     String saveLabelKey, String discardLabelKey) {
         new PondererDialogScreen(
             this,
             List.of(Component.translatable("ponderer.ui.unsaved_changes.title")),
-            List.of(Component.translatable("ponderer.ui.unsaved_changes.message", getUnsavedChangeCount())),
+            List.of(Component.translatable(messageKey, getUnsavedChangeCount())),
             List.of(
-                promptButton("ponderer.ui.unsaved_changes.save_and_back",
+                promptButton(saveLabelKey,
                     () -> action.accept(ConfirmationScreen.Response.Confirm)),
-                promptButton("ponderer.ui.unsaved_changes.discard_and_back",
+                promptButton(discardLabelKey,
                     () -> action.accept(ConfirmationScreen.Response.ConfirmDontSave)),
                 promptButton("ponderer.ui.unsaved_changes.keep_editing",
                     () -> action.accept(ConfirmationScreen.Response.Cancel)))) {

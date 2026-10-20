@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
@@ -52,27 +54,18 @@ public record UploadResponsePayload(String sceneId, @Nullable String pack, Strin
                     SyncMeta.save(meta);
                 }
             }
-            if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
-                screen.receiveUploadResult(true,
-                    "Uploaded " + SceneStore.displaySceneKey(payload.sceneId(), payload.pack()));
-            }
-        } else if ("conflict".equals(payload.status())) {
-            String display = SceneStore.displaySceneKey(payload.sceneId(), payload.pack());
-            if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
-                screen.receiveUploadResult(false, "Remote conflict: " + display);
-            } else {
-                notifyClient(Component.translatable("ponderer.cmd.push.conflict", display));
-            }
-        } else if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
-            screen.receiveUploadResult(false,
-                "Upload failed: " + SceneStore.displaySceneKey(payload.sceneId(), payload.pack()));
         }
-    }
-
-    private static void notifyClient(Component message) {
-        if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(message, false);
-        }
+        String display = SceneStore.displaySceneKey(payload.sceneId(), payload.pack());
+        boolean success = payload.status() != null && payload.status().startsWith("ok:");
+        String key = success ? "ponderer.cmd.push.upload_ok" : switch (payload.status() == null ? "" : payload.status()) {
+            case "conflict" -> "ponderer.cmd.push.conflict";
+            case "denied" -> "ponderer.cmd.push.no_permission";
+            default -> "ponderer.cmd.push.upload_failed";
+        };
+        ClientFeedback.result(Component.translatable(key, display),
+            success ? FeedbackLevel.SUCCESS : FeedbackLevel.ERROR);
+        if (ClientFeedback.responseScreen() instanceof RemoteBrowserScreen screen
+            && Minecraft.getInstance().screen == screen) screen.refreshAfterUpload(success);
     }
 
     private static void writeOptionalUtf(RegistryFriendlyByteBuf buf, @Nullable String value) {

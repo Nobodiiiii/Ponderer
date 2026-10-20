@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -21,7 +22,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
-import net.minecraft.world.phys.AABB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,6 +107,7 @@ public final class TriggerManager {
         boolean justLeft = !inZoneNow && wasInZone;
 
         if (justLeft) {
+            WorldFeedback.clear("trigger");
             activeScene = null;
             titleShownThisEntry = false;
         }
@@ -141,8 +142,7 @@ public final class TriggerManager {
             if (titleFreq != null && shouldShow(titleFreq, sceneKey + ":title")) {
                 if (justEntered && !titleShownThisEntry) {
                     Component hintMsg = getHintText(activeScene.hintTitleText);
-                    mc.gui.setTitle(hintMsg);
-                    mc.gui.setTimes(0, 20, 10);
+                    WorldFeedback.title(hintMsg);
                     titleShownThisEntry = true;
                     markShown(sceneKey, "title");
                 }
@@ -152,7 +152,7 @@ public final class TriggerManager {
             if (subtitleFreq != null && shouldShow(subtitleFreq, sceneKey + ":subtitle")) {
                 Component hintMsg = getHintText(activeScene.hintSubtitleText);
                 Component greenHint = hintMsg.copy().withStyle(ChatFormatting.GREEN);
-                mc.player.displayClientMessage(greenHint, true);
+                WorldFeedback.hint("trigger", greenHint, 10, 25);
                 if (justEntered) {
                     markShown(sceneKey, "subtitle");
                 }

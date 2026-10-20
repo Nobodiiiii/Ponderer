@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -18,7 +20,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
@@ -39,7 +40,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import javax.annotation.Nullable;
@@ -157,19 +157,10 @@ public final class PondererClientCommands {
         return PonderJsConversionService.convertAllFromPonderJs();
     }
 
-    private static String pendingPullMode = "check";
-
     public static int pull(String mode) {
-        pendingPullMode = mode;
-        PondererServices.NETWORK.sendToServer(new SyncRequestPayload());
+        PondererServices.NETWORK.sendToServer(new SyncRequestPayload(mode));
         notifyClient(Component.translatable("ponderer.cmd.pull.requesting", mode));
         return 1;
-    }
-
-    public static String consumePullMode() {
-        String mode = pendingPullMode;
-        pendingPullMode = "check";
-        return mode;
     }
 
     public static int reloadLocal() {
@@ -181,7 +172,7 @@ public final class PondererClientCommands {
                 .append(Component.translatable("ponderer.pack.update.readonly_newer_source",
                     info.packName, info.newVersion, info.oldVersion)));
         }
-        notifyClient(Component.translatable("ponderer.cmd.reload.done", count));
+        notifyClient(Component.translatable("ponderer.cmd.reload.done", count), FeedbackLevel.SUCCESS);
         return count;
     }
 
@@ -204,7 +195,7 @@ public final class PondererClientCommands {
                 .findFirst();
 
         if (scene.isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", id.toString()));
+            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", id.toString()), FeedbackLevel.ERROR);
             return 0;
         }
 
@@ -218,7 +209,7 @@ public final class PondererClientCommands {
     public static int pushByKey(String sceneKey, String mode) {
         DslScene scene = SceneRuntime.findByKey(sceneKey);
         if (scene == null) {
-            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey));
+            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey), FeedbackLevel.ERROR);
             return 0;
         }
         return pushScene(scene, mode);
@@ -227,13 +218,13 @@ public final class PondererClientCommands {
     public static int pushSourcePack(String packName, String mode) {
         String targetPack = packName == null ? "" : packName.trim();
         if (targetPack.isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.push.pack_not_found", ""));
+            notifyClient(Component.translatable("ponderer.cmd.push.pack_not_found", ""), FeedbackLevel.ERROR);
             return 0;
         }
 
         PonderPackInfo info = findSourcePack(targetPack);
         if (info == null || info.sourcePath == null || !Files.exists(info.sourcePath)) {
-            notifyClient(Component.translatable("ponderer.cmd.push.pack_not_found", targetPack));
+            notifyClient(Component.translatable("ponderer.cmd.push.pack_not_found", targetPack), FeedbackLevel.ERROR);
             return 0;
         }
 
@@ -241,12 +232,12 @@ public final class PondererClientCommands {
         try {
             contents = readSourcePackForUpload(info);
         } catch (IOException e) {
-            notifyClient(Component.translatable("ponderer.cmd.push.pack_read_failed", info.name, e.getMessage()));
+            notifyClient(Component.translatable("ponderer.cmd.push.pack_read_failed", info.name, e.getMessage()), FeedbackLevel.ERROR);
             return 0;
         }
 
         if (contents.scenes().isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.push.pack_no_scenes", info.name));
+            notifyClient(Component.translatable("ponderer.cmd.push.pack_no_scenes", info.name), FeedbackLevel.ERROR);
             return 0;
         }
 
@@ -343,7 +334,7 @@ public final class PondererClientCommands {
             String key = id.toString();
             byte[] bytes = findSourcePackStructureBytes(structures, id);
             if (bytes == null) {
-                notifyClient(Component.translatable("ponderer.cmd.push.structure_not_found", key));
+                notifyClient(Component.translatable("ponderer.cmd.push.structure_not_found", key), FeedbackLevel.ERROR);
                 continue;
             }
             entries.add(new UploadScenePayload.StructureEntry(key, packName, bytes));
@@ -504,13 +495,13 @@ public final class PondererClientCommands {
         ResourceLocation target = ResourceLocation.fromNamespaceAndPath("ponderer", source.getPath());
         Path sourcePath = findStructureSourcePath(source, sourcePack);
         if (sourcePath == null || !Files.exists(sourcePath)) {
-            notifyClient(Component.translatable("ponderer.cmd.push.structure_not_found", source.toString()));
+            notifyClient(Component.translatable("ponderer.cmd.push.structure_not_found", source.toString()), FeedbackLevel.ERROR);
             return source.toString();
         }
 
         Path targetPath = SceneStore.resolveLocalSyncStructurePath(target, uploadPack);
         if (targetPath == null) {
-            notifyClient(Component.translatable("ponderer.cmd.push.copy_failed", source.toString(), target.toString()));
+            notifyClient(Component.translatable("ponderer.cmd.push.copy_failed", source.toString(), target.toString()), FeedbackLevel.ERROR);
             return source.toString();
         }
         try {
@@ -526,7 +517,7 @@ public final class PondererClientCommands {
             remapped.put(key, target.toString());
             return target.toString();
         } catch (Exception e) {
-            notifyClient(Component.translatable("ponderer.cmd.push.copy_failed", source.toString(), target.toString()));
+            notifyClient(Component.translatable("ponderer.cmd.push.copy_failed", source.toString(), target.toString()), FeedbackLevel.ERROR);
             return source.toString();
         }
     }
@@ -573,7 +564,7 @@ public final class PondererClientCommands {
     public static int pushAll(String mode) {
         List<DslScene> scenes = SceneRuntime.getScenes();
         if (scenes.isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.push.no_scenes"));
+            notifyClient(Component.translatable("ponderer.cmd.push.no_scenes"), FeedbackLevel.ERROR);
             return 0;
         }
         int count = 0;
@@ -583,7 +574,7 @@ public final class PondererClientCommands {
             pushScene(scene, mode);
             count++;
         }
-        notifyClient(Component.translatable("ponderer.cmd.push.done", count, mode));
+        notifyClient(Component.translatable("ponderer.cmd.push.done", count, mode), FeedbackLevel.SUCCESS);
         return count;
     }
 
@@ -595,7 +586,7 @@ public final class PondererClientCommands {
             return 0;
         ItemStack held = player.getMainHandItem();
         if (held.isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.new.no_item"));
+            notifyClient(Component.translatable("ponderer.cmd.new.no_item"), FeedbackLevel.ERROR);
             return 0;
         }
         ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(held.getItem());
@@ -608,12 +599,12 @@ public final class PondererClientCommands {
             return 0;
         ItemStack held = player.getMainHandItem();
         if (held.isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.new.no_item"));
+            notifyClient(Component.translatable("ponderer.cmd.new.no_item"), FeedbackLevel.ERROR);
             return 0;
         }
         CompoundTag tag = extractStackNbtFilter(held);
         if (tag == null || tag.isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.new.no_nbt"));
+            notifyClient(Component.translatable("ponderer.cmd.new.no_nbt"), FeedbackLevel.ERROR);
             return 0;
         }
         ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(held.getItem());
@@ -657,7 +648,7 @@ public final class PondererClientCommands {
         if (snbt != null && !snbt.isBlank()) {
             nbt = NbtSceneFilter.parseNbt(snbt);
             if (nbt == null) {
-                notifyClient(Component.translatable("ponderer.cmd.new.error.invalid_nbt"));
+                notifyClient(Component.translatable("ponderer.cmd.new.error.invalid_nbt"), FeedbackLevel.ERROR);
                 return 0;
             }
         }
@@ -667,12 +658,12 @@ public final class PondererClientCommands {
     public static int newSceneForBinding(String rawBinding, @Nullable CompoundTag nbt) {
         ResourceLocation itemId = SceneItemBindings.id(rawBinding);
         if (itemId == null) {
-            notifyClient(Component.translatable("ponderer.cmd.new.error.invalid_binding", rawBinding));
+            notifyClient(Component.translatable("ponderer.cmd.new.error.invalid_binding", rawBinding), FeedbackLevel.ERROR);
             return 0;
         }
         String binding = (SceneItemBindings.isTag(rawBinding) ? "#" : "") + itemId;
         if (SceneItemBindings.resolve(List.of(binding)).isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.new.error.empty_binding", binding));
+            notifyClient(Component.translatable("ponderer.cmd.new.error.empty_binding", binding), FeedbackLevel.ERROR);
             return 0;
         }
         String basePath = (SceneItemBindings.isTag(binding) ? "tag/" : "") + itemId.getPath();
@@ -719,7 +710,7 @@ public final class PondererClientCommands {
                 .filter(s -> sceneId.toString().equals(s.id))
                 .findFirst();
         if (source.isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneId.toString()));
+            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneId.toString()), FeedbackLevel.ERROR);
             return 0;
         }
         return doCopyScene(source.get(), targetItem);
@@ -731,7 +722,7 @@ public final class PondererClientCommands {
     public static int copySceneByKey(String sceneKey, ResourceLocation targetItem) {
         DslScene source = SceneRuntime.findByKey(sceneKey);
         if (source == null) {
-            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey));
+            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey), FeedbackLevel.ERROR);
             return 0;
         }
         return doCopyScene(source, targetItem);
@@ -762,7 +753,7 @@ public final class PondererClientCommands {
                     Component.translatable("ponderer.cmd.copy.done", original.id, newId, targetItem.toString()));
             return 1;
         } else {
-            notifyClient(Component.translatable("ponderer.cmd.copy.failed"));
+            notifyClient(Component.translatable("ponderer.cmd.copy.failed"), FeedbackLevel.ERROR);
             return 0;
         }
     }
@@ -775,17 +766,17 @@ public final class PondererClientCommands {
                 .filter(s -> id.equals(s.id))
                 .findFirst();
         if (target.isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", id));
+            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", id), FeedbackLevel.ERROR);
             return 0;
         }
 
         if (SceneStore.deleteSceneLocal(id)) {
             SceneStore.reloadFromDisk();
             Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
-            notifyClient(Component.translatable("ponderer.cmd.delete.done", id));
+            notifyClient(Component.translatable("ponderer.cmd.delete.done", id), FeedbackLevel.SUCCESS);
             return 1;
         } else {
-            notifyClient(Component.translatable("ponderer.cmd.delete.failed", id));
+            notifyClient(Component.translatable("ponderer.cmd.delete.failed", id), FeedbackLevel.ERROR);
             return 0;
         }
     }
@@ -797,17 +788,17 @@ public final class PondererClientCommands {
     public static int deleteSceneByKey(String sceneKey) {
         DslScene target = SceneRuntime.findByKey(sceneKey);
         if (target == null) {
-            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey));
+            notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey), FeedbackLevel.ERROR);
             return 0;
         }
 
         if (SceneStore.deleteSceneByKey(sceneKey)) {
             SceneStore.reloadFromDisk();
             Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
-            notifyClient(Component.translatable("ponderer.cmd.delete.done", sceneKey));
+            notifyClient(Component.translatable("ponderer.cmd.delete.done", sceneKey), FeedbackLevel.SUCCESS);
             return 1;
         } else {
-            notifyClient(Component.translatable("ponderer.cmd.delete.failed", sceneKey));
+            notifyClient(Component.translatable("ponderer.cmd.delete.failed", sceneKey), FeedbackLevel.ERROR);
             return 0;
         }
     }
@@ -818,7 +809,7 @@ public final class PondererClientCommands {
                 .filter(s -> s.items != null && s.items.contains(itemStr))
                 .toList();
         if (matching.isEmpty()) {
-            notifyClient(Component.translatable("ponderer.cmd.delete.no_scenes", itemStr));
+            notifyClient(Component.translatable("ponderer.cmd.delete.no_scenes", itemStr), FeedbackLevel.ERROR);
             return 0;
         }
         int count = 0;
@@ -829,7 +820,7 @@ public final class PondererClientCommands {
         }
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
-        notifyClient(Component.translatable("ponderer.cmd.delete.item_done", count, itemStr));
+        notifyClient(Component.translatable("ponderer.cmd.delete.item_done", count, itemStr), FeedbackLevel.SUCCESS);
         return count;
     }
 
@@ -841,62 +832,32 @@ public final class PondererClientCommands {
         return 1;
     }
 
+    private record CommandFeedback(Component message, FeedbackLevel level) {}
     @Nullable
-    private static Consumer<Component> messageSink = null;
+    private static Consumer<CommandFeedback> messageSink;
 
-    public static void runWithMessageSink(Consumer<Component> sink, Runnable action) {
-        Consumer<Component> previous = messageSink;
-        messageSink = sink;
+    public static void runReportingTo(Consumer<String> infoSink, Consumer<String> errorSink, Runnable action) {
+        List<CommandFeedback> messages = new ArrayList<>();
+        Consumer<CommandFeedback> previous = messageSink;
+        messageSink = messages::add;
         try {
             action.run();
         } finally {
             messageSink = previous;
         }
-    }
-
-    public static void runReportingTo(Consumer<String> infoSink, Consumer<String> errorSink, Runnable action) {
-        List<Component> messages = new ArrayList<>();
-        runWithMessageSink(messages::add, action);
-
-        if (messages.isEmpty()) {
-            infoSink.accept(Component.translatable("ponderer.ui.command.no_output").getString());
-            return;
-        }
-
-        boolean anyError = false;
-        StringBuilder combined = new StringBuilder();
-        for (Component message : messages) {
-            if (combined.length() > 0) {
-                combined.append("  ");
-            }
-            combined.append(message.getString());
-            anyError |= isErrorResult(message);
-        }
-
-        (anyError ? errorSink : infoSink).accept(combined.toString());
-    }
-
-    private static boolean isErrorResult(Component message) {
-        if (message.getContents() instanceof TranslatableContents translatable) {
-            String key = translatable.getKey();
-            return key.contains("failed")
-                || key.contains("not_found")
-                || key.contains("no_item")
-                || key.contains("no_nbt")
-                || key.contains("no_scenes")
-                || key.contains(".error");
-        }
-        return false;
+        if (messages.isEmpty()) return;
+        boolean error = messages.stream().anyMatch(message -> message.level() == FeedbackLevel.ERROR);
+        String combined = messages.stream().map(message -> message.message().getString()).collect(java.util.stream.Collectors.joining("\n"));
+        (error ? errorSink : infoSink).accept(combined);
     }
 
     static void notifyClient(Component message) {
-        if (messageSink != null) {
-            messageSink.accept(message);
-            return;
-        }
-        if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(message, false);
-        }
+        notifyClient(message, FeedbackLevel.INFO);
+    }
+
+    static void notifyClient(Component message, FeedbackLevel level) {
+        if (messageSink != null) messageSink.accept(new CommandFeedback(message, level));
+        else ClientFeedback.result(message, level);
     }
 
     private static int openExportScreen() {
@@ -917,7 +878,7 @@ public final class PondererClientCommands {
         boolean hasLocalCopy = PackStateStore.isImported(packName)
             || (SceneStore.getPackDir(packName) != null && java.nio.file.Files.exists(SceneStore.getPackDir(packName)));
         if (!hasLocalCopy && !PackStateStore.hasImportedState(packName)) {
-            player.displayClientMessage(Component.translatable("ponderer.pack.unregister.not_found", packName), false);
+            notifyClient(Component.translatable("ponderer.pack.unregister.not_found", packName), FeedbackLevel.ERROR);
             return 0;
         }
 
@@ -932,7 +893,7 @@ public final class PondererClientCommands {
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
 
-        player.displayClientMessage(Component.translatable("ponderer.pack.unregister.done", packName), false);
+        notifyClient(Component.translatable("ponderer.pack.unregister.done", packName), FeedbackLevel.SUCCESS);
         return 1;
     }
 

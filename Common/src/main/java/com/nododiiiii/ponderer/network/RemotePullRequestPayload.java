@@ -46,7 +46,7 @@ public record RemotePullRequestPayload(String kind, String id, @Nullable String 
         UploadPermissions.ensurePullAccess(player);
         if (!UploadPermissions.canPull(player)) {
             PondererServices.NETWORK.sendToPlayer(player,
-                new RemoteActionResponsePayload(false, "You do not have permission to pull remote Ponderer resources.", false));
+                new RemoteActionResponsePayload(false, net.minecraft.network.chat.Component.translatable("ponderer.cmd.pull.no_permission"), false));
             return;
         }
 

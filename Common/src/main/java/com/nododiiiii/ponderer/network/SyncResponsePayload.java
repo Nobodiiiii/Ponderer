@@ -1,9 +1,11 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ServerFeedback;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.AutoRemoteSyncClient;
 import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -136,7 +138,9 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             serverSkippedCount, mode, reason);
     }
 
-    public static void sendBatched(ServerPlayer player) {
+    public static void sendBatched(ServerPlayer player) { sendBatched(player, "check"); }
+
+    public static void sendBatched(ServerPlayer player, String mode) {
         if (player == null) {
             return;
         }
@@ -149,18 +153,18 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         int skippedByServer = 0;
 
         for (SceneStore.SyncFileRef ref : scripts) {
-            QueueResult result = queueFile(player, ref, scriptBatch, structureBatch, true, currentBytes);
+            QueueResult result = queueFile(player, ref, scriptBatch, structureBatch, true, currentBytes, mode);
             currentBytes = result.currentBytes();
             skippedByServer += result.skippedByServer();
         }
         for (SceneStore.SyncFileRef ref : structures) {
-            QueueResult result = queueFile(player, ref, scriptBatch, structureBatch, false, currentBytes);
+            QueueResult result = queueFile(player, ref, scriptBatch, structureBatch, false, currentBytes, mode);
             currentBytes = result.currentBytes();
             skippedByServer += result.skippedByServer();
         }
 
         PondererServices.NETWORK.sendToPlayer(player,
-                new SyncResponsePayload(List.copyOf(scriptBatch), List.copyOf(structureBatch), true, skippedByServer));
+                new SyncResponsePayload(List.copyOf(scriptBatch), List.copyOf(structureBatch), List.of(), List.of(), true, skippedByServer, mode, "manual"));
     }
 
     public static void handle(SyncResponsePayload payload) {
@@ -178,7 +182,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         PullSession session = automatic ? automaticSession : manualSession;
         if (session == null) {
             String pullMode = payload.mode() == null || payload.mode().isBlank()
-                ? PondererClientCommands.consumePullMode()
+                ? "check"
                 : payload.mode();
             session = new PullSession(pullMode, payload.reason());
             if (automatic) {
@@ -265,14 +269,16 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         if (!session.automatic() || session.written > 0 || session.deleted > 0 || session.skipped > 0
             || session.conflicts > 0) {
             String key = session.automatic() ? "ponderer.cmd.pull.auto_done" : "ponderer.cmd.pull.done";
-            notifyClient(Component.translatable(key, session.written + session.deleted, session.skipped,
-                session.conflicts));
+            Component summary = Component.translatable(key, session.written + session.deleted, session.skipped, session.conflicts);
+            if (session.automatic()) ClientFeedback.chat(summary);
+            else ClientFeedback.result(summary,
+                session.skipped > 0 || session.conflicts > 0 ? FeedbackLevel.WARNING : FeedbackLevel.SUCCESS);
         }
         if (!session.automatic() && session.conflicts > 0 && "check".equals(session.pullMode)) {
             notifyClient(Component.translatable("ponderer.cmd.pull.hint_force"));
             notifyClient(Component.translatable("ponderer.cmd.pull.hint_keep"));
         }
-        if (session.conflicts > 0) {
+        if (session.conflicts > 0 && !session.automatic()) {
             notifyClient(Component.translatable("ponderer.cmd.pull.hint_remote_manager"));
         }
     }
@@ -298,7 +304,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
                 PendingRemoteUpdates.remember(update);
                 session.conflicts++;
                 session.skipped++;
-                notifyClient(Component.translatable("ponderer.cmd.pull.delete_conflict", displayId));
+                if (!session.automatic()) notifyClient(Component.translatable("ponderer.cmd.pull.delete_conflict", displayId), FeedbackLevel.WARNING);
                 continue;
             }
 
@@ -316,7 +322,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             } catch (Exception e) {
                 LOGGER.warn("Failed to delete synced file: {}", localFile, e);
                 session.skipped++;
-                notifyClient(Component.translatable("ponderer.cmd.pull.delete_failed", displayId));
+                if (!session.automatic()) notifyClient(Component.translatable("ponderer.cmd.pull.delete_failed", displayId), FeedbackLevel.ERROR);
             }
         }
     }
@@ -352,12 +358,12 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
                                 case "both_modified" -> "ponderer.cmd.pull.conflict_both";
                                 default -> "ponderer.cmd.pull.conflict_local";
                             };
-                            notifyClient(Component.translatable(key, displayId));
+                            if (!session.automatic()) notifyClient(Component.translatable(key, displayId), FeedbackLevel.WARNING);
                         }
                         session.skipped++;
                         continue;
                     }
-                    notifyClient(Component.translatable("ponderer.cmd.pull.conflict_server", displayId));
+                    if (!session.automatic()) notifyClient(Component.translatable("ponderer.cmd.pull.conflict_server", displayId), FeedbackLevel.WARNING);
                 }
             }
 
@@ -373,7 +379,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
                 session.written++;
             } else {
                 session.skipped++;
-                notifyClient(Component.translatable("ponderer.cmd.pull.write_failed", displayId));
+                if (!session.automatic()) notifyClient(Component.translatable("ponderer.cmd.pull.write_failed", displayId), FeedbackLevel.ERROR);
             }
         }
     }
@@ -410,24 +416,24 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
     }
 
     private static QueueResult queueFile(ServerPlayer player, SceneStore.SyncFileRef ref, List<FileEntry> scriptBatch,
-                                         List<FileEntry> structureBatch, boolean script, int currentBytes) {
+                                         List<FileEntry> structureBatch, boolean script, int currentBytes, String mode) {
         long size;
         try {
             size = Files.size(ref.path());
         } catch (Exception e) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.pull.server_skip_failed",
-                    displayId(ref.id(), ref.pack())));
+            ServerFeedback.send(player, Component.translatable("ponderer.cmd.pull.server_skip_failed",
+                    displayId(ref.id(), ref.pack())), FeedbackLevel.WARNING);
             return new QueueResult(currentBytes, 1);
         }
 
         if (size > MAX_SYNC_FILE_BYTES) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.pull.server_skip_too_large",
-                    displayId(ref.id(), ref.pack()), size));
+            ServerFeedback.send(player, Component.translatable("ponderer.cmd.pull.server_skip_too_large",
+                    displayId(ref.id(), ref.pack()), size), FeedbackLevel.WARNING);
             return new QueueResult(currentBytes, 1);
         }
 
         if (currentBytes > 0 && currentBytes + size > MAX_SYNC_PAYLOAD_BYTES) {
-            flushBatch(player, scriptBatch, structureBatch, false, 0);
+            flushBatch(player, scriptBatch, structureBatch, false, 0, mode);
             currentBytes = 0;
         }
 
@@ -435,14 +441,14 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         try {
             bytes = Files.readAllBytes(ref.path());
         } catch (Exception e) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.pull.server_skip_failed",
-                    displayId(ref.id(), ref.pack())));
+            ServerFeedback.send(player, Component.translatable("ponderer.cmd.pull.server_skip_failed",
+                    displayId(ref.id(), ref.pack())), FeedbackLevel.WARNING);
             return new QueueResult(currentBytes, 1);
         }
 
         if (bytes.length > MAX_SYNC_FILE_BYTES) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.pull.server_skip_too_large",
-                    displayId(ref.id(), ref.pack()), bytes.length));
+            ServerFeedback.send(player, Component.translatable("ponderer.cmd.pull.server_skip_too_large",
+                    displayId(ref.id(), ref.pack()), bytes.length), FeedbackLevel.WARNING);
             return new QueueResult(currentBytes, 1);
         }
 
@@ -456,19 +462,21 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
     }
 
     private static void flushBatch(ServerPlayer player, List<FileEntry> scriptBatch, List<FileEntry> structureBatch,
-                                   boolean finalChunk, int skippedByServer) {
+                                   boolean finalChunk, int skippedByServer, String mode) {
         if (scriptBatch.isEmpty() && structureBatch.isEmpty() && !finalChunk) {
             return;
         }
         PondererServices.NETWORK.sendToPlayer(player,
-                new SyncResponsePayload(List.copyOf(scriptBatch), List.copyOf(structureBatch), finalChunk, skippedByServer));
+                new SyncResponsePayload(List.copyOf(scriptBatch), List.copyOf(structureBatch), List.of(), List.of(), finalChunk, skippedByServer, mode, "manual"));
         scriptBatch.clear();
         structureBatch.clear();
     }
 
-    private static void notifyClient(Component message) {
+    private static void notifyClient(Component message) { notifyClient(message, FeedbackLevel.INFO); }
+
+    private static void notifyClient(Component message, FeedbackLevel level) {
         if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(message, false);
+            ClientFeedback.result(message, level);
         }
     }
 

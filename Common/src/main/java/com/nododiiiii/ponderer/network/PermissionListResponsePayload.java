@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
@@ -83,7 +85,7 @@ public record PermissionListResponsePayload(List<Entry> entries, String viewerRo
 
     public static void handle(PermissionListResponsePayload payload) {
         Minecraft client = Minecraft.getInstance();
-        if (client.screen instanceof PermissionManagementScreen screen) {
+        if (ClientFeedback.responseScreen() instanceof PermissionManagementScreen screen) {
             screen.receiveSnapshot(payload);
             return;
         }
@@ -92,7 +94,8 @@ public record PermissionListResponsePayload(List<Entry> entries, String viewerRo
             String text = payload.messageSubject() == null || payload.messageSubject().isBlank()
                 ? UIText.of(payload.messageKey())
                 : UIText.of(payload.messageKey(), payload.messageSubject());
-            client.player.displayClientMessage(Component.literal(text), false);
+            ClientFeedback.result(Component.literal(text),
+                payload.error() ? FeedbackLevel.ERROR : FeedbackLevel.SUCCESS);
         }
     }
 }

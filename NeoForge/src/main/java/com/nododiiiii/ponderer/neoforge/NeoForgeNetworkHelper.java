@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.neoforge;
 
+import com.nododiiiii.ponderer.feedback.ServerFeedback;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.network.*;
 import com.nododiiiii.ponderer.platform.services.NetworkHelper;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -13,13 +15,19 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  */
 public class NeoForgeNetworkHelper implements NetworkHelper {
 
-    public static final String VERSION = "4";
+    public static final String VERSION = "5";
 
     /**
      * Called from PondererNeoForge when RegisterPayloadHandlersEvent fires.
      */
     public void registerPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(VERSION);
+        registrar.playToServer(FeedbackRequestPayload.TYPE, FeedbackRequestPayload.CODEC,
+            (payload, ctx) -> ctx.enqueueWork(() -> FeedbackRequestPayload.handle(payload, (ServerPlayer) ctx.player())));
+        registrar.playToClient(FeedbackResponsePayload.TYPE, FeedbackResponsePayload.CODEC,
+            (payload, ctx) -> ctx.enqueueWork(() -> ClientFeedback.receive(payload)));
+        registrar.playToClient(FeedbackMessagePayload.TYPE, FeedbackMessagePayload.CODEC,
+            (payload, ctx) -> ctx.enqueueWork(() -> FeedbackMessagePayload.handle(payload)));
         event.registrar(VERSION).optional().playToServer(AutoSyncPreferencePayload.TYPE, AutoSyncPreferencePayload.CODEC,
             (payload, ctx) -> ctx.enqueueWork(() -> AutoSyncPreferencePayload.handle(payload, (ServerPlayer) ctx.player())));
 
@@ -123,7 +131,7 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
 
     @Override
     public void sendToServer(CustomPacketPayload packet) {
-        PacketDistributor.sendToServer(packet);
+        PacketDistributor.sendToServer(ClientFeedback.request(packet));
     }
 
     @Override
@@ -134,6 +142,6 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
 
     @Override
     public void sendToPlayer(ServerPlayer player, CustomPacketPayload packet) {
-        PacketDistributor.sendToPlayer(player, packet);
+        PacketDistributor.sendToPlayer(player, ServerFeedback.response(player, packet));
     }
 }

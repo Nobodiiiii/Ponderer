@@ -1,11 +1,12 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import com.nododiiiii.ponderer.ui.ProjectorFeatureConfigScreen;
-import com.nododiiiii.ponderer.ui.UIText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -53,13 +54,14 @@ public record ProjectorFeatureConfigResponsePayload(boolean enableProjector, boo
 
     public static void handle(ProjectorFeatureConfigResponsePayload payload) {
         Minecraft client = Minecraft.getInstance();
-        if (client.screen instanceof ProjectorFeatureConfigScreen screen) {
+        if (ClientFeedback.responseScreen() instanceof ProjectorFeatureConfigScreen screen) {
             screen.receiveServerState(payload);
             return;
         }
 
         if (payload.messageKey() != null && !payload.messageKey().isBlank() && client.player != null) {
-            client.player.displayClientMessage(Component.literal(UIText.of(payload.messageKey())), false);
+            ClientFeedback.result(Component.translatable(payload.messageKey()),
+                payload.error() ? FeedbackLevel.ERROR : FeedbackLevel.SUCCESS);
         }
     }
 

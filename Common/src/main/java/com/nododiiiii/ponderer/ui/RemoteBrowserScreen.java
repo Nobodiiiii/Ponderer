@@ -155,33 +155,24 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             } else {
                 setInfoMessage(payload.message());
             }
-        } else {
+        } else if (!preserveActionStatus) {
             setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.catalog_loaded", scenes.size(), structures.size()));
         }
+        preserveActionStatus = false;
         rebuildListPreservingScroll();
     }
 
     public void receiveAction(RemoteActionResponsePayload payload) {
-        if (payload.success()) {
-            setInfoMessage(payload.message());
-        } else {
-            setErrorMessage(payload.message());
-        }
         if (payload.refreshCatalog()) {
-            requestCatalog();
+            requestCatalog(true);
         } else {
             rebuildListPreservingScroll();
         }
     }
 
-    public void receiveUploadResult(boolean success, String message) {
-        if (success) {
-            setInfoMessage(message);
-            requestCatalog();
-        } else {
-            setErrorMessage(message);
-            rebuildListPreservingScroll();
-        }
+    public void refreshAfterUpload(boolean success) {
+        if (success) requestCatalog(true);
+        else rebuildListPreservingScroll();
     }
 
     public void receiveHistory(RemoteHistoryResponsePayload payload) {
@@ -369,10 +360,15 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
         rebuildListAtTop();
     }
 
-    private void requestCatalog() {
+    private boolean preserveActionStatus;
+
+    private void requestCatalog() { requestCatalog(false); }
+
+    private void requestCatalog(boolean preserveStatus) {
+        preserveActionStatus = preserveStatus;
         requestSent = true;
         waitingForServer = true;
-        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.loading"));
+        if (!preserveStatus) setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.loading"));
         PondererServices.NETWORK.sendToServer(new RemoteCatalogRequestPayload());
         if (list != null) {
             rebuildListPreservingScroll();

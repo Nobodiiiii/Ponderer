@@ -42,7 +42,7 @@ public class TextStepScreen extends AbstractStepEditorScreen {
         super(Component.translatable("ponderer.ui.text"), scene, sceneIndex, parent, editIndex, step);
         this.editingLang = getCurrentLang();
         // Deep-copy the existing text so edits don't mutate the original until confirm
-        this.workingText = step.text != null ? step.text : LocalizedText.of("");
+        this.workingText = copyText(step.text);
     }
 
     @Override protected String getHeaderTitle() { return UIText.of("ponderer.ui.text"); }
@@ -87,7 +87,7 @@ public class TextStepScreen extends AbstractStepEditorScreen {
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         if (step.text != null) {
-            workingText = step.text;
+            workingText = copyText(step.text);
             String val = workingText.getExact(editingLang);
             textField.setValue(val != null ? val : workingText.resolve());
         }
@@ -137,7 +137,7 @@ public class TextStepScreen extends AbstractStepEditorScreen {
         s.type = "text";
         // Save current field text into the working copy for the editing language
         workingText.setForLang(editingLang, text);
-        s.text = workingText;
+        s.text = copyText(workingText);
         String rawX = pointField.x();
         String rawY = pointField.y();
         String rawZ = pointField.z();
@@ -153,6 +153,11 @@ public class TextStepScreen extends AbstractStepEditorScreen {
         if (colorIndex > 0) s.color = COLORS[colorIndex];
         if (placeNearTarget) s.placeNearTarget = true;
         return s;
+    }
+
+    private static LocalizedText copyText(@Nullable LocalizedText text) {
+        if (text == null) return LocalizedText.of("");
+        return text.isPlain() ? LocalizedText.of(text.resolve()) : LocalizedText.ofMap(text.getAllTranslations());
     }
 
     /** Toggle between editing the current MC language and en_us. */

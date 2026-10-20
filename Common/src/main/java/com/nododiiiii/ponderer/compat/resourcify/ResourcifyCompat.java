@@ -1,7 +1,8 @@
 package com.nododiiiii.ponderer.compat.resourcify;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.mojang.logging.LogUtils;
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 
@@ -41,18 +42,16 @@ public final class ResourcifyCompat {
      */
     public static void openBrowseScreen(String initialQuery) {
         if (!isLoaded()) {
-            var player = Minecraft.getInstance().player;
-            if (player != null) {
-                player.displayClientMessage(
-                    Component.translatable("ponderer.ui.resourcify_not_installed"), false
-                );
-            }
+            ClientFeedback.result(Component.translatable("ponderer.ui.resourcify_not_installed"),
+                FeedbackLevel.ERROR);
             return;
         }
         try {
             ResourcifyBrowseHelper.open(initialQuery);
         } catch (Exception e) {
             LOGGER.error("Failed to open Resourcify browse screen", e);
+            ClientFeedback.result(Component.translatable("ponderer.ui.resourcify_open_failed"),
+                FeedbackLevel.ERROR);
         }
     }
 }

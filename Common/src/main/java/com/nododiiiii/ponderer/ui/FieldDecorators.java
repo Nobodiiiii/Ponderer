@@ -123,7 +123,7 @@ public final class FieldDecorators {
                 entry.addTrailingIcon(
                     PondererGuiIcons.PICK_POSITION,
                     () -> host.startPointPickFromButton(target, halfOffset),
-                    UIText.of("ponderer.ui.pick.tooltip"));
+                    host.pointPickTooltip(target));
             }
         };
     }

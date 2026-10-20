@@ -71,7 +71,7 @@ public record RemoteCatalogResponsePayload(List<Entry> scenes, List<Entry> struc
 
     public static void handle(RemoteCatalogResponsePayload payload) {
         Minecraft client = Minecraft.getInstance();
-        if (client.screen instanceof RemoteBrowserScreen screen) {
+        if (com.nododiiiii.ponderer.feedback.ClientFeedback.responseScreen() instanceof RemoteBrowserScreen screen) {
             screen.receiveCatalog(payload);
         }
     }

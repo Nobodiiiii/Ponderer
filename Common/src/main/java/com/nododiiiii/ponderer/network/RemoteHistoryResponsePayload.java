@@ -69,7 +69,7 @@ public record RemoteHistoryResponsePayload(String kind, String id, @Nullable Str
 
     public static void handle(RemoteHistoryResponsePayload payload) {
         Minecraft client = Minecraft.getInstance();
-        if (client.screen instanceof RemoteBrowserScreen screen) {
+        if (com.nododiiiii.ponderer.feedback.ClientFeedback.responseScreen() instanceof RemoteBrowserScreen screen) {
             screen.receiveHistory(payload);
         }
     }

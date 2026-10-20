@@ -4,6 +4,10 @@ public interface PointPickButtonHost {
 
     void startPointPickFromButton(PickState.TargetField target, boolean halfOffset);
 
+    default String pointPickTooltip(PickState.TargetField target) {
+        return UIText.of("ponderer.ui.pick.tooltip");
+    }
+
     default FieldType pointPickFieldType(PickState.TargetField target, boolean halfOffset) {
         return switch (target) {
             case UI_POINT -> FieldType.UI_POSITION;

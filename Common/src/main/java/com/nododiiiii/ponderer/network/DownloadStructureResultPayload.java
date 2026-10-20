@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ui.ShowExtraStructureScreen;
 import com.nododiiiii.ponderer.ui.ShowStructureScreen;
@@ -38,7 +40,10 @@ public record DownloadStructureResultPayload(String sourceId, String targetId,
     }
 
     public static void handle(DownloadStructureResultPayload payload) {
-        ShowStructureScreen.onDownloadResult(payload.sourceId(), payload.targetId(), payload.success(), payload.message());
-        ShowExtraStructureScreen.onDownloadResult(payload.sourceId(), payload.targetId(), payload.success(), payload.message());
+        String message = net.minecraft.network.chat.Component.translatable(payload.message(), payload.sourceId(), payload.targetId()).getString();
+        ShowStructureScreen.onDownloadResult(payload.sourceId(), payload.targetId(), payload.success(), message);
+        ShowExtraStructureScreen.onDownloadResult(payload.sourceId(), payload.targetId(), payload.success(), message);
+        ClientFeedback.result(net.minecraft.network.chat.Component.literal(message),
+            payload.success() ? FeedbackLevel.SUCCESS : FeedbackLevel.ERROR);
     }
 }

@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.interfaces.capture;
 
+import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -66,7 +67,7 @@ public final class InterfaceCapture {
         if (mc.level == null || mc.player == null || SandboxScope.isActive()) return;
         active = new Capture(snapshot, context);
         mc.setScreen(null);
-        mc.player.displayClientMessage(Component.translatable("ponderer.interface.capture.start"), false);
+        WorldFeedback.hint("capture", Component.translatable("ponderer.interface.capture.start"), 60, 2);
     }
 
     public static boolean isObserving() {
@@ -166,6 +167,7 @@ public final class InterfaceCapture {
     private static void finish(@Nullable JsonObject descriptor, String notice) {
         Capture capture = active;
         active = null;
+        WorldFeedback.clear("capture");
         if (capture == null) return;
         Minecraft mc = Minecraft.getInstance();
         if (descriptor != null) capture.snapshot.put(SNAPSHOT_KEY, descriptor.toString());

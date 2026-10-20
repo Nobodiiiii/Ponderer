@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -11,7 +12,6 @@ import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Map;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -216,7 +216,8 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     }
 
     public static void onDownloadResult(String sourceId, String targetId, boolean success, String message) {
-        if (!(Minecraft.getInstance().screen instanceof ShowStructureScreen screen)) {
+        if (!(ClientFeedback.responseScreen() instanceof ShowStructureScreen screen)
+            || Minecraft.getInstance().screen != screen) {
             return;
         }
         screen.handleDownloadResult(sourceId, success, message);
@@ -258,6 +259,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         } else {
             parent.addStepAndSave(stepToSave);
         }
+        ClientFeedback.continueOn(parent);
         Minecraft.getInstance().setScreen(parent);
     }
 

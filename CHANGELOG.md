@@ -55,11 +55,32 @@
 - **播放倍速**：新增 `0.5x`、`1x`、`2x` 独立按钮，可直接选择播放速度。
   Added dedicated `0.5x`, `1x`, and `2x` playback buttons.
 
-- **场景缩放滑条**：新增 `0.2x–5x` 缩放滑条，中点为 `1x`，右键可重置。
-  Added a `0.2x–5x` scene zoom slider with `1x` at the midpoint and right-click reset.
+- **场景缩放滑条**：新增 `0.2x–5x` 缩放滑条，中点为 `1x`，悬停显示当前倍率，右键可重置。
+  Added a `0.2x–5x` scene zoom slider with `1x` at the midpoint, a hover multiplier, and right-click reset.
 
-- **暂停自由预览**：可用按钮或空格暂停，悬停查看方块名称，并用左键旋转、右键平移和滚轮缩放，退出后恢复视角。
-  Added button/Space toggling for paused block inspection, left-drag rotation, right-drag panning, and wheel zoom, restoring the view on exit.
+- **暂停自由预览**：可用按钮或空格暂停，悬停识别方块，并用左键旋转、右键平移和滚轮缩放，按 `Q` 可恢复播放与原视角。
+  Added button/Space toggling for paused block inspection, left-drag rotation, right-drag panning, and wheel zoom; `Q` resumes playback and restores the view.
+
+- **步骤列表预览**：新增场景预览，滚动列表可定位到顶部步骤，拖动时间轴可同步滚动列表。
+  Added a scene preview that seeks to the top visible step as the list scrolls and scrolls the list when scrubbing the timeline.
+
+- **步骤编辑预览**：步骤编辑页新增场景预览，进入时定位到当前步骤，并沿用列表页的预览视角。
+  Added scene previews to step editors, seeking to the current step and inheriting the list preview's camera view.
+
+- **编辑器预览视角**：支持左键旋转、右键平移、滚轮缩放及一键重置。
+  Added left-drag rotation, right-drag panning, wheel zoom, and one-click camera reset to editor previews.
+
+- **预览文本开关**：暂停自由预览和编辑器预览可按 `T` 隐藏或显示思索文本。
+  Added `T` to hide or show Ponder text in paused free previews and editor previews.
+
+- **多步骤复制粘贴**：右键复制按钮可多选步骤，再按列表顺序一次粘贴到指定步骤后。
+  Added multiple-step selection by right-clicking Copy, then pasting all selected steps in list order after a chosen step.
+
+- **坐标拖动调节**：坐标与向量输入框支持长按后上下拖动，以 `0.5` 为步长调整。
+  Added long-press vertical dragging to adjust coordinate and vector fields in `0.5` increments.
+
+- **时长拖动调节**：时长输入框支持长按后上下拖动，以 `10 tick` 为步长调整且不低于零。
+  Added long-press vertical dragging to adjust duration fields in `10-tick` increments, clamped at zero.
 
 - **世界生成结构预览**：结构列表可读取服务器可用结构，预览可用的起始模板，再确认选择或清空。
   Added server-backed world-generation structure selection with available starting-template previews and confirm/clear controls.
@@ -105,11 +126,17 @@
 - **自定义标签引用保护**：其他思索仍引用的标签不能重命名或删除，未注册的已有标签可保留或移除。
   Protected custom categories referenced by other scenes from renaming/deletion, while keeping unavailable saved tags editable.
 
-- **背包物品选择**：多处物品字段的“+”改为展开背包选择，可回填物品 ID 与 NBT。
-  Changed item-field “+” controls to open an inventory picker and fill the selected item ID and NBT.
+- **背包物品选择**：多处物品字段新增背包选择按钮，可回填物品 ID 与 NBT，点击弹窗外即可关闭。
+  Added inventory-picker buttons to item fields to fill item IDs and NBT, with outside-click dismissal.
 
 - **新建思索物品捕获**：移除“使用手持物品”选项，改用背包选择，并以“同时捕获 NBT”控制是否填入 NBT。
   Simplified new-Ponder item selection to an inventory picker with an optional Capture NBT toggle.
+
+- **新建思索流程**：先选择结构或界面场景，再编辑描述，取消类型选择时不写入本地文件。
+  New Ponders now start with structure/interface scene selection followed by description editing; cancelling type selection leaves no local file.
+
+- **新建思索 NBT 编辑**：NBT 字段接入展开编辑器，可在场景创建前编辑完整 SNBT。
+  Added the expanded NBT editor to new-Ponder forms for editing full SNBT before a scene exists.
 
 - **JEI 字段填入**：物品、方块和实体等字段改用可预览的配料槽，可直接拖入对应 JEI 配料。
   Replaced JEI field toggles with preview slots accepting matching item, block, entity, and other ingredient drops.
@@ -147,6 +174,9 @@
 - **文本进度默认设置**：可配置进入思索时是否显示文本进度，右键“舒适阅读”按钮可切换并保存默认值。
   Added a default text-progress setting, also saved by right-clicking the Comfy Reading button.
 
+- **文本进度面板样式**：沿用思索原生对话框配色和边框，并通过箭头关联“舒适阅读”按钮。
+  Matched the text-progress panel to native Ponder speech-box colors and borders, with a pointer to the Comfy Reading button.
+
 - **视角平移与缩放**：调整视角改为前半程缓动平移、后半程缓动缩放，并在设定时长内到达目标。
   View adjustments now ease through panning followed by zooming, reaching their targets within the configured duration.
 
@@ -156,8 +186,56 @@
 - **未保存修改提示**：统一返回与放弃修改对话框，明确提供保存返回、不保存返回和继续编辑选项。
   Unified unsaved-change dialogs with explicit save, discard, and continue-editing choices.
 
-- **列表布局**：修正列表行居中位置，并移除点击条目时的白色选中边框。
-  Centered list rows correctly and removed their white selection outlines.
+- **列表布局**：统一各类条目的左右边距、控件对齐和间距，并移除点击条目时的白色选中边框。
+  Unified horizontal margins, control alignment, and spacing across list-entry types, and removed white selection outlines.
+
+- **控件边界**：按钮外框与点击范围保持一致，输入框和物品展示格统一保留 `1px` 内侧留白。
+  Aligned button borders with hit bounds and standardized `1px` inner padding for inputs and ingredient slots.
+
+- **界面分组样式**：统一菜单、列表和物品目录的分组标题、分隔线及编辑页背景。
+  Unified section headings and dividers across menus, lists, and item browsing, plus editor backgrounds.
+
+- **字段工具图标**：背包选择、方块与 NBT 抓取、选点、展开编辑和结构选择改用独立图标。
+  Added distinct icons for inventory picking, block/NBT capture, point picking, expanded editing, and structure selection.
+
+- **步骤操作按钮**：插入、复制、粘贴和删除改用图标，复制多选状态会高亮。
+  Replaced step insert, copy, paste, and delete labels with icons and highlighted selected Copy buttons.
+
+- **远程管理按钮**：拉取、上传、历史、忽略和覆盖改用图标，覆盖与删除使用警示配色。
+  Added icons for remote pull, upload, history, ignore, and overwrite actions, with warning colors for overwrite and delete.
+
+- **确认与执行按钮**：选择器、导出和 AI 生成页改用确认与取消图标，区分执行操作与保存修改。
+  Added confirm/cancel icons to selectors, exports, and AI generation, distinguishing action execution from saving edits.
+
+- **字段格式提示**：为物品、NBT、角度、缩放、链接和结构字段统一填写示例及悬停说明。
+  Standardized example values and hover descriptions for item, NBT, angle, scale, link, and structure fields.
+
+- **坐标类型提示**：区分场景、世界、界面坐标与向量，明确整数、小数及取值范围。
+  Distinguished scene, world, and interface coordinates from vectors, with integer/decimal formats and valid ranges.
+
+- **步骤内容摘要**：步骤行并列显示类型和灰色参数摘要，悬停可查看完整文本、坐标、数量及动作。
+  Step rows now show types alongside gray parameter summaries, with full text, coordinates, counts, and actions on hover.
+
+- **步骤摘要本地化**：物品、方块、实体、可用音效字幕及共享文本优先显示当前语言内容。
+  Step summaries now resolve localized item, block, and entity names, available sound subtitles, and shared text.
+
+- **步骤内容搜索**：步骤列表搜索同时匹配步骤类型与参数摘要。
+  Step-list searches now match both step types and parameter summaries.
+
+- **小数方块坐标**：方块范围和坐标触发条件接受小数，保存时向下取整为所在方块坐标，包含负坐标。
+  Block ranges and coordinate triggers now accept decimals and floor them to containing-block coordinates, including negative values.
+
+- **设置入口**：V 菜单直接列出通用、AI、蓝图、投影仪及快捷键设置，权限管理移入“同步”分组。
+  The V menu now directly lists general, AI, blueprint, projector, and keybinding settings, with permissions under Sync.
+
+- **结构后台读取**：本地结构、服务器模板和 AI 结构信息改为后台读取解析，并显示加载状态。
+  Moved local structure loading, server-template reading, and AI structure analysis to background workers with loading feedback.
+
+- **结构预览分帧构建**：方块填充和模型构建分帧进行，减轻大结构加载时的界面卡顿。
+  Split preview block population and model baking across frames to reduce stalls when loading large structures.
+
+- **结构预览加载清理**：切换结构、关闭页面或更换世界时，取消过期加载并释放预览资源。
+  Cancelled stale preview loads and released resources when changing structures, closing screens, or switching worlds.
 
 - **场景渲染缓存**：定期回收闲置区段缓存，丢弃投影场景或切换世界时释放对应资源。
   Added idle scene-cache cleanup and resource release when projector scenes are discarded or worlds change.
@@ -176,6 +254,9 @@
 
 - **本地玩家身份**：开发启动脚本改用固定 UUID，重复启动可沿用同一玩家数据。
   Local development launches now use a fixed UUID to retain the same player data between runs.
+
+- **本地存档占用检查**：冒烟启动前检测存档锁，已占用时跳过对应客户端并明确标记，避免重复启动。
+  Local smoke launches now check save locks and explicitly skip occupied worlds before launching another client.
 
 ### 修复 / Fixes
 
@@ -197,6 +278,15 @@
 - **选取物品回填**：创建掉落物时同步填入数量，选择无 NBT 物品时清除旧 NBT，避免沿用上次数据。
   Item-entity picking now fills counts, and selecting items without NBT clears stale NBT values.
 
+- **界面物品 NBT 回填**：修复显示界面步骤中，物品 NBT 展开编辑后未正确回填的问题。
+  Fixed expanded item-NBT edits not returning correctly to Show Interface steps.
+
+- **新分场景保存**：新建分场景的描述页未改字段时也可保存，避免保存按钮不可用。
+  Enabled saving new segment descriptions even when their initial fields have not been changed.
+
+- **坐标触发输入校验**：无效坐标会显示错误，不再被静默替换为零。
+  Invalid trigger coordinates now report errors instead of silently becoming zero.
+
 - **结构预览渲染**：修复预览污染后续界面光照、第三方方块实体渲染干扰矩阵及上下拖动反向的问题。
   Fixed preview lighting leaking into other UI, block-entity renderers disturbing transforms, and inverted vertical dragging.
 
@@ -206,11 +296,26 @@
 - **倍速与拖动动画**：修正倍速下区段和叠层插值、完成提示，以及拖动进度条时的动画漂移。
   Fixed section/overlay interpolation and completion hints at altered speeds, plus animation drift while scrubbing.
 
+- **暂停预览时间定位**：修复回拖进度条时退出自由预览或丢失视角的问题，并刷新定位后的动画插值。
+  Fixed backward seeking leaving free preview or losing its camera view, and refreshed interpolation after seeks.
+
+- **预览方块提示**：修正底板方块和重叠区段的拾取，完整物品提示显示在场景文本上方。
+  Fixed picking base-layer blocks and overlapping sections, and rendered full item tooltips above scene text.
+
+- **文本与控件遮挡**：修复文本进度面板遮挡思索文本、倍速按钮盖住下一场景提示的问题。
+  Fixed the text-progress panel covering scene text and speed buttons covering the Next Up hint.
+
 - **NBT 物品预览与触发**：统一按 1.21.1 数据组件或旧 NBT 条件构造物品，供预览、触发和编辑返回使用。
   Fixed stack construction from 1.21.1 components or legacy NBT for previews, triggers, and editor returns.
 
 - **JEI 拖入区域**：修正滚动后配料槽的有效区域，避免拖入屏幕外或被裁剪的字段。
   Fixed JEI drop bounds after scrolling so offscreen or clipped fields cannot receive drops.
+
+- **JEI 界面避让**：为编辑器预览、控件、背包弹窗和标签候选预留空间，避免与 JEI 重叠。
+  Added JEI exclusion areas for editor previews, controls, inventory popups, and tag dropdowns to prevent overlap.
+
+- **返回列表界面缩放**：修复退出思索返回物品目录时，界面缩放被历史页面初始化覆盖的问题。
+  Fixed GUI scaling being overwritten by navigation-history screens when returning from Ponder to the item browser.
 
 - **投影仪模型朝向**：配置界面模型使用固定朝向，避免随世界中投影仪的放置方向变化。
   Fixed the projector config preview to use a consistent facing independent of its world placement.

@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.feedback.FeedbackTarget;
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
 import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
@@ -39,7 +41,6 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
@@ -54,7 +55,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu> {
+public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu> implements FeedbackTarget {
 
     private static final ResourceLocation BACKGROUND =
         ResourceLocation.fromNamespaceAndPath("ponderer", "textures/gui/projector.png");
@@ -1679,33 +1680,9 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     public void receiveRemoteAction(RemoteActionResponsePayload payload) {
-        if (payload.message() != null && !payload.message().isBlank()) {
-            status(localizedRemotePullMessage(payload.message()), payload.success() ? TITLE_READY_TEXT : TITLE_ERROR_TEXT);
-        }
         if (payload.success()) {
             refreshResolvedScenes();
         }
-    }
-
-    private Component localizedRemotePullMessage(String message) {
-        String noRemotePrefix = "No remote scenes found for item ";
-        if (message.startsWith(noRemotePrefix)) {
-            return Component.translatable("ponderer.ui.projector.remote_pull.none",
-                message.substring(noRemotePrefix.length()));
-        }
-
-        String pulledPrefix = "Pulled ";
-        String pulledSuffix = " remote scene(s) for item ";
-        if (message.startsWith(pulledPrefix)) {
-            int suffixStart = message.indexOf(pulledSuffix, pulledPrefix.length());
-            if (suffixStart > pulledPrefix.length()) {
-                String count = message.substring(pulledPrefix.length(), suffixStart);
-                String itemId = message.substring(suffixStart + pulledSuffix.length());
-                return Component.translatable("ponderer.ui.projector.remote_pull.done", count, itemId);
-            }
-        }
-
-        return Component.literal(message);
     }
 
     private void renderBottomStatus(GuiGraphics graphics) {
@@ -1714,6 +1691,11 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
         Component message = trimToWidth(statusMessage, BOTTOM_STATUS_WIDTH);
         graphics.drawString(font, message, BOTTOM_STATUS_X, bottomActionY() + 5, statusColor, false);
+    }
+
+    @Override
+    public void acceptFeedback(Component message, FeedbackLevel level) {
+        status(message, level == FeedbackLevel.ERROR ? TITLE_ERROR_TEXT : TITLE_READY_TEXT);
     }
 
     private void status(Component message, int color) {

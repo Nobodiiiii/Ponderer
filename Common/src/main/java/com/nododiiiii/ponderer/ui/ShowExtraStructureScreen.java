@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -364,7 +365,8 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
     }
 
     public static void onDownloadResult(String sourceId, String targetId, boolean success, String message) {
-        if (!(Minecraft.getInstance().screen instanceof ShowExtraStructureScreen screen)) {
+        if (!(ClientFeedback.responseScreen() instanceof ShowExtraStructureScreen screen)
+            || Minecraft.getInstance().screen != screen) {
             return;
         }
         screen.handleDownloadResult(sourceId, success, message);
@@ -406,6 +408,7 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
         } else {
             parent.addStepAndSave(stepToSave);
         }
+        ClientFeedback.continueOn(parent);
         Minecraft.getInstance().setScreen(parent);
     }
 }

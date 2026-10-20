@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.nododiiiii.ponderer.network.CaptureBlockEntityNbtRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.DslScene;
@@ -91,6 +92,8 @@ public final class NbtPickState {
         NbtPickState.context = new StepEditorContext(stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent);
     }
 
+    public static boolean isAwaitingServer() { return awaitingServerBlockEntityNbt; }
+
     public static boolean isActive() {
         return active;
     }
@@ -142,6 +145,7 @@ public final class NbtPickState {
     }
 
     public static void reset() {
+        WorldFeedback.clear("nbt");
         active = false;
         awaitingServerBlockEntityNbt = false;
         pendingServerBlockPos = null;

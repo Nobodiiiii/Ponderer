@@ -323,15 +323,12 @@ public final class AutoRemoteSyncService {
                 continue;
             }
             if ("too_large".equals(resource.skipReason())) {
-                player.sendSystemMessage(Component.translatable("ponderer.cmd.pull.server_skip_too_large",
-                    displayId(key), resource.size()));
                 state.pendingChanges.remove(key);
                 state.lastSentHashes.put(key, resource.hash());
                 skipped++;
                 continue;
             }
             if (resource.bytes() == null) {
-                player.sendSystemMessage(Component.translatable("ponderer.cmd.pull.server_skip_failed", displayId(key)));
                 state.pendingChanges.remove(key);
                 state.lastSentHashes.put(key, resource.hash());
                 skipped++;

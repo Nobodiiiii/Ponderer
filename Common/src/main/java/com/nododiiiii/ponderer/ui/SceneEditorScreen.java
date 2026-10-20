@@ -124,6 +124,10 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         return preview.viewState();
     }
 
+    void restorePreviewView(SceneEditorPreview.ViewState state) {
+        preview.restoreView(state);
+    }
+
     @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.renderWindow(graphics, mouseX, mouseY, partialTicks);

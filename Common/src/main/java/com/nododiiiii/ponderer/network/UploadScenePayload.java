@@ -68,7 +68,7 @@ public record UploadScenePayload(String sceneId, @Nullable String pack, String j
             return;
         }
         if (!UploadPermissions.canUpload(player)) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.no_permission"));
+            PondererServices.NETWORK.sendToPlayer(player, new UploadResponsePayload(payload.sceneId(), payload.pack(), "denied"));
             return;
         }
 
@@ -80,7 +80,7 @@ public record UploadScenePayload(String sceneId, @Nullable String pack, String j
             String serverHash = computeServerSceneHash(player.server, payload.sceneId(), payload.pack());
 
             if (!serverHash.isEmpty() && !lastSyncHash.isEmpty() && !serverHash.equals(lastSyncHash)) {
-                player.sendSystemMessage(Component.translatable("ponderer.cmd.push.server_conflict", displayId));
+
                 PondererServices.NETWORK.sendToPlayer(player,
                         new UploadResponsePayload(payload.sceneId(), payload.pack(), "conflict"));
                 return;
@@ -91,11 +91,11 @@ public record UploadScenePayload(String sceneId, @Nullable String pack, String j
         boolean ok = result.success();
 
         if (ok) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_ok", displayId));
+
             PondererServices.NETWORK.sendToPlayer(player,
                     new UploadResponsePayload(payload.sceneId(), payload.pack(), "ok:" + result.hash()));
         } else {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_failed", displayId));
+
             PondererServices.NETWORK.sendToPlayer(player,
                     new UploadResponsePayload(payload.sceneId(), payload.pack(), "error"));
         }

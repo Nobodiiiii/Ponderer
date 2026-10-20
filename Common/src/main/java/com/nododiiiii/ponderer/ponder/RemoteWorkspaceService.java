@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.Ponderer;
+import net.minecraft.network.chat.Component;
 import com.nododiiiii.ponderer.network.SyncResponsePayload;
 import com.nododiiiii.ponderer.network.UploadScenePayload;
 import com.nododiiiii.ponderer.util.SafePaths;
@@ -67,19 +68,19 @@ public final class RemoteWorkspaceService {
     }
 
     public record PullBundle(List<SyncResponsePayload.FileEntry> scripts,
-                             List<SyncResponsePayload.FileEntry> structures, String message) {
+                             List<SyncResponsePayload.FileEntry> structures, Component message) {
     }
 
-    public record OperationResult(boolean success, String message, boolean refreshCatalog, String hash) {
-        public static OperationResult ok(String message, boolean refreshCatalog) {
+    public record OperationResult(boolean success, Component message, boolean refreshCatalog, String hash) {
+        public static OperationResult ok(Component message, boolean refreshCatalog) {
             return new OperationResult(true, message, refreshCatalog, "");
         }
 
-        public static OperationResult ok(String message, boolean refreshCatalog, String hash) {
+        public static OperationResult ok(Component message, boolean refreshCatalog, String hash) {
             return new OperationResult(true, message, refreshCatalog, hash == null ? "" : hash);
         }
 
-        public static OperationResult fail(String message) {
+        public static OperationResult fail(Component message) {
             return new OperationResult(false, message, false, "");
         }
     }
@@ -165,7 +166,7 @@ public final class RemoteWorkspaceService {
                     addStructureEntry(ref, structures);
                 }
             }
-            return new PullBundle(List.copyOf(scripts), List.copyOf(structures), "Pulled remote pack " + packOrId(id, pack));
+            return new PullBundle(List.copyOf(scripts), List.copyOf(structures), Component.translatable("ponderer.feedback.remote.pack_pulled", packOrId(id, pack)));
         }
 
         if (KIND_ITEM_SCENES.equals(kind)) {
@@ -187,16 +188,16 @@ public final class RemoteWorkspaceService {
                 }
             }
             if (matchedScenes == 0) {
-                return new PullBundle(List.of(), List.of(), "No remote scenes found for item " + id);
+                return new PullBundle(List.of(), List.of(), Component.translatable("ponderer.ui.projector.remote_pull.none", id));
             }
             return new PullBundle(List.copyOf(scripts), List.copyOf(structures),
-                "Pulled " + matchedScenes + " remote scene(s) for item " + id);
+                Component.translatable("ponderer.ui.projector.remote_pull.done", matchedScenes, id));
         }
 
         if (KIND_SCENE.equals(kind)) {
             SceneStore.SyncFileRef sceneRef = findSceneRef(server, id, pack);
             if (sceneRef == null) {
-                return new PullBundle(List.of(), List.of(), "Remote scene not found: " + displayKey(id, pack));
+                return new PullBundle(List.of(), List.of(), Component.translatable("ponderer.cmd.scene_not_found", displayKey(id, pack)));
             }
             addScriptEntry(sceneRef, scripts);
             if (includeDependencies) {
@@ -204,24 +205,24 @@ public final class RemoteWorkspaceService {
                     addStructureEntry(structureRef, structures);
                 }
             }
-            return new PullBundle(List.copyOf(scripts), List.copyOf(structures), "Pulled remote scene " + displayKey(id, pack));
+            return new PullBundle(List.copyOf(scripts), List.copyOf(structures), Component.translatable("ponderer.feedback.remote.scene_pulled", displayKey(id, pack)));
         }
 
         if (KIND_STRUCTURE.equals(kind)) {
             SceneStore.SyncFileRef structureRef = findStructureRef(server, id, pack);
             if (structureRef == null) {
-                return new PullBundle(List.of(), List.of(), "Remote structure not found: " + displayKey(id, pack));
+                return new PullBundle(List.of(), List.of(), Component.translatable("ponderer.cmd.download.not_found", displayKey(id, pack)));
             }
             addStructureEntry(structureRef, structures);
-            return new PullBundle(List.of(), List.copyOf(structures), "Pulled remote structure " + displayKey(id, pack));
+            return new PullBundle(List.of(), List.copyOf(structures), Component.translatable("ponderer.feedback.remote.structure_pulled", displayKey(id, pack)));
         }
 
-        return new PullBundle(List.of(), List.of(), "Unknown remote resource type: " + kind);
+        return new PullBundle(List.of(), List.of(), Component.translatable("ponderer.feedback.remote.unknown_type", kind));
     }
 
     public static OperationResult uploadScene(ServerPlayer actor, UploadScenePayload payload) {
         if (actor == null) {
-            return OperationResult.fail("No server player is available.");
+            return OperationResult.fail(Component.translatable("ponderer.feedback.remote.no_player"));
         }
         boolean ok = SceneStore.saveToServer(actor.server, payload.sceneId(), payload.pack(), payload.json());
         if (ok) {
@@ -241,11 +242,11 @@ public final class RemoteWorkspaceService {
         }
 
         if (!ok) {
-            return OperationResult.fail("Failed to upload " + displayKey(payload.sceneId(), payload.pack()));
+            return OperationResult.fail(Component.translatable("ponderer.cmd.push.upload_failed", displayKey(payload.sceneId(), payload.pack())));
         }
         AutoRemoteSyncService.onRemoteWorkspaceChanged(actor.server);
         return OperationResult.ok(
-            "Uploaded " + displayKey(payload.sceneId(), payload.pack()),
+            Component.translatable("ponderer.cmd.push.upload_ok", displayKey(payload.sceneId(), payload.pack())),
             true,
             currentHash(actor.server, KIND_SCENE, payload.sceneId(), payload.pack()));
     }
@@ -253,15 +254,15 @@ public final class RemoteWorkspaceService {
     public static OperationResult delete(MinecraftServer server, ServerPlayer actor, String kind, String id,
                                          @Nullable String pack) {
         if (!UploadPermissions.canManage(actor)) {
-            return OperationResult.fail("Only Ponderer admins can delete remote resources.");
+            return OperationResult.fail(Component.translatable("ponderer.feedback.remote.delete_denied"));
         }
         if (KIND_SCENE.equals(kind)) {
             Path path = resolveCurrentPath(server, kind, id, pack);
             if (path == null || !Files.exists(path)) {
-                return OperationResult.fail("Remote scene not found: " + displayKey(id, pack));
+                return OperationResult.fail(Component.translatable("ponderer.cmd.scene_not_found", displayKey(id, pack)));
             }
             snapshotCurrent(server, kind, id, pack, "delete", actorName(actor));
-            OperationResult result = deletePath(path, "Deleted remote scene " + displayKey(id, pack));
+            OperationResult result = deletePath(path, Component.translatable("ponderer.feedback.remote.scene_deleted", displayKey(id, pack)));
             if (result.success()) {
                 AutoRemoteSyncService.onRemoteWorkspaceChanged(server);
             }
@@ -272,21 +273,21 @@ public final class RemoteWorkspaceService {
             int refCount = countStructureReferences(server, SceneStore.collectServerScriptRefs(server))
                 .getOrDefault(refKey(id, pack), 0);
             if (refCount > 0) {
-                return OperationResult.fail("Cannot delete " + displayKey(id, pack) + ": referenced by " + refCount + " scene(s).");
+                return OperationResult.fail(Component.translatable("ponderer.feedback.remote.referenced", displayKey(id, pack), refCount));
             }
             Path path = resolveCurrentPath(server, kind, id, pack);
             if (path == null || !Files.exists(path)) {
-                return OperationResult.fail("Remote structure not found: " + displayKey(id, pack));
+                return OperationResult.fail(Component.translatable("ponderer.cmd.download.not_found", displayKey(id, pack)));
             }
             snapshotCurrent(server, kind, id, pack, "delete", actorName(actor));
-            OperationResult result = deletePath(path, "Deleted remote structure " + displayKey(id, pack));
+            OperationResult result = deletePath(path, Component.translatable("ponderer.feedback.remote.structure_deleted", displayKey(id, pack)));
             if (result.success()) {
                 AutoRemoteSyncService.onRemoteWorkspaceChanged(server);
             }
             return result;
         }
 
-        return OperationResult.fail("Unsupported delete target: " + kind);
+        return OperationResult.fail(Component.translatable("ponderer.feedback.remote.unknown_type", kind));
     }
 
     public static List<HistoryEntry> history(MinecraftServer server, String kind, String id, @Nullable String pack) {
@@ -313,22 +314,22 @@ public final class RemoteWorkspaceService {
     public static OperationResult rollback(MinecraftServer server, ServerPlayer actor, String kind, String id,
                                            @Nullable String pack, int revision) {
         if (!UploadPermissions.canManage(actor)) {
-            return OperationResult.fail("Only Ponderer admins can roll back remote resources.");
+            return OperationResult.fail(Component.translatable("ponderer.feedback.remote.rollback_denied"));
         }
         Path historyFile = historyContentPath(server, kind, id, pack, revision);
         Path currentPath = resolveCurrentPath(server, kind, id, pack);
         if (historyFile == null || currentPath == null || !Files.exists(historyFile)) {
-            return OperationResult.fail("Remote history revision not found: " + revision);
+            return OperationResult.fail(Component.translatable("ponderer.feedback.remote.revision_missing", revision));
         }
         try {
             Files.createDirectories(currentPath.getParent());
             Files.copy(historyFile, currentPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             snapshotCurrent(server, kind, id, pack, "rollback:" + revision, actorName(actor));
             AutoRemoteSyncService.onRemoteWorkspaceChanged(server);
-            return OperationResult.ok("Rolled back " + displayKey(id, pack) + " to revision " + revision, true);
+            return OperationResult.ok(Component.translatable("ponderer.feedback.remote.rolled_back", displayKey(id, pack), revision), true);
         } catch (Exception e) {
             LOGGER.warn("Failed to roll back remote resource {} {}", kind, displayKey(id, pack), e);
-            return OperationResult.fail("Failed to roll back " + displayKey(id, pack));
+            return OperationResult.fail(Component.translatable("ponderer.feedback.remote.rollback_failed", displayKey(id, pack)));
         }
     }
 
@@ -519,13 +520,13 @@ public final class RemoteWorkspaceService {
         return ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, trimmed);
     }
 
-    private static OperationResult deletePath(Path path, String message) {
+    private static OperationResult deletePath(Path path, Component message) {
         try {
             Files.deleteIfExists(path);
             return OperationResult.ok(message, true);
         } catch (Exception e) {
             LOGGER.warn("Failed to delete remote resource {}", path, e);
-            return OperationResult.fail("Failed to delete remote resource.");
+            return OperationResult.fail(Component.translatable("ponderer.feedback.remote.delete_failed"));
         }
     }
 

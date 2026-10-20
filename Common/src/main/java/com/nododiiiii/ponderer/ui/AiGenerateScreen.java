@@ -521,11 +521,6 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.success"), false);
                 applyCachedStatus();
                 refreshGenerationActionButton();
-                if (Minecraft.getInstance().player != null) {
-                    Minecraft.getInstance().player.displayClientMessage(
-                        Component.translatable("ponderer.ui.ai_generate.status.success"),
-                        false);
-                }
             }),
             error -> Minecraft.getInstance().execute(() -> {
                 if (!isCurrentTask(taskRef.get())) {

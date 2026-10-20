@@ -226,7 +226,9 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
             ? JsonParser.parseString(snapshot.get(InterfaceCapture.SNAPSHOT_KEY)).getAsJsonObject() : null;
         refreshCapturedMenuField();
         if (snapshot.containsKey(InterfaceCapture.NOTICE_KEY)) {
-            setInfoMessage(UIText.of(snapshot.get(InterfaceCapture.NOTICE_KEY)));
+            String notice = snapshot.get(InterfaceCapture.NOTICE_KEY);
+            if ("ponderer.interface.capture.done".equals(notice)) setInfoMessage(UIText.of(notice));
+            else setErrorMessage(UIText.of(notice));
         }
         if (snapshot.containsKey(NbtPickState.SNAPSHOT_BLOCK_ID_KEY)) {
             blockField.setValue(snapshot.get(NbtPickState.SNAPSHOT_BLOCK_ID_KEY));

@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.neoforge;
 
-import com.nododiiiii.ponderer.Config;
+import com.nododiiiii.ponderer.feedback.PackFeedback;
+import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
@@ -15,7 +16,6 @@ import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
-import com.nododiiiii.ponderer.ui.CoordPickState;
 import com.nododiiiii.ponderer.ui.NbtPickState;
 import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
 import com.nododiiiii.ponderer.ui.PonderPreviewTooltip;
@@ -24,10 +24,6 @@ import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.enums.PonderConfig;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.ClickEvent;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.Style;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -129,9 +125,6 @@ public class PondererNeoForgeClient {
     private static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) return;
-        if (NbtPickState.isActive()) {
-            mc.player.displayClientMessage(Component.translatable("ponderer.ui.nbt_pick.middle_prompt"), true);
-        }
         if (ModKeyBindings.OPEN_FUNCTION_PAGE.consumeClick()) {
             ScreenOpener.open(new FunctionScreen());
         }
@@ -147,6 +140,7 @@ public class PondererNeoForgeClient {
         AutoRemoteSyncClient.tick();
         blueprintHandler.tick();
         TriggerManager.tick();
+        WorldFeedback.tick();
     }
 
     private static void onRenderLevelStage(RenderLevelStageEvent event) {
@@ -182,58 +176,6 @@ public class PondererNeoForgeClient {
         List<String> orphaned = new ArrayList<>(PondererNeoForge.pendingOrphanedPacks);
         PondererNeoForge.pendingOrphanedPacks.clear();
 
-        if (updates.isEmpty() && orphaned.isEmpty()) return;
-        if (!Config.PACK_ORPHAN_PROMPT.get() && orphaned.isEmpty() && updates.isEmpty()) return;
-
-        Minecraft.getInstance().execute(() -> {
-            var player = Minecraft.getInstance().player;
-            if (player == null) return;
-
-            for (SceneStore.PackUpdateInfo info : updates) {
-                String versionChange = info.oldVersion != null
-                        ? "v" + info.oldVersion + " \u2192 v" + info.newVersion
-                        : "v" + info.newVersion;
-                MutableComponent msg = Component.literal("[Ponderer] ")
-                        .withStyle(Style.EMPTY.withColor(0xFFA500))
-                        .append(Component.literal(info.packName).withStyle(Style.EMPTY.withColor(0xFFFFFF)))
-                        .append(Component.literal(": ").withStyle(Style.EMPTY.withColor(0xAAAAAA)));
-                if (info.oldVersion != null) {
-                    msg.append(Component.translatable("ponderer.pack.update.version", versionChange)
-                            .withStyle(Style.EMPTY.withColor(0x55FF55)));
-                } else {
-                    msg.append(Component.translatable("ponderer.pack.update.loaded", info.newVersion)
-                            .withStyle(Style.EMPTY.withColor(0x55FF55)));
-                }
-                if (info.conflictCount > 0) {
-                    msg.append(Component.literal(" ")
-                            .append(Component.translatable("ponderer.pack.update.conflicts", info.conflictCount)
-                                    .withStyle(Style.EMPTY.withColor(0xFFAA00))));
-                }
-                player.displayClientMessage(msg, false);
-            }
-
-            if (Config.PACK_ORPHAN_PROMPT.get()) {
-                for (String packName : orphaned) {
-                    MutableComponent msg = Component.literal("[Ponderer] ")
-                            .withStyle(Style.EMPTY.withColor(0xFFA500))
-                            .append(Component.literal(packName).withStyle(Style.EMPTY.withColor(0xFFFFFF)))
-                            .append(Component.literal(": ").withStyle(Style.EMPTY.withColor(0xAAAAAA)))
-                            .append(Component.translatable("ponderer.pack.orphan.message")
-                                    .withStyle(Style.EMPTY.withColor(0xAAAAAA)));
-                    player.displayClientMessage(msg, false);
-
-                    MutableComponent removeBtn = Component.literal("  [")
-                            .withStyle(Style.EMPTY.withColor(0x888888))
-                            .append(Component.translatable("ponderer.pack.orphan.remove")
-                                    .withStyle(Style.EMPTY
-                                            .withColor(0xFF6666)
-                                            .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND,
-                                                    "/ponderer unregister_pack " + packName))
-                                            .withUnderlined(true)))
-                            .append(Component.literal("]").withStyle(Style.EMPTY.withColor(0x888888)));
-                    player.displayClientMessage(removeBtn, false);
-                }
-            }
-        });
+        PackFeedback.show(updates, orphaned);
     }
 }

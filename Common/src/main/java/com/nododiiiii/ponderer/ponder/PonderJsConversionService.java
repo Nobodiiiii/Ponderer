@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
@@ -43,7 +44,7 @@ public final class PonderJsConversionService {
             .filter(s -> id.toString().equals(s.id))
             .findFirst();
         if (scene.isEmpty()) {
-            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.scene_not_found", id.toString()));
+            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.scene_not_found", id.toString()), FeedbackLevel.ERROR);
             return 0;
         }
 
@@ -51,7 +52,7 @@ public final class PonderJsConversionService {
         String flatName = SafePaths.sanitizeWindowsFileName(id.getPath().replace('/', '_'), "scene") + ".ponderer.js";
         Path out = SafePaths.resolveFileName(scriptsDir, flatName);
         if (out == null) {
-            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.to_failed", id.toString()));
+            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.to_failed", id.toString()), FeedbackLevel.ERROR);
             return 0;
         }
         try {
@@ -63,7 +64,7 @@ public final class PonderJsConversionService {
             notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.to_done", out.toString()));
             return 1;
         } catch (Exception e) {
-            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.to_failed", id.toString()));
+            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.to_failed", id.toString()), FeedbackLevel.ERROR);
             return 0;
         }
     }
@@ -87,7 +88,7 @@ public final class PonderJsConversionService {
     public static int convertFromPonderJs(ResourceLocation id) {
         Path scriptsDir = getClientScriptsDir();
         if (!Files.exists(scriptsDir)) {
-            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.dir_not_found"));
+            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.dir_not_found"), FeedbackLevel.ERROR);
             return 0;
         }
         int count = 0;
@@ -102,7 +103,7 @@ public final class PonderJsConversionService {
                 }
             }
         } catch (Exception e) {
-            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.scan_failed"));
+            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.scan_failed"), FeedbackLevel.ERROR);
             return 0;
         }
         SceneStore.reloadFromDisk();
@@ -114,7 +115,7 @@ public final class PonderJsConversionService {
     public static int convertAllFromPonderJs() {
         Path scriptsDir = getClientScriptsDir();
         if (!Files.exists(scriptsDir)) {
-            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.dir_not_found"));
+            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.dir_not_found"), FeedbackLevel.ERROR);
             return 0;
         }
         int count = 0;
@@ -129,7 +130,7 @@ public final class PonderJsConversionService {
                 }
             }
         } catch (Exception e) {
-            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.scan_failed"));
+            notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.scan_failed"), FeedbackLevel.ERROR);
             return 0;
         }
         SceneStore.reloadFromDisk();
@@ -457,5 +458,9 @@ public final class PonderJsConversionService {
 
     private static void notifyClient(net.minecraft.network.chat.Component message) {
         PondererClientCommands.notifyClient(message);
+    }
+
+    private static void notifyClient(net.minecraft.network.chat.Component message, FeedbackLevel level) {
+        PondererClientCommands.notifyClient(message, level);
     }
 }

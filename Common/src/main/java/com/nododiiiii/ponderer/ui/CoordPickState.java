@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.nododiiiii.ponderer.blueprint.RaycastHelper;
 import net.createmod.catnip.outliner.Outliner;
 import net.createmod.ponder.enums.PonderSpecialTextures;
@@ -102,7 +102,14 @@ public final class CoordPickState {
         } else {
             promptKey = "ponderer.ui.trigger_editor.pick_prompt.third";
         }
-        mc.player.displayClientMessage(Component.translatable(promptKey), true);
+        Component message = Component.translatable(promptKey);
+        if (firstPos != null && secondPos != null) {
+            message = message.copy().append(" | ").append(Component.translatable("item.ponderer.blueprint.dimensions",
+                Math.abs(secondPos.getX() - firstPos.getX()) + 1,
+                Math.abs(secondPos.getY() - firstPos.getY()) + 1,
+                Math.abs(secondPos.getZ() - firstPos.getZ()) + 1));
+        }
+        WorldFeedback.hint("coordinates", message, 60, 2);
     }
 
     @Nullable
@@ -208,15 +215,11 @@ public final class CoordPickState {
         firstPos = BlockPos.containing(bb.minX, bb.minY, bb.minZ);
         secondPos = BlockPos.containing(bb.maxX, bb.maxY, bb.maxZ);
 
-        var player = Minecraft.getInstance().player;
-        if (player != null) {
-            player.displayClientMessage(Component.translatable("item.ponderer.blueprint.dimensions",
-                    (int) bb.getXsize() + 1, (int) bb.getYsize() + 1, (int) bb.getZsize() + 1), true);
-        }
         return true;
     }
 
     public static void reset() {
+        WorldFeedback.clear("coordinates");
         active = false;
         phase = 0;
         firstPos = null;
