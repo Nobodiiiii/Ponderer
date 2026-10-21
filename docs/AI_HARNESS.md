@@ -16,5 +16,18 @@ steps 数组不是合法的局部授权。明确要求整体重写的任务可�
 
 ## 验证
 
+## 宿主草稿
+
+`get_scene_draft` 返回 `draft_id`、`revision` 和所选 JSON Pointer 的值；不提供 paths 时读取全文。
+`apply_scene_patch` 使用相同 ID 和 revision，支持 `add/replace/remove`。数组 add 是插入，
+对象 add 仅允许新字段，replace/remove 必须带与旧值相等的 expected。整个补丁事务成功后
+才更新 revision；冲突或越界不会部分应用。每轮只能执行一个草稿修改工具。
+
+首次新建可通过 review_scene 提供完整 scene；后续 review_scene/submit_scene 可直接使用
+`{ "draft_id": "...", "revision": N }`，不再重传场景。调整模式先读取原场景，优先使用补丁。
+保存前比较原场景文件内容；生成期间发生外部修改时拒绝覆盖，保留结果供检查。
+
+## 验证命令
+
 使用现有 `:Common:test`、`:NeoForge:build`、`:Fabric:build`。
 本轮不新增测试文件或用例。真实模型效果和游戏内视觉效果需要另行验证。

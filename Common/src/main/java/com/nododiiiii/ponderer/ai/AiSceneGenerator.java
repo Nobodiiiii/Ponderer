@@ -68,6 +68,16 @@ public class AiSceneGenerator {
                         "API key not configured. Fill custom AI settings or choose Codex/Claude Code in Settings > AI Configuration.");
                 }
 
+                Path editedPath = null;
+                String savedBaseline = null;
+                if (existingJson != null && !existingJson.isBlank()) {
+                    DslScene original = new com.google.gson.GsonBuilder()
+                        .registerTypeAdapter(com.nododiiiii.ponderer.ponder.LocalizedText.class,
+                            new com.nododiiiii.ponderer.ponder.LocalizedText.GsonAdapter()).create()
+                        .fromJson(existingJson, DslScene.class);
+                    editedPath = SceneStore.resolveLocalScenePath(original);
+                    if (editedPath != null && Files.exists(editedPath)) savedBaseline = Files.readString(editedPath);
+                }
                 AiSceneAgentPipeline.Request request = new AiSceneAgentPipeline.Request(
                     structurePaths == null ? List.of() : List.copyOf(structurePaths),
                     carrierItemId,
@@ -89,6 +99,12 @@ public class AiSceneGenerator {
                 );
 
                 cancellation.throwIfCancelled();
+                if (editedPath != null) {
+                    String current = Files.exists(editedPath) ? Files.readString(editedPath) : null;
+                    if (!java.util.Objects.equals(savedBaseline, current)) {
+                        throw new IllegalStateException("SCENE_CHANGED: the scene changed during generation; the AI result was not saved. Retry from the current scene.");
+                    }
+                }
                 SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(result.scene());
                 if (!saveResult.isSuccess() || saveResult.path() == null) {
                     throw new RuntimeException(saveResult.englishMessage());
@@ -582,6 +598,11 @@ public class AiSceneGenerator {
             - Use lookup_registry for display names and inspect_registry_entries before relying on uncertain exact IDs.
             - Use get_step_schema for every step type whose fields you are not fully certain about.
             - Prefer review_scene before submit_scene. submit_scene always repeats deterministic validation.
+            - In adjustment mode use apply_scene_patch with draft_id/revision and exact JSON pointer paths.
+              replace/remove require expected old values; add inserts without replacing existing values.
+              Inspect the original first. Use get_scene_draft to recover the current revision and selected values.
+            - review_scene and submit_scene may use {"draft_id":"...","revision":N} without scene.
+              Prefer referencing the host draft over repeating a complete scene.
             - Plan privately; do not output a prose outline.
 
             ## Scene contract

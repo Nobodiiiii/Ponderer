@@ -484,11 +484,11 @@ public final class AiSceneAgentPipeline {
                 if (arguments == null || !arguments.isJsonObject()) {
                     return ParseOutcome.error("Tool arguments must be an object for " + name);
                 }
-                hasTerminal |= tool.terminal();
+                hasTerminal |= tool.terminal() || "apply_scene_patch".equals(name) || "review_scene".equals(name);
                 calls.add(new ToolCall(id, name, arguments.getAsJsonObject().deepCopy()));
             }
             if (hasTerminal && calls.size() != 1) {
-                return ParseOutcome.error("submit_scene must be the only tool call in its turn");
+                return ParseOutcome.error("Draft mutations and submit_scene must be the only tool call in their turn");
             }
             return new ParseOutcome(List.copyOf(calls), null,
                 object.has("edit_scope") && object.get("edit_scope").isJsonObject() ? object.getAsJsonObject("edit_scope") : null);
@@ -596,6 +596,8 @@ public final class AiSceneAgentPipeline {
             case "get_step_schema" -> "Loading scene step schema";
             case "search_references" -> "Searching reference material";
             case "inspect_existing_scene" -> "Inspecting existing scene";
+            case "get_scene_draft" -> "Inspecting scene draft";
+            case "apply_scene_patch" -> "Applying scoped scene patch";
             case "review_scene" -> "Reviewing scene draft";
             case "submit_scene" -> "Validating scene submission";
             default -> "Running agent tool";

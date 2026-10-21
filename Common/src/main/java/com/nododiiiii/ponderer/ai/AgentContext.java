@@ -40,6 +40,9 @@ public final class AgentContext {
     private final String userPrompt;
     private final boolean buildTutorial;
     private final boolean includeImages;
+    private final AiDraftStore drafts;
+    AiDraftStore drafts() { return drafts; }
+
     private final RunState runState = new RunState();
 
     public AgentContext(List<StructureDocument> structures, List<ReferenceDocument> references,
@@ -52,6 +55,7 @@ public final class AgentContext {
         this.userPrompt = userPrompt;
         this.buildTutorial = buildTutorial;
         this.includeImages = includeImages;
+        this.drafts = new AiDraftStore(existingScene.available() ? existingScene.json() : new JsonObject());
     }
 
     public List<StructureDocument> structures() {

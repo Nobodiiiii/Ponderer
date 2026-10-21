@@ -51,6 +51,8 @@ public final class AgentToolRegistry {
         register(registered, inspectRegistryEntries());
         register(registered, searchReferences());
         register(registered, inspectExistingScene());
+        register(registered, getSceneDraft());
+        register(registered, applyScenePatch());
         register(registered, reviewScene());
         register(registered, submitScene());
         tools = Collections.unmodifiableMap(registered);
@@ -437,6 +439,66 @@ public final class AgentToolRegistry {
         };
     }
 
+    private static AgentTool getSceneDraft() {
+        return new SimpleTool("get_scene_draft", "Read the host draft and its revision. Use JSON pointer paths to read only selected values.",
+            schema("""
+                {"type":"object","properties":{"paths":{"type":"array","maxItems":32,"items":{"type":"string"}}}}
+                """)) {
+            @Override
+            public ToolExecution execute(AgentContext context, JsonObject arguments, AiCancellationScope cancellation) {
+                JsonObject result = ok();
+                result.add("draft", context.drafts().descriptor());
+                JsonObject draft = context.drafts().scene();
+                List<String> paths = optionalStringArray(arguments, "paths", 32);
+                if (paths.isEmpty()) result.add("scene", draft);
+                else {
+                    JsonObject values = new JsonObject();
+                    for (String path : paths) {
+                        if (!path.startsWith("/")) throw new IllegalArgumentException("Use JSON pointer paths");
+                        JsonElement value = draft;
+                        for (String token : path.substring(1).split("/", -1)) {
+                            token = token.replace("~1", "/").replace("~0", "~");
+                            if (value == null) break;
+                            value = value.isJsonArray() ? value.getAsJsonArray().get(Integer.parseInt(token))
+                                : value.getAsJsonObject().get(token);
+                        }
+                        values.add(path, value == null ? com.google.gson.JsonNull.INSTANCE : value.deepCopy());
+                    }
+                    result.add("values", values);
+                }
+                return ToolExecution.result(result);
+            }
+        };
+    }
+
+    private static AgentTool applyScenePatch() {
+        return new SimpleTool("apply_scene_patch", "Transactionally patch the host draft. add inserts an array element; replace/remove require expected old values. This must be the only call in its turn.",
+            schema("""
+                {"type":"object","required":["draft_id","revision","operations"],"properties":{
+                 "draft_id":{"type":"string"},"revision":{"type":"integer","minimum":0},"edit_scope":{"type":"object"},
+                 "operations":{"type":"array","minItems":1,"maxItems":32,"items":{"type":"object","required":["op","path"],
+                  "properties":{"op":{"type":"string","enum":["add","replace","remove"]},"path":{"type":"string"},"value":{},"expected":{}}}}}}
+                """)) {
+            @Override
+            public ToolExecution execute(AgentContext context, JsonObject arguments, AiCancellationScope cancellation) {
+                cancellation.throwIfCancelled();
+                context.drafts().requireRevision(arguments);
+                if (arguments.has("edit_scope")) context.runState().setEditScope(arguments.getAsJsonObject("edit_scope"));
+                JsonObject draft = context.drafts().patch(arguments.getAsJsonArray("operations"));
+                List<AiSceneValidator.Issue> errors = AiEditGuard.validate(context, draft);
+                JsonObject result = ok();
+                result.addProperty("ok", errors.isEmpty());
+                result.add("errors", GSON.toJsonTree(errors));
+                if (errors.isEmpty()) {
+                    result.add("changed_paths", GSON.toJsonTree(AiEditGuard.changedPaths(context.drafts().scene(), draft)));
+                    context.drafts().replace(draft);
+                }
+                result.add("draft", context.drafts().descriptor());
+                return ToolExecution.result(result);
+            }
+        };
+    }
+
     private static AgentTool reviewScene() {
         return sceneReviewTool("review_scene", false);
     }
@@ -452,24 +514,26 @@ public final class AgentToolRegistry {
                 ? "Validate and submit the complete scene. This must be the only tool call in its turn."
                 : "Run deterministic validation and non-blocking quality review on a complete scene draft.",
             schema("""
-                {"type":"object","required":["scene"],"properties":{"scene":{"type":"object"}}}
+                {"type":"object","properties":{"scene":{"type":"object"},"draft_id":{"type":"string"},
+                 "revision":{"type":"integer","minimum":0},"edit_scope":{"type":"object"}}}
                 """),
             terminal) {
             @Override
             public ToolExecution execute(AgentContext context, JsonObject arguments,
                                          AiCancellationScope cancellation) {
                 cancellation.throwIfCancelled();
+                if (arguments.has("edit_scope")) context.runState().setEditScope(arguments.getAsJsonObject("edit_scope"));
                 JsonElement sceneJson = arguments.get("scene");
-                if (sceneJson == null || !sceneJson.isJsonObject()) {
-                    throw new IllegalArgumentException("scene must be a JSON object");
-                }
+                if (sceneJson == null) context.drafts().requireRevision(arguments);
+                else if (!sceneJson.isJsonObject()) throw new IllegalArgumentException("scene must be an object");
                 DslScene scene;
                 JsonObject draft;
                 try {
-                    draft = context.existingScene().available()
-                        ? context.existingScene().json().deepCopy() : new JsonObject();
-                    for (Map.Entry<String, JsonElement> entry : sceneJson.getAsJsonObject().entrySet()) {
-                        draft.add(entry.getKey(), entry.getValue().deepCopy());
+                    draft = context.drafts().scene();
+                    if (sceneJson != null) {
+                        for (Map.Entry<String, JsonElement> entry : sceneJson.getAsJsonObject().entrySet()) {
+                            draft.add(entry.getKey(), entry.getValue().deepCopy());
+                        }
                     }
                     // Carrier bindings belong to the user, even when the model returns malformed fields.
                     draft.remove("items");
@@ -502,8 +566,9 @@ public final class AgentToolRegistry {
                     .map(AgentContext.StructureDocument::id).toList();
                 List<AiSceneValidator.Issue> errors = new ArrayList<>(
                     AiSceneValidator.validate(scene, structures, structureNames));
-                errors.addAll(AiEditGuard.validate(context, draft));
-                errors.addAll(AiEditGuard.validate(context, draft));
+                List<AiSceneValidator.Issue> scopeErrors = AiEditGuard.validate(context, draft);
+                errors.addAll(scopeErrors);
+                if (scopeErrors.isEmpty()) context.drafts().replace(draft);
                 if (terminal) {
                     appendPreconditionErrors(context, errors);
                 }
@@ -512,6 +577,7 @@ public final class AgentToolRegistry {
 
                 JsonObject result = ok();
                 result.addProperty("ok", errors.isEmpty());
+                result.add("draft", context.drafts().descriptor());
                 result.add("errors", GSON.toJsonTree(errors));
                 result.add("warnings", AiEditGuard.warnings(context, draft, warnings));
                 result.add("changed_paths", GSON.toJsonTree(context.existingScene().available()
