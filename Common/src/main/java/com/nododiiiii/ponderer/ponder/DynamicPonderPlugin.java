@@ -696,27 +696,53 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     /** Compile just the edited segment, using the same schematic resolution and storyboard as playback. */
     public record EditorScene(PonderScene scene, List<Integer> stepTicks,
-                              List<PonderInstruction> lastStepInstructions) {}
+                              EditorScenePlayback playback) {}
+
+    /** Pause later instructions during a step preview without removing them from the timeline. */
+    public static final class EditorScenePlayback {
+        private final List<List<PonderInstruction>> steps = new ArrayList<>();
+        private int previewStep = -1;
+
+        public void previewStep(int index) {
+            previewStep = index;
+        }
+
+        public boolean isPreviewingStep() {
+            return previewStep >= 0;
+        }
+
+        public boolean isStepComplete() {
+            return isPreviewingStep() && steps.get(previewStep).stream().allMatch(PonderInstruction::isComplete);
+        }
+
+        public void resumeTimeline() {
+            previewStep = -1;
+        }
+
+        private boolean pausesStep(int index) {
+            return isPreviewingStep() && index > previewStep;
+        }
+    }
 
     /** Capture actual instruction completion, including non-blocking effects and native fade times. */
     private static final class EditorSceneBuilder extends PonderSceneBuilder {
-        private final List<PonderInstruction> lastStepInstructions = new ArrayList<>();
+        private final EditorScenePlayback playback = new EditorScenePlayback();
+        private int stepIndex = -1;
         private int scheduledTicks;
-        private int lastStepEndTick;
+        private int effectEndTick;
 
         EditorSceneBuilder(PonderScene scene) {
             super(scene);
         }
 
         void beginStep() {
-            lastStepInstructions.clear();
-            lastStepEndTick = scheduledTicks;
+            stepIndex++;
+            playback.steps.add(new ArrayList<>());
         }
 
         void finishTimeline() {
-            int endTick = Math.max(scheduledTicks, lastStepEndTick);
+            int endTick = Math.max(scheduledTicks, effectEndTick);
             // Apply the full effect duration on every begin/replay, after native keyframe scheduling.
-            // Only the final step's effects extend the timeline: earlier effects may overlap it.
             super.addInstruction(new PonderInstruction() {
                 @Override public void onScheduled(PonderScene scene) {
                     scene.addToSceneTime(Math.max(0, endTick - scene.getTotalTime()));
@@ -731,13 +757,18 @@ public class DynamicPonderPlugin implements PonderPlugin {
             int nativeTicks = instruction instanceof TickingInstruction
                 ? ((TickingInstructionAccessor) instruction).ponderer$getTotalTicks() : 1;
             int duration = Math.max(1, nativeTicks);
-            lastStepEndTick = Math.max(lastStepEndTick, scheduledTicks + duration);
+            effectEndTick = Math.max(effectEndTick, scheduledTicks + duration);
             if (instruction.isBlocking()) scheduledTicks += duration;
+            int instructionStep = stepIndex;
             PonderInstruction tracked = new PonderInstruction() {
                 private boolean started;
 
-                @Override public boolean isBlocking() { return instruction.isBlocking(); }
-                @Override public boolean isComplete() { return started && instruction.isComplete(); }
+                @Override public boolean isBlocking() {
+                    return playback.pausesStep(instructionStep) || instruction.isBlocking();
+                }
+                @Override public boolean isComplete() {
+                    return !playback.pausesStep(instructionStep) && started && instruction.isComplete();
+                }
                 @Override public void onScheduled(PonderScene scene) {
                     instruction.onScheduled(scene);
                     // Even a zero-duration blocking instruction consumes a native scheduling tick.
@@ -748,11 +779,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
                     instruction.reset(scene);
                 }
                 @Override public void tick(PonderScene scene) {
+                    if (playback.pausesStep(instructionStep)) return;
                     started = true;
                     instruction.tick(scene);
                 }
             };
-            lastStepInstructions.add(tracked);
+            if (stepIndex >= 0) playback.steps.get(stepIndex).add(tracked);
             super.addInstruction(tracked);
         }
     }
@@ -779,7 +811,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 .program(builder, compiled.getSceneBuildingUtil());
             builder.finishTimeline();
             compiled.begin();
-            return new EditorScene(compiled, stepTicks, List.copyOf(builder.lastStepInstructions));
+            return new EditorScene(compiled, stepTicks, builder.playback);
         });
     }
 

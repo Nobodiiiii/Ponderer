@@ -42,7 +42,6 @@ public final class AiSceneAgentPipeline {
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
         .create();
     private static final int MAX_TOOL_CALLS_PER_TURN = 4;
-    private static final int MAX_TOOL_CALLS_PER_RUN = 16;
 
     private AiSceneAgentPipeline() {
     }
@@ -92,7 +91,7 @@ public final class AiSceneAgentPipeline {
                       int maxTurns, Consumer<String> onStatus,
                       BiConsumer<String, String> diagnostics, AiCancellationScope cancellation) {
         cancellation.throwIfCancelled();
-        int boundedTurns = Math.max(2, Math.min(12, maxTurns));
+        int boundedTurns = Math.max(2, Math.min(AiDefaults.AGENT_TURN_LIMIT, maxTurns));
         AgentToolRegistry toolRegistry = new AgentToolRegistry();
         AgentContext context = prepareContext(request, onStatus, diagnostics, cancellation);
         String manifest = buildManifest(context);
@@ -141,18 +140,6 @@ public final class AiSceneAgentPipeline {
             if (reusedId != null) {
                 String errorMessage = "Duplicate tool call id across turns: " + reusedId;
                 lastAction = "invalid model response on turn " + turn;
-                lastProtocolError = errorMessage;
-                JsonObject error = protocolError(errorMessage);
-                transcript.add(new LlmProvider.ContentBlock.Text(
-                    formatTranscriptTurn(turn, response, error)));
-                trace.add(new TraceEntry(turn, response, parsed.calls(), List.of(), errorMessage));
-                writeTrace(diagnostics, runId, trace);
-                onStatus.accept("Fixing scene draft");
-                continue;
-            }
-            if (toolCallCount + parsed.calls().size() > MAX_TOOL_CALLS_PER_RUN) {
-                String errorMessage = "Agent tool-call budget exceeded (max " + MAX_TOOL_CALLS_PER_RUN + ")";
-                lastAction = "rejected over-budget tool batch on turn " + turn;
                 lastProtocolError = errorMessage;
                 JsonObject error = protocolError(errorMessage);
                 transcript.add(new LlmProvider.ContentBlock.Text(
@@ -222,14 +209,10 @@ public final class AiSceneAgentPipeline {
                     "review_scene".equals(call.name()) || "submit_scene".equals(call.name()))) {
                 onStatus.accept("Fixing scene draft");
             }
-            if (toolCallCount >= MAX_TOOL_CALLS_PER_RUN) {
-                throw exhaustedException(
-                    boundedTurns, toolCallCount, lastAction, lastProtocolError, context, true);
-            }
         }
 
         throw exhaustedException(
-            boundedTurns, toolCallCount, lastAction, lastProtocolError, context, false);
+            boundedTurns, toolCallCount, lastAction, lastProtocolError, context);
     }
 
     private static AgentContext prepareContext(Request request, Consumer<String> onStatus,
@@ -415,7 +398,9 @@ public final class AiSceneAgentPipeline {
         }
         content.add(new LlmProvider.ContentBlock.Text(
             "=== Turn budget ===\nTurn " + turn + " of " + maxTurns
-                + ". Return only one JSON object containing tool_calls."));
+                + ". Return only one JSON object containing tool_calls."
+                + (turn == maxTurns ? " This is the final turn: submit_scene is required to finish."
+                    : " Batch independent lookups and leave a turn for submit_scene.")));
         return content;
     }
 
@@ -520,10 +505,9 @@ public final class AiSceneAgentPipeline {
 
     private static RuntimeException exhaustedException(
         int maxTurns, int toolCallCount, String lastAction, String lastProtocolError,
-        AgentContext context, boolean toolBudgetExhausted) {
-        StringBuilder message = new StringBuilder(toolBudgetExhausted
-            ? "AI agent exhausted the " + MAX_TOOL_CALLS_PER_RUN + "-call tool budget"
-            : "AI agent exhausted " + maxTurns + " turns without submitting a valid scene");
+        AgentContext context) {
+        StringBuilder message = new StringBuilder(
+            "AI agent exhausted " + maxTurns + " turns without submitting a valid scene");
         message.append("\nLast action: ").append(lastAction == null || lastAction.isBlank()
             ? "none" : lastAction);
         if (lastProtocolError != null && !lastProtocolError.isBlank()) {

@@ -133,15 +133,13 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         // Sanitization may prepend scene setup when this is the first step being added.
         SceneStore.sanitizeScene(draft);
         int index = segment.steps.indexOf(step);
-        // Preview only this step and its prerequisites; later steps must not overlap its effects.
-        segment.steps = new java.util.ArrayList<>(segment.steps.subList(0, index + 1));
         if (!preview.load(draft, sceneIndex)) {
             setErrorMessage(UIText.of("ponderer.ui.scene_editor.preview_unavailable"));
             return;
         }
         previewDraft = draft;
         previewDraftStepIndex = index;
-        preview.playLastStep();
+        preview.playStep(index);
         setInfoMessage(UIText.of("ponderer.ui.step_editor.preview.updated"));
     }
 

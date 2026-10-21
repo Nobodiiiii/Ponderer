@@ -18,9 +18,21 @@ import java.util.concurrent.CompletableFuture;
 public class OpenAiResponsesProvider implements LlmProvider {
 
     private final int maxTokens;
+    private final String reasoningEffort;
+    private final Duration requestTimeout;
 
     public OpenAiResponsesProvider(int maxTokens) {
+        this(maxTokens, "");
+    }
+
+    public OpenAiResponsesProvider(int maxTokens, String reasoningEffort) {
+        this(maxTokens, reasoningEffort, AiDefaults.REQUEST_TIMEOUT_SECONDS);
+    }
+
+    public OpenAiResponsesProvider(int maxTokens, String reasoningEffort, int requestTimeoutSeconds) {
         this.maxTokens = maxTokens;
+        this.reasoningEffort = reasoningEffort;
+        this.requestTimeout = Duration.ofSeconds(requestTimeoutSeconds);
     }
 
     @Override
@@ -46,6 +58,13 @@ public class OpenAiResponsesProvider implements LlmProvider {
         body.addProperty("model", model);
         body.addProperty("instructions", systemPrompt);
         body.addProperty("max_output_tokens", maxTokens);
+        // Each turn already carries the transcript; no server-side conversation storage is needed.
+        body.addProperty("store", false);
+        if (!reasoningEffort.isBlank()) {
+            JsonObject reasoning = new JsonObject();
+            reasoning.addProperty("effort", reasoningEffort);
+            body.add("reasoning", reasoning);
+        }
 
         JsonArray input = new JsonArray();
         JsonObject userMessage = new JsonObject();
@@ -72,7 +91,7 @@ public class OpenAiResponsesProvider implements LlmProvider {
             .uri(URI.create(endpoint(baseUrl)))
             .header("Content-Type", "application/json")
             .header("Authorization", "Bearer " + apiKey)
-            .timeout(Duration.ofSeconds(120))
+            .timeout(requestTimeout)
             .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
             .build();
 
@@ -88,6 +107,20 @@ public class OpenAiResponsesProvider implements LlmProvider {
                 }
                 try {
                     JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+                    String status = json.has("status") && !json.get("status").isJsonNull()
+                        ? json.get("status").getAsString() : "completed";
+                    if ("incomplete".equals(status)) {
+                        JsonObject details = json.getAsJsonObject("incomplete_details");
+                        if (details != null && details.has("reason")
+                            && "max_output_tokens".equals(details.get("reason").getAsString())) {
+                            throw AiApiSupport.outputLimitExceeded();
+                        }
+                        throw new RuntimeException("Responses API returned incomplete output: " + details);
+                    }
+                    if (!"completed".equals(status)) {
+                        throw new RuntimeException("Responses API did not complete (status: " + status
+                            + ", error: " + json.get("error") + ")");
+                    }
                     if (json.has("output_text") && !json.get("output_text").isJsonNull()) {
                         String text = json.get("output_text").getAsString();
                         if (!text.isBlank()) {
@@ -112,7 +145,7 @@ public class OpenAiResponsesProvider implements LlmProvider {
 
     private static String endpoint(String baseUrl) {
         String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        return base.endsWith("/v1") ? base + "/responses" : base + "/v1/responses";
+        return base + "/responses";
     }
 
     private static String extractOutputText(JsonObject json) {
@@ -134,6 +167,12 @@ public class OpenAiResponsesProvider implements LlmProvider {
                     continue;
                 }
                 JsonObject part = contentElement.getAsJsonObject();
+                if (part.has("type") && "refusal".equals(part.get("type").getAsString())) {
+                    throw new RuntimeException("Responses API refused the request: " + part.get("refusal"));
+                }
+                if (part.has("type") && !"output_text".equals(part.get("type").getAsString())) {
+                    continue;
+                }
                 if (part.has("text") && !part.get("text").isJsonNull()) {
                     if (!out.isEmpty()) {
                         out.append('\n');

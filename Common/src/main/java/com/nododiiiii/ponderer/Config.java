@@ -1,6 +1,10 @@
 package com.nododiiiii.ponderer;
 
+import com.nododiiiii.ponderer.ai.AiConfigMigration;
+import com.nododiiiii.ponderer.ai.AiDefaults;
 import net.neoforged.neoforge.common.ModConfigSpec;
+
+import java.net.URI;
 
 public class Config {
     private static final ModConfigSpec.Builder SERVER_BUILDER = new ModConfigSpec.Builder();
@@ -59,32 +63,48 @@ public class Config {
 
     // -- AI Scene Generation --
 
+    private static final ModConfigSpec.IntValue AI_CONFIG_VERSION = CLIENT_BUILDER
+        .comment("Internal AI configuration migration version. Do not edit.")
+        .defineInRange("ai.configVersion", AiConfigMigration.CURRENT_VERSION, 0, Integer.MAX_VALUE);
+
     public static final ModConfigSpec.ConfigValue<String> AI_CONFIG_SOURCE = CLIENT_BUILDER
         .comment("AI configuration source: 'custom', 'codex', or 'claude_code'.",
                  "Custom uses the fields below. Codex and Claude Code read local tool configuration.")
         .define("ai.configSource", "custom");
 
-    public static final ModConfigSpec.ConfigValue<String> AI_PROVIDER = CLIENT_BUILDER
-        .comment("LLM provider type: 'anthropic' or 'openai' (OpenAI-compatible).",
-                 "Use 'openai' for OpenAI, DeepSeek, Groq, Ollama, LM Studio, etc.")
-        .define("ai.provider", "openai");
+    public static final ModConfigSpec.ConfigValue<String> AI_WIRE_API = CLIENT_BUILDER
+        .comment("Custom API protocol: 'auto', 'responses', 'chat', or 'anthropic' (Messages).",
+                 "Auto detects official OpenAI/Anthropic URLs and uses Chat Completions for other services.",
+                 "Legacy provider settings are migrated once. Choose a protocol explicitly for gateways.",
+                 "The protocol determines the default API URL and model. Imported configs keep their own protocol.")
+        .define("ai.wireApi", "auto", value -> "auto".equals(value)
+            || "responses".equals(value) || "chat".equals(value) || "anthropic".equals(value));
 
     public static final ModConfigSpec.ConfigValue<String> AI_API_BASE_URL = CLIENT_BUILDER
-        .comment("API base URL. Leave empty to use provider defaults.",
-                 "Anthropic default: https://api.anthropic.com",
-                 "OpenAI default: https://api.openai.com",
-                 "For compatible APIs, set to e.g. https://api.deepseek.com")
+        .comment("API base URL. Leave empty to use the selected protocol's default.",
+                 "Anthropic default: https://api.anthropic.com/v1",
+                 "OpenAI default: https://api.openai.com/v1",
+                 "Include any required path prefix, such as /v1; it is not added automatically.")
         .define("ai.apiBaseUrl", "");
 
     public static final ModConfigSpec.ConfigValue<String> AI_API_KEY = CLIENT_BUILDER
-        .comment("API key for the selected provider.")
+        .comment("API key for the selected service.")
         .define("ai.apiKey", "");
 
     public static final ModConfigSpec.ConfigValue<String> AI_MODEL = CLIENT_BUILDER
-        .comment("Model name. Leave empty to use provider defaults.",
-                 "Anthropic default: claude-sonnet-4-20250514",
-                 "OpenAI default: gpt-4o")
+        .comment("Model name. Leave empty to use the selected protocol's default.",
+                 "Anthropic default: " + AiDefaults.ANTHROPIC_MODEL,
+                 "OpenAI default: " + AiDefaults.OPENAI_MODEL)
         .define("ai.model", "");
+
+    public static final ModConfigSpec.ConfigValue<String> AI_REASONING_EFFORT = CLIENT_BUILDER
+        .comment("Reasoning effort: '', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', or 'max'.",
+                 "Leave empty to inherit the selected source's effort, or use the API default if unset.",
+                 "An explicit value overrides every configuration source. Choose a level supported by your model.",
+                 "Anthropic supports low/medium/high/xhigh/max on compatible models; none/minimal are OpenAI-only.")
+        .define("ai.reasoningEffort", "", value -> "".equals(value) || "none".equals(value)
+            || "minimal".equals(value) || "low".equals(value) || "medium".equals(value)
+            || "high".equals(value) || "xhigh".equals(value) || "max".equals(value));
 
     public static final ModConfigSpec.ConfigValue<String> AI_PROXY = CLIENT_BUILDER
         .comment("HTTP proxy for AI API calls. Format: host:port (e.g. 127.0.0.1:7890).",
@@ -104,20 +124,25 @@ public class Config {
         .define("ai.webUseProxy", false);
 
     public static final ModConfigSpec.IntValue AI_MAX_TOKENS = CLIENT_BUILDER
-        .comment("Maximum number of tokens the LLM can generate per request.",
-                 "Increase this if complex scenes are being cut off.",
-                 "WARNING: Some models have lower limits:",
-                 "  - Claude 3.5 Haiku: max 8192 tokens",
-                 "  - Other Claude models: max 4096 tokens",
-                 "  - GPT-4o / GPT-4o mini: max 4096 tokens",
-                 "Default: 16384. Range: 1024-65536. Adjust based on your model limits.")
-        .defineInRange("ai.maxTokens", 16384, 1024, 65536);
+        .comment("Maximum output tokens per request, including reasoning tokens on thinking models.",
+                 "This is a ceiling, not a target or a total budget for the entire agent run.",
+                 "Leave room for both reasoning and the complete scene JSON. Higher limits can increase cost.",
+                 "Default: 65536. Range: 1024-262144. Stay within your model's supported output limit.",
+                 "Applies to all configuration sources. On first upgrade, lower saved limits are raised to 65536.",
+                 "After migration, manually chosen lower limits are preserved.")
+        .defineInRange("ai.maxTokens", AiDefaults.MAX_TOKENS, 1024, 262144);
+
+    public static final ModConfigSpec.IntValue AI_REQUEST_TIMEOUT_SECONDS = CLIENT_BUILDER
+        .comment("Timeout in seconds for each AI API request, including reasoning and output generation.",
+                 "Default: 300. Range: 30-1800. Applies to all configuration sources.")
+        .defineInRange("ai.requestTimeoutSeconds", AiDefaults.REQUEST_TIMEOUT_SECONDS, 30, 1800);
 
     public static final ModConfigSpec.IntValue AI_MAX_AGENT_TURNS = CLIENT_BUILDER
         .comment("Maximum number of LLM turns in one AI scene-agent run.",
                  "Read-only tools may be batched within a turn.",
-                 "Default: 6. Range: 2-12.")
-        .defineInRange("ai.maxAgentTurns", 6, 2, 12);
+                 "Up to four tools may run per turn; there is no separate 16-call cap.",
+                 "Default: 12. Range: 2-64. More turns can increase latency and cost.")
+        .defineInRange("ai.maxAgentTurns", AiDefaults.MAX_AGENT_TURNS, 2, AiDefaults.AGENT_TURN_LIMIT);
 
     // -- Pack Management --
 
@@ -141,29 +166,36 @@ public class Config {
                  "Default: 1.25. Range: 0.5-5.0.")
         .defineInRange("projector.lifeSizeTextScale", 1.25D, 0.5D, 5.0D);
 
-    /** Resolve the effective base URL (use default if config is empty). */
-    public static String getEffectiveBaseUrl() {
+    /** Resolve auto mode from the URL after legacy provider settings have been migrated. */
+    public static String getEffectiveWireApi() {
+        String protocol = AI_WIRE_API.get();
+        if (!"auto".equals(protocol)) return protocol;
+
         String url = AI_API_BASE_URL.get().trim();
-        if (!url.isEmpty()) {
-            if (url.endsWith("/")) url = url.substring(0, url.length() - 1);
-            // Auto-add https:// if no scheme is present
-            if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                url = "https://" + url;
-            }
-            // Strip trailing /v1 if present — providers will add it themselves
-            if (url.endsWith("/v1")) {
-                url = url.substring(0, url.length() - 3);
-            }
-            return url;
-        }
-        return "anthropic".equals(AI_PROVIDER.get()) ? "https://api.anthropic.com" : "https://api.openai.com";
+        if (url.isEmpty()) return "responses";
+        String host = URI.create(normalizeBaseUrl(url)).getHost();
+        if ("api.anthropic.com".equalsIgnoreCase(host)) return "anthropic";
+        return "api.openai.com".equalsIgnoreCase(host) ? "responses" : "chat";
     }
 
-    /** Resolve the effective model name (use default if config is empty). */
+    /** Resolve the effective base URL (use the protocol's default if config is empty). */
+    public static String getEffectiveBaseUrl() {
+        String url = AI_API_BASE_URL.get().trim();
+        if (!url.isEmpty()) return normalizeBaseUrl(url);
+        return "anthropic".equals(getEffectiveWireApi()) ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1";
+    }
+
+    private static String normalizeBaseUrl(String url) {
+        while (url.endsWith("/")) url = url.substring(0, url.length() - 1);
+        if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+        return url;
+    }
+
+    /** Resolve the effective model name (use the protocol's default if config is empty). */
     public static String getEffectiveModel() {
         String model = AI_MODEL.get().trim();
         if (!model.isEmpty()) return model;
-        return "anthropic".equals(AI_PROVIDER.get()) ? "claude-sonnet-4-20250514" : "gpt-4o";
+        return "anthropic".equals(getEffectiveWireApi()) ? AiDefaults.ANTHROPIC_MODEL : AiDefaults.OPENAI_MODEL;
     }
 
     public static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();

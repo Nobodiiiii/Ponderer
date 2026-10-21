@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ai;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -15,20 +16,32 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * LLM provider for the Anthropic Messages API.
- * Endpoint: {base}/v1/messages
+ * Endpoint: {base}/messages
  * Auth: x-api-key header
- * Response: content[0].text
+ * Response: text blocks in content (thinking blocks are skipped)
  */
 public class AnthropicProvider implements LlmProvider {
 
     private final int maxTokens;
+    private final String reasoningEffort;
+    private final Duration requestTimeout;
 
     public AnthropicProvider() {
-        this(Config.AI_MAX_TOKENS.get());
+        this(Config.AI_MAX_TOKENS.get(), Config.AI_REASONING_EFFORT.get(), Config.AI_REQUEST_TIMEOUT_SECONDS.get());
     }
 
     public AnthropicProvider(int maxTokens) {
+        this(maxTokens, "");
+    }
+
+    public AnthropicProvider(int maxTokens, String reasoningEffort) {
+        this(maxTokens, reasoningEffort, AiDefaults.REQUEST_TIMEOUT_SECONDS);
+    }
+
+    public AnthropicProvider(int maxTokens, String reasoningEffort, int requestTimeoutSeconds) {
         this.maxTokens = maxTokens;
+        this.reasoningEffort = reasoningEffort;
+        this.requestTimeout = Duration.ofSeconds(requestTimeoutSeconds);
     }
 
     @Override
@@ -59,6 +72,11 @@ public class AnthropicProvider implements LlmProvider {
         body.addProperty("model", apiModel);
         body.addProperty("max_tokens", maxTokens);
         body.addProperty("system", systemPrompt);
+        if (!reasoningEffort.isBlank()) {
+            JsonObject outputConfig = new JsonObject();
+            outputConfig.addProperty("effort", reasoningEffort);
+            body.add("output_config", outputConfig);
+        }
 
         JsonArray messages = new JsonArray();
         JsonObject userMsg = new JsonObject();
@@ -87,10 +105,10 @@ public class AnthropicProvider implements LlmProvider {
         body.add("messages", messages);
 
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-            .uri(URI.create(baseUrl + "/v1/messages"))
+            .uri(URI.create(baseUrl + "/messages"))
             .header("Content-Type", "application/json")
             .header("anthropic-version", "2023-06-01")
-            .timeout(Duration.ofSeconds(120))
+            .timeout(requestTimeout)
             .POST(HttpRequest.BodyPublishers.ofString(body.toString()));
         if (oneMillionContext) {
             requestBuilder.header("anthropic-beta", "context-1m-2025-08-07");
@@ -118,19 +136,32 @@ public class AnthropicProvider implements LlmProvider {
                         throw new RuntimeException("Anthropic API returned empty response body");
                     }
                     JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
+                    String stopReason = json.has("stop_reason") && !json.get("stop_reason").isJsonNull()
+                        ? json.get("stop_reason").getAsString() : "unknown";
+                    if ("max_tokens".equals(stopReason)) {
+                        throw AiApiSupport.outputLimitExceeded();
+                    }
+                    if ("refusal".equals(stopReason)) {
+                        throw new RuntimeException("Anthropic API refused the request");
+                    }
                     JsonArray contentArr = json.getAsJsonArray("content");
                     if (contentArr == null || contentArr.isEmpty()) {
-                        String stopReason = json.has("stop_reason") && !json.get("stop_reason").isJsonNull()
-                            ? json.get("stop_reason").getAsString() : "unknown";
                         throw new RuntimeException("Anthropic API returned no content (stop_reason: " + stopReason
                             + "). Response: " + responseBody.substring(0, Math.min(500, responseBody.length())));
                     }
-                    JsonObject firstBlock = contentArr.get(0).getAsJsonObject();
-                    if (!firstBlock.has("text") || firstBlock.get("text").isJsonNull()) {
-                        throw new RuntimeException("Anthropic API content block has no text. Response: "
-                            + responseBody.substring(0, Math.min(500, responseBody.length())));
+                    StringBuilder text = new StringBuilder();
+                    for (JsonElement element : contentArr) {
+                        if (!element.isJsonObject()) continue;
+                        JsonObject block = element.getAsJsonObject();
+                        if (block.has("type") && "text".equals(block.get("type").getAsString())
+                            && block.has("text") && !block.get("text").isJsonNull()) {
+                            text.append(block.get("text").getAsString());
+                        }
                     }
-                    return firstBlock.get("text").getAsString();
+                    if (text.toString().isBlank()) {
+                        throw new RuntimeException("Anthropic API returned no text (stop_reason: " + stopReason + ")");
+                    }
+                    return text.toString();
                 } catch (RuntimeException e) {
                     throw e;
                 } catch (Exception e) {

@@ -16,20 +16,32 @@ import java.util.concurrent.CompletableFuture;
 /**
  * LLM provider for OpenAI-compatible Chat Completions API.
  * Covers: OpenAI, DeepSeek, Groq, Together, Ollama, LM Studio, etc.
- * Endpoint: {base}/v1/chat/completions
+ * Endpoint: {base}/chat/completions
  * Auth: Authorization Bearer header
  * Response: choices[0].message.content
  */
 public class OpenAiCompatProvider implements LlmProvider {
 
     private final int maxTokens;
+    private final String reasoningEffort;
+    private final Duration requestTimeout;
 
     public OpenAiCompatProvider() {
-        this(Config.AI_MAX_TOKENS.get());
+        this(Config.AI_MAX_TOKENS.get(), Config.AI_REASONING_EFFORT.get(), Config.AI_REQUEST_TIMEOUT_SECONDS.get());
     }
 
     public OpenAiCompatProvider(int maxTokens) {
+        this(maxTokens, "");
+    }
+
+    public OpenAiCompatProvider(int maxTokens, String reasoningEffort) {
+        this(maxTokens, reasoningEffort, AiDefaults.REQUEST_TIMEOUT_SECONDS);
+    }
+
+    public OpenAiCompatProvider(int maxTokens, String reasoningEffort, int requestTimeoutSeconds) {
         this.maxTokens = maxTokens;
+        this.reasoningEffort = reasoningEffort;
+        this.requestTimeout = Duration.ofSeconds(requestTimeoutSeconds);
     }
 
     @Override
@@ -53,7 +65,10 @@ public class OpenAiCompatProvider implements LlmProvider {
         }
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
-        body.addProperty("max_tokens", maxTokens);
+        body.addProperty(AiApiSupport.chatTokenParameter(baseUrl, model), maxTokens);
+        if (!reasoningEffort.isBlank()) {
+            body.addProperty("reasoning_effort", reasoningEffort);
+        }
 
         JsonArray messages = new JsonArray();
 
@@ -104,10 +119,10 @@ public class OpenAiCompatProvider implements LlmProvider {
         body.add("messages", messages);
 
         HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(baseUrl + "/v1/chat/completions"))
+            .uri(URI.create(baseUrl + "/chat/completions"))
             .header("Content-Type", "application/json")
             .header("Authorization", "Bearer " + apiKey)
-            .timeout(Duration.ofSeconds(120))
+            .timeout(requestTimeout)
             .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
             .build();
 
@@ -128,14 +143,22 @@ public class OpenAiCompatProvider implements LlmProvider {
                         throw new RuntimeException("API returned no choices. Response: "
                             + response.body().substring(0, Math.min(500, response.body().length())));
                     }
-                    JsonObject message = choices.get(0).getAsJsonObject().getAsJsonObject("message");
+                    JsonObject choice = choices.get(0).getAsJsonObject();
+                    String finishReason = choice.has("finish_reason") && !choice.get("finish_reason").isJsonNull()
+                        ? choice.get("finish_reason").getAsString() : "unknown";
+                    if ("length".equals(finishReason)) {
+                        throw AiApiSupport.outputLimitExceeded();
+                    }
+                    JsonObject message = choice.getAsJsonObject("message");
                     if (message == null || !message.has("content") || message.get("content").isJsonNull()) {
                         // content can be null when the model refuses or hits a content filter
-                        String finishReason = choices.get(0).getAsJsonObject().has("finish_reason")
-                            ? choices.get(0).getAsJsonObject().get("finish_reason").getAsString() : "unknown";
                         throw new RuntimeException("API returned empty content (finish_reason: " + finishReason + ")");
                     }
-                    return message.get("content").getAsString();
+                    String text = message.get("content").getAsString();
+                    if (text.isBlank()) {
+                        throw new RuntimeException("API returned empty content (finish_reason: " + finishReason + ")");
+                    }
+                    return text;
                 } catch (RuntimeException e) {
                     throw e;
                 } catch (Exception e) {

@@ -24,7 +24,6 @@ import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.element.WorldSectionElementImpl;
-import net.createmod.ponder.foundation.instruction.PonderInstruction;
 import net.createmod.ponder.foundation.ui.PonderProgressBar;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.Util;
@@ -72,7 +71,6 @@ final class SceneEditorPreview implements AutoCloseable {
     @Nullable private PreviewPonderUI ponder;
     @Nullable private PonderProgressBar progressBar;
     private List<Integer> stepTicks = List.of();
-    private List<PonderInstruction> playbackInstructions = List.of();
     private boolean playingStep;
     private int pendingListTick = -1;
     private int x, y, width, height;
@@ -147,12 +145,19 @@ final class SceneEditorPreview implements AutoCloseable {
         try {
             DynamicPonderPlugin.EditorScene compiled = new DynamicPonderPlugin().compileEditorScene(definition, segmentIndex);
             if (compiled == null) return false;
-            ponder = new PreviewPonderUI(compiled.scene());
+            ponder = new PreviewPonderUI(compiled.scene(), compiled.playback());
             ponder.width = width;
             ponder.height = height;
-            progressBar = new PonderProgressBar(ponder, 0, 0, 1, 1);
+            PreviewPonderUI owner = ponder;
+            progressBar = new PonderProgressBar(owner, 0, 0, 1, 1) {
+                @Override public void onClick(double mouseX, double mouseY) {
+                    // The native seek skips an unchanged tick. Reset paused playback first so
+                    // clicking its current position (including the end) still restores later steps.
+                    if (owner.playback.isPreviewingStep()) owner.seekToTime(0);
+                    super.onClick(mouseX, mouseY);
+                }
+            };
             stepTicks = List.copyOf(compiled.stepTicks());
-            playbackInstructions = compiled.lastStepInstructions();
             seekStep(0);
             layoutProgressBar();
             pointPick = pendingPick;
@@ -196,7 +201,7 @@ final class SceneEditorPreview implements AutoCloseable {
             ProjectorRenderContext.runWithFrameTime(scene.getCurrentTime(), 0, scene::tick);
             listSeekStart = Util.getMillis();
             frozenPartialTick = 1;
-            if (playbackInstructions.stream().allMatch(PonderInstruction::isComplete) || scene.isFinished()) {
+            if (ponder.playback.isStepComplete() || scene.isFinished()) {
                 playingStep = false;
             }
         }
@@ -205,13 +210,14 @@ final class SceneEditorPreview implements AutoCloseable {
         if (previewButton != null) previewButton.tick();
     }
 
-    void playLastStep() {
-        if (ponder == null || stepTicks.isEmpty()) return;
+    void playStep(int index) {
+        if (ponder == null || index < 0 || index >= stepTicks.size()) return;
         cancelPointPick();
         pendingListTick = -1;
         scrubbing = false;
         dragButton = -1;
-        ponder.seekToTime(Math.max(0, stepTicks.getLast() - 1));
+        ponder.seekToTime(Math.max(0, stepTicks.get(index) - 1));
+        ponder.playback.previewStep(index);
         listSeekStart = -1;
         frozenPartialTick = 1;
         playingStep = true;
@@ -726,7 +732,6 @@ final class SceneEditorPreview implements AutoCloseable {
         ponder = null;
         progressBar = null;
         stepTicks = List.of();
-        playbackInstructions = List.of();
         playingStep = false;
         pendingListTick = -1;
         listSeekStart = -1;
@@ -739,10 +744,12 @@ final class SceneEditorPreview implements AutoCloseable {
     /** Provides the native progress bar its PonderUI owner without initializing any Ponder UI chrome. */
     private static final class PreviewPonderUI extends PonderUI {
         private final float initialScale;
+        private final DynamicPonderPlugin.EditorScenePlayback playback;
 
-        PreviewPonderUI(PonderScene scene) {
+        PreviewPonderUI(PonderScene scene, DynamicPonderPlugin.EditorScenePlayback playback) {
             super(List.of(scene));
             initialScale = scene.getScaleFactor();
+            this.playback = playback;
         }
 
         @Override public Font getFontRenderer() {
@@ -751,7 +758,15 @@ final class SceneEditorPreview implements AutoCloseable {
 
         @Override public void seekToTime(int time) {
             int target = Mth.clamp(time, 0, getActiveScene().getTotalTime());
-            if (target != getActiveScene().getCurrentTime()) {
+            if (playback.isPreviewingStep()) {
+                // Preview ticks leave later instructions paused. Rebuild their normal state even
+                // for a forward seek, so the full timeline remains accurate after previewing.
+                playback.resumeTimeline();
+                ProjectorRenderContext.run(() -> {
+                    replay();
+                    super.seekToTime(target);
+                });
+            } else if (target != getActiveScene().getCurrentTime()) {
                 // The same synchronous rewind/seek path used by the full Ponder screen.
                 ProjectorRenderContext.run(() -> super.seekToTime(target));
             }

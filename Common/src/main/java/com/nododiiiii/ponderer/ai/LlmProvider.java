@@ -5,7 +5,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Abstraction over different LLM API providers.
- * Two implementations: Anthropic Messages API and OpenAI-compatible Chat Completions API.
+ * Supports Anthropic Messages, OpenAI Responses, and compatible Chat Completions APIs.
  */
 public interface LlmProvider {
 

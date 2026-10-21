@@ -122,7 +122,7 @@ class AiSceneAgentPipelineTest {
 
         assertEquals("anthropic", config.provider());
         assertEquals("anthropic", config.wireApi());
-        assertEquals("https://claude.example.test", config.baseUrl());
+        assertEquals("https://claude.example.test/v1", config.baseUrl());
         assertEquals("claude-test", config.model());
         assertEquals(2048, config.maxTokens());
         assertTrue(config.hasApiKey());

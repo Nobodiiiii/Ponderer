@@ -42,17 +42,17 @@ public final class CodexAiConfig {
             String model = valueOrDefault(toml.get("", "model"), "");
             String providerTable = "model_providers." + providerName;
 
-            String wireApi = valueOrDefault(toml.get(providerTable, "wire_api"), "chat");
+            String wireApi = valueOrDefault(toml.get(providerTable, "wire_api"), "responses");
             String baseUrl = valueOrDefault(toml.get(providerTable, "base_url"), "");
             boolean requiresOpenAiAuth = Boolean.parseBoolean(
                 valueOrDefault(toml.get(providerTable, "requires_openai_auth"), "false"));
             String providerKind = inferProviderKind(providerName, wireApi, baseUrl, requiresOpenAiAuth);
 
             if (baseUrl.isBlank()) {
-                baseUrl = "anthropic".equals(providerKind) ? "https://api.anthropic.com" : "https://api.openai.com";
+                baseUrl = "anthropic".equals(providerKind) ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1";
             }
             if (model.isBlank()) {
-                model = "anthropic".equals(providerKind) ? "claude-sonnet-4-20250514" : "gpt-4o";
+                model = "anthropic".equals(providerKind) ? AiDefaults.ANTHROPIC_MODEL : AiDefaults.OPENAI_MODEL;
             }
 
             String apiKey = resolveApiKey(codexHome, toml, environment, providerKind, requiresOpenAiAuth);
@@ -63,7 +63,8 @@ public final class CodexAiConfig {
                 apiKey,
                 model,
                 maxTokens,
-                "codex:" + configFile
+                "codex:" + configFile,
+                valueOrDefault(toml.get("", "model_reasoning_effort"), "")
             ));
         } catch (Exception e) {
             LOGGER.warn("Failed to read Codex AI config from {}", configFile, e);
@@ -151,9 +152,9 @@ public final class CodexAiConfig {
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             url = "https://" + url;
         }
-        if (!"responses".equalsIgnoreCase(wireApi) && url.endsWith("/v1")) {
-            url = url.substring(0, url.length() - 3);
-        }
+        // Older Chat/Messages imports accepted service roots and supplied /v1 themselves.
+        // Responses imports have always used the configured path verbatim.
+        if (!"responses".equalsIgnoreCase(wireApi) && !url.endsWith("/v1")) url += "/v1";
         return url;
     }
 

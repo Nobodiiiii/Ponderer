@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.fabric;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.FeatureAvailability;
 import com.nododiiiii.ponderer.Ponderer;
+import com.nododiiiii.ponderer.ai.AiConfigMigration;
 import com.nododiiiii.ponderer.network.FeatureAvailabilityPayload;
 import com.nododiiiii.ponderer.network.SyncResponsePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
@@ -29,6 +30,9 @@ public class PondererFabric implements ModInitializer {
         FabricRecipeConditions.register();
 
         // Register config via ForgeConfigAPIPort
+        if (PondererServices.PLATFORM.isClient()) {
+            AiConfigMigration.migrate(PondererServices.PLATFORM.getConfigDir().resolve(Ponderer.MODID + "-client.toml"));
+        }
         NeoForgeConfigRegistry.INSTANCE.register(Ponderer.MODID, ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
         NeoForgeConfigRegistry.INSTANCE.register(Ponderer.MODID, ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
