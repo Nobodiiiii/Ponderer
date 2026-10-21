@@ -90,7 +90,11 @@ public final class AgentContext {
         private boolean queriedStructure;
         private boolean searchedReferences;
         private boolean inspectedExistingScene;
+        private JsonObject editScope;
         private int validationAttempts;
+
+        JsonObject editScope() { return editScope; }
+        void setEditScope(JsonObject scope) { editScope = scope.deepCopy(); }
         private List<AiSceneValidator.Issue> lastErrors = List.of();
         private List<AiSceneQualityLinter.Warning> lastWarnings = List.of();
 

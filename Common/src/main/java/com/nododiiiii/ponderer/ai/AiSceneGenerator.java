@@ -352,7 +352,6 @@ public class AiSceneGenerator {
             ```json
             {
               "id": "ponderer:fission_reactor",
-              "items": ["mekanismgenerators:fission_reactor_port"],
               "title": {"en_us": "Fission Reactor", "zh_cn": "裂变反应堆"},
               "structures": ["ponderer:gen"],
               "tags": [],
@@ -431,7 +430,6 @@ public class AiSceneGenerator {
             ```json
             {
               "id": "ponderer:entropinnyum_tutorial",
-              "items": ["botania:entropinnyum"],
               "title": {"en_us": "Entropinnyum - Explosion to Mana", "zh_cn": "热爆花 - 爆炸转魔力"},
               "structures": ["ponderer:basic"],
               "tags": [],
@@ -527,8 +525,42 @@ public class AiSceneGenerator {
         }
         prompt = prompt.replace(BUILD_TUTORIAL_PLACEHOLDER,
             buildTutorial ? BUILD_TUTORIAL_CONTENT : "");
-        return prompt.replace(EXAMPLE_PLACEHOLDER,
+        prompt = prompt.replace(EXAMPLE_PLACEHOLDER,
             buildTutorial ? MULTIBLOCK_EXAMPLE : SINGLE_BLOCK_EXAMPLE);
+        return prompt + """
+
+
+            ## Host-controlled fields and adjustments
+            Omit items, nbtFilter, and itemNbtFilters from every review_scene and submit_scene draft.
+            The host replaces carrier bindings with exactly the user-selected carrier_item_id before validation and saving;
+            any carrier binding fields you return are ignored. The carrier identifies the topic, not a field for you to author.
+            The host keeps the existing id, pack, and editable setting so adjustments update the selected scene in place.
+
+            ## Adjustment mode: define the edit scope before editing
+            Apply this section when existing_scene.available is true. These scope rules take precedence over general
+            style, content-quality, and build-tutorial guidance when adjusting an existing scene.
+            - First inspect the existing scene with include_steps=true. Before authoring any changed draft, identify
+              the exact user-requested changes, target segment IDs and step indices or metadata paths, and what must
+              remain unchanged. Infer the narrowest scope that satisfies the instruction.
+            - Record that scope as a top-level edit_scope object BEFORE tool_calls in the JSON response containing
+              the first edited review_scene or submit_scene draft. Use this shape:
+              "edit_scope": {"requested_changes":["..."],"paths":["/scenes/0/steps/1/text"],
+              "preserve":["unrelated segments, steps, metadata, and existing timings"],"supporting_changes":[]}
+              Use exact JSON pointer paths; whole scene, segment, or steps-array scope is rejected.
+              Keep edit_scope outside arguments.scene. Include the usual non-empty tool_calls array in the same
+              response; do not spend an extra turn announcing a plan or ask the user to approve the scope.
+            - Make only the scoped changes. Preserve unrelated segments, steps, titles, effects, positions, and timings.
+              For "add 你好", add that text with its necessary timing; do not add highlights, rename other segments,
+              or change existing waits just to improve the scene. Return the complete adjusted scenes array.
+            - Expand the scope only for a supporting change strictly needed to implement the request or resolve a
+              blocking validation error. Describe that dependency in supporting_changes before making the repair.
+            - Quality warnings are advisory. Do not repair pre-existing or out-of-scope warnings, and do not broaden
+              the edit to improve visual density, add missing titles, or satisfy general style suggestions.
+              Once the requested edit passes review with errors=[], submit_scene on the next turn even if warnings
+              remain. Do not repeat review_scene to polish warnings.
+            - Before submitting, compare the draft with the inspected original and undo any change outside the
+              declared scope. Preserve existing metadata unless the user explicitly requested changing it.
+            """;
     }
 
     private static String getDefaultAgentSystemPrompt() {
@@ -553,8 +585,8 @@ public class AiSceneGenerator {
             - Plan privately; do not output a prose outline.
 
             ## Scene contract
-            The submitted object has id, items, title, structures, tags, steps, and scenes.
-            id uses ponderer:<path>. items contains the target carrier item. title and every text use both en_us and zh_cn.
+            The submitted object has id, title, structures, tags, steps, and scenes. Omit carrier binding fields;
+            the host supplies the user-selected carrier. id uses ponderer:<path>. title and every text use both en_us and zh_cn.
             Top-level steps must be []. Each scenes entry has a unique id, localized title, and steps array.
             Each normal segment begins with show_structure; a pure interface segment may begin with show_interface.
             Use only structure IDs from the generation manifest and registry IDs verified by tools.
@@ -769,7 +801,7 @@ public class AiSceneGenerator {
 
             Top-level fields:
             - "id": string (required) - Unique scene identifier, format "ponderer:<name>"
-            - "items": string[] (required) - Item IDs that trigger this scene (the item the player looks at in JEI/creative to see this tutorial)
+            - Omit items, nbtFilter, and itemNbtFilters; the host supplies the user-selected carrier binding.
             - "title": {"en_us": "...", "zh_cn": "..."} - Localized title displayed in the scene list
             - "structures": string[] - Structure pool; each entry is a structure resource id (e.g. "ponderer:my_build"). Structures referenced by show_structure steps must be listed here.
             - "tags": string[] - Tags for categorization (usually empty)

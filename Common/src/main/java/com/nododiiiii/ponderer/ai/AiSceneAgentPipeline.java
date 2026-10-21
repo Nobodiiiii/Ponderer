@@ -15,6 +15,7 @@ import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -132,6 +133,7 @@ public final class AiSceneAgentPipeline {
                 onStatus.accept("Fixing scene draft");
                 continue;
             }
+            if (parsed.editScope() != null) context.runState().setEditScope(parsed.editScope());
             String reusedId = parsed.calls().stream()
                 .map(ToolCall::id)
                 .filter(usedCallIds::contains)
@@ -219,19 +221,34 @@ public final class AiSceneAgentPipeline {
                                                BiConsumer<String, String> diagnostics,
                                                AiCancellationScope cancellation) {
         try {
+            AgentContext.ExistingSceneDocument existingScene = parseExistingScene(request.existingJson());
+            if (existingScene.error() != null) {
+                throw new IllegalArgumentException(existingScene.error());
+            }
             List<AgentContext.StructureDocument> structures = new ArrayList<>();
-            if (request.structurePaths() == null || request.structurePaths().isEmpty()) {
+            if (existingScene.available()) {
+                Set<String> references = new LinkedHashSet<>();
+                SceneStore.collectStructureReferences(existingScene.scene(), references);
+                for (String reference : references) {
+                    cancellation.throwIfCancelled();
+                    structures.add(inspectExistingStructure(reference, existingScene.scene().pack));
+                }
+            }
+            if (request.structurePaths() != null) {
+                for (Path path : request.structurePaths()) {
+                    cancellation.throwIfCancelled();
+                    String id = toStructureId(path);
+                    if (structures.stream().noneMatch(document -> document.id().equals(id))) {
+                        structures.add(new AgentContext.StructureDocument(id, StructureDescriber.inspect(path)));
+                    }
+                }
+            }
+            if (structures.isEmpty()) {
                 try (InputStream in = SceneStore.openBuiltinStructure("basic")) {
                     if (in != null) {
                         structures.add(new AgentContext.StructureDocument(
                             "ponderer:basic", StructureDescriber.inspect(in)));
                     }
-                }
-            } else {
-                for (Path path : request.structurePaths()) {
-                    cancellation.throwIfCancelled();
-                    structures.add(new AgentContext.StructureDocument(
-                        toStructureId(path), StructureDescriber.inspect(path)));
                 }
             }
             if (structures.isEmpty()) {
@@ -240,7 +257,6 @@ public final class AiSceneAgentPipeline {
 
             List<AgentContext.ReferenceDocument> references = fetchReferences(
                 request, onStatus, diagnostics, cancellation);
-            AgentContext.ExistingSceneDocument existingScene = parseExistingScene(request.existingJson());
             return new AgentContext(
                 structures,
                 references,
@@ -255,6 +271,28 @@ public final class AiSceneAgentPipeline {
         } catch (Exception e) {
             throw new RuntimeException("Failed to prepare AI agent context: " + safeMessage(e), e);
         }
+    }
+
+    private static AgentContext.StructureDocument inspectExistingStructure(String reference,
+                                                                           @Nullable String pack) throws Exception {
+        ResourceLocation id = ResourceLocation.tryParse(reference.contains(":") ? reference : "ponderer:" + reference);
+        if (id == null) {
+            throw new IllegalArgumentException("Invalid existing scene structure: " + reference);
+        }
+        String relative = "ponderer".equals(id.getNamespace())
+            ? id.getPath() : id.getNamespace() + "/" + id.getPath();
+        Path path = SceneStore.resolveStructurePath(relative, pack);
+        if (path != null && Files.isRegularFile(path)) {
+            return new AgentContext.StructureDocument(id.toString(), StructureDescriber.inspect(path));
+        }
+        if ("ponderer".equals(id.getNamespace())) {
+            try (InputStream in = SceneStore.openBuiltinStructure(id.getPath())) {
+                if (in != null) {
+                    return new AgentContext.StructureDocument(id.toString(), StructureDescriber.inspect(in));
+                }
+            }
+        }
+        throw new IllegalArgumentException("Cannot read existing scene structure: " + reference);
     }
 
     private static List<AgentContext.ReferenceDocument> fetchReferences(
@@ -452,7 +490,8 @@ public final class AiSceneAgentPipeline {
             if (hasTerminal && calls.size() != 1) {
                 return ParseOutcome.error("submit_scene must be the only tool call in its turn");
             }
-            return new ParseOutcome(List.copyOf(calls), null);
+            return new ParseOutcome(List.copyOf(calls), null,
+                object.has("edit_scope") && object.get("edit_scope").isJsonObject() ? object.getAsJsonObject("edit_scope") : null);
         } catch (RuntimeException e) {
             return ParseOutcome.error("Could not parse tool protocol JSON: " + safeMessage(e));
         }
@@ -602,9 +641,9 @@ public final class AiSceneAgentPipeline {
         return message == null || message.isBlank() ? current.getClass().getSimpleName() : message;
     }
 
-    private record ParseOutcome(List<ToolCall> calls, @Nullable String error) {
+    private record ParseOutcome(List<ToolCall> calls, @Nullable String error, @Nullable JsonObject editScope) {
         private static ParseOutcome error(String error) {
-            return new ParseOutcome(List.of(), error);
+            return new ParseOutcome(List.of(), error, null);
         }
     }
 }

@@ -464,8 +464,27 @@ public final class AgentToolRegistry {
                     throw new IllegalArgumentException("scene must be a JSON object");
                 }
                 DslScene scene;
+                JsonObject draft;
                 try {
-                    scene = GSON.fromJson(sceneJson, DslScene.class);
+                    draft = context.existingScene().available()
+                        ? context.existingScene().json().deepCopy() : new JsonObject();
+                    for (Map.Entry<String, JsonElement> entry : sceneJson.getAsJsonObject().entrySet()) {
+                        draft.add(entry.getKey(), entry.getValue().deepCopy());
+                    }
+                    // Carrier bindings belong to the user, even when the model returns malformed fields.
+                    draft.remove("items");
+                    draft.remove("nbtFilter");
+                    draft.remove("itemNbtFilters");
+                    if (context.existingScene().available()) {
+                        for (String field : List.of("id", "pack", "editable")) {
+                            draft.remove(field);
+                            if (context.existingScene().json().has(field)) {
+                                draft.add(field, context.existingScene().json().get(field).deepCopy());
+                            }
+                        }
+                    }
+                    scene = GSON.fromJson(draft, DslScene.class);
+                    scene.items = List.of(context.carrierItemId().trim());
                 } catch (RuntimeException e) {
                     List<AiSceneValidator.Issue> errors = List.of(
                         new AiSceneValidator.Issue("$", "JSON parse error: " + e.getMessage()));
@@ -483,6 +502,8 @@ public final class AgentToolRegistry {
                     .map(AgentContext.StructureDocument::id).toList();
                 List<AiSceneValidator.Issue> errors = new ArrayList<>(
                     AiSceneValidator.validate(scene, structures, structureNames));
+                errors.addAll(AiEditGuard.validate(context, draft));
+                errors.addAll(AiEditGuard.validate(context, draft));
                 if (terminal) {
                     appendPreconditionErrors(context, errors);
                 }
@@ -492,9 +513,11 @@ public final class AgentToolRegistry {
                 JsonObject result = ok();
                 result.addProperty("ok", errors.isEmpty());
                 result.add("errors", GSON.toJsonTree(errors));
-                result.add("warnings", GSON.toJsonTree(warnings));
+                result.add("warnings", AiEditGuard.warnings(context, draft, warnings));
+                result.add("changed_paths", GSON.toJsonTree(context.existingScene().available()
+                    ? AiEditGuard.changedPaths(context.existingScene().json(), draft) : List.of("/")));
                 if (terminal && errors.isEmpty()) {
-                    AiSceneGenerator.autoAddKeyFrames(scene);
+                    if (!context.existingScene().available()) AiSceneGenerator.autoAddKeyFrames(scene);
                     result.addProperty("accepted", true);
                     return ToolExecution.submitted(result, scene);
                 }

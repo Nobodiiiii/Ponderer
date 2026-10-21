@@ -2144,7 +2144,7 @@ public final class SceneStore {
         }
     }
 
-    static void collectStructureReferences(@javax.annotation.Nullable DslScene scene, Set<String> structures) {
+    public static void collectStructureReferences(@javax.annotation.Nullable DslScene scene, Set<String> structures) {
         if (scene == null || structures == null) {
             return;
         }
