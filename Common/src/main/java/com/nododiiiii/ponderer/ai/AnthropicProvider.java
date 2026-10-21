@@ -45,6 +45,14 @@ public class AnthropicProvider implements LlmProvider {
     }
 
     @Override
+    public boolean supportsNativeTools(AiRuntimeConfig config) { return true; }
+
+    @Override
+    public CompletableFuture<Reply> exchange(Exchange request, AiCancellationScope cancellation) {
+        return AiWireTransport.exchange("anthropic", request, cancellation);
+    }
+
+    @Override
     public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
                                                String baseUrl, String apiKey, String model) {
         return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, null);

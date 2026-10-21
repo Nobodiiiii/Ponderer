@@ -14,10 +14,21 @@ public record AiRuntimeConfig(
     int maxTokens,
     String source,
     String reasoningEffort,
-    int requestTimeoutSeconds
+    int requestTimeoutSeconds,
+    String toolCalling
 ) {
     public AiRuntimeConfig {
+        toolCalling = toolCalling == null ? "auto" : toolCalling;
         reasoningEffort = reasoningEffort == null ? "" : reasoningEffort.trim().toLowerCase(Locale.ROOT);
+    }
+
+    public AiRuntimeConfig(String provider, String wireApi, String baseUrl, String apiKey, String model,
+                           int maxTokens, String source, String reasoningEffort, int requestTimeoutSeconds) {
+        this(provider, wireApi, baseUrl, apiKey, model, maxTokens, source, reasoningEffort, requestTimeoutSeconds, "auto");
+    }
+
+    public AiRuntimeConfig withToolCalling(String mode) {
+        return new AiRuntimeConfig(provider, wireApi, baseUrl, apiKey, model, maxTokens, source, reasoningEffort, requestTimeoutSeconds, mode);
     }
 
     public AiRuntimeConfig(String provider, String wireApi, String baseUrl, String apiKey, String model,
@@ -33,12 +44,12 @@ public record AiRuntimeConfig(
 
     public AiRuntimeConfig withReasoningEffort(String effort) {
         return new AiRuntimeConfig(provider, wireApi, baseUrl, apiKey, model, maxTokens, source, effort,
-            requestTimeoutSeconds);
+            requestTimeoutSeconds, toolCalling);
     }
 
     public AiRuntimeConfig withRequestTimeout(int seconds) {
         return new AiRuntimeConfig(provider, wireApi, baseUrl, apiKey, model, maxTokens, source,
-            reasoningEffort, seconds);
+            reasoningEffort, seconds, toolCalling);
     }
 
     public boolean hasApiKey() {

@@ -137,6 +137,10 @@ public class Config {
                  "Default: 300. Range: 30-1800. Applies to all configuration sources.")
         .defineInRange("ai.requestTimeoutSeconds", AiDefaults.REQUEST_TIMEOUT_SECONDS, 30, 1800);
 
+    public static final ModConfigSpec.ConfigValue<String> AI_TOOL_CALLING = CLIENT_BUILDER
+        .comment("Tool calling transport: auto uses native tools for official OpenAI, Responses and Anthropic; native forces tools; json keeps text protocol compatibility.")
+        .defineInList("ai.toolCalling", "auto", java.util.List.of("auto", "native", "json"));
+
     public static final ModConfigSpec.IntValue AI_MAX_AGENT_TURNS = CLIENT_BUILDER
         .comment("Maximum number of LLM turns in one AI scene-agent run.",
                  "Read-only tools may be batched within a turn.",

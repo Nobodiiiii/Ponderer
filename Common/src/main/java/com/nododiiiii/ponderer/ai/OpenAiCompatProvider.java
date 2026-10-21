@@ -45,6 +45,14 @@ public class OpenAiCompatProvider implements LlmProvider {
     }
 
     @Override
+    public boolean supportsNativeTools(AiRuntimeConfig config) { return AiApiSupport.isOfficialOpenAi(config.baseUrl()); }
+
+    @Override
+    public CompletableFuture<Reply> exchange(Exchange request, AiCancellationScope cancellation) {
+        return AiWireTransport.exchange("chat", request, cancellation);
+    }
+
+    @Override
     public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
                                                String baseUrl, String apiKey, String model) {
         return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, null);

@@ -23,7 +23,7 @@ public final class AiRuntimeConfigResolver {
         }
 
         String effort = Config.AI_REASONING_EFFORT.get().trim();
-        config = config.withRequestTimeout(Config.AI_REQUEST_TIMEOUT_SECONDS.get());
+        config = config.withRequestTimeout(Config.AI_REQUEST_TIMEOUT_SECONDS.get()).withToolCalling(Config.AI_TOOL_CALLING.get());
         return effort.isEmpty() ? config : config.withReasoningEffort(effort);
     }
 

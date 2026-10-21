@@ -20,7 +20,10 @@ import java.util.Set;
  */
 public final class AiSceneValidator {
 
-    public record Issue(String path, String message) {
+    public record Issue(String path, String message, String code, boolean retryable) {
+        public Issue(String path, String message) {
+            this(path, message, message.matches("^[A-Z_]+:.*") ? message.substring(0, message.indexOf(':')) : "SCENE_VALIDATION", true);
+        }
         public String format() {
             return path + ": " + message;
         }

@@ -40,6 +40,21 @@ read_reference 可读取搜索命中附近的连续 chunk。无命中的搜索�
 须先 include_steps=true 读取其内容。局部编辑无需为纯文字修改强制查询结构。
 未知 step 类型被拒绝，目录包含当前运行时支持的接口指令。
 
+## 工具传输
+
+配置 `ai.toolCalling` 支持 auto、native、json。auto 对官方 OpenAI Responses、Chat 和
+Anthropic 使用原生工具，对其他兼容端点保守使用 JSON；自建服务可明确选择 native。
+三种协议保留 assistant/tool 角色、调用 ID 和结果关系；Responses 的 reasoning 输出、
+Anthropic thinking/signature 以不透明内容回放，兼容模式只在适配器边界转换为文本。
+
+所有工具参数先经过同一宿主 schema 校验。错误含 code/retryable，单个工具失败不会
+中断其他独立读取。图像放在完整工具结果批次之后，避免打断原生调用结果配对。
+不因任意 HTTP 错误自动切换协议；令牌耗尽与上下文容量分别处理。
+
+协议参考：[OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling)、
+[Responses migration](https://developers.openai.com/api/docs/guides/migrate-to-responses)、
+[Anthropic tool results](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls)。
+
 ## 验证命令
 
 使用现有 `:Common:test`、`:NeoForge:build`、`:Fabric:build`。

@@ -95,73 +95,50 @@ public final class AiSceneAgentPipeline {
         int boundedTurns = Math.max(2, Math.min(AiDefaults.AGENT_TURN_LIMIT, maxTurns));
         AgentToolRegistry toolRegistry = new AgentToolRegistry();
         AgentContext context = prepareContext(request, onStatus, diagnostics, cancellation);
+        boolean nativeTools = "native".equals(config.toolCalling())
+            || (!"json".equals(config.toolCalling()) && llm.supportsNativeTools(config));
         String manifest = buildManifest(context);
-        String systemPrompt = AiSceneGenerator.buildAgentSystemPrompt(
-            request.buildTutorial(), context.existingScene().available(), toolRegistry.promptSpecification());
-
+        String systemPrompt = AiSceneGenerator.buildAgentSystemPrompt(request.buildTutorial(), context.existingScene().available(),
+            nativeTools ? "Function tools are declared in the request. Use their schemas directly." : toolRegistry.promptSpecification());
+        systemPrompt += nativeTools ? "\nTransport for this run: native function tools.\n" : "\nTransport for this run: JSON compatibility protocol.\n";
         diagnostics.accept("effective_system_prompt.txt", systemPrompt);
         diagnostics.accept("manifest.json", manifest);
+        List<LlmProvider.ToolDefinition> definitions = toolRegistry.all().stream()
+            .map(tool -> new LlmProvider.ToolDefinition(tool.name(), tool.description(), tool.inputSchema())).toList();
         List<TraceEntry> trace = new ArrayList<>();
-        List<LlmProvider.ContentBlock> transcript = new ArrayList<>();
-        Set<String> usedCallIds = new HashSet<>();
+        List<LlmProvider.Message> history = new ArrayList<>();
+        history.add(LlmProvider.Message.user("Generation manifest (user instruction and host facts):\n" + manifest));
         int toolCallCount = 0;
-        String lastAction = "context preparation";
-        String lastProtocolError = "";
-
+        String lastAction = "context preparation", lastProtocolError = "";
         for (int turn = 1; turn <= boundedTurns; turn++) {
             cancellation.throwIfCancelled();
             onStatus.accept("Agent turn " + turn + "/" + boundedTurns);
-            List<LlmProvider.ContentBlock> content = buildTurnContent(
-                manifest, transcript, turn, boundedTurns);
-            String response = llm.generate(
-                systemPrompt,
-                content,
-                config.baseUrl(),
-                config.apiKey(),
-                config.model(),
-                cancellation
-            ).join();
+            List<LlmProvider.Message> messages = new ArrayList<>(history);
+            messages.add(LlmProvider.Message.user("Turn " + turn + " of " + boundedTurns + ". Batch independent reads; leave enough budget to validate and submit."
+                + (nativeTools ? " Use native function tools." : " Return one JSON object containing tool_calls.")));
+            LlmProvider.Reply reply = llm.exchange(new LlmProvider.Exchange(systemPrompt, messages, definitions, config,
+                nativeTools, config.maxTokens()), cancellation).join();
             cancellation.throwIfCancelled();
-
+            history.add(reply.message());
+            String response = reply.protocolText();
+            diagnostics.accept("turn_" + turn + "_usage.json", GSON.toJson(reply.usage()));
             ParseOutcome parsed = parseToolCalls(response, toolRegistry);
             if (parsed.error() != null) {
                 lastAction = "invalid model response on turn " + turn;
                 lastProtocolError = parsed.error();
                 JsonObject error = protocolError(parsed.error());
-                transcript.add(new LlmProvider.ContentBlock.Text(
-                    formatTranscriptTurn(turn, response, error)));
+                // Close every native call before admitting another user turn, even for rejected batches.
+                for (var call : reply.message().calls()) history.add(LlmProvider.Message.tool(call.id(), call.name(), error, List.of()));
+                history.add(LlmProvider.Message.user(error.toString()));
                 trace.add(new TraceEntry(turn, response, List.of(), List.of(), parsed.error()));
                 writeTrace(diagnostics, runId, trace);
                 onStatus.accept("Fixing scene draft");
                 continue;
             }
             if (parsed.editScope() != null) context.runState().setEditScope(parsed.editScope());
-            String reusedId = parsed.calls().stream()
-                .map(ToolCall::id)
-                .filter(usedCallIds::contains)
-                .findFirst()
-                .orElse(null);
-            if (reusedId != null) {
-                String errorMessage = "Duplicate tool call id across turns: " + reusedId;
-                lastAction = "invalid model response on turn " + turn;
-                lastProtocolError = errorMessage;
-                JsonObject error = protocolError(errorMessage);
-                transcript.add(new LlmProvider.ContentBlock.Text(
-                    formatTranscriptTurn(turn, response, error)));
-                trace.add(new TraceEntry(turn, response, parsed.calls(), List.of(), errorMessage));
-                writeTrace(diagnostics, runId, trace);
-                onStatus.accept("Fixing scene draft");
-                continue;
-            }
-            parsed.calls().forEach(call -> usedCallIds.add(call.id()));
-            lastAction = parsed.calls().stream()
-                .map(call -> call.name() + "[" + call.id() + "]")
-                .collect(Collectors.joining(", "));
-
+            lastAction = parsed.calls().stream().map(call -> call.name() + "[" + call.id() + "]").collect(Collectors.joining(", "));
             List<ToolResult> results = new ArrayList<>();
-            List<LlmProvider.ContentBlock> turnTranscript = new ArrayList<>();
-            turnTranscript.add(new LlmProvider.ContentBlock.Text(
-                "TURN " + turn + " ASSISTANT_RESPONSE:\n" + response));
+            List<LlmProvider.ContentBlock> images = new ArrayList<>();
             DslScene submittedScene = null;
             for (ToolCall call : parsed.calls()) {
                 cancellation.throwIfCancelled();
@@ -169,54 +146,34 @@ public final class AiSceneAgentPipeline {
                 onStatus.accept(statusForTool(call.name()));
                 AgentTool.ToolExecution execution;
                 try {
+                    AiJsonSchema.validate(tool.inputSchema(), call.arguments(), "$arguments");
                     execution = tool.execute(context, call.arguments(), cancellation);
-                } catch (CancellationException e) {
-                    throw e;
-                } catch (RuntimeException e) {
-                    JsonObject failure = new JsonObject();
-                    failure.addProperty("ok", false);
-                    failure.addProperty("error", safeMessage(e));
+                } catch (CancellationException e) { throw e; }
+                catch (RuntimeException e) {
+                    JsonObject failure = new JsonObject(); failure.addProperty("ok", false);
+                    failure.addProperty("code", "TOOL_EXECUTION_ERROR"); failure.addProperty("error", safeMessage(e));
+                    failure.addProperty("retryable", true); failure.add("draft", context.drafts().descriptor());
                     execution = AgentTool.ToolExecution.result(failure);
                 }
                 cancellation.throwIfCancelled();
-                ToolResult result = new ToolResult(call.id(), call.name(), execution.result());
-                results.add(result);
-                turnTranscript.add(new LlmProvider.ContentBlock.Text(
-                    formatToolResult(turn, result)));
-                turnTranscript.addAll(execution.images());
-                if (execution.submittedScene() != null) {
-                    submittedScene = execution.submittedScene();
-                }
+                ToolResult result = new ToolResult(call.id(), call.name(), execution.result()); results.add(result);
+                history.add(LlmProvider.Message.tool(call.id(), call.name(), execution.result(), List.of()));
+                images.addAll(execution.images());
+                if (execution.submittedScene() != null) submittedScene = execution.submittedScene();
                 toolCallCount++;
             }
-
-            transcript.addAll(turnTranscript);
+            // Images follow the whole tool batch, keeping native call/result pairs contiguous.
+            if (!images.isEmpty()) history.add(new LlmProvider.Message("user", images, List.of(), "", "", null));
             trace.add(new TraceEntry(turn, response, parsed.calls(), List.copyOf(results), null));
             writeTrace(diagnostics, runId, trace);
-
             if (submittedScene != null) {
-                cancellation.throwIfCancelled();
                 String finalJson = GSON_PRETTY.toJson(submittedScene);
                 diagnostics.accept("last_extracted_json_attempt_final.log", finalJson);
-                return new Result(
-                    runId,
-                    submittedScene,
-                    finalJson,
-                    turn,
-                    toolCallCount,
-                    context.runState().validationAttempts(),
-                    List.copyOf(trace)
-                );
+                return new Result(runId, submittedScene, finalJson, turn, toolCallCount, context.runState().validationAttempts(), List.copyOf(trace));
             }
-            if (!context.runState().lastErrors().isEmpty()
-                && parsed.calls().stream().anyMatch(call ->
-                    "review_scene".equals(call.name()) || "submit_scene".equals(call.name()))) {
-                onStatus.accept("Fixing scene draft");
-            }
+            if (!context.runState().lastErrors().isEmpty()) onStatus.accept("Fixing scene draft");
         }
-
-        throw exhaustedException(
-            boundedTurns, toolCallCount, lastAction, lastProtocolError, context);
+        throw exhaustedException(boundedTurns, toolCallCount, lastAction, lastProtocolError, context);
     }
 
     private static AgentContext prepareContext(Request request, Consumer<String> onStatus,
