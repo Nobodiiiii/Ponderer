@@ -32,6 +32,17 @@ final class AiEditGuard {
             }
         }
         for (String change : changes) {
+            if (change.startsWith("/scenes/")) {
+                try {
+                    int index = Integer.parseInt(change.split("/")[2]);
+                    JsonArray segments = original.getAsJsonArray("scenes");
+                    if (index >= segments.size() || !context.runState().inspectedSegment(segments.get(index).getAsJsonObject().get("id").getAsString())) {
+                        errors.add(new AiSceneValidator.Issue(change, "UNREAD_SEGMENT: inspect the target segment with include_steps=true before editing"));
+                    }
+                } catch (RuntimeException malformed) {
+                    errors.add(new AiSceneValidator.Issue(change, "INVALID_SEGMENT: cannot resolve the original segment"));
+                }
+            }
             if (paths.stream().noneMatch(path -> within(change, path))) {
                 errors.add(new AiSceneValidator.Issue(change,
                     "EDIT_OUT_OF_SCOPE: declare exact JSON pointer paths in edit_scope.paths before editing; broad scene/segment grants are not allowed"));

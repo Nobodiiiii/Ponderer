@@ -41,6 +41,13 @@ public class FabricPlatformHelper implements PlatformHelper {
     }
 
     @Override
+    public java.util.Map<String, String> loadedModVersions() {
+        java.util.Map<String, String> versions = new java.util.TreeMap<>();
+        FabricLoader.getInstance().getAllMods().forEach(mod -> versions.put(mod.getMetadata().getId(), mod.getMetadata().getVersion().getFriendlyString()));
+        return versions;
+    }
+
+    @Override
     public Path getGameDir() {
         return FabricLoader.getInstance().getGameDir();
     }

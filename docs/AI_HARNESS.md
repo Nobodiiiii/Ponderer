@@ -14,8 +14,6 @@ steps 数组不是合法的局部授权。明确要求整体重写的任务可�
 质量警告始终不阻断，带有 `origin=pre_existing|new|changed` 和 `blocking=false`。
 局部编辑不会对全场景补关键帧，避免宿主后处理改变未请求的步骤。
 
-## 验证
-
 ## 宿主草稿
 
 `get_scene_draft` 返回 `draft_id`、`revision` 和所选 JSON Pointer 的值；不提供 paths 时读取全文。
@@ -26,6 +24,21 @@ steps 数组不是合法的局部授权。明确要求整体重写的任务可�
 首次新建可通过 review_scene 提供完整 scene；后续 review_scene/submit_scene 可直接使用
 `{ "draft_id": "...", "revision": N }`，不再重传场景。调整模式先读取原场景，优先使用补丁。
 保存前比较原场景文件内容；生成期间发生外部修改时拒绝覆盖，保留结果供检查。
+
+## 提示词与证据
+
+内置 core、authoring/editing、building 片段位于 `assets/ponderer/ai/prompts/`。
+工具契约由注册表生成，详细步骤字段通过 get_step_schema 按需提供，不注入大型题材示例。
+manifest 包含实际 Minecraft 版本、加载器和已加载模组版本。
+
+`config/ponderer/prompts/user_instructions.txt` 是每次生成重新读取的追加偏好。
+首次迁移保留原 `agent_system.txt`，另存 `agent_system.v1.bak`；已知默认内容无需重复追加，
+自定义内容保留为追加偏好并移除旧占位符。已有 user_instructions.txt 不会被覆盖。
+内置工具协议和宿主编辑边界始终生效。prompt-version.txt 记录当前版本。
+
+read_reference 可读取搜索命中附近的连续 chunk。无命中的搜索不算有效读取；编辑某片段
+须先 include_steps=true 读取其内容。局部编辑无需为纯文字修改强制查询结构。
+未知 step 类型被拒绝，目录包含当前运行时支持的接口指令。
 
 ## 验证命令
 

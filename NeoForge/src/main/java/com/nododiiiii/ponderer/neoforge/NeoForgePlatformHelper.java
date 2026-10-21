@@ -37,6 +37,13 @@ public class NeoForgePlatformHelper implements PlatformHelper {
     }
 
     @Override
+    public java.util.Map<String, String> loadedModVersions() {
+        java.util.Map<String, String> versions = new java.util.TreeMap<>();
+        ModList.get().getMods().forEach(mod -> versions.put(mod.getModId(), mod.getVersion().toString()));
+        return versions;
+    }
+
+    @Override
     public Path getGameDir() {
         return FMLPaths.GAMEDIR.get();
     }

@@ -97,8 +97,10 @@ public final class AiSceneAgentPipeline {
         AgentContext context = prepareContext(request, onStatus, diagnostics, cancellation);
         String manifest = buildManifest(context);
         String systemPrompt = AiSceneGenerator.buildAgentSystemPrompt(
-            request.buildTutorial(), toolRegistry.promptSpecification());
+            request.buildTutorial(), context.existingScene().available(), toolRegistry.promptSpecification());
 
+        diagnostics.accept("effective_system_prompt.txt", systemPrompt);
+        diagnostics.accept("manifest.json", manifest);
         List<TraceEntry> trace = new ArrayList<>();
         List<LlmProvider.ContentBlock> transcript = new ArrayList<>();
         Set<String> usedCallIds = new HashSet<>();
@@ -353,6 +355,14 @@ public final class AiSceneAgentPipeline {
 
     private static String buildManifest(AgentContext context) {
         JsonObject manifest = new JsonObject();
+        manifest.addProperty("prompt_version", AiPromptAssembler.VERSION);
+        manifest.addProperty("minecraft_version", net.minecraft.SharedConstants.getCurrentVersion().getName());
+        try {
+            var platform = com.nododiiiii.ponderer.platform.PondererServices.PLATFORM;
+            manifest.addProperty("loader", platform.getPlatformName());
+            manifest.add("mod_versions", GSON.toJsonTree(platform.loadedModVersions()));
+        } catch (Throwable unavailable) { manifest.addProperty("loader", "unavailable"); }
+        manifest.add("draft", context.drafts().descriptor());
         manifest.addProperty("carrier_item_id", context.carrierItemId());
         manifest.addProperty("user_instruction", context.userPrompt());
         manifest.addProperty("build_tutorial", context.buildTutorial());

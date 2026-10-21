@@ -144,6 +144,17 @@ public final class SceneStepCatalog {
             List.of("duration:int"), List.of(), "{\"type\":\"change_interface_slot\",\"interfaceSlots\":[{\"slotIndex\":0,\"ingredientId\":\"minecraft:paper\"}]}");
         add(schemas, "click_interface", "Simulate a click in the mirrored interface", List.of("point:number[3]", "action:left|right"),
             List.of("duration:int"), List.of(), "{\"type\":\"click_interface\",\"point\":[20,20,0],\"action\":\"left\"}");
+        add(schemas, "set_interface_slots", "Set mirrored slots and ghosts", List.of(),
+            List.of("slots:array", "ghosts:array", "replace:boolean"), List.of(), "{\"type\":\"set_interface_slots\",\"slots\":[]}");
+        add(schemas, "set_interface_data", "Set or tween container data", List.of("data:array"),
+            List.of("duration:int"), List.of(), "{\"type\":\"set_interface_data\",\"data\":[]}");
+        add(schemas, "set_interface_context", "Set mirrored player context", List.of("player:object"),
+            List.of(), List.of(), "{\"type\":\"set_interface_context\",\"player\":{}}");
+        add(schemas, "interface_action", "Perform a semantic interface action", List.of("action:string"),
+            List.of("target:object", "from:object", "to:object", "button:string", "duration:int", "cursor:boolean", "key:string", "chars:string", "scale:float", "count:int"),
+            List.of("Use runtime-supported action names and explicit targets"), "{\"type\":\"interface_action\",\"action\":\"click\",\"target\":{\"slot\":0}}");
+        add(schemas, "hide_interface", "Close the mirrored interface", List.of(), List.of("duration:int"), List.of(), "{\"type\":\"hide_interface\"}");
+        add(schemas, "await_interface", "Wait for an interface goal", List.of("goal:object"), List.of("duration:int"), List.of(), "{\"type\":\"await_interface\",\"goal\":{}}");
         add(schemas, "next_scene", "Explicit no-op scene boundary marker", List.of(), List.of(), List.of(),
             "{\"type\":\"next_scene\"}");
         return Collections.unmodifiableMap(schemas);

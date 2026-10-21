@@ -144,6 +144,10 @@ public final class AiSceneValidator {
             return;
         }
 
+        if (SceneStepCatalog.get(type) == null) {
+            issues.add(new Issue(path + ".type", "UNKNOWN_STEP: unsupported step type; query get_step_schema"));
+            return;
+        }
         switch (type) {
             case "idle" -> requireNonNegative(issues, path + ".duration", step.duration, "duration");
             case "text" -> {
@@ -212,8 +216,7 @@ public final class AiSceneValidator {
                     id -> BuiltInRegistries.SOUND_EVENT.getOptional(id).isPresent());
             }
             default -> {
-                // Unknown step types are allowed by the runtime more often than this validator knows.
-                // The required type check above still catches malformed empty steps.
+                // Known catalog entries may use their runtime-specific validators.
             }
         }
     }

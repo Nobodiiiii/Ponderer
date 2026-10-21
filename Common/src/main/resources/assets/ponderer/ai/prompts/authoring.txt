@@ -1,0 +1,7 @@
+New scene mode:
+- Inspect the relevant structure and references before authoring. Plan privately without a prose outline.
+- Prefer clear visual demonstrations with readable annotations. Avoid three consecutive text blocks and unnecessary decoration.
+- Pair an explanation with a relevant action. Clean up demonstration item entities.
+- show_controls uses action for player clicks and omits action for machine input/output.
+- First provide a complete scene to review_scene or submit_scene. To repair a stored draft, use its draft_id/revision and a local patch.
+- Examples from get_step_schema illustrate fields; they do not provide facts or registry IDs for this task.

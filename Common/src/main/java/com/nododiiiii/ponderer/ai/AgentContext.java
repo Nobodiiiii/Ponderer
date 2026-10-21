@@ -94,6 +94,9 @@ public final class AgentContext {
         private boolean queriedStructure;
         private boolean searchedReferences;
         private boolean inspectedExistingScene;
+        private final java.util.Set<String> inspectedSegments = new java.util.HashSet<>();
+        void markSegmentInspected(String id) { inspectedSegments.add(id); }
+        boolean inspectedSegment(String id) { return inspectedSegments.contains(id); }
         private JsonObject editScope;
         private int validationAttempts;
 

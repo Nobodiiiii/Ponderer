@@ -1,0 +1,5 @@
+Build tutorial requested:
+- The first segment demonstrates construction using the selected structure's actual occupied layers.
+- Query the layers. Show the structure, hide upper layers, then reveal from bottom to top with concise annotations and readable waits.
+- Include every occupied layer; adjacent identical layers may share one reveal. A one-layer structure needs no upper-layer hiding.
+- Put operation and usage demonstrations in subsequent segments. Choose annotations and camera views that expose the referenced components.

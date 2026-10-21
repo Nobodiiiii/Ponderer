@@ -23,6 +23,8 @@ public interface PlatformHelper {
     /** Check if a mod is loaded. */
     boolean isModLoaded(String modId);
 
+    default java.util.Map<String, String> loadedModVersions() { return java.util.Map.of(); }
+
     /** Get the game directory (e.g., .minecraft). */
     Path getGameDir();
 
