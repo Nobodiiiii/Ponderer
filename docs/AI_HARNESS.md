@@ -55,7 +55,50 @@ Anthropic thinking/signature 以不透明内容回放，兼容模式只在适配
 [Responses migration](https://developers.openai.com/api/docs/guides/migrate-to-responses)、
 [Anthropic tool results](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls)。
 
+## 运行预算与恢复
+
+| 配置 | 默认值 | 含义 |
+| --- | ---: | --- |
+| ai.maxRunSeconds | 900 | 包含准备资料、模型、工具和重试等待的整次时间预算 |
+| ai.maxRunTokens | 524288 | 累计输入与输出预算；缓存输入仍计入上下文 |
+| ai.contextTokens | 131072 | 模型的上下文容量，须按实际模型设置 |
+| ai.noProgressTurns | 4 | 连续没有新证据或草稿变化时停机 |
+
+已知用量采用服务返回值；未知用量明确标记为估算，不填零。文本预估使用 UTF-8 字节数
+作为保守额度，图像按每张 4096 token 预留；这不是模型的精确 tokenizer，也不是计费凭据。
+每次请求的输出上限同时受单次配置、剩余总预算、上下文余额限制。单次输出截断、上下文
+容量不足和整次预算耗尽分别记录，截断内容不会作为完整场景提交。
+
+临时网络失败、HTTP 408/429/5xx 最多重试两次，尊重 Retry-After，等待也可取消并受时间
+预算限制。无法确定是否计费用量的失败请求按输入估算和预留输出上限保守入账。
+其他 HTTP 错误不会自动重试或切换协议。到期取消在途 HTTP future；本地结构解析等同步
+工作在协作取消检查点退出，不会强行终止游戏线程。
+
+上下文接近容量时按完整轮次压缩，调用、结果和不透明 reasoning 一起保留或移除。
+宿主保留原始场景、当前草稿、编辑范围、验证错误和读取标记；模型须按需重新读取被移除的
+具体证据，不依赖模型生成的摘要。`finish_task` 支持 partial、needs_input、failed，
+这些结果保留草稿但不会保存成成功场景。
+
+每次运行独立保存在 `config/ponderer/logs/runs/<UUID>/`，包含有效提示词、manifest、
+逐轮 trace/usage、metrics、checkpoint、diff、status；模型与协议记录不包含 API key。
+checkpoint 在工具调用后和退出时原子更新。原有 last_agent_trace.log 仍保留最新运行记录。
+
+生成界面的“AI 运行记录与差异”可查看最近 50 次运行、前后值、原有/新增/变化的警告，
+复制完整差异、打开已保存场景或运行目录、为中断草稿补充说明并恢复。
+恢复会创建新的运行和预算，重新获取证据、验证和检查文件基线，不恢复旧的远程会话。
+原场景在运行期间或暂停后被修改时拒绝覆盖；新场景不会覆盖已有同名文件。
+
+保存前先落盘撤销资料，再通过临时文件替换场景；文件系统不支持原子移动时回退普通替换。
+保存后可撤销这一轮：调整恢复原文件，新建删除该文件。撤销前再次比较保存后的内容，
+有后续编辑时禁用撤销以保护新内容。保存前后的文件比较是乐观并发控制，不提供跨进程锁。
+
 ## 验证命令
 
 使用现有 `:Common:test`、`:NeoForge:build`、`:Fabric:build`。
-本轮不新增测试文件或用例。真实模型效果和游戏内视觉效果需要另行验证。
+本轮不新增测试文件或用例。现有自动测试覆盖基础修复循环、配置读取和场景校验，
+不代表新增原生协议、恢复和撤销已完成真实服务或游戏内验收。
+
+真实模型连通性使用现有命令：
+`gradlew.bat --offline :Common:test --tests com.nododiiiii.ponderer.ai.RealLlmCodexConfigTest -PrealLlm=true`。
+本机检查在发送请求前失败：Codex 配置没有可用 API key。配置可用凭据后应先重跑该命令，
+再在游戏中分别验证三种原生协议、多轮工具调用、恢复、差异和撤销。

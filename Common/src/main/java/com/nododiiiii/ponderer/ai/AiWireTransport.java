@@ -30,7 +30,7 @@ final class AiWireTransport {
                 cancellation.throwIfCancelled();
                 if (response.statusCode() != 200) {
                     // Do not log arbitrary gateway bodies, which can echo credentials or request content.
-                    throw new AiHttpException(response.statusCode(), "request rejected; check protocol, model, credentials and service availability");
+                    throw new AiHttpException(response.statusCode(), "request rejected; check protocol, model, credentials and service availability", response.headers().firstValue("Retry-After").orElse(""));
                 }
                 return reply(protocol, JsonParser.parseString(response.body()).getAsJsonObject(), request.nativeTools());
             });
@@ -81,6 +81,18 @@ final class AiWireTransport {
                     blocks.add(0, new LlmProvider.ContentBlock.Text("Host tool result for " + message.toolName() + " [" + message.callId() + "] (data):"));
                 }
                 appendMessage(history, role, content(protocol, blocks, "assistant".equals(role)), "anthropic".equals(protocol));
+            }
+        }
+        if ("chat".equals(protocol)) for (JsonElement entry : history) {
+            JsonObject message = entry.getAsJsonObject();
+            if (message.has("content") && message.get("content").isJsonArray()) {
+                JsonArray blocks = message.getAsJsonArray("content");
+                boolean textOnly = true; StringBuilder joined = new StringBuilder();
+                for (JsonElement block : blocks) {
+                    if (!"text".equals(string(block.getAsJsonObject(), "type", ""))) { textOnly = false; break; }
+                    if (!joined.isEmpty()) joined.append("\n"); joined.append(string(block.getAsJsonObject(), "text", ""));
+                }
+                if (textOnly) message.addProperty("content", joined.toString());
             }
         }
         body.add("responses".equals(protocol) ? "input" : "messages", history);
@@ -136,8 +148,9 @@ final class AiWireTransport {
         String finish;
         if ("responses".equals(protocol)) {
             finish = string(json, "status", "completed");
-            if ("incomplete".equals(finish)) throw AiApiSupport.outputLimitExceeded();
-            if (!"completed".equals(finish)) throw new IllegalStateException("Responses API did not complete: " + finish);
+            if ("incomplete".equals(finish) && json.has("incomplete_details") && json.get("incomplete_details").isJsonObject()
+                && "max_output_tokens".equals(string(json.getAsJsonObject("incomplete_details"), "reason", ""))) finish = "max_output_tokens";
+            if (!"completed".equals(finish) && !"max_output_tokens".equals(finish)) throw new IllegalStateException("Responses API did not complete: " + finish);
             JsonArray output = json.has("output") ? json.getAsJsonArray("output") : new JsonArray();
             replay = output.deepCopy();
             for (JsonElement entry : output) {
@@ -149,14 +162,12 @@ final class AiWireTransport {
             if (text.isEmpty() && json.has("output_text")) text.append(json.get("output_text").getAsString());
         } else if ("anthropic".equals(protocol)) {
             finish = string(json, "stop_reason", "unknown");
-            if ("max_tokens".equals(finish)) throw AiApiSupport.outputLimitExceeded();
             if ("refusal".equals(finish)) throw new IllegalStateException("Anthropic API refused the request");
             JsonArray blocks = json.has("content") ? json.getAsJsonArray("content") : new JsonArray();
             replay = blocks.deepCopy(); readBlocks(blocks, text, calls);
         } else {
             JsonObject choice = json.getAsJsonArray("choices").get(0).getAsJsonObject();
             finish = string(choice, "finish_reason", "unknown");
-            if ("length".equals(finish)) throw AiApiSupport.outputLimitExceeded();
             JsonObject message = choice.getAsJsonObject("message");
             JsonObject inputMessage = new JsonObject(); inputMessage.addProperty("role", "assistant");
             for (String key : List.of("content", "tool_calls", "reasoning_content")) if (message.has(key)) inputMessage.add(key, message.get(key).deepCopy());
@@ -171,12 +182,14 @@ final class AiWireTransport {
                     arguments(function.get("arguments"))));
             }
         }
-        if (text.isEmpty() && calls.isEmpty()) throw new IllegalStateException("AI returned neither text nor tool calls (" + finish + ")");
+        if (text.isEmpty() && calls.isEmpty() && !List.of("max_output_tokens", "max_tokens", "length").contains(finish)) throw new IllegalStateException("AI returned neither text nor tool calls (" + finish + ")");
         JsonObject usage = json.has("usage") && json.get("usage").isJsonObject() ? json.getAsJsonObject("usage") : new JsonObject();
         long cached = number(usage, "cache_read_input_tokens");
         if (usage.has("input_tokens_details") && usage.get("input_tokens_details").isJsonObject()) cached = number(usage.getAsJsonObject("input_tokens_details"), "cached_tokens");
         if (usage.has("prompt_tokens_details") && usage.get("prompt_tokens_details").isJsonObject()) cached = number(usage.getAsJsonObject("prompt_tokens_details"), "cached_tokens");
-        LlmProvider.Usage counts = new LlmProvider.Usage(number(usage, "input_tokens", "prompt_tokens"), number(usage, "output_tokens", "completion_tokens"), cached);
+        long input = number(usage, "input_tokens", "prompt_tokens");
+        if ("anthropic".equals(protocol) && input >= 0) input += Math.max(0, number(usage, "cache_read_input_tokens")) + Math.max(0, number(usage, "cache_creation_input_tokens"));
+        LlmProvider.Usage counts = new LlmProvider.Usage(input, number(usage, "output_tokens", "completion_tokens"), cached);
         return new LlmProvider.Reply(new LlmProvider.Message("assistant", List.of(new LlmProvider.ContentBlock.Text(text.toString())),
             List.copyOf(calls), "", "", nativeTools ? replay : null), counts, finish);
     }

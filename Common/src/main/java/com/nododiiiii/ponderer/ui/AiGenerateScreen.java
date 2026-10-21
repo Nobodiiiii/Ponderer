@@ -1,11 +1,20 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.ai.AiSceneGenerator;
 import com.nododiiiii.ponderer.ai.AiGenerationTask;
+import com.nododiiiii.ponderer.ai.AiSceneAgentPipeline;
+import com.nododiiiii.ponderer.ai.AiRunFiles;
 import com.nododiiiii.ponderer.ai.StructureDescriber;
 import com.nododiiiii.ponderer.ai.McmodApiClient;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.LocalizedText;
+import com.nododiiiii.ponderer.ponder.PackStateStore;
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
@@ -39,11 +48,15 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
+    private static final Gson SCENE_GSON = new GsonBuilder()
+        .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
+        .create();
     private static final List<Path> cachedStructurePaths = new ArrayList<>();
     private static final List<StructureDescriber.StructureInfo> cachedStructureInfos = new ArrayList<>();
     private static int cachedStructureIndex = 0;
     private static String cachedCarrier = "";
     private static String cachedPrompt = "";
+    private static String cachedExistingSceneKey = "";
     private static final ReferenceUrlManager referenceUrlManager = new ReferenceUrlManager();
     private static boolean cachedBuildTutorial = false;
     private static boolean cachedIncludeImages = false;
@@ -162,6 +175,21 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         entries.add(FieldSpecs.text(
+            FieldBindings.transientString(() -> cachedExistingSceneKey, value -> cachedExistingSceneKey = value),
+            "ponderer.ui.ai_generate.existing_scene",
+            "ponderer.ui.ai_generate.existing_scene.tooltip",
+            "ponderer.ui.ai_generate.existing_scene.hint",
+            -1,
+            entry -> entry.field().setEditable(false),
+            FieldDecorators.sceneSelector(this::openExistingScenePicker),
+            FieldDecorators.iconAction(PondererGuiIcons.REMOVE,
+                UIText.of("ponderer.ui.ai_generate.existing_scene.clear"), () -> {
+                    cachedExistingSceneKey = "";
+                    setCachedStatus(null, false);
+                    rebuildListPreservingScroll();
+                })));
+
+        entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> cachedCarrier, value -> cachedCarrier = value),
             "ponderer.ui.ai_generate.carrier",
             null,
@@ -213,6 +241,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             UIText.of("ponderer.ui.ai_generate.add_url.tooltip"),
             this::addUrl));
 
+        entries.add(FieldSpecs.fullButton(UIText.of("ponderer.ui.ai_runs.title"), null, () -> {
+            if (!cachedGenerating) Minecraft.getInstance().setScreen(new AiRunHistoryScreen(this, this::resumeGeneration));
+        }));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.ai_generate.build_tutorial",
             "ponderer.ui.ai_generate.build_tutorial.tooltip",
@@ -258,6 +289,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         }
         snapshot.put("carrier", cachedCarrier);
         snapshot.put("prompt", cachedPrompt);
+        snapshot.put("existing_scene", cachedExistingSceneKey);
         snapshot.put("build_tutorial", String.valueOf(cachedBuildTutorial));
         snapshot.put("include_images", String.valueOf(cachedIncludeImages));
         referenceUrlManager.snapshot(snapshot);
@@ -266,6 +298,49 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     private boolean hasStructures() {
         return !cachedStructurePaths.isEmpty();
+    }
+
+    private void openExistingScenePicker() {
+        if (SceneRuntime.getScenes().isEmpty()) {
+            setErrorMessage(UIText.of("ponderer.ui.function_page.no_scenes"));
+            return;
+        }
+        Minecraft.getInstance().setScreen(new PonderItemGridScreen(this,
+            sceneKey -> {
+                Minecraft.getInstance().setScreen(this);
+                DslScene scene = SceneRuntime.findByKey(sceneKey);
+                if (scene == null || !canAdjustScene(scene)) {
+                    return;
+                }
+                cachedExistingSceneKey = sceneKey;
+                ResourceLocation carrier = SceneItemBindings.firstItem(scene);
+                if (carrier != null) {
+                    cachedCarrier = carrier.toString();
+                }
+                referenceUrlManager.removeAutoUrlsForItem();
+                cachedStructurePaths.clear();
+                cachedStructureInfos.clear();
+                cachedStructureIndex = 0;
+                loadedPreviewPath = null;
+                pendingStructureInfo = null;
+                preview.clear();
+                setCachedStatus(null, false);
+                rebuildListPreservingScroll();
+            },
+            () -> Minecraft.getInstance().setScreen(this)));
+    }
+
+    private boolean canAdjustScene(DslScene scene) {
+        if (!SceneEditorScreen.canModifyScene(scene)) {
+            setErrorMessage(UIText.of("ponderer.ui.readonly_scene.message"));
+            return false;
+        }
+        PackStateStore.load();
+        if (scene.pack != null && !scene.pack.isBlank() && !PackStateStore.isImported(scene.pack)) {
+            setErrorMessage(UIText.of("ponderer.ui.readonly_import_prompt.message"));
+            return false;
+        }
+        return true;
     }
 
     private boolean canTurnStructures() {
@@ -285,11 +360,10 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     }
 
     private void reopenFromStructurePicker(Map<String, String> snapshot) {
-        AiGenerateScreen screen = new AiGenerateScreen();
-        Minecraft.getInstance().setScreen(screen);
+        Minecraft.getInstance().setScreen(this);
         String selected = snapshot.get("ai_generate_structure");
         if (selected != null && !selected.isBlank()) {
-            screen.addStructureFromPicker(selected);
+            addStructureFromPicker(selected);
         }
     }
 
@@ -476,12 +550,29 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         if (cachedGenerating) {
             return false;
         }
-        if (cachedStructurePaths.isEmpty()) {
+        DslScene existingScene = null;
+        if (!cachedExistingSceneKey.isBlank()) {
+            existingScene = SceneRuntime.findByKey(cachedExistingSceneKey);
+            if (existingScene == null) {
+                setErrorMessage(UIText.of("ponderer.cmd.scene_not_found", cachedExistingSceneKey));
+                return false;
+            }
+            if (!canAdjustScene(existingScene)) {
+                return false;
+            }
+        }
+        if (cachedStructurePaths.isEmpty() && existingScene == null) {
             setErrorMessage(UIText.of("ponderer.ui.ai_generate.error.no_structure"));
             return false;
         }
         if (cachedCarrier.trim().isEmpty()) {
             setErrorMessage(UIText.of("ponderer.ui.ai_generate.error.no_carrier"));
+            return false;
+        }
+        ResourceLocation carrierId = ResourceLocation.tryParse(cachedCarrier.trim());
+        if (carrierId == null || !BuiltInRegistries.ITEM.containsKey(carrierId)
+            || BuiltInRegistries.ITEM.get(carrierId) == net.minecraft.world.item.Items.AIR) {
+            setErrorMessage(UIText.of("ponderer.ui.ai_generate.error.invalid_carrier"));
             return false;
         }
         if (cachedPrompt.trim().isEmpty()) {
@@ -496,6 +587,23 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             }
         }
 
+        return beginGeneration(new AiSceneAgentPipeline.Request(new ArrayList<>(cachedStructurePaths), carrierId.toString(),
+            cachedPrompt.trim(), urls, existingScene == null ? null : SCENE_GSON.toJson(existingScene), cachedBuildTutorial, cachedIncludeImages), null);
+    }
+
+    private void resumeGeneration(AiRunFiles files, String clarification) {
+        if (cachedGenerating) return;
+        try {
+            AiSceneAgentPipeline.Request saved = files.recoveryRequest();
+            String prompt = saved.userPrompt() + (clarification.isBlank() ? "" : "\nUser clarification for recovery:\n" + clarification.trim());
+            AiSceneAgentPipeline.Request request = new AiSceneAgentPipeline.Request(saved.structurePaths(), saved.carrierItemId(), prompt,
+                saved.referenceUrls(), saved.existingJson(), saved.buildTutorial(), saved.includeImages(), saved.resumeDraft(), saved.resumeScope());
+            Minecraft.getInstance().setScreen(this);
+            beginGeneration(request, files);
+        } catch (RuntimeException error) { cachedGenerating = false; cachedCancelling = false; setCachedStatus(error.getMessage(), true); }
+    }
+
+    private boolean beginGeneration(AiSceneAgentPipeline.Request request, @Nullable AiRunFiles recovery) {
         cachedGenerating = true;
         cachedCancelling = false;
         setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.generating"), false);
@@ -503,14 +611,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         refreshGenerationActionButton();
 
         AtomicReference<AiGenerationTask> taskRef = new AtomicReference<>();
-        AiGenerationTask task = AiSceneGenerator.start(
-            new ArrayList<>(cachedStructurePaths),
-            cachedCarrier.trim(),
-            cachedPrompt.trim(),
-            urls,
-            null,
-            cachedBuildTutorial,
-            cachedIncludeImages,
+        AiGenerationTask task = AiSceneGenerator.startRequest(request, recovery,
             filePath -> Minecraft.getInstance().execute(() -> {
                 if (!isCurrentTask(taskRef.get())) {
                     return;
@@ -518,7 +619,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 cachedGenerating = false;
                 cachedCancelling = false;
                 cachedGenerationTask = null;
-                setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.success"), false);
+                setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.success") + " " + UIText.of("ponderer.ui.ai_runs.review_hint"), false);
                 applyCachedStatus();
                 refreshGenerationActionButton();
             }),
@@ -653,6 +754,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
         cachedCarrier = snapshot.getOrDefault("carrier", "");
         cachedPrompt = snapshot.getOrDefault("prompt", "");
+        cachedExistingSceneKey = snapshot.getOrDefault("existing_scene", "");
         cachedBuildTutorial = Boolean.parseBoolean(snapshot.getOrDefault("build_tutorial", "false"));
         cachedIncludeImages = Boolean.parseBoolean(snapshot.getOrDefault("include_images", "false"));
         referenceUrlManager.restore(snapshot);

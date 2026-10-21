@@ -27,6 +27,11 @@ public interface LlmProvider {
     record Exchange(String systemPrompt, List<Message> messages, List<ToolDefinition> tools,
                     AiRuntimeConfig config, boolean nativeTools, int maxOutputTokens) {}
     record Reply(Message message, Usage usage, String finishReason) {
+        public boolean outputLimited() { return List.of("max_output_tokens", "max_tokens", "length").contains(finishReason); }
+        public String completeText() {
+            if (outputLimited()) throw AiApiSupport.outputLimitExceeded();
+            return protocolText();
+        }
         public String protocolText() {
             if (!message.calls().isEmpty()) {
                 com.google.gson.JsonObject wrapper = new com.google.gson.JsonObject();

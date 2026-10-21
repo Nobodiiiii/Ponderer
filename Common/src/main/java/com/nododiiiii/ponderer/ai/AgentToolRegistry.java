@@ -56,6 +56,7 @@ public final class AgentToolRegistry {
         register(registered, applyScenePatch());
         register(registered, reviewScene());
         register(registered, submitScene());
+        register(registered, finishTask());
         tools = Collections.unmodifiableMap(registered);
     }
 
@@ -539,6 +540,22 @@ public final class AgentToolRegistry {
 
     private static AgentTool submitScene() {
         return sceneReviewTool("submit_scene", true);
+    }
+
+    private static AgentTool finishTask() {
+        return new SimpleTool("finish_task", "Stop without saving when evidence or user input is missing. Explain the concrete blocker. This must be the only call in its turn.",
+            schema("""
+                {"type":"object","properties":{"status":{"type":"string","enum":["partial","needs_input","failed"]},"reason":{"type":"string"}},"required":["status","reason"]}
+                """), true) {
+            @Override public ToolExecution execute(AgentContext context, JsonObject arguments, AiCancellationScope cancellation) {
+                String reason = arguments.get("reason").getAsString().trim();
+                if (reason.isEmpty()) throw new IllegalArgumentException("reason must explain the blocker");
+                context.runState().finish(arguments.get("status").getAsString(), reason);
+                JsonObject result = context.drafts().descriptor();
+                result.addProperty("status", context.runState().stopStatus()); result.addProperty("reason", reason);
+                return ToolExecution.result(result);
+            }
+        };
     }
 
     private static AgentTool sceneReviewTool(String name, boolean terminal) {

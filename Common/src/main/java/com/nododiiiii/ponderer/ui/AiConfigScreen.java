@@ -96,6 +96,10 @@ public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
             "ponderer.ui.ai_config.max_agent_turns.hint",
             "ponderer.ui.ai_config.max_agent_turns.tooltip",
             Config.AI_MAX_AGENT_TURNS));
+        entries.add(ConfigEntries.integerEntry("ponderer.ui.ai_config.run_seconds", "ponderer.ui.ai_config.run_seconds.hint", "ponderer.ui.ai_config.run_seconds.tooltip", Config.AI_MAX_RUN_SECONDS));
+        entries.add(ConfigEntries.integerEntry("ponderer.ui.ai_config.run_tokens", "ponderer.ui.ai_config.run_tokens.hint", "ponderer.ui.ai_config.run_tokens.tooltip", Config.AI_MAX_RUN_TOKENS));
+        entries.add(ConfigEntries.integerEntry("ponderer.ui.ai_config.context_tokens", "ponderer.ui.ai_config.context_tokens.hint", "ponderer.ui.ai_config.context_tokens.tooltip", Config.AI_CONTEXT_TOKENS));
+        entries.add(ConfigEntries.integerEntry("ponderer.ui.ai_config.no_progress", "ponderer.ui.ai_config.no_progress.hint", "ponderer.ui.ai_config.no_progress.tooltip", Config.AI_NO_PROGRESS_TURNS));
         entries.add(ConfigEntries.booleanEntry("ponderer.ui.ai_config.trust_ssl",
             "ponderer.ui.ai_config.trust_ssl.tooltip",
             Config.AI_TRUST_ALL_SSL));

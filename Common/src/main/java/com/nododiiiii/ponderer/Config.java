@@ -141,6 +141,19 @@ public class Config {
         .comment("Tool calling transport: auto uses native tools for official OpenAI, Responses and Anthropic; native forces tools; json keeps text protocol compatibility.")
         .defineInList("ai.toolCalling", "auto", java.util.List.of("auto", "native", "json"));
 
+    public static final ModConfigSpec.IntValue AI_MAX_RUN_SECONDS = CLIENT_BUILDER
+        .comment("Wall-clock budget for one AI run, including references, tools and retries.")
+        .defineInRange("maxRunSeconds", 900, 30, 7200);
+    public static final ModConfigSpec.IntValue AI_MAX_RUN_TOKENS = CLIENT_BUILDER
+        .comment("Total input plus output tokens across the run. Missing usage is estimated.")
+        .defineInRange("maxRunTokens", 524288, 4096, 8000000);
+    public static final ModConfigSpec.IntValue AI_CONTEXT_TOKENS = CLIENT_BUILDER
+        .comment("Estimated per-request context ceiling; set to the selected model's actual context capacity.")
+        .defineInRange("contextTokens", 131072, 4096, 2000000);
+    public static final ModConfigSpec.IntValue AI_NO_PROGRESS_TURNS = CLIENT_BUILDER
+        .comment("Stop after this many consecutive turns without new evidence or draft changes.")
+        .defineInRange("noProgressTurns", 4, 2, 12);
+
     public static final ModConfigSpec.IntValue AI_MAX_AGENT_TURNS = CLIENT_BUILDER
         .comment("Maximum number of LLM turns in one AI scene-agent run.",
                  "Read-only tools may be batched within a turn.",

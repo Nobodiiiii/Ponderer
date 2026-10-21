@@ -53,7 +53,19 @@ public final class AiSceneAgentPipeline {
                           List<String> referenceUrls,
                           @Nullable String existingJson,
                           boolean buildTutorial,
-                          boolean includeImages) {
+                          boolean includeImages,
+                          @Nullable JsonObject resumeDraft,
+                          @Nullable JsonObject resumeScope) {
+        public Request {
+            structurePaths = structurePaths == null ? List.of() : List.copyOf(structurePaths);
+            referenceUrls = referenceUrls == null ? List.of() : List.copyOf(referenceUrls);
+            resumeDraft = resumeDraft == null ? null : resumeDraft.deepCopy();
+            resumeScope = resumeScope == null ? null : resumeScope.deepCopy();
+        }
+        public Request(List<Path> paths, String carrier, String prompt, List<String> urls, String existing,
+                       boolean building, boolean images) {
+            this(paths, carrier, prompt, urls, existing, building, images, null, null);
+        }
     }
 
     public record ToolCall(String id, String name, JsonObject arguments) {
@@ -92,88 +104,170 @@ public final class AiSceneAgentPipeline {
                       int maxTurns, Consumer<String> onStatus,
                       BiConsumer<String, String> diagnostics, AiCancellationScope cancellation) {
         cancellation.throwIfCancelled();
-        int boundedTurns = Math.max(2, Math.min(AiDefaults.AGENT_TURN_LIMIT, maxTurns));
-        AgentToolRegistry toolRegistry = new AgentToolRegistry();
-        AgentContext context = prepareContext(request, onStatus, diagnostics, cancellation);
-        boolean nativeTools = "native".equals(config.toolCalling())
-            || (!"json".equals(config.toolCalling()) && llm.supportsNativeTools(config));
-        String manifest = buildManifest(context);
-        String systemPrompt = AiSceneGenerator.buildAgentSystemPrompt(request.buildTutorial(), context.existingScene().available(),
-            nativeTools ? "Function tools are declared in the request. Use their schemas directly." : toolRegistry.promptSpecification());
-        systemPrompt += nativeTools ? "\nTransport for this run: native function tools.\n" : "\nTransport for this run: JSON compatibility protocol.\n";
-        diagnostics.accept("effective_system_prompt.txt", systemPrompt);
-        diagnostics.accept("manifest.json", manifest);
-        List<LlmProvider.ToolDefinition> definitions = toolRegistry.all().stream()
-            .map(tool -> new LlmProvider.ToolDefinition(tool.name(), tool.description(), tool.inputSchema())).toList();
+        AiRunBudget budget = new AiRunBudget();
+        cancellation.expireAfter(budget.seconds());
+        AgentContext context = null;
+        int lastTurn = 0, toolCallCount = 0;
         List<TraceEntry> trace = new ArrayList<>();
-        List<LlmProvider.Message> history = new ArrayList<>();
-        history.add(LlmProvider.Message.user("Generation manifest (user instruction and host facts):\n" + manifest));
-        int toolCallCount = 0;
-        String lastAction = "context preparation", lastProtocolError = "";
-        for (int turn = 1; turn <= boundedTurns; turn++) {
-            cancellation.throwIfCancelled();
-            onStatus.accept("Agent turn " + turn + "/" + boundedTurns);
-            List<LlmProvider.Message> messages = new ArrayList<>(history);
-            messages.add(LlmProvider.Message.user("Turn " + turn + " of " + boundedTurns + ". Batch independent reads; leave enough budget to validate and submit."
-                + (nativeTools ? " Use native function tools." : " Return one JSON object containing tool_calls.")));
-            LlmProvider.Reply reply = llm.exchange(new LlmProvider.Exchange(systemPrompt, messages, definitions, config,
-                nativeTools, config.maxTokens()), cancellation).join();
-            cancellation.throwIfCancelled();
-            history.add(reply.message());
-            String response = reply.protocolText();
-            diagnostics.accept("turn_" + turn + "_usage.json", GSON.toJson(reply.usage()));
-            ParseOutcome parsed = parseToolCalls(response, toolRegistry);
-            if (parsed.error() != null) {
-                lastAction = "invalid model response on turn " + turn;
-                lastProtocolError = parsed.error();
-                JsonObject error = protocolError(parsed.error());
-                // Close every native call before admitting another user turn, even for rejected batches.
-                for (var call : reply.message().calls()) history.add(LlmProvider.Message.tool(call.id(), call.name(), error, List.of()));
-                history.add(LlmProvider.Message.user(error.toString()));
-                trace.add(new TraceEntry(turn, response, List.of(), List.of(), parsed.error()));
-                writeTrace(diagnostics, runId, trace);
-                onStatus.accept("Fixing scene draft");
-                continue;
-            }
-            if (parsed.editScope() != null) context.runState().setEditScope(parsed.editScope());
-            lastAction = parsed.calls().stream().map(call -> call.name() + "[" + call.id() + "]").collect(Collectors.joining(", "));
-            List<ToolResult> results = new ArrayList<>();
-            List<LlmProvider.ContentBlock> images = new ArrayList<>();
-            DslScene submittedScene = null;
-            for (ToolCall call : parsed.calls()) {
+        try {
+            int boundedTurns = Math.max(2, Math.min(AiDefaults.AGENT_TURN_LIMIT, maxTurns));
+            AgentToolRegistry toolRegistry = new AgentToolRegistry();
+            context = prepareContext(request, onStatus, diagnostics, cancellation);
+            if (request.resumeDraft() != null) context.drafts().replace(request.resumeDraft());
+            if (request.resumeScope() != null) context.runState().setEditScope(request.resumeScope());
+            boolean nativeTools = "native".equals(config.toolCalling())
+                || (!"json".equals(config.toolCalling()) && llm.supportsNativeTools(config));
+            String manifest = buildManifest(context);
+            String systemPrompt = AiSceneGenerator.buildAgentSystemPrompt(request.buildTutorial(), context.existingScene().available(),
+                nativeTools ? "Function tools are declared in the request. Use their schemas directly." : toolRegistry.promptSpecification());
+            systemPrompt += nativeTools ? "\nTransport for this run: native function tools.\n" : "\nTransport for this run: JSON compatibility protocol.\n";
+            diagnostics.accept("effective_system_prompt.txt", systemPrompt);
+            diagnostics.accept("manifest.json", manifest);
+            List<LlmProvider.ToolDefinition> definitions = toolRegistry.all().stream()
+                .map(tool -> new LlmProvider.ToolDefinition(tool.name(), tool.description(), tool.inputSchema())).toList();
+            List<LlmProvider.Message> history = new ArrayList<>();
+            history.add(LlmProvider.Message.user("Generation manifest (user instruction and host facts):\n" + manifest));
+            if (request.resumeDraft() != null) history.add(LlmProvider.Message.user("Recovered host draft: read get_scene_draft. Evidence must be read again in this run; validate before submission."));
+            String lastAction = "context preparation", lastProtocolError = "";
+            int latestTurnStart = history.size();
+            diagnostics.accept("checkpoint.json", AiRunFiles.checkpoint(request, context, 0, budget));
+            for (int turn = 1; turn <= boundedTurns; turn++) {
+                lastTurn = turn;
                 cancellation.throwIfCancelled();
-                AgentTool tool = toolRegistry.get(call.name());
-                onStatus.accept(statusForTool(call.name()));
-                AgentTool.ToolExecution execution;
-                try {
-                    AiJsonSchema.validate(tool.inputSchema(), call.arguments(), "$arguments");
-                    execution = tool.execute(context, call.arguments(), cancellation);
-                } catch (CancellationException e) { throw e; }
-                catch (RuntimeException e) {
-                    JsonObject failure = new JsonObject(); failure.addProperty("ok", false);
-                    failure.addProperty("code", "TOOL_EXECUTION_ERROR"); failure.addProperty("error", safeMessage(e));
-                    failure.addProperty("retryable", true); failure.add("draft", context.drafts().descriptor());
-                    execution = AgentTool.ToolExecution.result(failure);
+                onStatus.accept("Agent turn " + turn + "/" + boundedTurns);
+                if (AiRunBudget.estimate(systemPrompt, history, definitions) > budget.contextTokens() * 0.7) {
+                    List<LlmProvider.Message> latest = new ArrayList<>(history.subList(latestTurnStart, history.size()));
+                    history.clear();
+                    history.add(LlmProvider.Message.user("Generation manifest:\n" + manifest));
+                    history.add(LlmProvider.Message.user("Host checkpoint after context compaction. Older tool data is omitted: re-read facts as needed, never infer omitted values.\n" + hostSummary(context)));
+                    history.addAll(latest);
+                    if (AiRunBudget.estimate(systemPrompt, history, definitions) > budget.contextTokens() * 0.8) {
+                        // Drop a complete group, including its call/results and opaque reasoning together.
+                        history.subList(2, history.size()).clear();
+                    }
+                    budget.compacted();
                 }
+                latestTurnStart = history.size();
+                List<LlmProvider.Message> messages = new ArrayList<>(history);
+                messages.add(LlmProvider.Message.user("Turn " + turn + " of " + boundedTurns + ". Remaining run tokens: " + budget.remaining()
+                    + ". Batch independent reads; submit when errors are empty. Quality warnings are advisory. Use finish_task for a concrete blocker."
+                    + (nativeTools ? " Use native function tools." : " Return one JSON object containing tool_calls.")));
+                LlmProvider.Reply reply = exchangeWithRetry(llm, systemPrompt, messages, definitions, config, nativeTools, budget, diagnostics, turn, cancellation);
                 cancellation.throwIfCancelled();
-                ToolResult result = new ToolResult(call.id(), call.name(), execution.result()); results.add(result);
-                history.add(LlmProvider.Message.tool(call.id(), call.name(), execution.result(), List.of()));
-                images.addAll(execution.images());
-                if (execution.submittedScene() != null) submittedScene = execution.submittedScene();
-                toolCallCount++;
+                history.add(reply.message());
+                String response = reply.protocolText();
+                diagnostics.accept("turn_" + turn + "_usage.json", GSON.toJson(reply.usage()));
+                ParseOutcome parsed = parseToolCalls(response, toolRegistry);
+                if (parsed.error() != null) {
+                    lastAction = "invalid model response on turn " + turn; lastProtocolError = parsed.error();
+                    JsonObject error = protocolError(parsed.error());
+                    for (var call : reply.message().calls()) history.add(LlmProvider.Message.tool(call.id(), call.name(), error, List.of()));
+                    history.add(LlmProvider.Message.user(error.toString()));
+                    trace.add(new TraceEntry(turn, response, List.of(), List.of(), parsed.error()));
+                    writeTrace(diagnostics, runId, trace);
+                    budget.progress(context, List.of());
+                    diagnostics.accept("checkpoint.json", AiRunFiles.checkpoint(request, context, turn, budget));
+                    onStatus.accept("Fixing scene draft");
+                    continue;
+                }
+                if (parsed.editScope() != null) context.runState().setEditScope(parsed.editScope());
+                lastAction = parsed.calls().stream().map(call -> call.name() + "[" + call.id() + "]").collect(Collectors.joining(", "));
+                List<ToolResult> results = new ArrayList<>();
+                List<LlmProvider.ContentBlock> images = new ArrayList<>();
+                DslScene submittedScene = null;
+                for (ToolCall call : parsed.calls()) {
+                    cancellation.throwIfCancelled();
+                    AgentTool tool = toolRegistry.get(call.name());
+                    onStatus.accept(statusForTool(call.name()));
+                    AgentTool.ToolExecution execution;
+                    try {
+                        AiJsonSchema.validate(tool.inputSchema(), call.arguments(), "$arguments");
+                        execution = tool.execute(context, call.arguments(), cancellation);
+                    } catch (CancellationException e) { throw e; }
+                    catch (AiRunStoppedException e) { throw e; }
+                    catch (RuntimeException e) {
+                        JsonObject failure = new JsonObject(); failure.addProperty("ok", false);
+                        String message = safeMessage(e);
+                        String code = message.matches("(?s)^[A-Z][A-Z_]+:.*") ? message.substring(0, message.indexOf(':'))
+                            : e instanceof IllegalArgumentException ? "INVALID_ARGUMENTS" : "TOOL_EXECUTION_ERROR";
+                        failure.addProperty("code", code); failure.addProperty("error", message);
+                        failure.addProperty("retryable", true); failure.add("draft", context.drafts().descriptor());
+                        execution = AgentTool.ToolExecution.result(failure);
+                    }
+                    ToolResult result = new ToolResult(call.id(), call.name(), execution.result()); results.add(result);
+                    history.add(LlmProvider.Message.tool(call.id(), call.name(), execution.result(), List.of()));
+                    images.addAll(execution.images());
+                    if (execution.submittedScene() != null) submittedScene = execution.submittedScene();
+                    toolCallCount++;
+                    diagnostics.accept("checkpoint.json", AiRunFiles.checkpoint(request, context, turn, budget));
+                    cancellation.throwIfCancelled();
+                }
+                if (!images.isEmpty()) history.add(new LlmProvider.Message("user", images, List.of(), "", "", null));
+                trace.add(new TraceEntry(turn, response, parsed.calls(), List.copyOf(results), null));
+                writeTrace(diagnostics, runId, trace);
+                if (context.runState().stopStatus() != null) throw new AiRunStoppedException(context.runState().stopStatus(), context.runState().stopReason());
+                if (submittedScene != null) {
+                    String finalJson = GSON_PRETTY.toJson(submittedScene);
+                    diagnostics.accept("last_extracted_json_attempt_final.log", finalJson);
+                    return new Result(runId, submittedScene, finalJson, turn, toolCallCount, context.runState().validationAttempts(), List.copyOf(trace));
+                }
+                budget.progress(context, results);
+                if (!context.runState().lastErrors().isEmpty()) onStatus.accept("Fixing scene draft");
             }
-            // Images follow the whole tool batch, keeping native call/result pairs contiguous.
-            if (!images.isEmpty()) history.add(new LlmProvider.Message("user", images, List.of(), "", "", null));
-            trace.add(new TraceEntry(turn, response, parsed.calls(), List.copyOf(results), null));
-            writeTrace(diagnostics, runId, trace);
-            if (submittedScene != null) {
-                String finalJson = GSON_PRETTY.toJson(submittedScene);
-                diagnostics.accept("last_extracted_json_attempt_final.log", finalJson);
-                return new Result(runId, submittedScene, finalJson, turn, toolCallCount, context.runState().validationAttempts(), List.copyOf(trace));
+            throw exhaustedException(boundedTurns, toolCallCount, lastAction, lastProtocolError, context);
+        } finally {
+            cancellation.closeDeadline();
+            JsonObject metrics = budget.summary(); metrics.addProperty("turns", lastTurn); metrics.addProperty("tool_calls", toolCallCount);
+            diagnostics.accept("metrics.json", GSON_PRETTY.toJson(metrics));
+            if (context != null) {
+                diagnostics.accept("checkpoint.json", AiRunFiles.checkpoint(request, context, lastTurn, budget));
+                diagnostics.accept("diff.json", AiRunFiles.diff(context.existingScene().available() ? context.existingScene().json() : new JsonObject(), context.drafts().scene()));
             }
-            if (!context.runState().lastErrors().isEmpty()) onStatus.accept("Fixing scene draft");
         }
-        throw exhaustedException(boundedTurns, toolCallCount, lastAction, lastProtocolError, context);
+    }
+
+    private static String hostSummary(AgentContext context) {
+        JsonObject state = context.drafts().descriptor();
+        state.add("edit_scope", context.runState().editScope());
+        state.add("last_errors", GSON.toJsonTree(context.runState().lastErrors()));
+        state.add("warnings", AiEditGuard.warnings(context, context.drafts().scene(), context.runState().lastWarnings()));
+        state.addProperty("structure_queried", context.runState().queriedStructure());
+        state.addProperty("references_read", context.runState().searchedReferences());
+        state.addProperty("existing_scene_inspected", context.runState().inspectedExistingScene());
+        state.addProperty("draft_access", "Use get_scene_draft for authoritative current values; inspect_existing_scene for original values.");
+        return state.toString();
+    }
+
+    private static LlmProvider.Reply exchangeWithRetry(LlmProvider llm, String system, List<LlmProvider.Message> messages,
+            List<LlmProvider.ToolDefinition> tools, AiRuntimeConfig config, boolean nativeTools, AiRunBudget budget,
+            BiConsumer<String, String> diagnostics, int turn, AiCancellationScope cancellation) {
+        long estimate = AiRunBudget.estimate(system, messages, tools);
+        for (int attempt = 0; ; attempt++) {
+            cancellation.throwIfCancelled();
+            int allowance = budget.outputAllowance(estimate, config.maxTokens());
+            int timeout = (int) Math.max(1, Math.min(config.requestTimeoutSeconds(), budget.remainingMillis() / 1000));
+            try {
+                var reply = cancellation.track(llm.exchange(new LlmProvider.Exchange(system, messages, tools,
+                    config.withRequestTimeout(timeout), nativeTools, allowance), cancellation)).join();
+                budget.account(reply, estimate);
+                if (reply.outputLimited()) throw new AiRunStoppedException("output_limit", AiApiSupport.outputLimitExceeded().getMessage());
+                return reply;
+            } catch (RuntimeException error) {
+                cancellation.throwIfCancelled();
+                Throwable cause = error;
+                while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null) cause = cause.getCause();
+                boolean retryable = cause instanceof AiHttpException http ? http.retryable()
+                    : cause instanceof java.io.IOException;
+                if (retryable) budget.failedAttempt(estimate, allowance, attempt < 2);
+                if (!retryable || attempt >= 2) throw error;
+                long delaySeconds = cause instanceof AiHttpException http ? Math.max(1L << attempt, http.retryAfterSeconds) : 1L << attempt;
+                if (delaySeconds >= (budget.remainingMillis() + 999) / 1000) throw new AiRunStoppedException("budget_exhausted", "Retry-After exceeds the remaining AI time budget; draft retained.");
+                diagnostics.accept("turn_" + turn + "_retry_" + (attempt + 1) + ".json", "{\"attempt\":" + (attempt + 1) + ",\"reason\":\"transient_transport_error\"}");
+                java.util.concurrent.CompletableFuture<Void> delay = new java.util.concurrent.CompletableFuture<>();
+                java.util.concurrent.CompletableFuture.delayedExecutor(delaySeconds, java.util.concurrent.TimeUnit.SECONDS).execute(() -> delay.complete(null));
+                cancellation.track(delay).join();
+            }
+        }
     }
 
     private static AgentContext prepareContext(Request request, Consumer<String> onStatus,
@@ -391,24 +485,6 @@ public final class AiSceneAgentPipeline {
         return summary;
     }
 
-    private static List<LlmProvider.ContentBlock> buildTurnContent(
-        String manifest, List<LlmProvider.ContentBlock> transcript, int turn, int maxTurns) {
-        List<LlmProvider.ContentBlock> content = new ArrayList<>();
-        content.add(new LlmProvider.ContentBlock.Text(
-            "=== Generation manifest ===\n" + manifest));
-        if (!transcript.isEmpty()) {
-            content.add(new LlmProvider.ContentBlock.Text(
-                "=== Agent transcript (tool images follow their matching result) ==="));
-            content.addAll(transcript);
-        }
-        content.add(new LlmProvider.ContentBlock.Text(
-            "=== Turn budget ===\nTurn " + turn + " of " + maxTurns
-                + ". Return only one JSON object containing tool_calls."
-                + (turn == maxTurns ? " This is the final turn: submit_scene is required to finish."
-                    : " Batch independent lookups and leave a turn for submit_scene.")));
-        return content;
-    }
-
     private static ParseOutcome parseToolCalls(String response, AgentToolRegistry registry) {
         try {
             String json = LlmJsonSupport.cleanJson(LlmJsonSupport.extractJson(response));
@@ -473,20 +549,6 @@ public final class AiSceneAgentPipeline {
         return value.getAsString().trim();
     }
 
-    private static JsonObject toolResultsJson(List<ToolResult> results) {
-        JsonObject wrapper = new JsonObject();
-        JsonArray array = new JsonArray();
-        for (ToolResult result : results) {
-            JsonObject entry = new JsonObject();
-            entry.addProperty("id", result.id());
-            entry.addProperty("name", result.name());
-            entry.add("result", result.result());
-            array.add(entry);
-        }
-        wrapper.add("tool_results", array);
-        return wrapper;
-    }
-
     private static JsonObject protocolError(String message) {
         JsonObject error = new JsonObject();
         JsonObject detail = new JsonObject();
@@ -494,19 +556,6 @@ public final class AiSceneAgentPipeline {
         detail.addProperty("retryable", true);
         error.add("protocol_error", detail);
         return error;
-    }
-
-    private static String formatTranscriptTurn(int turn, String response, JsonObject result) {
-        return "TURN " + turn + " ASSISTANT_RESPONSE:\n" + response
-            + "\nTURN " + turn + " HOST_RESULT:\n" + GSON_PRETTY.toJson(result);
-    }
-
-    private static String formatToolResult(int turn, ToolResult result) {
-        JsonObject entry = new JsonObject();
-        entry.addProperty("id", result.id());
-        entry.addProperty("name", result.name());
-        entry.add("result", result.result());
-        return "TURN " + turn + " TOOL_RESULT:\n" + GSON_PRETTY.toJson(entry);
     }
 
     private static RuntimeException exhaustedException(
@@ -532,7 +581,7 @@ public final class AiSceneAgentPipeline {
         }
         message.append("\nTurns allowed: ").append(maxTurns)
             .append("; tool calls executed: ").append(toolCallCount);
-        return new RuntimeException(message.toString());
+        return new AiRunStoppedException("budget_exhausted", message.toString());
     }
 
     private static String formatTrace(List<TraceEntry> trace) {
@@ -561,6 +610,8 @@ public final class AiSceneAgentPipeline {
             case "query_structure" -> "Querying structure";
             case "lookup_registry", "inspect_registry_entries" -> "Resolving registry entries";
             case "get_step_schema" -> "Loading scene step schema";
+            case "read_reference" -> "Reading reference material";
+            case "finish_task" -> "Retaining scene draft";
             case "search_references" -> "Searching reference material";
             case "inspect_existing_scene" -> "Inspecting existing scene";
             case "get_scene_draft" -> "Inspecting scene draft";

@@ -56,85 +56,103 @@ public class AiSceneGenerator {
                                          boolean buildTutorial, boolean includeImages,
                                          Consumer<String> onSuccess, Consumer<String> onError,
                                          Runnable onCancelled, Consumer<String> onStatus) {
+        return startRequest(new AiSceneAgentPipeline.Request(
+            structurePaths == null ? List.of() : List.copyOf(structurePaths), carrierItemId, userPrompt,
+            referenceUrls == null ? List.of() : List.copyOf(referenceUrls), existingJson, buildTutorial, includeImages),
+            null, onSuccess, onError, onCancelled, onStatus);
+    }
+
+    public static AiGenerationTask startRequest(AiSceneAgentPipeline.Request request, AiRunFiles recovery,
+            Consumer<String> onSuccess, Consumer<String> onError, Runnable onCancelled, Consumer<String> onStatus) {
         String runId = UUID.randomUUID().toString();
         AiCancellationScope cancellation = new AiCancellationScope();
-        writeLog("last_agent_trace.log", "run=" + runId + "\nstatus=started\n");
+        AiRunFiles files = new AiRunFiles(runId);
         CompletableFuture<String> worker = CompletableFuture.supplyAsync(() -> {
             try {
+                files.status("started", recovery == null ? "Generation started" : "Resumed from " + recovery.id());
                 cancellation.throwIfCancelled();
                 AiRuntimeConfig config = AiRuntimeConfigResolver.resolve();
-                if (!config.hasApiKey()) {
-                    throw new RuntimeException(
-                        "API key not configured. Fill custom AI settings or choose Codex/Claude Code in Settings > AI Configuration.");
-                }
-
-                Path editedPath = null;
-                String savedBaseline = null;
-                if (existingJson != null && !existingJson.isBlank()) {
-                    DslScene original = new com.google.gson.GsonBuilder()
-                        .registerTypeAdapter(com.nododiiiii.ponderer.ponder.LocalizedText.class,
-                            new com.nododiiiii.ponderer.ponder.LocalizedText.GsonAdapter()).create()
-                        .fromJson(existingJson, DslScene.class);
-                    editedPath = SceneStore.resolveLocalScenePath(original);
-                    if (editedPath != null && Files.exists(editedPath)) savedBaseline = Files.readString(editedPath);
-                }
-                AiSceneAgentPipeline.Request request = new AiSceneAgentPipeline.Request(
-                    structurePaths == null ? List.of() : List.copyOf(structurePaths),
-                    carrierItemId,
-                    userPrompt,
-                    referenceUrls == null ? List.of() : List.copyOf(referenceUrls),
-                    existingJson,
-                    buildTutorial,
-                    includeImages
-                );
-                AiSceneAgentPipeline.Result result = AiSceneAgentPipeline.run(
-                    runId,
-                    request,
-                    AiProviderFactory.create(config),
-                    config,
-                    Config.AI_MAX_AGENT_TURNS.get(),
-                    status -> notifyStatus(onStatus, status),
-                    AiSceneGenerator::writeLog,
-                    cancellation
-                );
-
+                if (!config.hasApiKey()) throw new IllegalStateException(
+                    "API key not configured. Fill custom AI settings or choose Codex/Claude Code in Settings > AI Configuration.");
+                com.google.gson.JsonObject safeConfig = new com.google.gson.JsonObject();
+                safeConfig.addProperty("model", config.model()); safeConfig.addProperty("provider", config.provider());
+                safeConfig.addProperty("wire_api", config.wireApi()); safeConfig.addProperty("tool_calling", config.toolCalling());
+                safeConfig.addProperty("source", config.source()); safeConfig.addProperty("prompt_version", AiPromptAssembler.VERSION);
+                files.write("configuration.json", safeConfig.toString());
+                com.google.gson.JsonObject baseline = recovery == null ? captureBaseline(request.existingJson()) : recovery.read("baseline.json");
+                files.write("baseline.json", baseline.toString());
+                checkBaseline(baseline);
+                AiSceneAgentPipeline.Result result = AiSceneAgentPipeline.run(runId, request, AiProviderFactory.create(config), config,
+                    Config.AI_MAX_AGENT_TURNS.get(), status -> notifyStatus(onStatus, status),
+                    (name, content) -> {
+                        files.write(name, content);
+                        if ("last_agent_trace.log".equals(name)) writeLog(name, content);
+                    }, cancellation);
                 cancellation.throwIfCancelled();
-                if (editedPath != null) {
-                    String current = Files.exists(editedPath) ? Files.readString(editedPath) : null;
-                    if (!java.util.Objects.equals(savedBaseline, current)) {
-                        throw new IllegalStateException("SCENE_CHANGED: the scene changed during generation; the AI result was not saved. Retry from the current scene.");
-                    }
+                synchronized (SceneStore.class) {
+                    checkBaseline(baseline);
+                    Path target = SceneStore.resolveLocalScenePath(result.scene());
+                    if (target == null) throw new IllegalStateException("Cannot resolve AI scene output path");
+                    String before = Files.isRegularFile(target) ? Files.readString(target) : null;
+                    boolean editingTarget = baseline.has("path") && !baseline.get("path").isJsonNull()
+                        && target.toAbsolutePath().normalize().equals(Path.of(baseline.get("path").getAsString()).toAbsolutePath().normalize());
+                    if (before != null && !editingTarget) throw new IllegalStateException("SCENE_EXISTS: a new AI scene cannot overwrite an existing scene; choose a different scene ID.");
+                    files.recordUndo(target, before, result.scene());
+                    SceneStore.LocalSaveResult saved = SceneStore.saveSceneToLocalDetailed(result.scene());
+                    if (!saved.isSuccess() || saved.path() == null) throw new IllegalStateException(saved.englishMessage());
+                    files.markSaved(saved.path());
+                    files.status("completed", saved.path().toString());
+                    return saved.path().toString();
                 }
-                SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(result.scene());
-                if (!saveResult.isSuccess() || saveResult.path() == null) {
-                    throw new RuntimeException(saveResult.englishMessage());
-                }
-
-                return saveResult.path().toString();
-            } catch (CancellationException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException(e.getMessage(), e);
-            }
+            } catch (RuntimeException error) {
+                if (cancellation.isDeadlineExceeded()) throw new AiRunStoppedException("budget_exhausted", "AI time budget exhausted; the draft is retained for recovery.");
+                throw error;
+            } catch (Exception error) { throw new RuntimeException(error.getMessage(), error); }
         });
         CompletableFuture<Void> completion = worker.handleAsync((filePath, error) -> {
             if (error == null) {
-                PondererClientCommands.reloadLocal();
-                onSuccess.accept(filePath);
-                return null;
+                PondererClientCommands.reloadLocal(); onSuccess.accept(filePath); return null;
             }
             Throwable cause = unwrap(error);
             if (cancellation.isCancellationRequested() || cause instanceof CancellationException) {
-                appendLog("last_agent_trace.log",
-                    System.lineSeparator() + "run=" + runId + " cancelled" + System.lineSeparator());
-                onCancelled.run();
-                return null;
+                recordStatus(files, "cancelled", "Generation cancelled; draft retained"); onCancelled.run(); return null;
             }
-            LOGGER.error("AI scene generation failed", cause);
-            onError.accept(safeMessage(cause));
-            return null;
+            String status = cause instanceof AiRunStoppedException stopped ? stopped.status() : "failed";
+            recordStatus(files, status, safeMessage(cause));
+            LOGGER.error("AI scene generation stopped, run={}", runId, cause);
+            onError.accept(safeMessage(cause)); return null;
         }, Minecraft.getInstance());
         return new AiGenerationTask(runId, cancellation, completion);
+    }
+
+    private static void recordStatus(AiRunFiles files, String status, String detail) {
+        try { files.status(status, detail); }
+        catch (RuntimeException error) { LOGGER.error("Cannot persist final status for AI run {}", files.id(), error); }
+    }
+
+    private static com.google.gson.JsonObject captureBaseline(String existingJson) throws Exception {
+        com.google.gson.JsonObject baseline = new com.google.gson.JsonObject();
+        baseline.add("path", com.google.gson.JsonNull.INSTANCE); baseline.add("content", com.google.gson.JsonNull.INSTANCE);
+        if (existingJson != null && !existingJson.isBlank()) {
+            DslScene original = new com.google.gson.GsonBuilder()
+                .registerTypeAdapter(com.nododiiiii.ponderer.ponder.LocalizedText.class,
+                    new com.nododiiiii.ponderer.ponder.LocalizedText.GsonAdapter()).create().fromJson(existingJson, DslScene.class);
+            Path path = SceneStore.resolveLocalScenePath(original);
+            if (path != null) {
+                baseline.addProperty("path", path.toAbsolutePath().normalize().toString());
+                if (Files.isRegularFile(path)) baseline.addProperty("content", Files.readString(path));
+            }
+        }
+        return baseline;
+    }
+
+    private static void checkBaseline(com.google.gson.JsonObject baseline) throws Exception {
+        if (!baseline.has("path") || baseline.get("path").isJsonNull()) return;
+        Path path = Path.of(baseline.get("path").getAsString());
+        String current = Files.isRegularFile(path) ? Files.readString(path) : null;
+        String expected = !baseline.has("content") || baseline.get("content").isJsonNull() ? null : baseline.get("content").getAsString();
+        if (!java.util.Objects.equals(expected, current)) throw new IllegalStateException(
+            "SCENE_CHANGED: the scene changed since this run began; the draft was retained. Start again from the current scene.");
     }
 
     private static Throwable unwrap(Throwable error) {
@@ -170,6 +188,10 @@ public class AiSceneGenerator {
             case "Loading scene step schema" -> "ponderer.ui.ai_generate.status.schema";
             case "Searching reference material" -> "ponderer.ui.ai_generate.status.search_references";
             case "Inspecting existing scene" -> "ponderer.ui.ai_generate.status.inspect_existing";
+            case "Inspecting scene draft" -> "ponderer.ui.ai_generate.status.draft";
+            case "Applying scoped scene patch" -> "ponderer.ui.ai_generate.status.patch";
+            case "Reading reference material" -> "ponderer.ui.ai_generate.status.read_reference";
+            case "Retaining scene draft" -> "ponderer.ui.ai_generate.status.finish";
             case "Reviewing scene draft" -> "ponderer.ui.ai_generate.status.review";
             case "Validating scene submission" -> "ponderer.ui.ai_generate.status.submit";
             case "Fixing scene draft" -> "ponderer.ui.ai_generate.status.fix";

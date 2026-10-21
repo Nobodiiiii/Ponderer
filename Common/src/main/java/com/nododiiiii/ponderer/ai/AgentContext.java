@@ -99,6 +99,11 @@ public final class AgentContext {
         boolean inspectedSegment(String id) { return inspectedSegments.contains(id); }
         private JsonObject editScope;
         private int validationAttempts;
+        private String stopStatus;
+        private String stopReason;
+        void finish(String status, String reason) { stopStatus = status; stopReason = reason; }
+        String stopStatus() { return stopStatus; }
+        String stopReason() { return stopReason; }
 
         JsonObject editScope() { return editScope; }
         void setEditScope(JsonObject scope) { editScope = scope.deepCopy(); }

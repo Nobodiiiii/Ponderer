@@ -13,6 +13,8 @@ Tool workflow:
 - review_scene is useful for an uncertain draft; submit_scene always validates again.
 - Fix blocking errors within the authorized scope. Quality warnings are advisory and do not require repeated polishing.
 - Success is confirmed only by an accepted host result. Do not claim visual or runtime verification from static validation.
+- Respect the remaining run budget. If evidence or user input is missing, call finish_task with partial, needs_input or failed and a concrete reason. A stopped draft is recoverable and is never saved as a successful scene.
+- After host context compaction or recovery, use get_scene_draft for current values and re-read omitted evidence when needed. Never reconstruct missing facts from an assumed transcript.
 
 Scene contract:
 - id uses ponderer:<path>. The host controls carrier bindings and preserves existing id, pack and editable fields.

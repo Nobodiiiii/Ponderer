@@ -11,6 +11,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class AiCancellationScope {
 
+    private static final java.util.concurrent.ScheduledExecutorService TIMER = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "ponderer-ai-deadline"); thread.setDaemon(true); return thread;
+    });
+    private volatile boolean expired;
+    private java.util.concurrent.ScheduledFuture<?> deadline;
+
+    public void expireAfter(int seconds) {
+        deadline = TIMER.schedule(() -> { expired = true; cancelPending(); }, seconds, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    public void closeDeadline() { if (deadline != null) deadline.cancel(false); }
+    public boolean isDeadlineExceeded() { return expired; }
+    private void cancelPending() { for (CompletableFuture<?> future : tracked) future.cancel(true); }
+
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private final Set<CompletableFuture<?>> tracked = ConcurrentHashMap.newKeySet();
 
@@ -18,9 +32,7 @@ public final class AiCancellationScope {
         if (!cancelled.compareAndSet(false, true)) {
             return false;
         }
-        for (CompletableFuture<?> future : tracked) {
-            future.cancel(true);
-        }
+        cancelPending();
         return true;
     }
 
@@ -32,19 +44,20 @@ public final class AiCancellationScope {
         if (isCancellationRequested()) {
             throw new CancellationException("AI generation cancelled");
         }
+        if (expired) throw new AiRunStoppedException("budget_exhausted", "AI time budget exhausted; the draft is retained for recovery.");
     }
 
     public <T> CompletableFuture<T> track(CompletableFuture<T> future) {
         if (future == null) {
             throw new IllegalArgumentException("future must not be null");
         }
-        if (isCancellationRequested()) {
+        if (isCancellationRequested() || expired) {
             future.cancel(true);
             throwIfCancelled();
         }
         tracked.add(future);
         future.whenComplete((result, error) -> tracked.remove(future));
-        if (isCancellationRequested()) {
+        if (isCancellationRequested() || expired) {
             future.cancel(true);
         }
         return future;
