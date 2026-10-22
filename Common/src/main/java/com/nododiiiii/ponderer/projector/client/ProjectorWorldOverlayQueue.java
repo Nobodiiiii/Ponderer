@@ -1,5 +1,8 @@
 package com.nododiiiii.ponderer.projector.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,6 +47,26 @@ public final class ProjectorWorldOverlayQueue {
     }
 
     public static void render() {
+        if (QUEUED_SCENES.isEmpty() && QUEUED_GLOWS.isEmpty() && QUEUED.isEmpty()) {
+            return;
+        }
+
+        // In 1.20.1 the captured block-entity poses already contain the camera rotation.
+        // Forge's AFTER_WEATHER also has that rotation on the global model-view stack;
+        // replaying with it would rotate the scene, beam and overlays a second time.
+        PoseStack modelViewStack = RenderSystem.getModelViewStack();
+        modelViewStack.pushPose();
+        try {
+            modelViewStack.setIdentity();
+            RenderSystem.applyModelViewMatrix();
+            renderQueued();
+        } finally {
+            modelViewStack.popPose();
+            RenderSystem.applyModelViewMatrix();
+        }
+    }
+
+    private static void renderQueued() {
         if (!QUEUED_SCENES.isEmpty()) {
             List<QueuedScene> queuedScenes = List.copyOf(QUEUED_SCENES);
             QUEUED_SCENES.clear();

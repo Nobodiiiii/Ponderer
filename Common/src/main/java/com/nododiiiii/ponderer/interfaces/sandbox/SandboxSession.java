@@ -47,6 +47,7 @@ public final class SandboxSession {
     private final InterfaceDescriptor descriptor;
     private final Minecraft mc;
     private final SandboxTripwire tripwire = new SandboxTripwire();
+    private final SandboxInputRenderer inputRenderer = new SandboxInputRenderer();
     private final List<String> reports = new ArrayList<>();
     private final Map<String, Integer> outbound = new LinkedHashMap<>();
     private final List<Screen> screens = new ArrayList<>();
@@ -294,6 +295,32 @@ public final class SandboxSession {
         return screen != null && canInteract() && afterInput(dispatch("mouseClicked", () -> screen.mouseClicked(x, y, button), false));
     }
 
+    /** Scripted clicks also work when no visible frame runs between timeline instructions. */
+    void click(double x, double y, int button) {
+        Screen screen = currentScreen();
+        if (screen == null || fidelity == Fidelity.SCHEMATIC) {
+            return;
+        }
+        dispatch("interface_action", () -> {
+            int width = mc.getWindow().getGuiScaledWidth();
+            int height = mc.getWindow().getGuiScaledHeight();
+            if (screen.width != width || screen.height != height) {
+                screen.resize(mc, width, height);
+            }
+            screen.mouseMoved(x, y);
+            if (currentScreen() != screen) {
+                return null;
+            }
+            inputRenderer.render(mc, screen, x, y);
+            // A screen may replace or close itself from its move/render callbacks.
+            if (currentScreen() == screen) {
+                screen.mouseClicked(x, y, button);
+                screen.mouseReleased(x, y, button);
+            }
+            return null;
+        }, null);
+    }
+
     public boolean mouseReleased(double x, double y, int button) {
         Screen screen = currentScreen();
         return screen != null && canInteract() && afterInput(dispatch("mouseReleased", () -> screen.mouseReleased(x, y, button), false));
@@ -350,6 +377,7 @@ public final class SandboxSession {
             }, null);
         }
         destroyed = true;
+        inputRenderer.close();
         screens.clear();
         menu = null;
         level = null;

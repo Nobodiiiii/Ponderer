@@ -3,9 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import net.createmod.catnip.platform.CatnipServices;
 import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.foundation.PonderScene;
-import net.createmod.ponder.foundation.ui.AbstractPonderScreen;
 import net.createmod.ponder.foundation.ui.PonderUI;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -79,20 +77,15 @@ public final class PonderPreviewTooltip extends AbstractWidget {
 
         PonderScene scene = ui.getActiveScene();
         ItemStack item = pick(scene, mouseX, mouseY);
+        if (item.isEmpty()) return;
+
         Minecraft mc = Minecraft.getInstance();
         graphics.flush();
         graphics.pose().pushPose();
         try {
             // Keep the background and text together above scene text and the raised widget pass.
             graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER + 500);
-            if (!item.isEmpty()) {
-                graphics.renderTooltip(mc.font, item, mouseX, mouseY);
-            } else {
-                Component hint = Component.translatable(AbstractPonderScreen.IDENTIFY_MODE,
-                    mc.options.keyDrop.getTranslatedKeyMessage().copy().withStyle(ChatFormatting.WHITE))
-                    .withStyle(ChatFormatting.GRAY);
-                graphics.renderTooltip(mc.font, mc.font.split(hint, Math.max(1, ui.width / 3)), mouseX, mouseY);
-            }
+            graphics.renderTooltip(mc.font, item, mouseX, mouseY);
             graphics.flush();
         } finally {
             graphics.pose().popPose();

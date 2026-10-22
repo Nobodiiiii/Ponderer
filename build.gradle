@@ -31,7 +31,13 @@ subprojects {
         maven { url = "https://mvn.devos.one/snapshots/" }
         maven { url = "https://mvn.devos.one/releases/" }
         maven { url = "https://maven.ladysnake.org/releases" }
-        maven { url = "https://maven.jamieswhiteshirt.com/libs-release/" }
+        maven {
+            url = "https://maven.jamieswhiteshirt.com/libs-release/"
+            // Unrelated artifacts (including Loom's local mappings) can return HTTP 500 here.
+            content {
+                includeGroup "com.jamieswhiteshirt"
+            }
+        }
         maven {
             name = "Modrinth"
             url = "https://api.modrinth.com/maven"

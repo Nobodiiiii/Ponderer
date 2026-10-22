@@ -37,6 +37,7 @@ net/createmod/ponder/foundation/PonderScene$SceneTransform net/createmod/ponder/
 	apply (Lcom/mojang/blaze3d/vertex/PoseStack;)Lcom/mojang/blaze3d/vertex/PoseStack; apply
 	apply (Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack; apply
 	screenToScene (DDIF)Lnet/minecraft/world/phys/Vec3; screenToScene
+	sceneToScreen (Lnet/minecraft/world/phys/Vec3;F)Lnet/minecraft/world/phys/Vec2; sceneToScreen
 net/createmod/ponder/foundation/element/WorldSectionElementImpl net/createmod/ponder/foundation/element/WorldSectionElementImpl
 	setAnimatedRotation (Lnet/minecraft/world/phys/Vec3;Z)V setAnimatedRotation
 	setAnimatedOffset (Lnet/minecraft/world/phys/Vec3;Z)V setAnimatedOffset

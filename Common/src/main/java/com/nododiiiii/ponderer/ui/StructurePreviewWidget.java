@@ -78,9 +78,9 @@ public class StructurePreviewWidget {
         });
 
     private static final int FULL_BRIGHT = 0xF000F0;
-    // Match PonderUI's lighting: GUI rendering flips the model's Y axis.
-    private static final Vector3f DIFFUSE_LIGHT_0 = new Vector3f(0.4f, -1.0f, 0.7f).normalize();
-    private static final Vector3f DIFFUSE_LIGHT_1 = new Vector3f(-0.4f, -0.5f, 0.7f).normalize();
+    // Match 1.20 PonderUI: GUI normals and Catnip's unshaded fallback still point up.
+    private static final Vector3f DIFFUSE_LIGHT_0 = new Vector3f(-0.2f, 1.0f, 0.7f).normalize();
+    private static final Vector3f DIFFUSE_LIGHT_1 = new Vector3f(0.2f, 1.0f, -0.7f).normalize();
 
     /** Rotation rate in degrees per second. One revolution in 60 seconds. */
     private static final float YAW_DEG_PER_SECOND = 6.0f;

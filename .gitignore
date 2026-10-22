@@ -49,6 +49,7 @@ art/
 
 # Logs
 *.log
+*.log.gz
 
 # Secrets
 .env

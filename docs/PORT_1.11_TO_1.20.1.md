@@ -55,6 +55,10 @@
    旧版控件高度用 accessor；原版 1.21 槽位与投影仪页面背景纹理作为独立资源随包提供，保持相同外观；
    未进世界的配置页保留 Catnip 全景背景。
    两条粒子 tooltip 仅将示例改为 1.20.1 可执行语法。
+   场景编辑预览与结构选择预览使用 1.20.1 `PonderUI` 的光源方向：本代 GUI 翻转仅改位置矩阵，
+   Catnip 对无方向阴影的面还固定使用正 Y 法线；直接沿用 1.21.1 的负 Y 光源会使顶面及这类面偏暗。
+   撤掉此前仅翻转法线的尝试，保留本代法线约定、满亮光照贴图和绘制后恢复光源的处理。
+   用户已确认现有光源适配解决了预览偏暗，临时诊断代码已移除。
 4. **Mixin**：涉及映射成员或 Minecraft 描述符的目标由注解处理器生成 refmap。
    `Forge/src/main/mappings/ponderer.tsrg` 补充稳定第三方成员与映射描述符，不用关闭 remap 绕过。
 5. **无法原样支持的数据**：1.21 的任意物品 data components 无法在 1.20.1 直接解码；
@@ -79,6 +83,10 @@
 - 检查最终 JAR 的 refmap：Forge 使用 `m_*` / `f_*`，Fabric 使用 `class_*` / `method_*`。
 - Java 导出支持模板实例化后，用 Java 17 和 1.20.1 类路径单独编译通过。
 - 资源 JSON 可解析；`git diff --check` 通过。
+- 预览光源适配构建通过，日志为 `build/preview-lighting-native-build.log`；用户随后确认画面已修复。
+- 删除临时诊断后，三模块 `build --offline --console=plain --no-daemon` 通过，现有 Common JUnit
+  52 通过、2 跳过；日志为 `build/preview-lighting-cleanup-build.log`。最终 Forge / Fabric JAR
+  已确认无诊断类或引用，并通过 `test.py both --skip-build --dry-run` 更新到本地实例。
 - 对照来源提交的 Common / Fabric 生产文件：348 个内容相同（忽略行尾差异），136 个作本代适配，
   5 份 recipe 保留本代 `recipes` 路径及 JSON 结构；仅排除 1 个测试辅助文件，无缺失生产文件。
   UI 常量、图标及布局沿用源版。
@@ -95,6 +103,30 @@ Forge 实例另有四份既有 KubeJS 导出脚本报告 `Ponder is not defined`
 
 **未实测范围**：未进行 GUI 自动化或逐像素截图对照；未逐项操作编辑器、捕获回放、AE2 菜单和 JEI；
 未进行真实外部 LLM 调用、独立服务端 / LAN 多人同步。构建、源码对照和进世界通过不能替代这些交互验收。
+
+## 投影仪渲染回归复核
+
+微缩和实景投影随视角大幅偏转的直接原因是移植提交 `39c4af83` 将场景从方块实体渲染
+移入 `ProjectorWorldOverlayQueue`，却沿用了 1.21.1 的矩阵处理。1.20.1 的方块实体
+`PoseStack` 已含相机旋转，Forge `AFTER_WEATHER` 阶段的全局 ModelView 又含一次相机旋转，
+导致保存的姿态在延迟绘制时重复旋转。1.21.1 则在全局 ModelView 中应用视图矩阵，
+方块实体使用独立的局部 `PoseStack`；同一份延迟绘制代码不能直接照搬。
+
+依据本机缓存的 Minecraft 源码核对：1.20.1 `GameRenderer.renderLevel` 将相机旋转乘入
+传给 `LevelRenderer` 的姿态，`LevelRenderer.renderLevel` 在云与天气阶段将它再乘入全局
+ModelView，并在派发 `AFTER_WEATHER` 后才弹栈；1.21.1 的 `LevelRenderer` 在渲染实体前
+设置全局视图矩阵，同时新建局部姿态栈。
+
+本地实例日志确认实际加载 `Ponder-Forge-1.20.1-1.0.92.jar`。对比本机缓存的 Ponder
+1.0.91 / 1.0.92 源码，`PonderScene.renderScene` 和 `WorldSectionElementImpl.renderLayer`
+完全相同；本地 `ref/1.20.1/Ponder/Common/src/main/java/net/createmod/ponder/` 下也保留了
+相同的场景到区段绘制链。因此本次根因是遗漏 Minecraft 渲染约定适配，并非该次 Ponder 更新。
+
+修复位于 Common 的 `ProjectorWorldOverlayQueue.render`：绘制延迟场景、光束和叠层时，
+临时将全局 ModelView 设为单位矩阵，使用已保存的完整姿态，并通过 `finally` 恢复原状态。
+`gradlew.bat :Common:build :Forge:build :Fabric:build --offline --console=plain --no-daemon`
+通过；现有 Common JUnit 52 通过、2 跳过，日志为 `build/projector-matrix-build.log`。
+未新增测试，未修改 Mixin；尚未进行游戏内转动视角的视觉复核。
 
 ## 产物
 

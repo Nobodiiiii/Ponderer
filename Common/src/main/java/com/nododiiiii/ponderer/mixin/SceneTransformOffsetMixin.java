@@ -5,11 +5,13 @@ import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PonderUiZoomAccess;
 import com.nododiiiii.ponderer.ui.PonderUiPreviewAccess;
 import com.nododiiiii.ponderer.ui.PonderFreePreview;
+import com.nododiiiii.ponderer.ui.UiAnchorPoint;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.Vec2;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.Shadow;
@@ -40,6 +42,13 @@ public class SceneTransformOffsetMixin {
     @Inject(method = "screenToScene", at = @At("HEAD"))
     private void ponderer$capturePickingPt(double x, double y, int depth, float pt, CallbackInfoReturnable<Vec3> cir) {
         ponderer$capturedPt = pt;
+    }
+
+    @Inject(method = "sceneToScreen", at = @At("HEAD"), cancellable = true)
+    private void ponderer$resolveUiAnchor(Vec3 vec, float pt, CallbackInfoReturnable<Vec2> cir) {
+        if (vec instanceof UiAnchorPoint anchor) {
+            cir.setReturnValue(anchor.toScreen());
+        }
     }
 
     @Unique

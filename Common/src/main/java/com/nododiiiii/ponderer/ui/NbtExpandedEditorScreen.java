@@ -261,8 +261,10 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
             return;
         }
 
-        int labelX = editor.getX() - UILayoutConstants.INPUT_HORIZONTAL_INSET - LABEL_WIDTH - 8;
-        graphics.drawString(font, "NBT", labelX, editor.getY() - UILayoutConstants.INPUT_OUTER_PADDING + 6,
+        int labelX = editor.getX() - UILayoutConstants.INPUT_HORIZONTAL_INSET
+            - UILayoutConstants.INPUT_BORDER_OUTSET - LABEL_WIDTH - 8;
+        graphics.drawString(font, "NBT", labelX, editor.getY() - UILayoutConstants.INPUT_OUTER_PADDING
+            - UILayoutConstants.INPUT_BORDER_OUTSET + 6,
             UILayoutConstants.COLOR_LABEL);
 
         int gutterX = gutterX();
@@ -403,7 +405,8 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
             return 0;
         }
 
-        int gutterX = editor.getX() + editor.getWidth() + UILayoutConstants.INPUT_HORIZONTAL_INSET + GUTTER_GAP;
+        int gutterX = editor.getX() + editor.getWidth() + UILayoutConstants.INPUT_HORIZONTAL_INSET
+            + UILayoutConstants.INPUT_BORDER_OUTSET + GUTTER_GAP;
         if (confirmButton != null) {
             gutterX = Math.min(gutterX, confirmButton.getX() - BUTTON_WIDTH - GUTTER_GAP);
         }
@@ -522,8 +525,11 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
 
         ScrollableNbtEditBox(net.minecraft.client.gui.Font font, int x, int y, int width, int height,
                              Component message, Component placeholder) {
-            super(font, EntryTextSupport.inputX(x), EntryTextSupport.inputY(y),
-                EntryTextSupport.inputWidth(width), EntryTextSupport.inputHeight(height), message, placeholder);
+            super(font, EntryTextSupport.inputX(x) + UILayoutConstants.INPUT_BORDER_OUTSET,
+                EntryTextSupport.inputY(y) + UILayoutConstants.INPUT_BORDER_OUTSET,
+                Math.max(1, EntryTextSupport.inputWidth(width) - 2 * UILayoutConstants.INPUT_BORDER_OUTSET),
+                Math.max(1, EntryTextSupport.inputHeight(height) - 2 * UILayoutConstants.INPUT_BORDER_OUTSET),
+                message, placeholder);
         }
 
         @Override

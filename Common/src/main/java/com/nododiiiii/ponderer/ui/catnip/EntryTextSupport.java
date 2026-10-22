@@ -141,8 +141,9 @@ public final class EntryTextSupport {
     }
 
     public static void setInputHorizontalBounds(EditBox field, int layoutX, int layoutWidth) {
-        field.setX(inputX(layoutX));
-        field.setWidth(inputWidth(layoutWidth));
+        int border = UILayoutConstants.INPUT_BORDER_OUTSET;
+        field.setX(inputX(layoutX) + border);
+        field.setWidth(Math.max(1, inputWidth(layoutWidth) - 2 * border));
     }
 
     public static int controlHeight() {
@@ -172,8 +173,10 @@ public final class EntryTextSupport {
     /** Allocated bounds include the transparent padding; widget bounds remain visible/clickable bounds. */
     public static void setInputBounds(EditBox field, int layoutX, int layoutY, int layoutWidth, int layoutHeight) {
         setInputHorizontalBounds(field, layoutX, layoutWidth);
-        field.setY(inputY(layoutY));
-        ((com.nododiiiii.ponderer.mixin.AbstractWidgetSizeAccessor) field).ponderer$setHeight(inputHeight(layoutHeight));
+        int border = UILayoutConstants.INPUT_BORDER_OUTSET;
+        field.setY(inputY(layoutY) + border);
+        ((com.nododiiiii.ponderer.mixin.AbstractWidgetSizeAccessor) field)
+            .ponderer$setHeight(Math.max(1, inputHeight(layoutHeight) - 2 * border));
     }
 
     public static void setRowInputBounds(EditBox field, int layoutX, int layoutWidth, int rowY, int rowHeight) {

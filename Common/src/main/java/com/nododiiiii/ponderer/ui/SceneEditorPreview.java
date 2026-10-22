@@ -50,8 +50,9 @@ import java.util.function.Consumer;
 
 /** Scene rendering with paused seeking and bounded playback of the edited step's native effects. */
 final class SceneEditorPreview implements AutoCloseable {
-    private static final Vector3f LIGHT_0 = new Vector3f(.4f, -1, .7f).normalize();
-    private static final Vector3f LIGHT_1 = new Vector3f(-.4f, -.5f, .7f).normalize();
+    // Match 1.20 PonderUI: GUI normals and Catnip's unshaded fallback still point up.
+    private static final Vector3f LIGHT_0 = new Vector3f(-.2f, 1, .7f).normalize();
+    private static final Vector3f LIGHT_1 = new Vector3f(.2f, 1, -.7f).normalize();
     private static final int PROGRESS_GAP = 4;
     private static final int PROGRESS_FOOTPRINT = 26;
     private static final float OVERLAY_SCALE = .8f;

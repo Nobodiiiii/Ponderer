@@ -49,6 +49,12 @@ CF_LOADER_VERSION_IDS = {
     "NeoForge": 10150,
 }
 
+# Ponderer 支持客户端和服务端；CurseForge 要求至少选择一个 Environment 标签。
+CF_ENVIRONMENT_VERSION_IDS = {
+    "Client": 9638,
+    "Server": 9639,
+}
+
 # 分支 → 构建配置映射
 BRANCH_CONFIG = {
     "1.21.1": {
@@ -332,6 +338,7 @@ def get_curseforge_version_types(token: str):
     resp = requests.get(
         f"{CURSEFORGE_UPLOAD_API}/game/version-types",
         headers={"X-Api-Token": token},
+        timeout=30,
     )
     if resp.status_code != 200:
         print(f"  CurseForge 获取版本类型列表失败 [{resp.status_code}]: {resp.text}")
@@ -350,6 +357,7 @@ def get_curseforge_game_versions(token: str):
     resp = requests.get(
         f"{CURSEFORGE_UPLOAD_API}/game/versions",
         headers={"X-Api-Token": token},
+        timeout=30,
     )
     if resp.status_code != 200:
         print(f"  CurseForge 获取版本列表失败 [{resp.status_code}]: {resp.text}")
@@ -360,11 +368,11 @@ def get_curseforge_game_versions(token: str):
 
 
 def find_cf_version_ids(token: str, mc_version: str, loader_name: str):
-    """查找 CurseForge 对应的 MC 版本和 loader 的 ID"""
+    """查找 CurseForge 对应的 MC 版本、loader 和运行环境的 ID"""
     fixed_mc_id = CF_MC_VERSION_IDS.get(mc_version)
     fixed_loader_id = CF_LOADER_VERSION_IDS.get(loader_name)
     if fixed_mc_id and fixed_loader_id:
-        return [fixed_mc_id, fixed_loader_id]
+        return [fixed_mc_id, fixed_loader_id, *CF_ENVIRONMENT_VERSION_IDS.values()]
 
     versions = get_curseforge_game_versions(token)
     if not versions:
@@ -374,17 +382,22 @@ def find_cf_version_ids(token: str, mc_version: str, loader_name: str):
     version_types = get_curseforge_version_types(token)
     valid_type_ids = {vt["id"] for vt in version_types} if version_types else None
 
-    ids = []
+    required_names = [mc_version, loader_name, *CF_ENVIRONMENT_VERSION_IDS]
+    ids = {}
     for v in versions:
         # 过滤掉无效 type（如 Bukkit type=1 不在 version-types 列表中）
         if valid_type_ids is not None and v.get("gameVersionTypeID") not in valid_type_ids:
             continue
 
         name = v.get("name", "")
-        if name == mc_version or name == loader_name:
-            ids.append(v["id"])
+        if name in required_names:
+            ids[name] = v["id"]
 
-    return ids
+    missing = [name for name in required_names if name not in ids]
+    if missing:
+        print(f"  CurseForge: 缺少版本标签: {', '.join(missing)}")
+        return []
+    return [ids[name] for name in required_names]
 
 
 def upload_curseforge(
@@ -546,15 +559,22 @@ def main():
         print(f"\n--- Dry Run 完成 ---")
         print(f"  以下文件将被上传:")
         for loader, jar in jars:
-            print(f"    - {jar.name} → Modrinth ({loader['modrinth_loader']}) + CurseForge ({loader['curseforge_loader']})")
+            destinations = []
+            if upload_modrinth_flag:
+                destinations.append(f"Modrinth ({loader['modrinth_loader']})")
+            if upload_curseforge_flag:
+                environments = ', '.join(CF_ENVIRONMENT_VERSION_IDS)
+                destinations.append(f"CurseForge ({loader['curseforge_loader']}; {environments})")
+            print(f"    - {jar.name} → {' + '.join(destinations)}")
         print(f"\n  去掉 --dry-run 参数以执行实际上传")
         return
 
     # ── 7. 上传 ──
+    upload_results = []
     if upload_modrinth_flag:
         print(f"\n--- 上传到 Modrinth ---\n")
         for loader, jar in jars:
-            upload_modrinth(
+            uploaded = upload_modrinth(
                 token=modrinth_token,
                 jar_path=jar,
                 mod_version=mod_version,
@@ -564,11 +584,12 @@ def main():
                 version_type=version_type,
                 loader_display=loader["display"],
             )
+            upload_results.append(uploaded)
 
     if upload_curseforge_flag:
         print(f"\n--- 上传到 CurseForge ---\n")
         for loader, jar in jars:
-            upload_curseforge(
+            uploaded = upload_curseforge(
                 token=curseforge_token,
                 project_id=CURSEFORGE_PROJECT_ID,
                 jar_path=jar,
@@ -578,7 +599,11 @@ def main():
                 changelog=changelog,
                 version_type=version_type,
             )
+            upload_results.append(uploaded)
 
+    if not all(upload_results):
+        print(f"\n=== 发布未完成：部分文件上传失败，请检查上方错误。 ===\n")
+        sys.exit(1)
     print(f"\n=== 发布完成! ===\n")
 
 

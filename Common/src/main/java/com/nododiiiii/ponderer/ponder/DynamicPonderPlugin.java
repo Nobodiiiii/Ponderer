@@ -15,8 +15,7 @@ import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceContextInstruc
 import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceDataInstruction;
 import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceSlotsInstruction;
 import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
-import com.nododiiiii.ponderer.ui.UiAnchorCoords;
-import com.nododiiiii.ponderer.ui.UiAnchorViewport;
+import com.nododiiiii.ponderer.ui.UiAnchorPoint;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.ElementLink;
@@ -918,7 +917,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             .text(text);
 
         if (hasExplicitPoint(step)) {
-            builder.pointAt(resolveOverlayPoint(scene, step, context));
+            builder.pointAt(resolveOverlayPoint(step, context));
         }
 
         PonderPalette palette = parsePalette(step.color);
@@ -950,7 +949,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         TextElementBuilder builder = scene.overlay().showText(duration).sharedText(loc);
 
         if (hasExplicitPoint(step)) {
-            builder.pointAt(resolveOverlayPoint(scene, step, context));
+            builder.pointAt(resolveOverlayPoint(step, context));
         }
 
         PonderPalette palette = parsePalette(step.color);
@@ -1130,7 +1129,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowControls(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        Vec3 point = resolveOverlayPoint(scene, step, context);
+        Vec3 point = resolveOverlayPoint(step, context);
         Pointing pointing = parsePointing(step.direction);
         int duration = step.durationOrDefault(60);
 
@@ -1184,10 +1183,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
         }
 
-        // Build-time pointAt() conversion for UI-anchored overlays happens after this step.
-        // Reset immediately so subsequent resolveOverlayPoint() uses a clean baseline.
-        ponderer$resetSceneViewState(scene.getScene());
-        // Keep a runtime reset as a safety net for replay/scene lifecycle paths.
         scene.addInstruction(this::ponderer$resetSceneViewState);
         scene.addInstruction(new ProjectorCueMarkerInstruction(step));
         scene.addInstruction(new ShowInterfaceInstruction(step));
@@ -1459,13 +1454,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
         return SceneStore.resolveStructurePath(relativePath, dsl.pack);
     }
 
-    private Vec3 resolveOverlayPoint(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+    private Vec3 resolveOverlayPoint(DslScene.DslStep step, StepContext context) {
         if (!context.uiAnchorMode) {
-            return toPoint(step.point);
-        }
-
-        Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.getWindow() == null || scene.getScene() == null) {
             return toPoint(step.point);
         }
 
@@ -1478,16 +1468,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
         }
 
-        // Shared conversion with picker: centered UI anchor is canonical,
-        // where (0,0) is the UI center.
-        int guiW = Math.max(1, mc.getWindow().getGuiScaledWidth());
-        int guiH = Math.max(1, mc.getWindow().getGuiScaledHeight());
-        UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(mc);
-        double xTopLeft = viewport.left() + UiAnchorCoords.decodeToPixelX(u, (int) Math.max(1, viewport.width()));
-        double yTopLeft = viewport.top() + UiAnchorCoords.decodeToPixelYTopLeft(v, (int) Math.max(1, viewport.height()));
-        double screenX = UiAnchorCoords.topLeftToTransformX(xTopLeft, guiW);
-        double screenY = UiAnchorCoords.topLeftToTransformY(yTopLeft, guiH);
-        return scene.getScene().getTransform().screenToScene(screenX, screenY, 0, 0);
+        return new UiAnchorPoint(u, v);
     }
 
     private void applyEncapsulateBounds(SceneBuilder scene, DslScene.DslStep step) {

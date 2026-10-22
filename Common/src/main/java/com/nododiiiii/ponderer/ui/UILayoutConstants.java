@@ -46,6 +46,8 @@ public final class UILayoutConstants {
     /** Transparent space outside every input's visible bounds, on all four sides. */
     public static final int INPUT_OUTER_PADDING = 1;
     public static final int INPUT_HORIZONTAL_INSET = INPUT_OUTER_PADDING;
+    /** 1.20.1 draws input borders outside widget bounds; inset the widget without changing its allocation. */
+    public static final int INPUT_BORDER_OUTSET = 1;
     /** Shared input height for ordinary and multi-control list rows. */
     public static final int LIST_INPUT_H = 20;
     /** Input height including its transparent outer padding. */
