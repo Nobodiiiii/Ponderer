@@ -18,8 +18,7 @@ final class AiEditGuard {
         if (changes.isEmpty()) return List.of();
         JsonObject scope = context.runState().editScope();
         List<AiSceneValidator.Issue> errors = new ArrayList<>();
-        boolean rewrite = context.userPrompt().matches("(?is).*(重写整个|整体重写|全部重做|完整重写|rewrite (the )?(entire|whole)|rebuild (the )?(entire|whole)).*");
-        if (rewrite) return List.of();
+        if (context.editMode() == AiSceneAgentPipeline.Request.EditMode.REWRITE) return List.of();
         Set<String> paths = new LinkedHashSet<>();
         if (scope != null && scope.has("paths") && scope.get("paths").isJsonArray()) {
             for (JsonElement entry : scope.getAsJsonArray("paths")) {

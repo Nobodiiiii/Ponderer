@@ -422,6 +422,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     @Override
     public void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
+        PondererAttribution.register();
         CustomPonderTags.register();
         for (DslScene scene : SceneRuntime.getScenes()) {
             ResourceLocation[] tags = resolveTags(scene.tags);
@@ -430,6 +431,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
                     helper.addTagToComponent(item, tag);
                 }
             }
+        }
+        Item carrierItem = BlueprintFeature.resolveCarrierItem();
+        if (carrierItem != Items.AIR) {
+            helper.addTagToComponent(BuiltInRegistries.ITEM.getKey(carrierItem),
+                ResourceLocation.parse(PondererAttribution.TAG_ID));
         }
     }
 
@@ -509,7 +515,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
                         .pointAt(resizePoint)
                         .placeNearTarget();
                     scene.overlay().showOutline(PonderPalette.RED, new Object(), resizedSelection, 40);
-                });
+                }, ResourceLocation.parse(PondererAttribution.TAG_ID));
     }
 
     @Override
@@ -681,12 +687,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private ResourceLocation[] resolveTags(List<String> tags) {
-        if (tags == null || tags.isEmpty()) {
-            return new ResourceLocation[0];
-        }
         List<ResourceLocation> result = new ArrayList<>();
-        for (String tagId : tags) {
-            ResourceLocation tag = tagId == null ? null : ResourceLocation.tryParse(tagId);
+        for (String tagId : PondererAttribution.withTag(tags)) {
+            ResourceLocation tag = ResourceLocation.tryParse(tagId);
             if (tag != null) {
                 result.add(tag);
             }

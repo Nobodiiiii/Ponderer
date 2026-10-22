@@ -357,6 +357,7 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen implem
     private void openPackSelector(String targetFieldId) {
         Minecraft.getInstance().setScreen(new PonderPackSelectScreen(
             this,
+            currentTextValue(targetFieldId).trim(),
             packId -> {
                 setTextValue(targetFieldId, packId);
                 Minecraft.getInstance().setScreen(this);

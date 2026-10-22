@@ -23,7 +23,20 @@ public final class AiCancellationScope {
 
     public void closeDeadline() { if (deadline != null) deadline.cancel(false); }
     public boolean isDeadlineExceeded() { return expired; }
-    private void cancelPending() { for (CompletableFuture<?> future : tracked) future.cancel(true); }
+    private void cancelPending() {
+        for (CompletableFuture<?> future : tracked) future.cancel(true);
+        for (AutoCloseable resource : resources) closeResource(resource);
+    }
+    private final Set<AutoCloseable> resources = ConcurrentHashMap.newKeySet();
+    <T extends AutoCloseable> T trackResource(T resource) {
+        resources.add(resource);
+        if (cancelled.get() || expired) { closeResource(resource); resources.remove(resource); throwIfCancelled(); }
+        return resource;
+    }
+    void releaseResource(AutoCloseable resource) { resources.remove(resource); }
+    private static void closeResource(AutoCloseable resource) {
+        try { resource.close(); } catch (Exception ignored) { }
+    }
 
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private final Set<CompletableFuture<?>> tracked = ConcurrentHashMap.newKeySet();

@@ -96,7 +96,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         setActionButtonTooltip(goBack, "ponderer.ui.back", "ponderer.ui.sidebar.back.tooltip");
         addRenderableWidget(goBack);
 
-        list = createCenteredList(contentAreaHeight(), contentAreaTop());
+        list = createCenteredList(contentAreaHeight(), contentAreaTop(), getEntryHeight());
         list.setX(width / 2 - list.getWidth() / 2 + listHorizontalOffset());
         addRenderableWidget(list);
 
@@ -272,6 +272,10 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     protected int getEntryHeight() {
         return com.nododiiiii.ponderer.ui.UILayoutConstants.LIST_ENTRY_H;
+    }
+
+    protected int getHeaderEntryHeight() {
+        return getEntryHeight();
     }
 
     protected final int currentListWidthValue() {
@@ -482,7 +486,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         }
 
         if (headerList == null) {
-            headerList = createCenteredList(currentHeaderHeight(), contentAreaTop());
+            headerList = createCenteredList(currentHeaderHeight(), contentAreaTop(), getHeaderEntryHeight());
             headerList.setX(width / 2 - headerList.getWidth() / 2 + listHorizontalOffset());
             addRenderableWidget(headerList);
         }
@@ -492,8 +496,8 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         headerList.setScrollAmount(0);
     }
 
-    private ConfigScreenList createCenteredList(int height, int top) {
-        return new ConfigScreenList(minecraft, listWidth, height, top, getEntryHeight()) {
+    private ConfigScreenList createCenteredList(int height, int top, int entryHeight) {
+        return new ConfigScreenList(minecraft, listWidth, height, top, entryHeight) {
             @Override
             public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
                 super.renderWidget(graphics, mouseX, mouseY, partialTicks);
@@ -576,7 +580,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         if (!hasHeaderEntries()) {
             return 0;
         }
-        return headerEntries.size() * getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
+        return headerEntries.size() * getHeaderEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
     }
 
     protected final void updateButtonState(@Nullable BoxWidget button, boolean active) {

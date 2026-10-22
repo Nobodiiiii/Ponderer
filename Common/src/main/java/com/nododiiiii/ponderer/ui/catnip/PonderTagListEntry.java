@@ -1,109 +1,77 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.ui.UIText;
-import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.lang.FontHelper;
 import net.createmod.catnip.lang.FontHelper.Palette;
 import net.createmod.ponder.foundation.PonderTag;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.BooleanSupplier;
 
 /** A Ponder category with its native texture/item icon and a multi-selection control. */
-public class PonderTagListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
+public class PonderTagListEntry extends SelectionRowListEntry {
     private final String id;
     @Nullable
     private final PonderTag tag;
-    private final BooleanSupplier selected;
-    private final List<ActionStripListEntry.ButtonModel> buttons;
 
     public PonderTagListEntry(String id, @Nullable PonderTag tag, BooleanSupplier selected, Runnable onToggle) {
         this(id, tag, selected, onToggle, null, null);
     }
 
-    public PonderTagListEntry(String id, @Nullable PonderTag tag, BooleanSupplier selected, Runnable onToggle,
+    public PonderTagListEntry(String id, @Nullable PonderTag tag, BooleanSupplier selected, @Nullable Runnable onToggle,
                               @Nullable Runnable onEdit, @Nullable Runnable onDelete) {
-        super("");
+        super(() -> title(tag), () -> id,
+            () -> title(tag) + " " + id + " " + (tag == null ? "" : tag.getDescription()),
+            selected, onToggle, () -> tooltip(id, tag, onToggle == null), () -> ItemStack.EMPTY,
+            editButtons(onEdit, onDelete));
         this.id = id;
         this.tag = tag;
-        this.selected = selected;
-        this.buttons = new ArrayList<>();
-        buttons.add(ActionStripListEntry.button(
-            () -> UIText.of(selected.getAsBoolean()
-                ? "ponderer.ui.scene_tags.selected" : "ponderer.ui.scene_tags.select"),
-            this::tooltip,
-            onToggle,
-            () -> selected.getAsBoolean() ? 0x80FF80 : 0xFFFFFF,
-            () -> true));
+    }
+
+    private static List<ActionStripListEntry.ButtonModel> editButtons(@Nullable Runnable onEdit, @Nullable Runnable onDelete) {
+        List<ActionStripListEntry.ButtonModel> buttons = new ArrayList<>();
         if (onEdit != null) {
-            buttons.add(ActionStripListEntry.button(UIText.of("ponderer.ui.custom_tag.edit"), null, onEdit));
+            buttons.add(ActionStripListEntry.rowIconButton(PondererGuiIcons.EDIT_SCENE.asStencil(12), onEdit,
+                () -> List.of(Component.translatable("ponderer.ui.custom_tag.edit")), () -> true, false));
         }
         if (onDelete != null) {
-            buttons.add(ActionStripListEntry.button(UIText.of("ponderer.ui.custom_tag.delete"), null, onDelete));
+            buttons.add(ActionStripListEntry.rowIconButton(PondererGuiIcons.REMOVE.asStencil(12), onDelete,
+                () -> List.of(Component.translatable("ponderer.ui.custom_tag.delete")), () -> true, true));
         }
-        buttons.forEach(button -> listeners.add(button.widget()));
+        return buttons;
     }
 
     @Override
-    public boolean matchesQuery(String query) {
-        return (title() + " " + id + " " + (tag == null ? "" : tag.getDescription()))
-            .toLowerCase(Locale.ROOT).contains(query);
-    }
-
-    @Override
-    public void highlightEntry() {
-        annotations.put("highlight", ":)");
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-        ActionStripListEntry.tickButtons(buttons);
-    }
-
-    @Override
-    public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
-                       int mouseX, int mouseY, boolean hovered, float partialTicks) {
-        if (selected.getAsBoolean()) {
-            graphics.fill(x, y, x + width, y + height, 0x303F8F3F);
-        }
+    protected void renderIcon(GuiGraphics graphics, int x, int y) {
         if (tag != null) {
-            tag.render(graphics, EntryTextSupport.contentLeft(x), y + (height - 16) / 2);
+            tag.render(graphics, x, y);
         } else {
-            graphics.drawString(Minecraft.getInstance().font, "?", EntryTextSupport.contentLeft(x), y + 12, 0xFFFFAA55);
+            super.renderIcon(graphics, x, y);
         }
-        int controlWidth = buttons.size() > 1 ? 156 : 80;
-        int controlX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
-        int textX = EntryTextSupport.contentLeft(x) + 26;
-        int textWidth = Math.max(8, controlX - textX - 8);
-        var font = Minecraft.getInstance().font;
-        int titleColor = selected.getAsBoolean() ? 0xFF80FF80
-            : annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFE8E8E8;
-        graphics.drawString(font, font.plainSubstrByWidth(title(), textWidth), textX, y + 6, titleColor);
-        graphics.drawString(font, font.plainSubstrByWidth(id, textWidth), textX, y + 18, 0xFF999999);
-        ActionStripListEntry.renderMultiControlCluster(graphics, buttons, controlX, controlWidth, y, height,
-            mouseX, mouseY, partialTicks);
     }
 
     @Override
     public Component getNarration() {
-        return Component.literal(title() + ", " + id);
+        return Component.literal(title(tag) + ", " + id);
     }
 
-    private String title() {
+    private static String title(@Nullable PonderTag tag) {
         return tag == null ? UIText.of("ponderer.ui.scene_tags.unavailable") : tag.getTitle();
     }
 
-    private List<Component> tooltip() {
+    private static List<Component> tooltip(String id, @Nullable PonderTag tag, boolean required) {
         List<Component> lines = new ArrayList<>();
-        lines.add(Component.literal(title()));
+        lines.add(Component.literal(title(tag)));
         lines.add(Component.literal(id));
+        if (required) {
+            lines.addAll(FontHelper.cutTextComponent(Component.translatable("ponderer.ui.scene_tags.required.tooltip"),
+                Palette.ALL_GRAY));
+        }
         lines.addAll(FontHelper.cutTextComponent(Component.literal(tag == null
             ? UIText.of("ponderer.ui.scene_tags.unavailable.tooltip") : tag.getDescription()), Palette.ALL_GRAY));
         return lines;

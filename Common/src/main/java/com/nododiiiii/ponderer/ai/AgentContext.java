@@ -40,6 +40,7 @@ public final class AgentContext {
     private final String userPrompt;
     private final boolean buildTutorial;
     private final boolean includeImages;
+    private final AiSceneAgentPipeline.Request.EditMode editMode;
     private final AiDraftStore drafts;
     AiDraftStore drafts() { return drafts; }
 
@@ -48,6 +49,13 @@ public final class AgentContext {
     public AgentContext(List<StructureDocument> structures, List<ReferenceDocument> references,
                         ExistingSceneDocument existingScene, String carrierItemId, String userPrompt,
                         boolean buildTutorial, boolean includeImages) {
+        this(structures, references, existingScene, carrierItemId, userPrompt, buildTutorial, includeImages,
+            AiSceneAgentPipeline.Request.EditMode.SCOPED);
+    }
+
+    public AgentContext(List<StructureDocument> structures, List<ReferenceDocument> references,
+                        ExistingSceneDocument existingScene, String carrierItemId, String userPrompt,
+                        boolean buildTutorial, boolean includeImages, AiSceneAgentPipeline.Request.EditMode editMode) {
         this.structures = List.copyOf(structures);
         this.references = List.copyOf(references);
         this.existingScene = existingScene;
@@ -55,6 +63,7 @@ public final class AgentContext {
         this.userPrompt = userPrompt;
         this.buildTutorial = buildTutorial;
         this.includeImages = includeImages;
+        this.editMode = editMode;
         this.drafts = new AiDraftStore(existingScene.available() ? existingScene.json() : new JsonObject());
     }
 
@@ -78,6 +87,8 @@ public final class AgentContext {
         return userPrompt;
     }
 
+    public AiSceneAgentPipeline.Request.EditMode editMode() { return editMode; }
+
     public boolean buildTutorial() {
         return buildTutorial;
     }
@@ -91,6 +102,17 @@ public final class AgentContext {
     }
 
     public static final class RunState {
+        private List<String> clarifications = List.of();
+        void clarifications(List<String> values) { clarifications = List.copyOf(values); }
+        List<String> clarifications() { return clarifications; }
+        private final java.util.LinkedHashSet<String> evidence = new java.util.LinkedHashSet<>();
+        void evidence(String name, JsonObject arguments) {
+            if (java.util.Set.of("review_scene", "submit_scene", "finish_task", "apply_scene_patch").contains(name)) return;
+            String key = name + ":" + arguments;
+            if (key.length() <= 2048) evidence.add(key);
+            while (evidence.size() > 16) evidence.remove(evidence.iterator().next());
+        }
+        List<String> evidence() { return List.copyOf(evidence); }
         private boolean queriedStructure;
         private boolean searchedReferences;
         private boolean inspectedExistingScene;

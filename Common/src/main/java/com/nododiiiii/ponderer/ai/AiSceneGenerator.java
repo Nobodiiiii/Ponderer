@@ -64,8 +64,23 @@ public class AiSceneGenerator {
 
     public static AiGenerationTask startRequest(AiSceneAgentPipeline.Request request, AiRunFiles recovery,
             Consumer<String> onSuccess, Consumer<String> onError, Runnable onCancelled, Consumer<String> onStatus) {
+        return startRequest(request, recovery, onSuccess, onError, onCancelled, onStatus, null);
+    }
+
+    public record PendingReview(AiRunFiles files, String json) {
+        public DslScene scene() {
+            return new com.google.gson.GsonBuilder().registerTypeAdapter(com.nododiiiii.ponderer.ponder.LocalizedText.class,
+                new com.nododiiiii.ponderer.ponder.LocalizedText.GsonAdapter()).create().fromJson(json, DslScene.class);
+        }
+    }
+
+    public static AiGenerationTask startRequest(AiSceneAgentPipeline.Request request, AiRunFiles recovery,
+            Consumer<String> onSuccess, Consumer<String> onError, Runnable onCancelled, Consumer<String> onStatus,
+            Consumer<PendingReview> onReview) {
         String runId = UUID.randomUUID().toString();
         AiCancellationScope cancellation = new AiCancellationScope();
+        AiRunControl control = new AiRunControl();
+        java.util.concurrent.atomic.AtomicReference<PendingReview> pending = new java.util.concurrent.atomic.AtomicReference<>();
         AiRunFiles files = new AiRunFiles(runId);
         CompletableFuture<String> worker = CompletableFuture.supplyAsync(() -> {
             try {
@@ -87,23 +102,20 @@ public class AiSceneGenerator {
                     (name, content) -> {
                         files.write(name, content);
                         if ("last_agent_trace.log".equals(name)) writeLog(name, content);
-                    }, cancellation);
+                    }, cancellation, control);
                 cancellation.throwIfCancelled();
-                synchronized (SceneStore.class) {
-                    checkBaseline(baseline);
-                    Path target = SceneStore.resolveLocalScenePath(result.scene());
-                    if (target == null) throw new IllegalStateException("Cannot resolve AI scene output path");
-                    String before = Files.isRegularFile(target) ? Files.readString(target) : null;
-                    boolean editingTarget = baseline.has("path") && !baseline.get("path").isJsonNull()
-                        && target.toAbsolutePath().normalize().equals(Path.of(baseline.get("path").getAsString()).toAbsolutePath().normalize());
-                    if (before != null && !editingTarget) throw new IllegalStateException("SCENE_EXISTS: a new AI scene cannot overwrite an existing scene; choose a different scene ID.");
-                    files.recordUndo(target, before, result.scene());
-                    SceneStore.LocalSaveResult saved = SceneStore.saveSceneToLocalDetailed(result.scene());
-                    if (!saved.isSuccess() || saved.path() == null) throw new IllegalStateException(saved.englishMessage());
-                    files.markSaved(saved.path());
-                    files.status("completed", saved.path().toString());
-                    return saved.path().toString();
+                if (onReview != null) {
+                    com.google.gson.JsonObject checkpoint = files.read("checkpoint.json");
+                    checkpoint.add("draft", com.google.gson.JsonParser.parseString(result.finalJson()));
+                    files.write("checkpoint.json", checkpoint.toString());
+                    files.write("diff.json", AiRunFiles.diff(baseline.get("content").isJsonNull() ? new com.google.gson.JsonObject()
+                        : com.google.gson.JsonParser.parseString(baseline.get("content").getAsString()).getAsJsonObject(),
+                        com.google.gson.JsonParser.parseString(result.finalJson()).getAsJsonObject()));
+                    files.status("awaiting_review", "Draft ready; preview and confirm before saving");
+                    pending.set(new PendingReview(files, result.finalJson()));
+                    return null;
                 }
+                return saveResult(files, result.scene());
             } catch (RuntimeException error) {
                 if (cancellation.isDeadlineExceeded()) throw new AiRunStoppedException("budget_exhausted", "AI time budget exhausted; the draft is retained for recovery.");
                 throw error;
@@ -111,6 +123,8 @@ public class AiSceneGenerator {
         });
         CompletableFuture<Void> completion = worker.handleAsync((filePath, error) -> {
             if (error == null) {
+                if (cancellation.isCancellationRequested()) { recordStatus(files, "cancelled", "Draft retained"); onCancelled.run(); return null; }
+                if (pending.get() != null) { onReview.accept(pending.get()); return null; }
                 PondererClientCommands.reloadLocal(); onSuccess.accept(filePath); return null;
             }
             Throwable cause = unwrap(error);
@@ -122,7 +136,40 @@ public class AiSceneGenerator {
             LOGGER.error("AI scene generation stopped, run={}", runId, cause);
             onError.accept(safeMessage(cause)); return null;
         }, Minecraft.getInstance());
-        return new AiGenerationTask(runId, cancellation, completion);
+        completion.whenComplete((ignored, error) -> control.close());
+        return new AiGenerationTask(runId, cancellation, completion, control);
+    }
+
+    public static void saveReviewed(PendingReview review, Consumer<String> onSuccess, Consumer<String> onError) {
+        CompletableFuture.supplyAsync(() -> {
+            try { return saveResult(review.files(), review.scene()); }
+            catch (Exception error) { throw new java.util.concurrent.CompletionException(error); }
+        }).handleAsync((path, error) -> {
+            if (error == null) { PondererClientCommands.reloadLocal(); onSuccess.accept(path); }
+            else {
+                String detail = safeMessage(unwrap(error));
+                recordStatus(review.files(), "awaiting_review", detail);
+                onError.accept(detail);
+            }
+            return null;
+        }, Minecraft.getInstance());
+    }
+
+    private static String saveResult(AiRunFiles files, DslScene scene) throws Exception {
+        synchronized (SceneStore.class) {
+            var baseline = files.read("baseline.json"); checkBaseline(baseline);
+            Path target = SceneStore.resolveLocalScenePath(scene);
+            if (target == null) throw new IllegalStateException("Cannot resolve AI scene output path");
+            String before = Files.isRegularFile(target) ? Files.readString(target) : null;
+            boolean editingTarget = baseline.has("path") && !baseline.get("path").isJsonNull()
+                && target.toAbsolutePath().normalize().equals(Path.of(baseline.get("path").getAsString()).toAbsolutePath().normalize());
+            if (before != null && !editingTarget) throw new IllegalStateException("SCENE_EXISTS: a new AI scene cannot overwrite an existing scene; choose a different scene ID.");
+            files.recordUndo(target, before, scene);
+            SceneStore.LocalSaveResult saved = SceneStore.saveSceneToLocalDetailed(scene);
+            if (!saved.isSuccess() || saved.path() == null) throw new IllegalStateException(saved.englishMessage());
+            files.markSaved(saved.path()); files.status("completed", saved.path().toString());
+            return saved.path().toString();
+        }
     }
 
     private static void recordStatus(AiRunFiles files, String status, String detail) {
@@ -174,6 +221,8 @@ public class AiSceneGenerator {
     }
 
     private static String localizeAgentStatus(String message) {
+        if (message != null && message.startsWith("Receiving AI response "))
+            return UIText.of("ponderer.ui.ai_generate.status.receiving", message.substring("Receiving AI response ".length()));
         if (message != null && message.startsWith("Agent turn ")) {
             String value = message.substring("Agent turn ".length());
             String[] parts = value.split("/", 2);

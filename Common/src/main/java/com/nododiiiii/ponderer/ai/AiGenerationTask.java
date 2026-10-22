@@ -10,11 +10,13 @@ public final class AiGenerationTask {
     private final String runId;
     private final AiCancellationScope cancellation;
     private final CompletableFuture<?> completion;
+    private final AiRunControl control;
 
-    AiGenerationTask(String runId, AiCancellationScope cancellation, CompletableFuture<?> completion) {
+    AiGenerationTask(String runId, AiCancellationScope cancellation, CompletableFuture<?> completion, AiRunControl control) {
         this.runId = runId;
         this.cancellation = cancellation;
         this.completion = completion;
+        this.control = control;
     }
 
     public String runId() {
@@ -22,8 +24,11 @@ public final class AiGenerationTask {
     }
 
     public boolean cancel() {
+        control.close();
         return cancellation.cancel();
     }
+
+    public boolean steer(String instruction) { return !completion.isDone() && control.steer(instruction); }
 
     public boolean isCancellationRequested() {
         return cancellation.isCancellationRequested();

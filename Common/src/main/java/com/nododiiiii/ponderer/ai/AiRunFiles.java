@@ -54,10 +54,13 @@ public final class AiRunFiles {
     static String checkpoint(AiSceneAgentPipeline.Request request, AgentContext context, int turn, AiRunBudget budget) {
         JsonObject value = new JsonObject(); value.addProperty("version", 1); value.addProperty("turn", turn);
         value.add("structure_paths", GSON.toJsonTree(request.structurePaths().stream().map(Path::toString).toList()));
-        value.addProperty("carrier", request.carrierItemId()); value.addProperty("prompt", request.userPrompt());
+        value.addProperty("carrier", request.carrierItemId());
+        value.addProperty("prompt", request.userPrompt() + (context.runState().clarifications().isEmpty() ? ""
+            : "\nAdditional user instructions:\n" + String.join("\n", context.runState().clarifications())));
         value.add("reference_urls", GSON.toJsonTree(request.referenceUrls()));
         value.addProperty("existing_json", request.existingJson());
         value.addProperty("build_tutorial", request.buildTutorial()); value.addProperty("include_images", request.includeImages());
+        value.addProperty("edit_mode", request.editMode().name());
         value.add("draft", context.drafts().scene()); value.add("edit_scope", context.runState().editScope());
         value.add("last_errors", GSON.toJsonTree(context.runState().lastErrors()));
         value.add("warnings", AiEditGuard.warnings(context, context.drafts().scene(), context.runState().lastWarnings()));
@@ -73,11 +76,19 @@ public final class AiRunFiles {
         return new AiSceneAgentPipeline.Request(paths, saved.get("carrier").getAsString(), saved.get("prompt").getAsString(), urls,
             saved.get("existing_json").isJsonNull() ? null : saved.get("existing_json").getAsString(),
             saved.get("build_tutorial").getAsBoolean(), saved.get("include_images").getAsBoolean(),
-            saved.getAsJsonObject("draft"), saved.has("edit_scope") && saved.get("edit_scope").isJsonObject() ? saved.getAsJsonObject("edit_scope") : null);
+            saved.getAsJsonObject("draft"), saved.has("edit_scope") && saved.get("edit_scope").isJsonObject() ? saved.getAsJsonObject("edit_scope") : null,
+            saved.has("edit_mode") ? AiSceneAgentPipeline.Request.EditMode.valueOf(saved.get("edit_mode").getAsString())
+                : AiSceneAgentPipeline.Request.EditMode.SCOPED);
     }
 
     public boolean canResume() {
         try { return Files.isRegularFile(directory.resolve("checkpoint.json")) && !canUndo() && !Set.of("completed", "undone").contains(read("status.json").get("status").getAsString()); }
+        catch (RuntimeException unavailable) { return false; }
+    }
+
+    public boolean canReview() {
+        try { return "awaiting_review".equals(read("status.json").get("status").getAsString())
+            && Files.isRegularFile(directory.resolve("checkpoint.json")); }
         catch (RuntimeException unavailable) { return false; }
     }
 

@@ -10,6 +10,7 @@ Agent 轮次与网络设置；选择外部配置来源后仍可在 AI 配置页�
 | --- | --- | --- |
 | `ai.model` | OpenAI：`gpt-6-astra`；Anthropic：`claude-sonnet-5-5` | 仅在未指定模型时使用；兼容服务应填写自己的模型 ID |
 | `ai.wireApi` | `auto` | 按官方地址识别；可明确选择 `responses`、`chat` 或 `anthropic`（Messages） |
+| `ai.streaming` | `true` | 流式接收并显示进度；端点不支持 SSE 时可关闭，适用于所有配置来源 |
 | `ai.maxTokens` | 65536 | 1024–262144；单次请求的思考与输出合计上限，应小于等于所用模型的输出上限 |
 | `ai.requestTimeoutSeconds` | 300 | 30–1800 秒，每次请求独立计时 |
 | `ai.maxAgentTurns` | 12 | 2–64；每轮最多 4 次工具调用，总调用次数由轮次约束 |

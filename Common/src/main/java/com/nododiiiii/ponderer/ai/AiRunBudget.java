@@ -16,6 +16,7 @@ final class AiRunBudget {
     private long input, output, cached;
     private int stalls, retries, failures, compactions;
     private boolean estimated;
+    private double inputCalibration = 1.0;
     private String lastDraft = "";
     private final Set<String> facts = new HashSet<>();
 
@@ -33,8 +34,12 @@ final class AiRunBudget {
 
     void account(LlmProvider.Reply reply, long requestEstimate) {
         var usage = reply.usage();
+        if (usage.inputTokens() > 0 && requestEstimate > 0) {
+            // Only increase the safety margin; a later request may contain different languages/images.
+            inputCalibration = Math.max(inputCalibration, Math.min(16, usage.inputTokens() * 1.15 / requestEstimate * inputCalibration));
+        }
         input += usage.inputTokens() < 0 ? requestEstimate : usage.inputTokens();
-        output += usage.outputTokens() < 0 ? Math.max(1, bytes(reply.protocolText())) : usage.outputTokens();
+        output += usage.outputTokens() < 0 ? Math.max(1, tokens(reply.protocolText())) : usage.outputTokens();
         cached += Math.max(0, usage.cachedTokens());
         estimated |= usage.inputTokens() < 0 || usage.outputTokens() < 0;
     }
@@ -70,28 +75,40 @@ final class AiRunBudget {
         value.addProperty("max_run_seconds", seconds); value.addProperty("context_tokens", context);
         value.addProperty("no_progress_turns", stalls); value.addProperty("retries", retries); value.addProperty("compactions", compactions);
         value.addProperty("transport_failures", failures);
-        value.addProperty("context_accounting", "conservative_utf8_bytes_plus_image_allowance");
+        value.addProperty("context_accounting", "text_heuristic_with_usage_safety_margin_plus_image_allowance");
+        value.addProperty("input_safety_margin", inputCalibration);
         return value;
     }
 
     static long estimate(String system, List<LlmProvider.Message> messages, List<LlmProvider.ToolDefinition> tools) {
-        long characters = bytes(system); long images = 0;
-        for (var tool : tools) characters += bytes(tool.description()) + bytes(tool.schema().toString()) + 32;
+        long characters = tokens(system); long images = 0;
+        for (var tool : tools) characters += tokens(tool.name()) + tokens(tool.description()) + tokens(tool.schema().toString()) + 32;
         for (var message : messages) {
-            if (message.replay() != null) characters += bytes(message.replay().toString());
+            if (message.replay() != null) characters += tokens(message.replay().toString());
             else {
                 for (var block : message.content()) {
-                    if (block instanceof LlmProvider.ContentBlock.Text text) characters += bytes(text.text());
+                    if (block instanceof LlmProvider.ContentBlock.Text text) characters += tokens(text.text());
                     else images += 4096;
                 }
-                for (var call : message.calls()) characters += bytes(call.arguments().toString()) + bytes(call.name()) + 32;
+                for (var call : message.calls()) characters += tokens(call.arguments().toString()) + tokens(call.name()) + 32;
             }
             characters += 32;
         }
         return characters + images;
     }
 
-    private static int bytes(String text) { return text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length; }
+    long estimateRequest(String system, List<LlmProvider.Message> messages, List<LlmProvider.ToolDefinition> tools) {
+        return (long) Math.ceil(estimate(system, messages, tools) * inputCalibration);
+    }
+
+    private static long tokens(String text) {
+        long ascii = 0, unicode = 0;
+        for (int offset = 0; offset < text.length();) {
+            int point = text.codePointAt(offset); offset += Character.charCount(point);
+            if (point < 128) ascii++; else unicode += point > 0xFFFF ? 4 : 2;
+        }
+        return (ascii + 2) / 3 + unicode;
+    }
 
     private static int setting(java.util.function.IntSupplier value, int fallback) {
         try { return value.getAsInt(); } catch (RuntimeException | LinkageError unavailable) { return fallback; }

@@ -60,6 +60,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private static final ReferenceUrlManager referenceUrlManager = new ReferenceUrlManager();
     private static boolean cachedBuildTutorial = false;
     private static boolean cachedIncludeImages = false;
+    private static boolean cachedRewrite = false;
+    private static String cachedSteering = "";
+    @Nullable private static AiSceneGenerator.PendingReview cachedPendingReview;
     @Nullable
     private static String cachedStatusMessage = null;
     private static boolean cachedStatusIsError = false;
@@ -174,6 +177,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        if (!cachedExistingSceneKey.isBlank()) entries.add(FieldSpecs.toggle(
+            "ponderer.ui.ai_generate.rewrite", "ponderer.ui.ai_generate.rewrite.tooltip",
+            () -> cachedRewrite, () -> { cachedRewrite = !cachedRewrite; rebuildListPreservingScroll(); }));
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> cachedExistingSceneKey, value -> cachedExistingSceneKey = value),
             "ponderer.ui.ai_generate.existing_scene",
@@ -254,6 +260,18 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             "ponderer.ui.ai_generate.include_images.tooltip",
             () -> cachedIncludeImages,
             this::toggleIncludeImages));
+        entries.add(FieldSpecs.text(FieldBindings.transientString(() -> cachedSteering, value -> cachedSteering = value),
+            "ponderer.ui.ai_generate.steering", null, "ponderer.ui.ai_generate.steering.hint", -1,
+            entry -> entry.field().setMaxLength(2048)));
+        entries.add(FieldSpecs.fullButton(() -> UIText.of("ponderer.ui.ai_generate.send_steering"), null, () -> {
+            if (cachedGenerationTask != null && cachedGenerationTask.steer(cachedSteering)) {
+                cachedSteering = ""; setCachedStatus(UIText.of("ponderer.ui.ai_generate.steering_queued"), false);
+                rebuildListPreservingScroll();
+            } else setCachedStatus(UIText.of("ponderer.ui.ai_generate.steering_unavailable"), true);
+        }, () -> HEADER_TEXT_COLOR, () -> cachedGenerating && !cachedCancelling && !cachedSteering.isBlank()));
+        entries.add(FieldSpecs.fullButton(() -> UIText.of("ponderer.ui.ai_review.open"), null, () -> {
+            if (cachedPendingReview != null && cachedPendingReview.files().canReview()) openReview(cachedPendingReview);
+        }, () -> HEADER_TEXT_COLOR, () -> !cachedGenerating && cachedPendingReview != null));
     }
 
     @Override
@@ -292,6 +310,8 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         snapshot.put("existing_scene", cachedExistingSceneKey);
         snapshot.put("build_tutorial", String.valueOf(cachedBuildTutorial));
         snapshot.put("include_images", String.valueOf(cachedIncludeImages));
+        snapshot.put("rewrite", String.valueOf(cachedRewrite));
+        snapshot.put("steering", cachedSteering);
         referenceUrlManager.snapshot(snapshot);
         return snapshot;
     }
@@ -313,6 +333,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                     return;
                 }
                 cachedExistingSceneKey = sceneKey;
+                cachedRewrite = false;
                 ResourceLocation carrier = SceneItemBindings.firstItem(scene);
                 if (carrier != null) {
                     cachedCarrier = carrier.toString();
@@ -588,16 +609,25 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         }
 
         return beginGeneration(new AiSceneAgentPipeline.Request(new ArrayList<>(cachedStructurePaths), carrierId.toString(),
-            cachedPrompt.trim(), urls, existingScene == null ? null : SCENE_GSON.toJson(existingScene), cachedBuildTutorial, cachedIncludeImages), null);
+            cachedPrompt.trim(), urls, existingScene == null ? null : SCENE_GSON.toJson(existingScene), cachedBuildTutorial, cachedIncludeImages,
+            null, null, cachedRewrite && existingScene != null ? AiSceneAgentPipeline.Request.EditMode.REWRITE : AiSceneAgentPipeline.Request.EditMode.SCOPED), null);
     }
 
     private void resumeGeneration(AiRunFiles files, String clarification) {
         if (cachedGenerating) return;
         try {
             AiSceneAgentPipeline.Request saved = files.recoveryRequest();
+            if (files.canReview()) {
+                String reviewed = files.read("checkpoint.json").get("draft").toString();
+                String feedbackPrompt = "Revise the current draft using the preview feedback below. Preserve unrelated steps and metadata.\n" + clarification.trim();
+                saved = new AiSceneAgentPipeline.Request(saved.structurePaths(), saved.carrierItemId(), feedbackPrompt,
+                    saved.referenceUrls(), reviewed, false, saved.includeImages(), saved.resumeDraft(), null,
+                    AiSceneAgentPipeline.Request.EditMode.SCOPED);
+                clarification = "";
+            }
             String prompt = saved.userPrompt() + (clarification.isBlank() ? "" : "\nUser clarification for recovery:\n" + clarification.trim());
             AiSceneAgentPipeline.Request request = new AiSceneAgentPipeline.Request(saved.structurePaths(), saved.carrierItemId(), prompt,
-                saved.referenceUrls(), saved.existingJson(), saved.buildTutorial(), saved.includeImages(), saved.resumeDraft(), saved.resumeScope());
+                saved.referenceUrls(), saved.existingJson(), saved.buildTutorial(), saved.includeImages(), saved.resumeDraft(), saved.resumeScope(), saved.editMode());
             Minecraft.getInstance().setScreen(this);
             beginGeneration(request, files);
         } catch (RuntimeException error) { cachedGenerating = false; cachedCancelling = false; setCachedStatus(error.getMessage(), true); }
@@ -651,10 +681,24 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 }
                 setCachedStatus(statusMsg, false);
                 applyCachedStatus();
-            }));
+            }), review -> {
+                if (!isCurrentTask(taskRef.get())) return;
+                cachedGenerating = false; cachedCancelling = false; cachedGenerationTask = null;
+                cachedPendingReview = review;
+                setCachedStatus(UIText.of("ponderer.ui.ai_review.ready"), false);
+                applyCachedStatus(); refreshGenerationActionButton();
+                if (Minecraft.getInstance().screen == this) openReview(review);
+            });
         taskRef.set(task);
         cachedGenerationTask = task;
         return true;
+    }
+
+    private void openReview(AiSceneGenerator.PendingReview review) {
+        Minecraft.getInstance().setScreen(new AiSceneReviewScreen(this, review, this::resumeGeneration, () -> {
+            cachedPendingReview = null;
+            setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.success"), false);
+        }));
     }
 
     private boolean cancelGeneration() {
@@ -757,6 +801,8 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         cachedExistingSceneKey = snapshot.getOrDefault("existing_scene", "");
         cachedBuildTutorial = Boolean.parseBoolean(snapshot.getOrDefault("build_tutorial", "false"));
         cachedIncludeImages = Boolean.parseBoolean(snapshot.getOrDefault("include_images", "false"));
+        cachedRewrite = Boolean.parseBoolean(snapshot.getOrDefault("rewrite", "false"));
+        cachedSteering = snapshot.getOrDefault("steering", "");
         referenceUrlManager.restore(snapshot);
     }
 

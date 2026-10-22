@@ -80,6 +80,7 @@ public class AiConfigScreen extends AbstractDeclarativeConfigListScreen {
             Config.AI_TOOL_CALLING, 120,
             List.of("ponderer.ui.ai_config.tool_calling.auto", "ponderer.ui.ai_config.tool_calling.native", "ponderer.ui.ai_config.tool_calling.json"),
             List.of("auto", "native", "json")));
+        entries.add(ConfigEntries.booleanEntry("ponderer.ui.ai_config.streaming", "ponderer.ui.ai_config.streaming.tooltip", Config.AI_STREAMING));
         entries.add(ConfigEntries.stringEntry("ponderer.ui.ai_config.proxy",
             "ponderer.ui.ai_config.proxy.hint",
             "ponderer.ui.ai_config.proxy.tooltip",

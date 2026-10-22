@@ -1,11 +1,13 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
-import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PonderTagListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
+import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import com.nododiiiii.ponderer.ponder.CustomPonderTags;
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.PondererAttribution;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.ConfirmationScreen;
@@ -40,9 +42,9 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
     public SceneTagsScreen(Screen parent, DslScene owner, List<String> tags,
                            Map<String, DslScene.CustomTag> definitions,
                            BiConsumer<List<String>, Map<String, DslScene.CustomTag>> onApply) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_tags", 400);
-        this.originalTags = new LinkedHashSet<>(tags);
-        this.selectedTags = new LinkedHashSet<>(tags);
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_tags", UILayoutConstants.EDITOR_LIST_W + 80);
+        this.originalTags = new LinkedHashSet<>(PondererAttribution.withTag(tags));
+        this.selectedTags = new LinkedHashSet<>(originalTags);
         this.owner = owner;
         this.customTags = CustomPonderTags.copy(definitions);
         this.originalDefinitions = CustomPonderTags.encode(customTags);
@@ -62,6 +64,7 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
                 tags.put(id, CustomPonderTags.preview(id, definition));
             }
         });
+        tags.put(PondererAttribution.TAG_ID, PondererAttribution.preview());
         availableTags.clear();
         tags.values().stream()
             .sorted(Comparator.comparing((PonderTag tag) -> tag.getTitle().toLowerCase(Locale.ROOT))
@@ -91,12 +94,15 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
 
     @Override
     protected void collectHeaderEntries(List<ConfigScreenList.Entry> entries) {
-        entries.add(new SectionHeaderListEntry(
-            () -> UIText.of("ponderer.ui.scene_tags.selected_count", selectedTags.size())));
-        entries.add(new ActionStripListEntry(List.of(ActionStripListEntry.button(
-            UIText.of("ponderer.ui.custom_tag.create"),
-            UIText.of("ponderer.ui.custom_tag.scope"),
-            () -> ScreenOpener.open(new CustomTagEditorScreen(this, null, null))))));
+        entries.add(new WorkspaceHeaderListEntry(
+            () -> UIText.of("ponderer.ui.scene_tags"),
+            () -> UIText.of("ponderer.ui.scene_tags.selected_count", selectedTags.size()),
+            List.of(WorkspaceHeaderListEntry.iconButton(
+                PondererGuiIcons.ADD.asStencil(12),
+                () -> ScreenOpener.open(new CustomTagEditorScreen(this, null, null)),
+                () -> List.of(Component.translatable("ponderer.ui.custom_tag.create"),
+                    Component.translatable("ponderer.ui.custom_tag.scope")),
+                () -> true))));
     }
 
     @Override
@@ -109,7 +115,7 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
             String id = entry.getKey();
             boolean editable = customTags.containsKey(id) && CustomPonderTags.isCustomId(id);
             entries.add(new PonderTagListEntry(id, entry.getValue(),
-                () -> selectedTags.contains(id), () -> toggleTag(id),
+                () -> selectedTags.contains(id), PondererAttribution.isTag(id) ? null : () -> toggleTag(id),
                 editable ? () -> ScreenOpener.open(new CustomTagEditorScreen(this, id, customTags.get(id))) : null,
                 editable ? () -> deleteCustomTag(id) : null));
         }
@@ -152,6 +158,9 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
     }
 
     private void toggleTag(String id) {
+        if (PondererAttribution.isTag(id)) {
+            return;
+        }
         if (!selectedTags.remove(id)) {
             selectedTags.add(id);
         }
@@ -160,6 +169,9 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
 
     @Nullable
     String updateCustomTag(@Nullable String oldId, String id, DslScene.CustomTag definition) {
+        if (PondererAttribution.isTag(id) || PondererAttribution.isTag(oldId)) {
+            return UIText.of("ponderer.ui.scene_tags.required.tooltip");
+        }
         if (!id.equals(oldId) && (customTags.containsKey(id) || availableTags.get(id) != null)) {
             return UIText.of("ponderer.ui.custom_tag.error.exists", id);
         }
@@ -194,6 +206,9 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
     }
 
     private void deleteCustomTag(String id) {
+        if (PondererAttribution.isTag(id)) {
+            return;
+        }
         DslScene reference = findReference(id);
         if (reference != null) {
             setErrorMessage(UIText.of("ponderer.ui.custom_tag.error.in_use", reference.sceneKey()));
@@ -214,13 +229,11 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
     }
 
     public static String summarize(List<String> tags, Map<String, DslScene.CustomTag> definitions) {
-        if (tags.isEmpty()) {
-            return UIText.of("ponderer.ui.scene_tags.none");
-        }
         List<String> titles = new ArrayList<>();
-        for (String id : tags) {
+        for (String id : PondererAttribution.withTag(tags)) {
             DslScene.CustomTag definition = definitions.get(id);
-            PonderTag tag = definition != null && CustomPonderTags.isCustomId(id)
+            PonderTag tag = PondererAttribution.isTag(id) ? PondererAttribution.preview()
+                : definition != null && CustomPonderTags.isCustomId(id)
                 ? CustomPonderTags.preview(id, definition) : resolveTag(id);
             titles.add(tag == null ? id : tag.getTitle() + " (" + id + ")");
         }

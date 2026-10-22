@@ -25,7 +25,14 @@ public interface LlmProvider {
         public static final Usage UNKNOWN = new Usage(-1, -1, -1);
     }
     record Exchange(String systemPrompt, List<Message> messages, List<ToolDefinition> tools,
-                    AiRuntimeConfig config, boolean nativeTools, int maxOutputTokens) {}
+                    AiRuntimeConfig config, boolean nativeTools, int maxOutputTokens,
+                    java.util.function.Consumer<StreamUpdate> onStream) {
+        public Exchange(String system, List<Message> messages, List<ToolDefinition> tools,
+                        AiRuntimeConfig config, boolean nativeTools, int maxOutputTokens) {
+            this(system, messages, tools, config, nativeTools, maxOutputTokens, null);
+        }
+    }
+    record StreamUpdate(long receivedCharacters) {}
     record Reply(Message message, Usage usage, String finishReason) {
         public boolean outputLimited() { return List.of("max_output_tokens", "max_tokens", "length").contains(finishReason); }
         public String completeText() {

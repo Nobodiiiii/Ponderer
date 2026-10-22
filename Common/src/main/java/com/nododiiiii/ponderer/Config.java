@@ -139,7 +139,13 @@ public class Config {
 
     public static final ModConfigSpec.ConfigValue<String> AI_TOOL_CALLING = CLIENT_BUILDER
         .comment("Tool calling transport: auto uses native tools for official OpenAI, Responses and Anthropic; native forces tools; json keeps text protocol compatibility.")
-        .defineInList("ai.toolCalling", "auto", java.util.List.of("auto", "native", "json"));
+        // Missing entries are validated as null before the loader supplies defaults.
+        .define("ai.toolCalling", "auto", value -> "auto".equals(value)
+            || "native".equals(value) || "json".equals(value));
+
+    public static final ModConfigSpec.BooleanValue AI_STREAMING = CLIENT_BUILDER
+        .comment("Stream AI responses for incremental progress. Disable for endpoints without SSE support.")
+        .define("ai.streaming", true);
 
     public static final ModConfigSpec.IntValue AI_MAX_RUN_SECONDS = CLIENT_BUILDER
         .comment("Wall-clock budget for one AI run, including references, tools and retries.")

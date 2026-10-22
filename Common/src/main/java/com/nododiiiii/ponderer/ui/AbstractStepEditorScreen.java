@@ -155,7 +155,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         BoxWidget button = new ScreenTooltipBoxWidget(x, y, SIDEBAR_BUTTON_SIZE, SIDEBAR_BUTTON_SIZE)
             .withPadding(6, 6)
             .withCallback(() -> attemptStepNavigation(direction));
-        PonderIconStencils.attach(button, PonderIconStencils.centered(icon));
+        PonderIconStencils.attach(button, PonderIconStencils.rotated(icon, 90));
         setActionButtonTooltip(button, tooltipKey);
         button.active = createAdjacentStepEditor(direction) != null;
         button.updateGradientFromState();

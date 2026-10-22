@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
@@ -200,7 +201,8 @@ public class ActionStripListEntry extends ConfigScreenList.Entry implements Sear
     static void renderMultiControlCluster(GuiGraphics graphics, List<ButtonModel> buttons, int x, int width, int y, int height,
                                     int mouseX, int mouseY, float partialTicks) {
         if (buttons.isEmpty() || (buttons.size() == 1
-            && buttons.getFirst().fixedWidth() != EntryTextSupport.squareSize())) {
+            && buttons.getFirst().fixedWidth() != EntryTextSupport.squareSize()
+            && height > UILayoutConstants.COMPACT_LIST_ENTRY_H)) {
             renderButtonCluster(graphics, buttons, x, width, y, height, mouseX, mouseY, partialTicks);
             return;
         }

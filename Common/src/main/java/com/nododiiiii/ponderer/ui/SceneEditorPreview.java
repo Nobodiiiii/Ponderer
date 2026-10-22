@@ -301,9 +301,8 @@ final class SceneEditorPreview implements AutoCloseable {
 
     void renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
         if (previewButton != null && previewButton.isMouseOver(mouseX, mouseY)) {
-            renderControlTooltip(graphics, mouseX, mouseY, List.of(
-                Component.translatable("ponderer.ui.step_editor.preview"),
-                Component.translatable("ponderer.ui.step_editor.preview.tooltip")));
+            renderControlTooltip(graphics, mouseX, mouseY,
+                List.of(Component.translatable("ponderer.ui.step_editor.preview")));
             return;
         }
         if (ponder == null) return;

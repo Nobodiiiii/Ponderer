@@ -19,6 +19,7 @@ import java.util.function.BiConsumer;
 public final class AiRunHistoryScreen extends Screen {
     private final Screen parent;
     private final BiConsumer<AiRunFiles, String> resume;
+    private String initialRunId;
     private List<AiRunFiles> runs = List.of();
     private List<FormattedCharSequence> lines = List.of();
     private int selected, scroll;
@@ -29,8 +30,16 @@ public final class AiRunHistoryScreen extends Screen {
         super(Component.translatable("ponderer.ui.ai_runs.title")); this.parent = parent; this.resume = resume;
     }
 
+    public AiRunHistoryScreen(Screen parent, BiConsumer<AiRunFiles, String> resume, String runId) {
+        this(parent, resume); initialRunId = runId;
+    }
+
     @Override protected void init() {
         runs = AiRunFiles.recent(); selected = Math.min(selected, Math.max(0, runs.size() - 1));
+        if (initialRunId != null) {
+            for (int i = 0; i < runs.size(); i++) if (initialRunId.equals(runs.get(i).id())) selected = i;
+            initialRunId = null;
+        }
         int left = width / 2 - 160;
         addRenderableWidget(Button.builder(Component.literal("<"), b -> select(-1)).bounds(left, 27, 28, 20).build());
         addRenderableWidget(Button.builder(Component.literal(">"), b -> select(1)).bounds(left + 292, 27, 28, 20).build());
@@ -38,7 +47,7 @@ public final class AiRunHistoryScreen extends Screen {
         clarification.setHint(Component.translatable("ponderer.ui.ai_runs.clarification")); clarification.setMaxLength(2048);
         addRenderableWidget(clarification);
         addAction("resume", left, height - 53, () -> { if (current() != null && current().canResume()) resume.accept(current(), clarification.getValue()); }).active = current() != null && current().canResume();
-        addAction("open", left + 108, height - 53, this::openScene).active = current() != null && current().canUndo();
+        addAction("open", left + 108, height - 53, this::openScene).active = current() != null && (current().canUndo() || current().canReview());
         addAction("undo", left + 216, height - 53, this::undo).active = current() != null && current().canUndo();
         addAction("copy_diff", left, height - 29, () -> {
             try { if (current() != null) minecraft.keyboardHandler.setClipboard(new GsonBuilder().setPrettyPrinting().create().toJson(current().read("diff.json"))); }
@@ -61,6 +70,10 @@ public final class AiRunHistoryScreen extends Screen {
 
     private void openScene() {
         try {
+            if (current().canReview()) {
+                var review = new com.nododiiiii.ponderer.ai.AiSceneGenerator.PendingReview(current(), current().read("checkpoint.json").get("draft").toString());
+                minecraft.setScreen(new AiSceneReviewScreen(this, review, resume, () -> { })); return;
+            }
             DslScene saved = new GsonBuilder().registerTypeAdapter(com.nododiiiii.ponderer.ponder.LocalizedText.class,
                 new com.nododiiiii.ponderer.ponder.LocalizedText.GsonAdapter()).create().fromJson(current().read("undo.json").get("scene"), DslScene.class);
             DslScene scene = SceneRuntime.findByKey(saved.sceneKey());

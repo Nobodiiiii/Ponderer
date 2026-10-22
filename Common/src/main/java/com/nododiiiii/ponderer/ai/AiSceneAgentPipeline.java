@@ -55,16 +55,23 @@ public final class AiSceneAgentPipeline {
                           boolean buildTutorial,
                           boolean includeImages,
                           @Nullable JsonObject resumeDraft,
-                          @Nullable JsonObject resumeScope) {
+                          @Nullable JsonObject resumeScope,
+                          EditMode editMode) {
+        public enum EditMode { SCOPED, REWRITE }
         public Request {
             structurePaths = structurePaths == null ? List.of() : List.copyOf(structurePaths);
             referenceUrls = referenceUrls == null ? List.of() : List.copyOf(referenceUrls);
             resumeDraft = resumeDraft == null ? null : resumeDraft.deepCopy();
             resumeScope = resumeScope == null ? null : resumeScope.deepCopy();
+            editMode = editMode == null ? EditMode.SCOPED : editMode;
+        }
+        public Request(List<Path> paths, String carrier, String prompt, List<String> urls, String existing,
+                       boolean building, boolean images, JsonObject draft, JsonObject scope) {
+            this(paths, carrier, prompt, urls, existing, building, images, draft, scope, EditMode.SCOPED);
         }
         public Request(List<Path> paths, String carrier, String prompt, List<String> urls, String existing,
                        boolean building, boolean images) {
-            this(paths, carrier, prompt, urls, existing, building, images, null, null);
+            this(paths, carrier, prompt, urls, existing, building, images, null, null, EditMode.SCOPED);
         }
     }
 
@@ -103,6 +110,12 @@ public final class AiSceneAgentPipeline {
     static Result run(String runId, Request request, LlmProvider llm, AiRuntimeConfig config,
                       int maxTurns, Consumer<String> onStatus,
                       BiConsumer<String, String> diagnostics, AiCancellationScope cancellation) {
+        return run(runId, request, llm, config, maxTurns, onStatus, diagnostics, cancellation, new AiRunControl());
+    }
+
+    static Result run(String runId, Request request, LlmProvider llm, AiRuntimeConfig config,
+                      int maxTurns, Consumer<String> onStatus, BiConsumer<String, String> diagnostics,
+                      AiCancellationScope cancellation, AiRunControl control) {
         cancellation.throwIfCancelled();
         AiRunBudget budget = new AiRunBudget();
         cancellation.expireAfter(budget.seconds());
@@ -129,30 +142,22 @@ public final class AiSceneAgentPipeline {
             history.add(LlmProvider.Message.user("Generation manifest (user instruction and host facts):\n" + manifest));
             if (request.resumeDraft() != null) history.add(LlmProvider.Message.user("Recovered host draft: read get_scene_draft. Evidence must be read again in this run; validate before submission."));
             String lastAction = "context preparation", lastProtocolError = "";
-            int latestTurnStart = history.size();
+            List<Integer> turnStarts = new ArrayList<>();
             diagnostics.accept("checkpoint.json", AiRunFiles.checkpoint(request, context, 0, budget));
             for (int turn = 1; turn <= boundedTurns; turn++) {
                 lastTurn = turn;
                 cancellation.throwIfCancelled();
                 onStatus.accept("Agent turn " + turn + "/" + boundedTurns);
-                if (AiRunBudget.estimate(systemPrompt, history, definitions) > budget.contextTokens() * 0.7) {
-                    List<LlmProvider.Message> latest = new ArrayList<>(history.subList(latestTurnStart, history.size()));
-                    history.clear();
-                    history.add(LlmProvider.Message.user("Generation manifest:\n" + manifest));
-                    history.add(LlmProvider.Message.user("Host checkpoint after context compaction. Older tool data is omitted: re-read facts as needed, never infer omitted values.\n" + hostSummary(context)));
-                    history.addAll(latest);
-                    if (AiRunBudget.estimate(systemPrompt, history, definitions) > budget.contextTokens() * 0.8) {
-                        // Drop a complete group, including its call/results and opaque reasoning together.
-                        history.subList(2, history.size()).clear();
-                    }
-                    budget.compacted();
-                }
-                latestTurnStart = history.size();
+                context.runState().clarifications(control.instructions());
+                compactHistory(systemPrompt, manifest, history, turnStarts, definitions, budget, context);
+                turnStarts.add(history.size());
+                for (String instruction : control.drain()) history.add(LlmProvider.Message.user("Additional user instruction (same host edit mode):\n" + instruction));
+                diagnostics.accept("checkpoint.json", AiRunFiles.checkpoint(request, context, turn, budget));
                 List<LlmProvider.Message> messages = new ArrayList<>(history);
                 messages.add(LlmProvider.Message.user("Turn " + turn + " of " + boundedTurns + ". Remaining run tokens: " + budget.remaining()
                     + ". Batch independent reads; submit when errors are empty. Quality warnings are advisory. Use finish_task for a concrete blocker."
                     + (nativeTools ? " Use native function tools." : " Return one JSON object containing tool_calls.")));
-                LlmProvider.Reply reply = exchangeWithRetry(llm, systemPrompt, messages, definitions, config, nativeTools, budget, diagnostics, turn, cancellation);
+                LlmProvider.Reply reply = exchangeWithRetry(llm, systemPrompt, messages, definitions, config, nativeTools, budget, diagnostics, turn, cancellation, onStatus);
                 cancellation.throwIfCancelled();
                 history.add(reply.message());
                 String response = reply.protocolText();
@@ -180,6 +185,7 @@ public final class AiSceneAgentPipeline {
                     AgentTool tool = toolRegistry.get(call.name());
                     onStatus.accept(statusForTool(call.name()));
                     AgentTool.ToolExecution execution;
+                    long toolStarted = System.nanoTime();
                     try {
                         AiJsonSchema.validate(tool.inputSchema(), call.arguments(), "$arguments");
                         execution = tool.execute(context, call.arguments(), cancellation);
@@ -195,6 +201,10 @@ public final class AiSceneAgentPipeline {
                         execution = AgentTool.ToolExecution.result(failure);
                     }
                     ToolResult result = new ToolResult(call.id(), call.name(), execution.result()); results.add(result);
+                    if (!execution.result().has("ok") || execution.result().get("ok").getAsBoolean()) context.runState().evidence(call.name(), call.arguments());
+                    JsonObject timing = new JsonObject(); timing.addProperty("tool", call.name());
+                    timing.addProperty("call_id", call.id()); timing.addProperty("elapsed_ms", (System.nanoTime() - toolStarted) / 1_000_000);
+                    diagnostics.accept("turn_" + turn + "_tool_" + toolCallCount + ".json", timing.toString());
                     history.add(LlmProvider.Message.tool(call.id(), call.name(), execution.result(), List.of()));
                     images.addAll(execution.images());
                     if (execution.submittedScene() != null) submittedScene = execution.submittedScene();
@@ -202,10 +212,23 @@ public final class AiSceneAgentPipeline {
                     diagnostics.accept("checkpoint.json", AiRunFiles.checkpoint(request, context, turn, budget));
                     cancellation.throwIfCancelled();
                 }
+                if (submittedScene != null && !control.settle()) {
+                    // A user addition accepted during the request must receive another model turn.
+                    submittedScene = null;
+                    ToolResult previous = results.get(0);
+                    JsonObject deferred = previous.result().deepCopy(); deferred.addProperty("accepted", false);
+                    deferred.addProperty("ok", false); deferred.addProperty("code", "USER_INPUT_PENDING");
+                    deferred.addProperty("error", "New user instructions are queued; apply them before submitting again.");
+                    results.set(0, new ToolResult(previous.id(), previous.name(), deferred));
+                    history.set(history.size() - 1, LlmProvider.Message.tool(previous.id(), previous.name(), deferred, List.of()));
+                }
                 if (!images.isEmpty()) history.add(new LlmProvider.Message("user", images, List.of(), "", "", null));
                 trace.add(new TraceEntry(turn, response, parsed.calls(), List.copyOf(results), null));
                 writeTrace(diagnostics, runId, trace);
-                if (context.runState().stopStatus() != null) throw new AiRunStoppedException(context.runState().stopStatus(), context.runState().stopReason());
+                if (context.runState().stopStatus() != null) {
+                    if (control.settle()) throw new AiRunStoppedException(context.runState().stopStatus(), context.runState().stopReason());
+                    context.runState().finish(null, null);
+                }
                 if (submittedScene != null) {
                     String finalJson = GSON_PRETTY.toJson(submittedScene);
                     diagnostics.accept("last_extracted_json_attempt_final.log", finalJson);
@@ -216,14 +239,33 @@ public final class AiSceneAgentPipeline {
             }
             throw exhaustedException(boundedTurns, toolCallCount, lastAction, lastProtocolError, context);
         } finally {
+            control.close();
             cancellation.closeDeadline();
             JsonObject metrics = budget.summary(); metrics.addProperty("turns", lastTurn); metrics.addProperty("tool_calls", toolCallCount);
             diagnostics.accept("metrics.json", GSON_PRETTY.toJson(metrics));
             if (context != null) {
+                context.runState().clarifications(control.instructions());
                 diagnostics.accept("checkpoint.json", AiRunFiles.checkpoint(request, context, lastTurn, budget));
                 diagnostics.accept("diff.json", AiRunFiles.diff(context.existingScene().available() ? context.existingScene().json() : new JsonObject(), context.drafts().scene()));
             }
         }
+    }
+
+    private static void compactHistory(String system, String manifest, List<LlmProvider.Message> history,
+            List<Integer> starts, List<LlmProvider.ToolDefinition> definitions, AiRunBudget budget, AgentContext context) {
+        if (budget.estimateRequest(system, history, definitions) <= budget.contextTokens() * 0.7) return;
+        List<List<LlmProvider.Message>> recent = new ArrayList<>();
+        for (int i = Math.max(0, starts.size() - 3); i < starts.size(); i++)
+            recent.add(List.copyOf(history.subList(starts.get(i), i + 1 < starts.size() ? starts.get(i + 1) : history.size())));
+        do {
+            history.clear(); starts.clear();
+            history.add(LlmProvider.Message.user("Generation manifest (user instruction and host facts):\n" + manifest));
+            history.add(LlmProvider.Message.user("Host checkpoint after compaction. Evidence locations are an index, not their contents; re-read omitted evidence before relying on it.\n" + hostSummary(context)));
+            for (var group : recent) { starts.add(history.size()); history.addAll(group); }
+            if (budget.estimateRequest(system, history, definitions) <= budget.contextTokens() * 0.7 || recent.isEmpty()) break;
+            recent.remove(0); // Never split a call/result/reasoning group.
+        } while (true);
+        budget.compacted();
     }
 
     private static String hostSummary(AgentContext context) {
@@ -235,20 +277,29 @@ public final class AiSceneAgentPipeline {
         state.addProperty("references_read", context.runState().searchedReferences());
         state.addProperty("existing_scene_inspected", context.runState().inspectedExistingScene());
         state.addProperty("draft_access", "Use get_scene_draft for authoritative current values; inspect_existing_scene for original values.");
+        state.addProperty("edit_mode", context.editMode().name());
+        state.add("user_additions", GSON.toJsonTree(context.runState().clarifications()));
+        state.add("evidence_locations", GSON.toJsonTree(context.runState().evidence()));
+        state.add("changed_paths", GSON.toJsonTree(AiEditGuard.changedPaths(context.existingScene().available()
+            ? context.existingScene().json() : new JsonObject(), context.drafts().scene())));
         return state.toString();
     }
 
     private static LlmProvider.Reply exchangeWithRetry(LlmProvider llm, String system, List<LlmProvider.Message> messages,
             List<LlmProvider.ToolDefinition> tools, AiRuntimeConfig config, boolean nativeTools, AiRunBudget budget,
-            BiConsumer<String, String> diagnostics, int turn, AiCancellationScope cancellation) {
-        long estimate = AiRunBudget.estimate(system, messages, tools);
+            BiConsumer<String, String> diagnostics, int turn, AiCancellationScope cancellation, Consumer<String> onStatus) {
+        long estimate = budget.estimateRequest(system, messages, tools);
         for (int attempt = 0; ; attempt++) {
             cancellation.throwIfCancelled();
             int allowance = budget.outputAllowance(estimate, config.maxTokens());
             int timeout = (int) Math.max(1, Math.min(config.requestTimeoutSeconds(), budget.remainingMillis() / 1000));
+            long requestStarted = System.nanoTime();
             try {
                 var reply = cancellation.track(llm.exchange(new LlmProvider.Exchange(system, messages, tools,
-                    config.withRequestTimeout(timeout), nativeTools, allowance), cancellation)).join();
+                    config.withRequestTimeout(timeout), nativeTools, allowance,
+                    update -> onStatus.accept("Receiving AI response " + update.receivedCharacters())), cancellation)).join();
+                JsonObject timing = new JsonObject(); timing.addProperty("elapsed_ms", (System.nanoTime() - requestStarted) / 1_000_000);
+                timing.addProperty("attempt", attempt + 1); diagnostics.accept("turn_" + turn + "_request.json", timing.toString());
                 budget.account(reply, estimate);
                 if (reply.outputLimited()) throw new AiRunStoppedException("output_limit", AiApiSupport.outputLimitExceeded().getMessage());
                 return reply;
@@ -317,7 +368,7 @@ public final class AiSceneAgentPipeline {
                 request.carrierItemId(),
                 request.userPrompt(),
                 request.buildTutorial(),
-                request.includeImages()
+                request.includeImages(), request.editMode()
             );
         } catch (CancellationException e) {
             throw e;
@@ -416,6 +467,7 @@ public final class AiSceneAgentPipeline {
         manifest.add("draft", context.drafts().descriptor());
         manifest.addProperty("carrier_item_id", context.carrierItemId());
         manifest.addProperty("user_instruction", context.userPrompt());
+        manifest.addProperty("edit_mode", context.editMode().name().toLowerCase(Locale.ROOT));
         manifest.addProperty("build_tutorial", context.buildTutorial());
         manifest.addProperty("include_images", context.includeImages());
 

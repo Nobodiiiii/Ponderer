@@ -9,12 +9,20 @@ import java.util.concurrent.CompletableFuture;
 
 /** Stateless protocol adapters. Provider replay data stays opaque to the agent loop. */
 final class AiWireTransport {
+    private static final java.util.concurrent.ScheduledExecutorService TIMEOUTS = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(task -> {
+        Thread thread = new Thread(task, "ponderer-ai-stream-timeout"); thread.setDaemon(true); return thread;
+    });
     private AiWireTransport() {}
 
     static CompletableFuture<LlmProvider.Reply> exchange(String protocol, LlmProvider.Exchange request, AiCancellationScope cancellation) {
         cancellation.throwIfCancelled();
         AiRuntimeConfig config = request.config();
         JsonObject body = body(protocol, request);
+        boolean streaming = request.onStream() != null && streamingEnabled();
+        if (streaming) {
+            body.addProperty("stream", true);
+            if ("chat".equals(protocol)) { JsonObject options = new JsonObject(); options.addProperty("include_usage", true); body.add("stream_options", options); }
+        }
         String suffix = switch (protocol) { case "responses" -> "/responses"; case "anthropic" -> "/messages"; default -> "/chat/completions"; };
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(config.baseUrl().replaceAll("/+$", "") + suffix))
             .timeout(Duration.ofSeconds(config.requestTimeoutSeconds())).header("Content-Type", "application/json");
@@ -25,15 +33,41 @@ final class AiWireTransport {
             else builder.header("x-api-key", config.apiKey());
         } else builder.header("Authorization", "Bearer " + config.apiKey());
         HttpRequest http = builder.POST(HttpRequest.BodyPublishers.ofString(body.toString())).build();
-        return cancellation.track(HttpClientFactory.get().sendAsync(http, HttpResponse.BodyHandlers.ofString()))
-            .thenApply(response -> {
+        long started = System.nanoTime();
+        return cancellation.track(HttpClientFactory.get().sendAsync(http, HttpResponse.BodyHandlers.ofInputStream()))
+            .thenApplyAsync(response -> {
+                java.io.InputStream input = response.body();
+                cancellation.trackResource(input);
+                java.util.concurrent.atomic.AtomicBoolean timedOut = new java.util.concurrent.atomic.AtomicBoolean();
+                long remaining = Math.max(1, config.requestTimeoutSeconds() * 1_000_000_000L - (System.nanoTime() - started));
+                var deadline = TIMEOUTS.schedule(() -> { timedOut.set(true); try { input.close(); } catch (java.io.IOException ignored) { } }, remaining, java.util.concurrent.TimeUnit.NANOSECONDS);
+                try (input) {
                 cancellation.throwIfCancelled();
                 if (response.statusCode() != 200) {
                     // Do not log arbitrary gateway bodies, which can echo credentials or request content.
                     throw new AiHttpException(response.statusCode(), "request rejected; check protocol, model, credentials and service availability", response.headers().firstValue("Retry-After").orElse(""));
                 }
-                return reply(protocol, JsonParser.parseString(response.body()).getAsJsonObject(), request.nativeTools());
+                JsonObject responseJson;
+                if (response.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT).contains("text/event-stream")) {
+                    responseJson = AiStreamingResponse.read(protocol, new java.io.InputStreamReader(input, java.nio.charset.StandardCharsets.UTF_8), request.onStream(), cancellation);
+                } else {
+                    byte[] bytes = input.readNBytes(32_000_001);
+                    if (bytes.length > 32_000_000) throw new java.io.IOException("AI response exceeds the local size limit");
+                    responseJson = JsonParser.parseString(new String(bytes, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+                }
+                cancellation.throwIfCancelled();
+                if (timedOut.get()) throw new HttpTimeoutException("AI response body exceeded the request timeout");
+                return reply(protocol, responseJson, request.nativeTools());
+                } catch (java.io.IOException error) {
+                    cancellation.throwIfCancelled();
+                    throw new java.util.concurrent.CompletionException(timedOut.get() ? new HttpTimeoutException("AI response body exceeded the request timeout") : error);
+                } finally { deadline.cancel(false); cancellation.releaseResource(input); }
             });
+    }
+
+    private static boolean streamingEnabled() {
+        try { return com.nododiiiii.ponderer.Config.AI_STREAMING.get(); }
+        catch (RuntimeException | LinkageError unavailable) { return true; }
     }
 
     private static JsonObject body(String protocol, LlmProvider.Exchange request) {

@@ -35,6 +35,11 @@ public class CustomTagEditorScreen extends AbstractInventoryPickerFormScreen {
     }
 
     @Override
+    protected int getEntryHeight() {
+        return UILayoutConstants.COMPACT_LIST_ENTRY_H;
+    }
+
+    @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         entries.add(FieldSpecs.text(FieldBindings.transientString(() -> draftName, value -> {
             draftName = value;

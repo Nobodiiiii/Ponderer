@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.CustomPonderTags;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
+import com.nododiiiii.ponderer.ponder.PondererAttribution;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
@@ -296,14 +297,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         draftPonderId = originalPonderId;
         workingEditable = scene.isEditable(Config.DEFAULT_EDITABLE.get());
         workingCustomTags = CustomPonderTags.copy(scene.customTags);
-        workingTags = new ArrayList<>();
-        if (scene.tags != null) {
-            for (String tag : scene.tags) {
-                if (tag != null) {
-                    workingTags.add(tag);
-                }
-            }
-        }
+        workingTags = PondererAttribution.withTag(scene.tags);
 
         if (hasMultiScene && scene.scenes != null && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
             DslScene.SceneSegment currentScene = scene.scenes.get(sceneIndex);

@@ -44,6 +44,9 @@ public final class CustomPonderTags {
     }
 
     public static boolean isCustomId(@Nullable String id) {
+        if (PondererAttribution.isTag(id)) {
+            return false;
+        }
         ResourceLocation location = id == null ? null : ResourceLocation.tryParse(id);
         return location != null && "ponderer".equals(location.getNamespace())
             && (isName(location.getPath()) || (location.getPath().startsWith(LEGACY_PATH_PREFIX)

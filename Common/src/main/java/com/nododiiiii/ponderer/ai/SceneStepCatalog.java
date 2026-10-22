@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.ai;
 
+import com.google.gson.*;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,7 +14,7 @@ public final class SceneStepCatalog {
 
     public record StepSchema(String type, String purpose, List<String> requiredFields,
                              List<String> optionalFields, Map<String, List<String>> enums,
-                             List<String> constraints, String example) {
+                             List<String> constraints, String example, JsonObject inputSchema) {
     }
 
     private static final Map<String, StepSchema> SCHEMAS = buildSchemas();
@@ -137,13 +139,13 @@ public final class SceneStepCatalog {
             "{\"type\":\"play_sound\",\"sound\":\"minecraft:block.lever.click\",\"source\":\"block\"}");
         add(schemas, "show_interface", "Open and mirror a container interface", List.of(),
             List.of("interfaceSource:block|held_item|ui_id", "blockPos:int[3]", "item:string", "nbt:string",
-                "uiId:string", "duration:int", "enableNbt:boolean"),
+                "uiId:string", "duration:int", "enableNbt:boolean", "interface:object"),
             List.of("The segment may start with this instead of show_structure"),
             "{\"type\":\"show_interface\",\"interfaceSource\":\"block\",\"blockPos\":[1,1,1],\"duration\":100}");
         add(schemas, "change_interface_slot", "Temporarily change mirrored interface slots", List.of("interfaceSlots:array"),
             List.of("duration:int"), List.of(), "{\"type\":\"change_interface_slot\",\"interfaceSlots\":[{\"slotIndex\":0,\"ingredientId\":\"minecraft:paper\"}]}");
-        add(schemas, "click_interface", "Simulate a click in the mirrored interface", List.of("point:number[3]", "action:left|right"),
-            List.of("duration:int"), List.of(), "{\"type\":\"click_interface\",\"point\":[20,20,0],\"action\":\"left\"}");
+        add(schemas, "click_interface", "Simulate a click in the mirrored interface", List.of("pos:number[2]", "action:left|right"),
+            List.of("duration:int"), List.of("pos uses normalized interface coordinates"), "{\"type\":\"click_interface\",\"pos\":[0.5,0.5],\"action\":\"left\"}");
         add(schemas, "set_interface_slots", "Set mirrored slots and ghosts", List.of(),
             List.of("slots:array", "ghosts:array", "replace:boolean"), List.of(), "{\"type\":\"set_interface_slots\",\"slots\":[]}");
         add(schemas, "set_interface_data", "Set or tween container data", List.of("data:array"),
@@ -164,7 +166,72 @@ public final class SceneStepCatalog {
                             List<String> required, List<String> optional, List<String> constraints,
                             String example) {
         schemas.put(type, new StepSchema(
-            type, purpose, required, optional, extractEnums(required, optional), constraints, example));
+            type, purpose, required, optional, extractEnums(required, optional), constraints, example,
+            contract(required, optional)));
+    }
+
+    /** The tool documentation and deterministic validator consume the same contract. */
+    private static JsonObject contract(List<String> required, List<String> optional) {
+        JsonObject schema = new JsonObject(); schema.addProperty("type", "object");
+        JsonObject fields = new JsonObject(); JsonArray requiredNames = new JsonArray();
+        for (String spec : required) requiredNames.add(spec.substring(0, spec.indexOf(':')));
+        for (String spec : java.util.stream.Stream.concat(required.stream(), optional.stream()).toList()) {
+            int split = spec.indexOf(':');
+            fields.add(spec.substring(0, split), fieldSchema(spec.substring(split + 1)));
+        }
+        fields.add("duration", JsonParser.parseString("{\"type\":\"integer\",\"minimum\":0}"));
+        fields.add("attachKeyFrame", fieldSchema("boolean"));
+        schema.add("properties", fields); schema.add("required", requiredNames); schema.addProperty("additionalProperties", true);
+        return schema;
+    }
+
+    private static JsonObject fieldSchema(String type) {
+        if ("LocalizedText".equals(type)) return JsonParser.parseString("""
+            {"anyOf":[{"type":"string","minLength":1},{"type":"object","minProperties":1,"additionalProperties":{"type":"string"}}]}
+            """).getAsJsonObject();
+        JsonObject field = new JsonObject();
+        if (type.matches("(int|number)\\[\\d+\\]")) {
+            int size = Integer.parseInt(type.substring(type.indexOf('[') + 1, type.length() - 1));
+            field.addProperty("type", "array"); field.addProperty("minItems", size); field.addProperty("maxItems", size);
+            field.add("items", fieldSchema(type.startsWith("int") ? "int" : "number"));
+        } else if (type.contains("|")) {
+            field.addProperty("type", "string"); JsonArray values = new JsonArray();
+            for (String value : type.split("\\|")) values.add(value);
+            field.add("enum", values);
+        } else {
+            field.addProperty("type", switch (type) { case "int" -> "integer"; case "float" -> "number"; default -> type; });
+            if ("string".equals(type)) field.addProperty("minLength", 1);
+        }
+        return field;
+    }
+
+    static List<AiSceneValidator.Issue> validateFields(JsonObject step, String path) {
+        List<AiSceneValidator.Issue> errors = new ArrayList<>();
+        if (!step.has("type") || !step.get("type").isJsonPrimitive() || !step.getAsJsonPrimitive("type").isString()) return errors;
+        StepSchema contract = get(step.get("type").getAsString());
+        if (contract == null) return errors;
+        for (JsonElement name : contract.inputSchema().getAsJsonArray("required")) {
+            String key = name.getAsString();
+            if (!step.has(key) || step.get(key).isJsonNull()) errors.add(new AiSceneValidator.Issue(path + "." + key, "STEP_CONTRACT: required field missing"));
+        }
+        for (var entry : contract.inputSchema().getAsJsonObject("properties").entrySet()) {
+            JsonElement value = step.get(entry.getKey());
+            if (value == null || value.isJsonNull()) continue;
+            try { AiJsonSchema.validate(entry.getValue().getAsJsonObject(), value, path + "." + entry.getKey()); }
+            catch (IllegalArgumentException error) { errors.add(new AiSceneValidator.Issue(path + "." + entry.getKey(), "STEP_CONTRACT: " + error.getMessage())); }
+        }
+        return errors;
+    }
+
+    static List<AiSceneValidator.Issue> validateSceneFields(JsonObject scene) {
+        List<AiSceneValidator.Issue> errors = new ArrayList<>();
+        if (scene.get("scenes") instanceof JsonArray segments) for (int i = 0; i < segments.size(); i++) {
+            if (segments.get(i) instanceof JsonObject segment && segment.get("steps") instanceof JsonArray steps) {
+                for (int j = 0; j < steps.size(); j++) if (steps.get(j) instanceof JsonObject step)
+                    errors.addAll(validateFields(step, "$.scenes[" + i + "].steps[" + j + "]"));
+            }
+        }
+        return errors;
     }
 
     private static Map<String, List<String>> extractEnums(

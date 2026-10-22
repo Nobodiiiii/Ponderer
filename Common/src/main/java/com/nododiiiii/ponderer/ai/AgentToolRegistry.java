@@ -617,6 +617,7 @@ public final class AgentToolRegistry {
                     .map(AgentContext.StructureDocument::id).toList();
                 List<AiSceneValidator.Issue> errors = new ArrayList<>(
                     AiSceneValidator.validate(scene, structures, structureNames));
+                for (var issue : SceneStepCatalog.validateSceneFields(draft)) if (!errors.contains(issue)) errors.add(issue);
                 List<AiSceneValidator.Issue> scopeErrors = AiEditGuard.validate(context, draft);
                 errors.addAll(scopeErrors);
                 if (scopeErrors.isEmpty()) context.drafts().replace(draft);

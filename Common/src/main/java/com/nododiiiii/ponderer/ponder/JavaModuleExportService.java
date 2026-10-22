@@ -41,6 +41,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_TAG_PATH;
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_TITLE_EN_US;
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_TITLE_ZH_CN;
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_DESCRIPTION_EN_US;
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_DESCRIPTION_ZH_CN;
+
 public final class JavaModuleExportService {
     private static final Gson GSON = new GsonBuilder()
         .setPrettyPrinting()
@@ -99,13 +105,6 @@ public final class JavaModuleExportService {
     private static final String GENERATED_DIR = ".ponderer-export";
     private static final String MANIFEST_NAME = "manifest.json";
     private static final String REPORT_NAME = "last-report.json";
-    private static final String ATTRIBUTION_TAG_PATH = "ponderer_exported";
-    private static final String ATTRIBUTION_TITLE_EN_US = "The Ponderer...";
-    private static final String ATTRIBUTION_TITLE_ZH_CN = "思索者...";
-    private static final String ATTRIBUTION_DESCRIPTION_EN_US =
-        "This mod's Ponder scenes were created and exported with The Ponderer. Learn more: https://modrinth.com/mod/the-ponderer";
-    private static final String ATTRIBUTION_DESCRIPTION_ZH_CN =
-        "以上思索由模组思索者（Ponderer）制作并导出，了解更多：https://modrinth.com/mod/the-ponderer";
 
     private JavaModuleExportService() {
     }
@@ -161,6 +160,16 @@ public final class JavaModuleExportService {
 
         List<TextFile> textWrites = new ArrayList<>();
         List<BinaryFile> binaryWrites = new ArrayList<>();
+        String iconPath = PondererAttribution.ICON_TEXTURE_PATH;
+        try (InputStream icon = JavaModuleExportService.class.getResourceAsStream("/assets/ponderer/" + iconPath)) {
+            if (icon == null) {
+                return JavaModuleExportResult.failure("Missing bundled Ponderer attribution icon: " + iconPath);
+            }
+            binaryWrites.add(new BinaryFile("src/main/resources/assets/" + scanResult.targetProject.modId
+                + "/" + iconPath, icon.readAllBytes()));
+        } catch (IOException e) {
+            return JavaModuleExportResult.failure("Failed to read Ponderer attribution icon: " + e.getMessage());
+        }
         List<Path> deletions = new ArrayList<>();
         List<SceneExportOutcome> outcomes = new ArrayList<>();
         Map<String, Set<String>> staleManagedLangKeys = new LinkedHashMap<>();
@@ -405,6 +414,10 @@ public final class JavaModuleExportService {
         }
 
         for (String tagId : safeList(scene.tags)) {
+            // Standalone exports register attribution under the target mod's namespace.
+            if (PondererAttribution.isTag(tagId)) {
+                continue;
+            }
             ResourceLocation tagLoc = ResourceLocation.tryParse(tagId);
             if (tagLoc != null) {
                 plan.tags.add(tagLoc.toString());
@@ -1181,7 +1194,8 @@ public final class JavaModuleExportService {
                     helper.registerTag(TAG)
                         .title(%s)
                         .description(%s)
-                        .item(Items.WRITABLE_BOOK)
+                        .icon(TAG)
+                        .item(Items.OBSERVER, false, true)
                         .register();
                 }
             }
