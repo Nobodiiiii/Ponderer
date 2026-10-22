@@ -160,15 +160,21 @@ public final class JavaModuleExportService {
 
         List<TextFile> textWrites = new ArrayList<>();
         List<BinaryFile> binaryWrites = new ArrayList<>();
-        String iconPath = PondererAttribution.ICON_TEXTURE_PATH;
-        try (InputStream icon = JavaModuleExportService.class.getResourceAsStream("/assets/ponderer/" + iconPath)) {
-            if (icon == null) {
-                return JavaModuleExportResult.failure("Missing bundled Ponderer attribution icon: " + iconPath);
+        for (String iconPath : List.of(PondererAttribution.ICON_TEXTURE_PATH, PondererAttribution.ICON_MODEL_RESOURCE_PATH)) {
+            try (InputStream icon = JavaModuleExportService.class.getResourceAsStream("/assets/ponderer/" + iconPath)) {
+                if (icon == null) {
+                    return JavaModuleExportResult.failure("Missing bundled Ponderer attribution resource: " + iconPath);
+                }
+                byte[] bytes = icon.readAllBytes();
+                if (iconPath.endsWith(".json")) {
+                    bytes = new String(bytes, StandardCharsets.UTF_8)
+                        .replace("ponderer:", scanResult.targetProject.modId + ":").getBytes(StandardCharsets.UTF_8);
+                }
+                binaryWrites.add(new BinaryFile("src/main/resources/assets/" + scanResult.targetProject.modId
+                    + "/" + iconPath, bytes));
+            } catch (IOException e) {
+                return JavaModuleExportResult.failure("Failed to read Ponderer attribution resource: " + e.getMessage());
             }
-            binaryWrites.add(new BinaryFile("src/main/resources/assets/" + scanResult.targetProject.modId
-                + "/" + iconPath, icon.readAllBytes()));
-        } catch (IOException e) {
-            return JavaModuleExportResult.failure("Failed to read Ponderer attribution icon: " + e.getMessage());
         }
         List<Path> deletions = new ArrayList<>();
         List<SceneExportOutcome> outcomes = new ArrayList<>();
@@ -1120,6 +1126,7 @@ public final class JavaModuleExportService {
             public final class GeneratedPonderFabricClient implements ClientModInitializer {
                 @Override
                 public void onInitializeClient() {
+                    GeneratedPonderAttribution.iconModelLocation();
                     PonderIndex.addPlugin(new GeneratedPonderPlugin());
                 }
             }
@@ -1135,10 +1142,16 @@ public final class JavaModuleExportService {
             import net.minecraftforge.eventbus.api.SubscribeEvent;
             import net.minecraftforge.fml.common.Mod;
             import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+            import net.minecraftforge.client.event.ModelEvent;
 
             @Mod.EventBusSubscriber(modid = "%s", bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
             public final class GeneratedPonderForgeClient {
                 private GeneratedPonderForgeClient() {
+                }
+
+                @SubscribeEvent
+                public static void onRegisterModels(ModelEvent.RegisterAdditional event) {
+                    event.register(GeneratedPonderAttribution.iconModelLocation());
                 }
 
                 @SubscribeEvent
@@ -1158,10 +1171,17 @@ public final class JavaModuleExportService {
             import net.neoforged.bus.api.SubscribeEvent;
             import net.neoforged.fml.common.EventBusSubscriber;
             import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+            import net.neoforged.neoforge.client.event.ModelEvent;
+            import net.minecraft.client.resources.model.ModelResourceLocation;
 
             @EventBusSubscriber(modid = "%s", value = Dist.CLIENT)
             public final class GeneratedPonderNeoForgeClient {
                 private GeneratedPonderNeoForgeClient() {
+                }
+
+                @SubscribeEvent
+                public static void onRegisterModels(ModelEvent.RegisterAdditional event) {
+                    event.register(ModelResourceLocation.standalone(GeneratedPonderAttribution.iconModelLocation()));
                 }
 
                 @SubscribeEvent
@@ -1176,12 +1196,26 @@ public final class JavaModuleExportService {
         return GENERATED_NOTICE_BLOCK + """
             package %s;
 
+            import dev.engine_room.flywheel.lib.model.baked.PartialModel;
+            import net.createmod.catnip.animation.AnimationTickHolder;
+            import net.createmod.catnip.gui.element.GuiGameElement;
             import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
+            import net.createmod.ponder.foundation.PonderIndex;
+            import net.createmod.ponder.foundation.PonderTag;
+            import net.createmod.ponder.foundation.registration.PonderTagRegistry;
+            import net.minecraft.client.gui.GuiGraphics;
             import net.minecraft.resources.ResourceLocation;
+            import net.minecraft.world.item.ItemStack;
             import net.minecraft.world.item.Items;
 
             public final class GeneratedPonderAttribution {
+                private static final int ICON_ROTATION_TICKS = 20 * 30;
                 private static final ResourceLocation TAG = ResourceLocation.fromNamespaceAndPath(%s, %s);
+
+                private static final class Icon {
+                    private static final PartialModel MODEL = PartialModel.of(
+                        ResourceLocation.fromNamespaceAndPath(TAG.getNamespace(), %s));
+                }
 
                 private GeneratedPonderAttribution() {
                 }
@@ -1190,19 +1224,37 @@ public final class JavaModuleExportService {
                     return TAG;
                 }
 
+                public static ResourceLocation iconModelLocation() {
+                    return Icon.MODEL.modelLocation();
+                }
+
                 public static void registerTag(PonderTagRegistrationHelper<ResourceLocation> helper) {
                     helper.registerTag(TAG)
                         .title(%s)
                         .description(%s)
-                        .icon(TAG)
-                        .item(Items.OBSERVER, false, true)
+                        .item(Items.OBSERVER)
                         .register();
+                    PonderTag tag = new PonderTag(TAG, null, ItemStack.EMPTY, Items.OBSERVER.getDefaultInstance()) {
+                        @Override
+                        public void render(GuiGraphics graphics, int x, int y) {
+                            // UI time keeps the icon rotating while scene playback or the game is paused.
+                            double ticks = AnimationTickHolder.getTicks(true) %% ICON_ROTATION_TICKS
+                                + AnimationTickHolder.getPartialTicksUI();
+                            GuiGameElement.of(Icon.MODEL)
+                                .rotateBlock(30, 135 + ticks * 360 / ICON_ROTATION_TICKS, 0)
+                                .scale(10)
+                                .at(x + 3, y + 13, 100)
+                                .render(graphics);
+                        }
+                    };
+                    ((PonderTagRegistry) PonderIndex.getTagAccess()).registerTag(tag);
                 }
             }
             """.formatted(
             target.generatedPackage,
             stringExpr(target.modId),
             stringExpr(ATTRIBUTION_TAG_PATH),
+            stringExpr(PondererAttribution.ICON_MODEL_PATH),
             stringExpr(ATTRIBUTION_TITLE_EN_US),
             stringExpr(ATTRIBUTION_DESCRIPTION_EN_US));
     }

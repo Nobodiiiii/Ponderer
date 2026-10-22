@@ -24,7 +24,7 @@ public class CustomTagEditorScreen extends AbstractInventoryPickerFormScreen {
     private String language = Minecraft.getInstance().getLanguageManager().getSelected();
 
     public CustomTagEditorScreen(SceneTagsScreen parent, @Nullable String id, @Nullable DslScene.CustomTag initial) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.custom_tag", 380);
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.custom_tag", UILayoutConstants.EDITOR_LIST_W);
         tagScreen = parent;
         originalId = id;
         draftName = id == null ? "" : CustomPonderTags.editorName(id);
@@ -32,11 +32,6 @@ public class CustomTagEditorScreen extends AbstractInventoryPickerFormScreen {
             : CustomPonderTags.copy(Map.of("draft", initial)).get("draft");
         if (definition.title == null) definition.title = LocalizedText.of("");
         if (definition.description == null) definition.description = LocalizedText.of("");
-    }
-
-    @Override
-    protected int getEntryHeight() {
-        return UILayoutConstants.COMPACT_LIST_ENTRY_H;
     }
 
     @Override

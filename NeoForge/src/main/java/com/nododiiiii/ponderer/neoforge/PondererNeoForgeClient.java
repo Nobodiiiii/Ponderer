@@ -5,6 +5,7 @@ import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
+import com.nododiiiii.ponderer.ponder.PondererAttribution;
 import com.nododiiiii.ponderer.ponder.AutoRemoteSyncClient;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -52,6 +53,7 @@ public class PondererNeoForgeClient {
     private static boolean triggerKeyWasDown = false;
 
     static void init(IEventBus modEventBus) {
+        PondererAttribution.iconModelLocation();
         BlueprintHandler.INSTANCE = blueprintHandler;
 
         modEventBus.addListener(PondererNeoForgeClient::onClientSetup);

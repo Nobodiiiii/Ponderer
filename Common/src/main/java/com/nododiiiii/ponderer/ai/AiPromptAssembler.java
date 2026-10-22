@@ -7,7 +7,7 @@ import com.mojang.logging.LogUtils;
 
 /** Versioned built-in contracts plus hot-reloaded user preferences. */
 final class AiPromptAssembler {
-    static final int VERSION = 3;
+    static final int VERSION = 4;
     private static final String ROOT = "/assets/ponderer/ai/prompts/";
     private AiPromptAssembler() {}
 

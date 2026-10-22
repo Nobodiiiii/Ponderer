@@ -14,7 +14,7 @@ final class AiRunBudget {
     private final int context = setting(() -> Config.AI_CONTEXT_TOKENS.get(), 131072);
     private final int stallLimit = setting(() -> Config.AI_NO_PROGRESS_TURNS.get(), 4);
     private long input, output, cached;
-    private int stalls, retries, failures, compactions;
+    private int stalls, retries, failures, compactions, contextRetries;
     private boolean estimated;
     private double inputCalibration = 1.0;
     private String lastDraft = "";
@@ -51,11 +51,13 @@ final class AiRunBudget {
     }
 
     void compacted() { compactions++; }
+    void contextRetried() { contextRetries++; }
 
     void progress(AgentContext host, List<AiSceneAgentPipeline.ToolResult> results) {
         boolean progress = !lastDraft.equals(host.drafts().scene().toString());
         lastDraft = host.drafts().scene().toString();
         for (var result : results) {
+            if ("update_task_state".equals(result.name())) continue; // Bookkeeping alone is not task progress.
             JsonObject value = result.result();
             if (!value.has("ok") || value.get("ok").getAsBoolean()) {
                 if (!value.has("errors") || value.getAsJsonArray("errors").isEmpty()) {
@@ -75,6 +77,7 @@ final class AiRunBudget {
         value.addProperty("max_run_seconds", seconds); value.addProperty("context_tokens", context);
         value.addProperty("no_progress_turns", stalls); value.addProperty("retries", retries); value.addProperty("compactions", compactions);
         value.addProperty("transport_failures", failures);
+        value.addProperty("context_retries", contextRetries);
         value.addProperty("context_accounting", "text_heuristic_with_usage_safety_margin_plus_image_allowance");
         value.addProperty("input_safety_margin", inputCalibration);
         return value;

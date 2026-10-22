@@ -102,7 +102,7 @@ public class AiSceneGenerator {
                     (name, content) -> {
                         files.write(name, content);
                         if ("last_agent_trace.log".equals(name)) writeLog(name, content);
-                    }, cancellation, control);
+                    }, cancellation, control, files.events());
                 cancellation.throwIfCancelled();
                 if (onReview != null) {
                     com.google.gson.JsonObject checkpoint = files.read("checkpoint.json");

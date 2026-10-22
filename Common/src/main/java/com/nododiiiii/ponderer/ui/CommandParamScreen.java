@@ -357,11 +357,9 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen implem
     private void openPackSelector(String targetFieldId) {
         Minecraft.getInstance().setScreen(new PonderPackSelectScreen(
             this,
-            currentTextValue(targetFieldId).trim(),
-            packId -> {
-                setTextValue(targetFieldId, packId);
-                Minecraft.getInstance().setScreen(this);
-            },
+            currentSelectedPacks(targetFieldId),
+            // Portable pack names cannot contain newlines, so names with commas remain intact.
+            packIds -> setTextValue(targetFieldId, String.join("\n", packIds)),
             () -> Minecraft.getInstance().setScreen(this)));
     }
 
@@ -401,11 +399,16 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen implem
     }
 
     private String currentPackSelectionButtonLabel(TextFieldDef textDef) {
-        String pack = currentTextValue(textDef.id).trim();
-        if (pack.isEmpty()) {
+        List<String> packs = currentSelectedPacks(textDef.id);
+        if (packs.isEmpty()) {
             return UIText.of("ponderer.ui.function_page.select_pack");
         }
-        return UIText.of("ponderer.ui.function_page.selected_packs", 1);
+        return UIText.of("ponderer.ui.function_page.selected_packs", packs.size());
+    }
+
+    private List<String> currentSelectedPacks(String fieldId) {
+        return currentTextValue(fieldId).lines().map(String::trim)
+            .filter(pack -> !pack.isEmpty()).distinct().toList();
     }
 
     private int selectedSceneCount(String rawValue) {
@@ -439,9 +442,10 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen implem
     @Nullable
     private Supplier<String> packSelectorTooltipGetter(TextFieldDef textDef) {
         return () -> {
-            String pack = currentTextValue(textDef.id).trim();
-            if (!pack.isEmpty()) {
-                return UIText.of("ponderer.ui.function_page.selected_pack", pack);
+            List<String> packs = currentSelectedPacks(textDef.id);
+            if (!packs.isEmpty()) {
+                return UIText.of("ponderer.ui.function_page.selected_packs", packs.size()) + "\n"
+                    + String.join("\n", packs);
             }
             if (textDef.hintKey == null || textDef.hintKey.isBlank()) {
                 return "";

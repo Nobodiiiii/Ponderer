@@ -58,9 +58,9 @@ final class AiStreamingResponse {
             JsonObject source = "response.failed".equals(type) && event.get("response") instanceof JsonObject response ? response : event;
             JsonObject error = source.get("error") instanceof JsonObject detail ? detail : new JsonObject();
             String code = error.has("code") ? string(error, "code") : string(error, "type");
-            throw new AiHttpException(java.util.Set.of("overloaded_error", "server_error").contains(code) ? 503
+            throw AiHttpException.rejected(java.util.Set.of("overloaded_error", "server_error").contains(code) ? 503
                 : java.util.Set.of("rate_limit_error", "rate_limit_exceeded").contains(code) ? 429 : 400,
-                "stream rejected; check protocol, model and service availability", "");
+                "", source.toString());
         }
         if ("responses".equals(protocol)) {
             if ("response.completed".equals(type) || "response.incomplete".equals(type)) {

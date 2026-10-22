@@ -57,6 +57,7 @@ final class AiJsonSchema {
             if (schema.has("items")) for (int i = 0; i < array.size(); i++) validate(schema.getAsJsonObject("items"), array.get(i), path + "/" + i);
         } else if (value.getAsJsonPrimitive().isString()) {
             if (schema.has("minLength") && value.getAsString().length() < schema.get("minLength").getAsInt()) fail(path, "string is too short");
+            if (schema.has("maxLength") && value.getAsString().length() > schema.get("maxLength").getAsInt()) fail(path, "string is too long");
         } else if (value.getAsJsonPrimitive().isNumber()) {
             if (schema.has("minimum") && value.getAsBigDecimal().compareTo(schema.get("minimum").getAsBigDecimal()) < 0) fail(path, "below minimum");
             if (schema.has("maximum") && value.getAsBigDecimal().compareTo(schema.get("maximum").getAsBigDecimal()) > 0) fail(path, "above maximum");

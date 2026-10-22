@@ -102,23 +102,30 @@ public final class AgentContext {
     }
 
     public static final class RunState {
+        private final AiTaskMemory taskMemory = new AiTaskMemory();
+        AiTaskMemory taskMemory() { return taskMemory; }
         private List<String> clarifications = List.of();
         void clarifications(List<String> values) { clarifications = List.copyOf(values); }
         List<String> clarifications() { return clarifications; }
         private final java.util.LinkedHashSet<String> evidence = new java.util.LinkedHashSet<>();
-        void evidence(String name, JsonObject arguments) {
-            if (java.util.Set.of("review_scene", "submit_scene", "finish_task", "apply_scene_patch").contains(name)) return;
+        synchronized void evidence(String name, JsonObject arguments) {
+            if (java.util.Set.of("review_scene", "submit_scene", "finish_task", "apply_scene_patch", "update_task_state").contains(name)) return;
             String key = name + ":" + arguments;
             if (key.length() <= 2048) evidence.add(key);
             while (evidence.size() > 16) evidence.remove(evidence.iterator().next());
         }
-        List<String> evidence() { return List.copyOf(evidence); }
+        synchronized List<String> evidence() { return List.copyOf(evidence); }
+        synchronized boolean hasEvidence(String name, JsonObject arguments) {
+            String prefix = name + ":";
+            return evidence.stream().anyMatch(location -> location.startsWith(prefix)
+                && com.google.gson.JsonParser.parseString(location.substring(prefix.length())).equals(arguments));
+        }
         private boolean queriedStructure;
         private boolean searchedReferences;
         private boolean inspectedExistingScene;
         private final java.util.Set<String> inspectedSegments = new java.util.HashSet<>();
-        void markSegmentInspected(String id) { inspectedSegments.add(id); }
-        boolean inspectedSegment(String id) { return inspectedSegments.contains(id); }
+        synchronized void markSegmentInspected(String id) { inspectedSegments.add(id); }
+        synchronized boolean inspectedSegment(String id) { return inspectedSegments.contains(id); }
         private JsonObject editScope;
         private int validationAttempts;
         private String stopStatus;
@@ -132,27 +139,27 @@ public final class AgentContext {
         private List<AiSceneValidator.Issue> lastErrors = List.of();
         private List<AiSceneQualityLinter.Warning> lastWarnings = List.of();
 
-        void markStructureQueried() {
+        synchronized void markStructureQueried() {
             queriedStructure = true;
         }
 
-        void markReferencesSearched() {
+        synchronized void markReferencesSearched() {
             searchedReferences = true;
         }
 
-        void markExistingSceneInspected() {
+        synchronized void markExistingSceneInspected() {
             inspectedExistingScene = true;
         }
 
-        public boolean queriedStructure() {
+        public synchronized boolean queriedStructure() {
             return queriedStructure;
         }
 
-        public boolean searchedReferences() {
+        public synchronized boolean searchedReferences() {
             return searchedReferences;
         }
 
-        public boolean inspectedExistingScene() {
+        public synchronized boolean inspectedExistingScene() {
             return inspectedExistingScene;
         }
 

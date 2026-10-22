@@ -1,8 +1,12 @@
 package com.nododiiiii.ponderer.ponder;
 
+import dev.engine_room.flywheel.lib.model.baked.PartialModel;
+import net.createmod.catnip.animation.AnimationTickHolder;
+import net.createmod.catnip.gui.element.GuiGameElement;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderTag;
 import net.createmod.ponder.foundation.registration.PonderTagRegistry;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -15,9 +19,12 @@ import java.util.Map;
 
 /** The mandatory category shared by runtime scenes and standalone Java exports. */
 public final class PondererAttribution {
+    private static final int ICON_ROTATION_TICKS = 20 * 30;
     public static final String ATTRIBUTION_TAG_PATH = "ponderer_exported";
     public static final String TAG_ID = "ponderer:" + ATTRIBUTION_TAG_PATH;
-    public static final String ICON_TEXTURE_PATH = "textures/ponder/tag/" + ATTRIBUTION_TAG_PATH + ".png";
+    public static final String ICON_TEXTURE_PATH = "textures/block/ponderer_observer_front.png";
+    public static final String ICON_MODEL_PATH = "block/ponderer_observer";
+    public static final String ICON_MODEL_RESOURCE_PATH = "models/" + ICON_MODEL_PATH + ".json";
     public static final String ATTRIBUTION_TITLE_EN_US = "The Ponderer...";
     public static final String ATTRIBUTION_TITLE_ZH_CN = "思索者...";
     public static final String ATTRIBUTION_DESCRIPTION_EN_US =
@@ -28,11 +35,21 @@ public final class PondererAttribution {
     private PondererAttribution() {
     }
 
+    /** Called during client initialization, before Flywheel collects additional models. */
+    public static ResourceLocation iconModelLocation() {
+        return Icon.MODEL.modelLocation();
+    }
+
+    private static final class Icon {
+        private static final PartialModel MODEL = PartialModel.of(
+            ResourceLocation.fromNamespaceAndPath("ponderer", ICON_MODEL_PATH));
+    }
+
     public static boolean isTag(@Nullable String id) {
         return TAG_ID.equals(id);
     }
 
-    /** Apply at use sites so older scenes and manually edited JSON also retain attribution. */
+    /** Add the mandatory category when registering native Ponder scenes. */
     public static List<String> withTag(@Nullable List<String> tags) {
         var result = new LinkedHashSet<String>();
         if (tags != null) {
@@ -51,9 +68,7 @@ public final class PondererAttribution {
             "en_us", ATTRIBUTION_TITLE_EN_US, "zh_cn", ATTRIBUTION_TITLE_ZH_CN));
         var description = LocalizedText.ofMap(Map.of(
             "en_us", ATTRIBUTION_DESCRIPTION_EN_US, "zh_cn", ATTRIBUTION_DESCRIPTION_ZH_CN));
-        return new PonderTag(ResourceLocation.parse(TAG_ID),
-            ResourceLocation.fromNamespaceAndPath("ponderer", ICON_TEXTURE_PATH),
-            ItemStack.EMPTY, Items.OBSERVER.getDefaultInstance()) {
+        return new PonderTag(ResourceLocation.parse(TAG_ID), null, ItemStack.EMPTY, Items.OBSERVER.getDefaultInstance()) {
             @Override
             public String getTitle() {
                 return title.resolve();
@@ -62,6 +77,18 @@ public final class PondererAttribution {
             @Override
             public String getDescription() {
                 return description.resolve();
+            }
+
+            @Override
+            public void render(GuiGraphics graphics, int x, int y) {
+                // UI time keeps the icon rotating while scene playback or the game is paused.
+                double ticks = AnimationTickHolder.getTicks(true) % ICON_ROTATION_TICKS
+                    + AnimationTickHolder.getPartialTicksUI();
+                GuiGameElement.of(Icon.MODEL)
+                    .rotateBlock(30, 135 + ticks * 360 / ICON_ROTATION_TICKS, 0)
+                    .scale(10)
+                    .at(x + 3, y + 13, 100)
+                    .render(graphics);
             }
         };
     }

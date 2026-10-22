@@ -16,6 +16,9 @@ public final class AiRunFiles {
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter()).create();
     private final String id;
     private final Path directory;
+    private AiRunEvents events;
+    private long journalSize = -1, lastSequence;
+    private final Map<String, JsonObject> projections = new HashMap<>();
 
     public AiRunFiles(String id) {
         this.id = UUID.fromString(id).toString();
@@ -31,6 +34,12 @@ public final class AiRunFiles {
     }
 
     public void write(String name, String content) {
+        String type = artifactType(name);
+        if (type != null) {
+            JsonObject data = JsonParser.parseString(content).getAsJsonObject();
+            events().emit(type, data.has("turn") ? data.get("turn").getAsInt() : 0, data);
+            return;
+        }
         Path target = SafePaths.resolveFileName(directory, name);
         if (target == null) throw new IllegalArgumentException("Unsafe run artifact name");
         try { atomicWrite(target, content); }
@@ -40,8 +49,135 @@ public final class AiRunFiles {
     public JsonObject read(String name) {
         Path target = SafePaths.resolveFileName(directory, name);
         if (target == null) throw new IllegalArgumentException("Unsafe run artifact name");
-        try { return JsonParser.parseString(Files.readString(target)).getAsJsonObject(); }
+        try {
+            if (artifactType(name) != null) synchronized (AiRunFiles.class) {
+                refreshProjections();
+                if (projections.containsKey(name)) return projections.get(name).deepCopy();
+            }
+            return JsonParser.parseString(Files.readString(target)).getAsJsonObject();
+        }
         catch (IOException error) { throw new IllegalStateException("Cannot read AI run artifact: " + name, error); }
+    }
+
+    public boolean hasArtifact(String name) {
+        Path target = SafePaths.resolveFileName(directory, name);
+        if (target == null) return false;
+        if (artifactType(name) != null) synchronized (AiRunFiles.class) {
+            try { refreshProjections(); }
+            catch (IOException error) { throw new IllegalStateException("Cannot read AI run events", error); }
+            if (projections.containsKey(name)) return true;
+        }
+        return Files.isRegularFile(target);
+    }
+
+    synchronized AiRunEvents events() {
+        if (events == null) synchronized (AiRunFiles.class) {
+            try { refreshProjections(); }
+            catch (IOException error) { throw new IllegalStateException("Cannot read AI run events", error); }
+            events = new AiRunEvents(id, lastSequence, this::appendEvent);
+        }
+        return events;
+    }
+
+    private void appendEvent(JsonObject event) {
+        synchronized (AiRunFiles.class) {
+            try {
+                Files.createDirectories(directory);
+                Path journal = directory.resolve("events.jsonl");
+                // A process may have stopped midway through its final UTF-8 line. Only complete lines commit.
+                try (var channel = java.nio.channels.FileChannel.open(journal, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                    long committed = committedLength(channel);
+                    if (committed != channel.size()) channel.truncate(committed);
+                    refreshProjections();
+                    event.addProperty("sequence", lastSequence + 1);
+                    byte[] bytes = (event.toString() + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    channel.position(committed);
+                    java.nio.ByteBuffer buffer = java.nio.ByteBuffer.wrap(bytes);
+                    while (buffer.hasRemaining()) channel.write(buffer);
+                    channel.force(false);
+                }
+                lastSequence = event.get("sequence").getAsLong();
+                journalSize = Files.size(journal);
+                String artifact = eventArtifact(event.get("type").getAsString());
+                if (artifact != null) {
+                    JsonObject data = event.getAsJsonObject("data");
+                    projections.put(artifact, data.deepCopy());
+                    atomicWrite(directory.resolve(artifact), GSON.toJson(data));
+                }
+            } catch (IOException error) { throw new IllegalStateException("Cannot persist AI run event", error); }
+        }
+    }
+
+    private void refreshProjections() throws IOException {
+        Path journal = directory.resolve("events.jsonl");
+        long size = Files.isRegularFile(journal) ? Files.size(journal) : 0;
+        if (journalSize == size) return;
+        projections.clear(); lastSequence = 0;
+        if (size > 0) {
+            try (var channel = java.nio.channels.FileChannel.open(journal, StandardOpenOption.READ)) {
+                long committed = committedLength(channel);
+                channel.position(0);
+                // Bound bytes before decoding: a torn final line may also end inside a UTF-8 character.
+                java.io.InputStream source = new java.io.InputStream() {
+                    private long remaining = committed;
+                    @Override public int read(byte[] bytes, int offset, int length) throws IOException {
+                        if (length == 0) return 0;
+                        if (remaining == 0) return -1;
+                        int count = channel.read(java.nio.ByteBuffer.wrap(bytes, offset, (int) Math.min(length, remaining)));
+                        if (count > 0) remaining -= count;
+                        return count;
+                    }
+                    @Override public int read() throws IOException {
+                        byte[] one = new byte[1]; return read(one, 0, 1) < 0 ? -1 : one[0] & 0xff;
+                    }
+                };
+                try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(source, java.nio.charset.StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        JsonObject event = JsonParser.parseString(line).getAsJsonObject();
+                        if (event.get("version").getAsInt() != 1 || !id.equals(event.get("run_id").getAsString())
+                            || event.get("sequence").getAsLong() <= lastSequence)
+                            throw new IOException("Invalid AI event journal ordering or version");
+                        lastSequence = event.get("sequence").getAsLong();
+                        String artifact = eventArtifact(event.get("type").getAsString());
+                        if (artifact != null) projections.put(artifact, event.getAsJsonObject("data").deepCopy());
+                    }
+                }
+            }
+        }
+        journalSize = size;
+    }
+
+    private static long committedLength(java.nio.channels.FileChannel channel) throws IOException {
+        long end = channel.size();
+        java.nio.ByteBuffer tail = java.nio.ByteBuffer.allocate(4096);
+        while (end > 0) {
+            long start = Math.max(0, end - tail.capacity());
+            tail.clear(); tail.limit((int) (end - start)); channel.position(start);
+            while (tail.hasRemaining()) if (channel.read(tail) < 0) break;
+            for (int index = tail.position() - 1; index >= 0; index--)
+                if (tail.get(index) == '\n') return start + index + 1;
+            end = start;
+        }
+        return 0;
+    }
+
+    private static String artifactType(String name) {
+        return switch (name) {
+            case "status.json" -> "run_status";
+            case "checkpoint.json" -> "checkpoint";
+            case "metrics.json" -> "metrics";
+            default -> null;
+        };
+    }
+
+    private static String eventArtifact(String type) {
+        return switch (type) {
+            case "run_status" -> "status.json";
+            case "checkpoint" -> "checkpoint.json";
+            case "metrics" -> "metrics.json";
+            default -> null;
+        };
     }
 
     public void status(String status, String detail) {
@@ -62,6 +198,7 @@ public final class AiRunFiles {
         value.addProperty("build_tutorial", request.buildTutorial()); value.addProperty("include_images", request.includeImages());
         value.addProperty("edit_mode", request.editMode().name());
         value.add("draft", context.drafts().scene()); value.add("edit_scope", context.runState().editScope());
+        value.add("task_state", context.runState().taskMemory().snapshot());
         value.add("last_errors", GSON.toJsonTree(context.runState().lastErrors()));
         value.add("warnings", AiEditGuard.warnings(context, context.drafts().scene(), context.runState().lastWarnings()));
         value.add("budget", budget.summary());
@@ -78,17 +215,18 @@ public final class AiRunFiles {
             saved.get("build_tutorial").getAsBoolean(), saved.get("include_images").getAsBoolean(),
             saved.getAsJsonObject("draft"), saved.has("edit_scope") && saved.get("edit_scope").isJsonObject() ? saved.getAsJsonObject("edit_scope") : null,
             saved.has("edit_mode") ? AiSceneAgentPipeline.Request.EditMode.valueOf(saved.get("edit_mode").getAsString())
-                : AiSceneAgentPipeline.Request.EditMode.SCOPED);
+                : AiSceneAgentPipeline.Request.EditMode.SCOPED,
+            saved.get("task_state") instanceof JsonObject memory ? memory : null);
     }
 
     public boolean canResume() {
-        try { return Files.isRegularFile(directory.resolve("checkpoint.json")) && !canUndo() && !Set.of("completed", "undone").contains(read("status.json").get("status").getAsString()); }
+        try { return hasArtifact("checkpoint.json") && !canUndo() && !Set.of("completed", "undone").contains(read("status.json").get("status").getAsString()); }
         catch (RuntimeException unavailable) { return false; }
     }
 
     public boolean canReview() {
         try { return "awaiting_review".equals(read("status.json").get("status").getAsString())
-            && Files.isRegularFile(directory.resolve("checkpoint.json")); }
+            && hasArtifact("checkpoint.json"); }
         catch (RuntimeException unavailable) { return false; }
     }
 
@@ -106,9 +244,9 @@ public final class AiRunFiles {
         if (!Files.isDirectory(root())) return List.of();
         try (var paths = Files.list(root())) {
             return paths.filter(Files::isDirectory).filter(path -> path.getFileName().toString().matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))
-                .filter(path -> Files.isRegularFile(path.resolve("status.json")))
+                .filter(path -> Files.isRegularFile(path.resolve("status.json")) || Files.isRegularFile(path.resolve("events.jsonl")))
                 .sorted(Comparator.comparingLong((Path path) -> {
-                    try { return Files.getLastModifiedTime(path.resolve("status.json")).toMillis(); }
+                    try { return Files.getLastModifiedTime(path.resolve(Files.isRegularFile(path.resolve("events.jsonl")) ? "events.jsonl" : "status.json")).toMillis(); }
                     catch (IOException ignored) { return 0L; }
                 }).reversed()).limit(50).map(path -> new AiRunFiles(path.getFileName().toString())).toList();
         } catch (IOException error) { return List.of(); }

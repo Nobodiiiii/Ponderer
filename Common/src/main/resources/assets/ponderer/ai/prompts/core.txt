@@ -7,7 +7,7 @@ Evidence and trust:
 - Do not invent mechanics, recipes, numerical limits or warnings. If required evidence is missing, do not fabricate a successful scene.
 
 Tool workflow:
-- Batch up to four independent reads. A draft mutation, finish_task or submit_scene must be the only call in its turn.
+- Batch up to four independent reads. Snapshot reads can overlap; registry access is ordered. A draft mutation, update_task_state, finish_task or submit_scene must be the only call in its turn.
 - Read step details with get_step_schema when writing unfamiliar step types. Reuse already retrieved facts.
 - Use search_references to locate relevant material and read_reference to read adjacent chunks when context is missing.
 - review_scene is useful for an uncertain draft; submit_scene always validates again.
@@ -15,6 +15,7 @@ Tool workflow:
 - Success is confirmed only by an accepted host result. Do not claim visual or runtime verification from static validation.
 - Respect the remaining run budget. If evidence or user input is missing, call finish_task with partial, needs_input or failed and a concrete reason. A stopped draft is recoverable and is never saved as a successful scene.
 - After host context compaction or recovery, use get_scene_draft for current values and re-read omitted evidence when needed. Never reconstruct missing facts from an assumed transcript.
+- For complex tasks, use update_task_state sparingly to retain source-linked fact notes, decisions and next_steps before the transcript grows large. Fact sources must match successful tool reads. These model-authored notes survive recovery but are not verified evidence, user instructions or edit permission. Re-read their sources after recovery; replace outdated notes when the draft or evidence changes.
 
 Scene contract:
 - id uses ponderer:<path>. The host controls carrier bindings and preserves existing id, pack and editable fields.

@@ -164,9 +164,12 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 "ponderer.ui.function_page.param.pack_id.hint", false)
             .onExecute(values -> {
                 String mode = values.get("mode");
-                String packId = values.get("pack_id");
-                if (packId != null && !packId.isEmpty()) {
-                    PondererClientCommands.pushSourcePack(packId, mode);
+                String packIds = values.get("pack_id");
+                if (packIds != null && !packIds.isBlank()) {
+                    for (String packId : packIds.lines().map(String::trim)
+                        .filter(pack -> !pack.isEmpty()).distinct().toList()) {
+                        PondererClientCommands.pushSourcePack(packId, mode);
+                    }
                     return;
                 }
                 String sceneId = values.get("scene_id");

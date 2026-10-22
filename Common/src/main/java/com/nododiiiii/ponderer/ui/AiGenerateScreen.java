@@ -8,6 +8,7 @@ import com.nododiiiii.ponderer.ai.AiSceneAgentPipeline;
 import com.nododiiiii.ponderer.ai.AiRunFiles;
 import com.nododiiiii.ponderer.ai.StructureDescriber;
 import com.nododiiiii.ponderer.ai.McmodApiClient;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.DslScene;
@@ -21,8 +22,10 @@ import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
 import com.nododiiiii.ponderer.ui.catnip.FormBoxWidget;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
 import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
+import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
@@ -53,9 +56,11 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         .create();
     private static final List<Path> cachedStructurePaths = new ArrayList<>();
     private static final List<StructureDescriber.StructureInfo> cachedStructureInfos = new ArrayList<>();
+    private static boolean cachedContextInitialized = false;
     private static int cachedStructureIndex = 0;
     private static String cachedCarrier = "";
     private static String cachedPrompt = "";
+    private static boolean cachedEditExisting = false;
     private static String cachedExistingSceneKey = "";
     private static final ReferenceUrlManager referenceUrlManager = new ReferenceUrlManager();
     private static boolean cachedBuildTutorial = false;
@@ -72,6 +77,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private static AiGenerationTask cachedGenerationTask;
 
     private static final int PREVIEW_HEIGHT = UILayoutConstants.LIST_ENTRY_H * 2;
+    private static final int STRUCTURE_CONTROLS_WIDTH = 108;
     private static final int NAV_BUTTON_SIZE = 26;
     private static final int HEADER_TITLE_COLOR = 0xFFCCCC77;
     private static final int HEADER_TEXT_COLOR = 0xFFFFFFFF;
@@ -92,12 +98,19 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     public AiGenerateScreen() {
         super(new FunctionScreen(), "ponderer.ui.scope.editor", "ponderer.ui.ai_generate.title",
             UILayoutConstants.EDITOR_LIST_W);
+        if (!cachedContextInitialized) {
+            selectDefaultStructure();
+            cachedContextInitialized = true;
+        }
     }
 
     @Override
     protected void init() {
         super.init();
         useConfirmationActionIcons();
+        discardChanges.withCallback(this::discardEdits);
+        setActionButtonTooltip(discardChanges, "ponderer.ui.ai_generate.discard");
+        setActionButtonTooltip(goBack, "ponderer.ui.back");
         applyCachedStatus();
         refreshGenerationActionButton(true);
         if (!cachedStructurePaths.isEmpty()) {
@@ -132,8 +145,16 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     }
 
     @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        previewW = 0;
+        previewH = 0;
+        super.render(graphics, mouseX, mouseY, partialTicks);
+    }
+
+    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (hasPreviewBounds() && preview.onMouseDown(mouseX, mouseY)) {
+        if (hasPreviewBounds() && list != null && list.isMouseOver(mouseX, mouseY)
+            && preview.onMouseDown(mouseX, mouseY)) {
             setFocused(null);
             return true;
         }
@@ -157,43 +178,40 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     @Override
     protected void collectHeaderEntries(List<ConfigScreenList.Entry> entries) {
-        entries.add(new PreviewHeaderEntry());
-        entries.add(new SpacerHeaderEntry());
-        entries.add(new StructureNavigationHeaderEntry());
+        entries.add(new WorkspaceHeaderListEntry(
+            () -> UIText.of("ponderer.ui.ai_generate.title"),
+            () -> UIText.of(cachedEditExisting
+                ? "ponderer.ui.ai_generate.edit_mode.edit"
+                : "ponderer.ui.ai_generate.edit_mode.new") + " · "
+                + UIText.of("ponderer.ui.ai_generate.structures_header") + ": " + cachedStructurePaths.size(),
+            List.of()));
         entries.add(new ActionStripListEntry(List.of(
             ActionStripListEntry.button(
-                () -> UIText.of("ponderer.ui.ai_generate.add"),
-                () -> List.of(Component.translatable("ponderer.ui.ai_generate.add.tooltip")),
-                this::openStructurePicker,
+                () -> UIText.of("ponderer.ui.ai_runs.title"),
+                () -> List.of(Component.translatable("ponderer.ui.ai_runs.title")),
+                () -> Minecraft.getInstance().setScreen(new AiRunHistoryScreen(this, this::resumeGeneration)),
                 () -> HEADER_TEXT_COLOR,
-                () -> true),
+                () -> !cachedGenerating),
             ActionStripListEntry.button(
-                () -> UIText.of("ponderer.ui.ai_generate.delete"),
-                () -> List.of(Component.translatable("ponderer.ui.ai_generate.delete.tooltip")),
-                this::deleteStructure,
+                () -> UIText.of("ponderer.ui.ai_review.open"),
+                () -> List.of(Component.translatable("ponderer.ui.ai_review.open")),
+                () -> {
+                    if (cachedPendingReview != null && cachedPendingReview.files().canReview()) {
+                        openReview(cachedPendingReview);
+                    }
+                },
                 () -> HEADER_TEXT_COLOR,
-                this::hasStructures))));
+                () -> !cachedGenerating && cachedPendingReview != null && cachedPendingReview.files().canReview()))));
     }
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
-        if (!cachedExistingSceneKey.isBlank()) entries.add(FieldSpecs.toggle(
-            "ponderer.ui.ai_generate.rewrite", "ponderer.ui.ai_generate.rewrite.tooltip",
-            () -> cachedRewrite, () -> { cachedRewrite = !cachedRewrite; rebuildListPreservingScroll(); }));
-        entries.add(FieldSpecs.text(
-            FieldBindings.transientString(() -> cachedExistingSceneKey, value -> cachedExistingSceneKey = value),
-            "ponderer.ui.ai_generate.existing_scene",
-            "ponderer.ui.ai_generate.existing_scene.tooltip",
-            "ponderer.ui.ai_generate.existing_scene.hint",
-            -1,
-            entry -> entry.field().setEditable(false),
-            FieldDecorators.sceneSelector(this::openExistingScenePicker),
-            FieldDecorators.iconAction(PondererGuiIcons.REMOVE,
-                UIText.of("ponderer.ui.ai_generate.existing_scene.clear"), () -> {
-                    cachedExistingSceneKey = "";
-                    setCachedStatus(null, false);
-                    rebuildListPreservingScroll();
-                })));
+        entries.add(FieldSpecs.choice(
+            "ponderer.ui.ai_generate.edit_mode", null, 100,
+            this::toggleEditMode,
+            () -> UIText.of(cachedEditExisting
+                ? "ponderer.ui.ai_generate.edit_mode.edit"
+                : "ponderer.ui.ai_generate.edit_mode.new")));
 
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> cachedCarrier, value -> cachedCarrier = value),
@@ -201,8 +219,24 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             null,
             "ponderer.ui.ai_generate.carrier.hint",
             -1,
-            entry -> entry.field().setMaxLength(128),
+            entry -> {
+                entry.field().setMaxLength(128);
+                entry.field().setEditable(!cachedEditExisting);
+                if (cachedEditExisting) {
+                    entry.addIngredientSlot(IdFieldMode.ITEM, null);
+                    BoxWidget selector = entry.addTrailingIcon(PondererGuiIcons.LIST,
+                        this::openExistingScenePicker, UIText.of("ponderer.ui.ai_generate.existing_scene.tooltip"));
+                    if (!cachedExistingSceneKey.isBlank()) {
+                        selector.getToolTip().add(Component.translatable(
+                            "ponderer.ui.ai_generate.existing_scene.selected", cachedExistingSceneKey));
+                    }
+                }
+            },
             FieldDecorators.jei(IdFieldMode.ITEM)));
+
+        if (cachedEditExisting && !cachedExistingSceneKey.isBlank()) entries.add(FieldSpecs.toggle(
+            "ponderer.ui.ai_generate.rewrite", "ponderer.ui.ai_generate.rewrite.tooltip",
+            () -> cachedRewrite, () -> { cachedRewrite = !cachedRewrite; rebuildListPreservingScroll(); }));
 
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> cachedPrompt, value -> cachedPrompt = value),
@@ -211,6 +245,11 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             "ponderer.ui.ai_generate.prompt.hint",
             -1,
             entry -> entry.field().setMaxLength(2048)));
+
+        entries.add(screen -> {
+            screen.appendBuiltEntry(new StructurePreviewRowEntry(0));
+            screen.appendBuiltEntry(new StructurePreviewRowEntry(1));
+        });
 
         entries.add(FieldSpecs.sectionHeader(UIText.of("ponderer.ui.ai_generate.urls")));
         List<String> urlValues = referenceUrlManager.getUrlValues();
@@ -247,9 +286,6 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             UIText.of("ponderer.ui.ai_generate.add_url.tooltip"),
             this::addUrl));
 
-        entries.add(FieldSpecs.fullButton(UIText.of("ponderer.ui.ai_runs.title"), null, () -> {
-            if (!cachedGenerating) Minecraft.getInstance().setScreen(new AiRunHistoryScreen(this, this::resumeGeneration));
-        }));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.ai_generate.build_tutorial",
             "ponderer.ui.ai_generate.build_tutorial.tooltip",
@@ -269,9 +305,6 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 rebuildListPreservingScroll();
             } else setCachedStatus(UIText.of("ponderer.ui.ai_generate.steering_unavailable"), true);
         }, () -> HEADER_TEXT_COLOR, () -> cachedGenerating && !cachedCancelling && !cachedSteering.isBlank()));
-        entries.add(FieldSpecs.fullButton(() -> UIText.of("ponderer.ui.ai_review.open"), null, () -> {
-            if (cachedPendingReview != null && cachedPendingReview.files().canReview()) openReview(cachedPendingReview);
-        }, () -> HEADER_TEXT_COLOR, () -> !cachedGenerating && cachedPendingReview != null));
     }
 
     @Override
@@ -279,12 +312,58 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         if (cachedGenerating) {
             return cancelGeneration();
         }
-        return doGenerate();
+        boolean started = doGenerate();
+        applyCachedStatus();
+        return started;
     }
 
     @Override
     protected boolean isSaveButtonActive() {
-        return cachedGenerating ? !cachedCancelling : super.isSaveButtonActive();
+        return true;
+    }
+
+    @Override
+    protected boolean isDiscardButtonActive() {
+        return true;
+    }
+
+    @Override
+    protected void attemptBackToParent() {
+        ScreenOpener.open(parent);
+    }
+
+    @Override
+    protected void discardEdits() {
+        if (pendingStructureInfo != null) {
+            pendingStructureInfo.cancel(true);
+            pendingStructureInfo = null;
+        }
+        restoreSnapshot(Map.of());
+        referenceUrlManager.clear();
+        cachedPendingReview = null;
+        setCachedStatus(null, false);
+        selectDefaultStructure();
+        loadedPreviewPath = null;
+        preview.clear();
+        loadPreviewForCurrent();
+        if (search != null) {
+            search.setValue("");
+        }
+        rebuildEntries();
+        captureBaselineState();
+        applyCachedStatus();
+    }
+
+    private void selectDefaultStructure() {
+        if (!SceneStore.ensureBuiltinStructure("basic")) {
+            return;
+        }
+        Path defaultStructure = resolveStructurePath("ponderer:basic");
+        if (defaultStructure != null) {
+            cachedStructurePaths.add(defaultStructure);
+            cachedStructureInfos.add(describeStructureSafe(defaultStructure));
+            cachedStructureIndex = 0;
+        }
     }
 
     @Override
@@ -307,6 +386,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         }
         snapshot.put("carrier", cachedCarrier);
         snapshot.put("prompt", cachedPrompt);
+        snapshot.put("edit_existing", String.valueOf(cachedEditExisting));
         snapshot.put("existing_scene", cachedExistingSceneKey);
         snapshot.put("build_tutorial", String.valueOf(cachedBuildTutorial));
         snapshot.put("include_images", String.valueOf(cachedIncludeImages));
@@ -320,9 +400,16 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         return !cachedStructurePaths.isEmpty();
     }
 
+    private void toggleEditMode() {
+        cachedEditExisting = !cachedEditExisting;
+        cachedRewrite = false;
+        setCachedStatus(null, false);
+        rebuildListPreservingScroll();
+    }
+
     private void openExistingScenePicker() {
         if (SceneRuntime.getScenes().isEmpty()) {
-            setErrorMessage(UIText.of("ponderer.ui.function_page.no_scenes"));
+            setCachedStatus(UIText.of("ponderer.ui.function_page.no_scenes"), true);
             return;
         }
         Minecraft.getInstance().setScreen(new PonderItemGridScreen(this,
@@ -332,6 +419,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 if (scene == null || !canAdjustScene(scene)) {
                     return;
                 }
+                cachedEditExisting = true;
                 cachedExistingSceneKey = sceneKey;
                 cachedRewrite = false;
                 ResourceLocation carrier = SceneItemBindings.firstItem(scene);
@@ -353,12 +441,12 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
 
     private boolean canAdjustScene(DslScene scene) {
         if (!SceneEditorScreen.canModifyScene(scene)) {
-            setErrorMessage(UIText.of("ponderer.ui.readonly_scene.message"));
+            setCachedStatus(UIText.of("ponderer.ui.readonly_scene.message"), true);
             return false;
         }
         PackStateStore.load();
         if (scene.pack != null && !scene.pack.isBlank() && !PackStateStore.isImported(scene.pack)) {
-            setErrorMessage(UIText.of("ponderer.ui.readonly_import_prompt.message"));
+            setCachedStatus(UIText.of("ponderer.ui.readonly_import_prompt.message"), true);
             return false;
         }
         return true;
@@ -560,6 +648,11 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     }
 
     @Override
+    public List<IngredientTarget> getJeiIngredientTargets() {
+        return cachedEditExisting ? List.of() : super.getJeiIngredientTargets();
+    }
+
+    @Override
     public void onJeiItemDropped(HintableTextFieldWidget field, ItemStack stack) {
         String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         CompletableFuture.supplyAsync(() -> McmodApiClient.getItemUrl(itemId))
@@ -572,10 +665,14 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             return false;
         }
         DslScene existingScene = null;
-        if (!cachedExistingSceneKey.isBlank()) {
+        if (cachedEditExisting) {
+            if (cachedExistingSceneKey.isBlank()) {
+                setCachedStatus(UIText.of("ponderer.ui.ai_generate.error.no_existing_scene"), true);
+                return false;
+            }
             existingScene = SceneRuntime.findByKey(cachedExistingSceneKey);
             if (existingScene == null) {
-                setErrorMessage(UIText.of("ponderer.cmd.scene_not_found", cachedExistingSceneKey));
+                setCachedStatus(UIText.of("ponderer.cmd.scene_not_found", cachedExistingSceneKey), true);
                 return false;
             }
             if (!canAdjustScene(existingScene)) {
@@ -583,21 +680,21 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             }
         }
         if (cachedStructurePaths.isEmpty() && existingScene == null) {
-            setErrorMessage(UIText.of("ponderer.ui.ai_generate.error.no_structure"));
+            setCachedStatus(UIText.of("ponderer.ui.ai_generate.error.no_structure"), true);
             return false;
         }
         if (cachedCarrier.trim().isEmpty()) {
-            setErrorMessage(UIText.of("ponderer.ui.ai_generate.error.no_carrier"));
+            setCachedStatus(UIText.of("ponderer.ui.ai_generate.error.no_carrier"), true);
             return false;
         }
         ResourceLocation carrierId = ResourceLocation.tryParse(cachedCarrier.trim());
         if (carrierId == null || !BuiltInRegistries.ITEM.containsKey(carrierId)
             || BuiltInRegistries.ITEM.get(carrierId) == net.minecraft.world.item.Items.AIR) {
-            setErrorMessage(UIText.of("ponderer.ui.ai_generate.error.invalid_carrier"));
+            setCachedStatus(UIText.of("ponderer.ui.ai_generate.error.invalid_carrier"), true);
             return false;
         }
         if (cachedPrompt.trim().isEmpty()) {
-            setErrorMessage(UIText.of("ponderer.ui.ai_generate.error.no_prompt"));
+            setCachedStatus(UIText.of("ponderer.ui.ai_generate.error.no_prompt"), true);
             return false;
         }
 
@@ -622,12 +719,12 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 String feedbackPrompt = "Revise the current draft using the preview feedback below. Preserve unrelated steps and metadata.\n" + clarification.trim();
                 saved = new AiSceneAgentPipeline.Request(saved.structurePaths(), saved.carrierItemId(), feedbackPrompt,
                     saved.referenceUrls(), reviewed, false, saved.includeImages(), saved.resumeDraft(), null,
-                    AiSceneAgentPipeline.Request.EditMode.SCOPED);
+                    AiSceneAgentPipeline.Request.EditMode.SCOPED, saved.resumeMemory());
                 clarification = "";
             }
             String prompt = saved.userPrompt() + (clarification.isBlank() ? "" : "\nUser clarification for recovery:\n" + clarification.trim());
             AiSceneAgentPipeline.Request request = new AiSceneAgentPipeline.Request(saved.structurePaths(), saved.carrierItemId(), prompt,
-                saved.referenceUrls(), saved.existingJson(), saved.buildTutorial(), saved.includeImages(), saved.resumeDraft(), saved.resumeScope(), saved.editMode());
+                saved.referenceUrls(), saved.existingJson(), saved.buildTutorial(), saved.includeImages(), saved.resumeDraft(), saved.resumeScope(), saved.editMode(), saved.resumeMemory());
             Minecraft.getInstance().setScreen(this);
             beginGeneration(request, files);
         } catch (RuntimeException error) { cachedGenerating = false; cachedCancelling = false; setCachedStatus(error.getMessage(), true); }
@@ -650,8 +747,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 cachedCancelling = false;
                 cachedGenerationTask = null;
                 setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.success") + " " + UIText.of("ponderer.ui.ai_runs.review_hint"), false);
-                applyCachedStatus();
-                refreshGenerationActionButton();
+                ClientFeedback.chat(Component.translatable("ponderer.ui.ai_generate.completed",
+                    Path.of(filePath).getFileName().toString()));
+                refreshCurrentScreen();
             }),
             error -> Minecraft.getInstance().execute(() -> {
                 if (!isCurrentTask(taskRef.get())) {
@@ -661,8 +759,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 cachedCancelling = false;
                 cachedGenerationTask = null;
                 setCachedStatus(error, true);
-                applyCachedStatus();
-                refreshGenerationActionButton();
+                refreshCurrentScreen();
             }),
             () -> Minecraft.getInstance().execute(() -> {
                 if (!isCurrentTask(taskRef.get())) {
@@ -672,22 +769,24 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 cachedCancelling = false;
                 cachedGenerationTask = null;
                 setCachedStatus(UIText.of("ponderer.ui.ai_generate.status.cancelled"), false);
-                applyCachedStatus();
-                refreshGenerationActionButton();
+                refreshCurrentScreen();
             }),
             statusMsg -> Minecraft.getInstance().execute(() -> {
                 if (!isCurrentTask(taskRef.get()) || cachedCancelling) {
                     return;
                 }
                 setCachedStatus(statusMsg, false);
-                applyCachedStatus();
+                refreshCurrentScreen();
             }), review -> {
                 if (!isCurrentTask(taskRef.get())) return;
                 cachedGenerating = false; cachedCancelling = false; cachedGenerationTask = null;
                 cachedPendingReview = review;
                 setCachedStatus(UIText.of("ponderer.ui.ai_review.ready"), false);
-                applyCachedStatus(); refreshGenerationActionButton();
-                if (Minecraft.getInstance().screen == this) openReview(review);
+                DslScene scene = review.scene();
+                String name = scene.title == null ? "" : scene.title.resolve();
+                ClientFeedback.chat(Component.translatable("ponderer.ui.ai_generate.completed",
+                    name.isBlank() ? scene.id : name));
+                refreshCurrentScreen();
             });
         taskRef.set(task);
         cachedGenerationTask = task;
@@ -733,12 +832,15 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             return;
         }
         showingStopAction = shouldShowStop;
-        PonderGuiTextures texture = shouldShowStop
-            ? PonderGuiTextures.ICON_DISABLE
-            : PonderGuiTextures.ICON_CONFIRM;
-        saveChanges.showingElement(texture.asStencil()
-            .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
-        setActionButtonTooltip(saveChanges, shouldShowStop ? "ponderer.ui.cancel" : "ponderer.ui.confirm");
+        if (shouldShowStop) {
+            PonderIconStencils.attachFail(saveChanges,
+                PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_DISCARD));
+        } else {
+            saveChanges.showingElement(PonderGuiTextures.ICON_CONFIRM.asStencil()
+                .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
+        }
+        setActionButtonTooltip(saveChanges, shouldShowStop
+            ? "ponderer.ui.ai_generate.stop" : "ponderer.ui.ai_generate.generate");
     }
 
     private void applyCachedStatus() {
@@ -753,11 +855,11 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         }
     }
 
-    private void refreshCurrentScreen() {
+    private static void refreshCurrentScreen() {
         Minecraft.getInstance().execute(() -> {
-            if (Minecraft.getInstance().screen == this) {
-                applyCachedStatus();
-                rebuildListPreservingScroll();
+            if (Minecraft.getInstance().screen instanceof AiGenerateScreen screen) {
+                screen.applyCachedStatus();
+                screen.refreshGenerationActionButton();
             }
         });
     }
@@ -799,6 +901,8 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         cachedCarrier = snapshot.getOrDefault("carrier", "");
         cachedPrompt = snapshot.getOrDefault("prompt", "");
         cachedExistingSceneKey = snapshot.getOrDefault("existing_scene", "");
+        cachedEditExisting = Boolean.parseBoolean(snapshot.getOrDefault("edit_existing",
+            String.valueOf(!cachedExistingSceneKey.isBlank())));
         cachedBuildTutorial = Boolean.parseBoolean(snapshot.getOrDefault("build_tutorial", "false"));
         cachedIncludeImages = Boolean.parseBoolean(snapshot.getOrDefault("include_images", "false"));
         cachedRewrite = Boolean.parseBoolean(snapshot.getOrDefault("rewrite", "false"));
@@ -828,93 +932,97 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         return (cachedStructureIndex + 1) + "/" + cachedStructurePaths.size();
     }
 
-    private static class SpacerHeaderEntry extends ConfigScreenList.Entry {
-        @Override
-        public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
-                           int mouseX, int mouseY, boolean hovered, float partialTicks) {
-        }
+    private class StructurePreviewRowEntry extends ConfigScreenList.Entry {
+        private final int row;
+        private final BoxWidget leftButton;
+        private final BoxWidget rightButton;
 
-        @Override
-        public Component getNarration() {
-            return CommonComponents.EMPTY;
-        }
-    }
-
-    private class PreviewHeaderEntry extends ConfigScreenList.Entry {
-        @Override
-        public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
-                           int mouseX, int mouseY, boolean hovered, float partialTicks) {
-            previewX = EntryTextSupport.contentLeft(x);
-            previewY = y + 2;
-            previewW = EntryTextSupport.contentWidth(width);
-            previewH = Math.max(0, PREVIEW_HEIGHT - 4);
-            preview.setShowDefaultPlaceholder(!hasStructures());
-            preview.setBounds(previewX, previewY, previewW, previewH);
-
-            if (previewW > 0 && previewH > 0) {
-                graphics.enableScissor(previewX, previewY, previewX + previewW, previewY + previewH);
-                preview.render(graphics, partialTicks);
-                graphics.disableScissor();
+        private StructurePreviewRowEntry(int row) {
+            this.row = row;
+            if (row == 0) {
+                leftButton = createNavButton(PonderGuiTextures.ICON_PONDER_LEFT,
+                    AiGenerateScreen.this::selectPreviousStructure, "ponderer.ui.ai_generate.prev.tooltip");
+                rightButton = createNavButton(PonderGuiTextures.ICON_PONDER_RIGHT,
+                    AiGenerateScreen.this::selectNextStructure, "ponderer.ui.ai_generate.next.tooltip");
+            } else {
+                leftButton = new FormBoxWidget(0, 0, 0, NAV_BUTTON_SIZE)
+                    .withCallback(AiGenerateScreen.this::openStructurePicker);
+                leftButton.getToolTip().add(Component.translatable("ponderer.ui.ai_generate.add.tooltip"));
+                rightButton = new FormBoxWidget(0, 0, 0, NAV_BUTTON_SIZE)
+                    .withCallback(AiGenerateScreen.this::deleteStructure);
+                rightButton.getToolTip().add(Component.translatable("ponderer.ui.ai_generate.delete.tooltip"));
             }
-
-            if (!hasStructures()) {
-                var font = Minecraft.getInstance().font;
-                graphics.drawCenteredString(font,
-                    UIText.of("ponderer.ui.ai_generate.preview_title"),
-                    x + width / 2,
-                    y + 6,
-                    HEADER_TITLE_COLOR);
-            }
-        }
-
-        @Override
-        public Component getNarration() {
-            return CommonComponents.EMPTY;
-        }
-    }
-
-    private class StructureNavigationHeaderEntry extends ConfigScreenList.Entry {
-        private final BoxWidget previousButton = createNavButton(
-            PonderGuiTextures.ICON_PONDER_LEFT,
-            AiGenerateScreen.this::selectPreviousStructure,
-            "ponderer.ui.ai_generate.prev.tooltip");
-        private final BoxWidget nextButton = createNavButton(
-            PonderGuiTextures.ICON_PONDER_RIGHT,
-            AiGenerateScreen.this::selectNextStructure,
-            "ponderer.ui.ai_generate.next.tooltip");
-
-        private StructureNavigationHeaderEntry() {
-            listeners.add(previousButton);
-            listeners.add(nextButton);
+            listeners.add(leftButton);
+            listeners.add(rightButton);
         }
 
         @Override
         public void tick() {
             super.tick();
-            syncButton(previousButton);
-            syncButton(nextButton);
-            previousButton.tick();
-            nextButton.tick();
+            syncButtons();
+            leftButton.tick();
+            rightButton.tick();
         }
 
         @Override
         public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                            int mouseX, int mouseY, boolean hovered, float partialTicks) {
-            int buttonY = y + Math.max(0, (height - NAV_BUTTON_SIZE) / 2);
-            layoutButton(previousButton, EntryTextSupport.contentLeft(x), buttonY);
-            layoutButton(nextButton, EntryTextSupport.contentRight(x, width) - NAV_BUTTON_SIZE, buttonY);
+            if (list == null) return;
+            graphics.enableScissor(list.getX(), list.getY(), list.getRight(), list.getBottom());
+            try {
+                renderRow(graphics, x, y, width, height, mouseX, mouseY, partialTicks);
+            } finally {
+                graphics.disableScissor();
+            }
+        }
 
-            previousButton.render(graphics, mouseX, mouseY, partialTicks);
-            nextButton.render(graphics, mouseX, mouseY, partialTicks);
+        private void renderRow(GuiGraphics graphics, int x, int y, int width, int height,
+                               int mouseX, int mouseY, float partialTicks) {
+            int controlsWidth = Math.min(STRUCTURE_CONTROLS_WIDTH, EntryTextSupport.contentWidth(width) / 2);
+            int controlsRight = EntryTextSupport.contentRight(x, width);
+            int controlsX = controlsRight - controlsWidth;
+            renderPreview(graphics, x, y - row * getEntryHeight(), controlsX, partialTicks);
 
             var font = Minecraft.getInstance().font;
-            int textWidth = Math.max(20, nextButton.getX()
-                - previousButton.getX() - NAV_BUTTON_SIZE
-                - 2 * EntryTextSupport.rightControlGap());
-            String structureName = font.plainSubstrByWidth(currentStructureName(), textWidth);
-            int nameColor = hasStructures() ? HEADER_TEXT_COLOR : HEADER_MUTED_TEXT_COLOR;
-            graphics.drawCenteredString(font, structureName, x + width / 2, y + 8, nameColor);
-            graphics.drawCenteredString(font, currentStructureCounter(), x + width / 2, y + 22, HEADER_TITLE_COLOR);
+            int buttonY = row == 0 ? y + 12 : y + Math.max(0, (height - NAV_BUTTON_SIZE) / 2);
+            int buttonWidth = row == 0 ? NAV_BUTTON_SIZE : controlsWidth / 2;
+            layoutButton(leftButton, controlsX, buttonY, buttonWidth);
+            layoutButton(rightButton, controlsRight - buttonWidth, buttonY, buttonWidth);
+            syncButtons();
+            leftButton.render(graphics, mouseX, mouseY, partialTicks);
+            rightButton.render(graphics, mouseX, mouseY, partialTicks);
+
+            if (row == 0) {
+                String name = font.plainSubstrByWidth(currentStructureName(), controlsWidth);
+                graphics.drawCenteredString(font, name, controlsX + controlsWidth / 2, y + 1,
+                    hasStructures() ? HEADER_TEXT_COLOR : HEADER_MUTED_TEXT_COLOR);
+                graphics.drawCenteredString(font, currentStructureCounter(), controlsX + controlsWidth / 2,
+                    buttonY + (NAV_BUTTON_SIZE - font.lineHeight) / 2, HEADER_TITLE_COLOR);
+            } else {
+                EntryTextSupport.drawButtonLabel(graphics, leftButton, UIText.of("ponderer.ui.ai_generate.add"),
+                    HEADER_TEXT_COLOR);
+                EntryTextSupport.drawButtonLabel(graphics, rightButton, UIText.of("ponderer.ui.ai_generate.delete"),
+                    rightButton.active ? HEADER_TEXT_COLOR : HEADER_MUTED_TEXT_COLOR);
+            }
+        }
+
+        private void renderPreview(GuiGraphics graphics, int x, int y, int controlsX, float partialTicks) {
+            // Either visible row can draw the shared preview, including when the first row has scrolled away.
+            if (hasPreviewBounds() || list == null) return;
+            previewX = EntryTextSupport.contentLeft(x);
+            previewY = y + 2;
+            int visibleTop = Math.max(previewY, list.getY());
+            int visibleBottom = Math.min(previewY + PREVIEW_HEIGHT - 4, list.getBottom());
+            if (visibleBottom <= visibleTop) return;
+            previewW = Math.max(0, controlsX - EntryTextSupport.rightControlGap() - previewX);
+            previewH = PREVIEW_HEIGHT - 4;
+            if (!hasPreviewBounds()) return;
+            preview.setShowDefaultPlaceholder(!hasStructures());
+            preview.setBounds(previewX, previewY, previewW, previewH);
+
+            graphics.enableScissor(previewX, visibleTop, previewX + previewW, visibleBottom);
+            preview.render(graphics, partialTicks);
+            graphics.disableScissor();
         }
 
         @Override
@@ -922,16 +1030,18 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             return CommonComponents.EMPTY;
         }
 
-        private void layoutButton(BoxWidget button, int x, int y) {
+        private void layoutButton(BoxWidget button, int x, int y, int width) {
             button.setX(x);
             button.setY(y);
-            button.setWidth(NAV_BUTTON_SIZE);
+            button.setWidth(width);
             button.setHeight(NAV_BUTTON_SIZE);
-            syncButton(button);
         }
 
-        private void syncButton(BoxWidget button) {
-            button.active = canTurnStructures();
+        private void syncButtons() {
+            leftButton.active = row == 0 ? canTurnStructures() : true;
+            rightButton.active = row == 0 ? canTurnStructures() : hasStructures();
+            leftButton.updateGradientFromState();
+            rightButton.updateGradientFromState();
         }
     }
 

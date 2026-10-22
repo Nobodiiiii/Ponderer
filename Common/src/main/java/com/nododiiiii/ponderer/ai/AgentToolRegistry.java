@@ -53,6 +53,7 @@ public final class AgentToolRegistry {
         register(registered, readReference());
         register(registered, inspectExistingScene());
         register(registered, getSceneDraft());
+        register(registered, updateTaskState());
         register(registered, applyScenePatch());
         register(registered, reviewScene());
         register(registered, submitScene());
@@ -484,6 +485,7 @@ public final class AgentToolRegistry {
                 JsonObject result = ok();
                 result.add("draft", context.drafts().descriptor());
                 JsonObject draft = context.drafts().scene();
+                result.add("task_state", context.runState().taskMemory().snapshot());
                 List<String> paths = optionalStringArray(arguments, "paths", 32);
                 if (paths.isEmpty()) result.add("scene", draft);
                 else {
@@ -529,6 +531,18 @@ public final class AgentToolRegistry {
                     context.drafts().replace(draft);
                 }
                 result.add("draft", context.drafts().descriptor());
+                return ToolExecution.result(result);
+            }
+        };
+    }
+
+    private static AgentTool updateTaskState() {
+        return new SimpleTool("update_task_state", "Replace compact working notes: source-linked fact notes, decisions and remaining steps. Notes survive compaction and recovery but are not evidence or edit permission. Use sparingly for a multi-step task; this must be the only call in its turn.", AiTaskMemory.schema()) {
+            @Override public ToolExecution execute(AgentContext context, JsonObject arguments, AiCancellationScope cancellation) {
+                cancellation.throwIfCancelled();
+                context.runState().taskMemory().update(arguments, context.runState());
+                JsonObject result = ok();
+                result.add("task_state", context.runState().taskMemory().snapshot());
                 return ToolExecution.result(result);
             }
         };
@@ -901,6 +915,15 @@ public final class AgentToolRegistry {
         @Override
         public boolean terminal() {
             return terminal;
+        }
+
+        @Override public boolean exclusive() {
+            return terminal || Set.of("apply_scene_patch", "review_scene", "update_task_state").contains(name);
+        }
+
+        @Override public boolean parallelSafe() {
+            return Set.of("query_structure", "get_step_schema", "search_references", "read_reference",
+                "inspect_existing_scene", "get_scene_draft").contains(name);
         }
     }
 }

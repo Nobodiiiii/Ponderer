@@ -44,8 +44,9 @@ final class AiWireTransport {
                 try (input) {
                 cancellation.throwIfCancelled();
                 if (response.statusCode() != 200) {
-                    // Do not log arbitrary gateway bodies, which can echo credentials or request content.
-                    throw new AiHttpException(response.statusCode(), "request rejected; check protocol, model, credentials and service availability", response.headers().firstValue("Retry-After").orElse(""));
+                    // Inspect only a bounded error envelope; raw text never leaves classification.
+                    String errorBody = new String(input.readNBytes(65536), java.nio.charset.StandardCharsets.UTF_8);
+                    throw AiHttpException.rejected(response.statusCode(), response.headers().firstValue("Retry-After").orElse(""), errorBody);
                 }
                 JsonObject responseJson;
                 if (response.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT).contains("text/event-stream")) {

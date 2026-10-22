@@ -8,6 +8,7 @@ import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.fabric.interfaces.FabricInterfaceEvents;
 import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
+import com.nododiiiii.ponderer.ponder.PondererAttribution;
 import com.nododiiiii.ponderer.ponder.AutoRemoteSyncClient;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -56,6 +57,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        PondererAttribution.iconModelLocation();
         BlueprintHandler.INSTANCE = blueprintHandler;
 
         // Key bindings

@@ -23,11 +23,11 @@ public class PonderTagListEntry extends SelectionRowListEntry {
         this(id, tag, selected, onToggle, null, null);
     }
 
-    public PonderTagListEntry(String id, @Nullable PonderTag tag, BooleanSupplier selected, @Nullable Runnable onToggle,
+    public PonderTagListEntry(String id, @Nullable PonderTag tag, BooleanSupplier selected, Runnable onToggle,
                               @Nullable Runnable onEdit, @Nullable Runnable onDelete) {
         super(() -> title(tag), () -> id,
             () -> title(tag) + " " + id + " " + (tag == null ? "" : tag.getDescription()),
-            selected, onToggle, () -> tooltip(id, tag, onToggle == null), () -> ItemStack.EMPTY,
+            selected, onToggle, () -> tooltip(id, tag), () -> ItemStack.EMPTY,
             editButtons(onEdit, onDelete));
         this.id = id;
         this.tag = tag;
@@ -64,14 +64,10 @@ public class PonderTagListEntry extends SelectionRowListEntry {
         return tag == null ? UIText.of("ponderer.ui.scene_tags.unavailable") : tag.getTitle();
     }
 
-    private static List<Component> tooltip(String id, @Nullable PonderTag tag, boolean required) {
+    private static List<Component> tooltip(String id, @Nullable PonderTag tag) {
         List<Component> lines = new ArrayList<>();
         lines.add(Component.literal(title(tag)));
         lines.add(Component.literal(id));
-        if (required) {
-            lines.addAll(FontHelper.cutTextComponent(Component.translatable("ponderer.ui.scene_tags.required.tooltip"),
-                Palette.ALL_GRAY));
-        }
         lines.addAll(FontHelper.cutTextComponent(Component.literal(tag == null
             ? UIText.of("ponderer.ui.scene_tags.unavailable.tooltip") : tag.getDescription()), Palette.ALL_GRAY));
         return lines;

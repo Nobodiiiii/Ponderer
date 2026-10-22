@@ -42,8 +42,8 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
     public SceneTagsScreen(Screen parent, DslScene owner, List<String> tags,
                            Map<String, DslScene.CustomTag> definitions,
                            BiConsumer<List<String>, Map<String, DslScene.CustomTag>> onApply) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_tags", UILayoutConstants.EDITOR_LIST_W + 80);
-        this.originalTags = new LinkedHashSet<>(PondererAttribution.withTag(tags));
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_tags", UILayoutConstants.EDITOR_LIST_W);
+        this.originalTags = new LinkedHashSet<>(tags);
         this.selectedTags = new LinkedHashSet<>(originalTags);
         this.owner = owner;
         this.customTags = CustomPonderTags.copy(definitions);
@@ -55,6 +55,7 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
     private void refreshAvailableTags() {
         Map<String, PonderTag> tags = new LinkedHashMap<>();
         PonderIndex.getTagAccess().getListedTags().stream()
+            .filter(tag -> !PondererAttribution.isTag(tag.getId().toString()))
             .filter(tag -> !CustomPonderTags.ownedBy(owner).containsKey(tag.getId().toString()))
             .forEach(tag -> tags.put(tag.getId().toString(), tag));
         CustomPonderTags.collect(SceneRuntime.getScenes().stream().filter(this::isOtherScene).toList())
@@ -64,7 +65,6 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
                 tags.put(id, CustomPonderTags.preview(id, definition));
             }
         });
-        tags.put(PondererAttribution.TAG_ID, PondererAttribution.preview());
         availableTags.clear();
         tags.values().stream()
             .sorted(Comparator.comparing((PonderTag tag) -> tag.getTitle().toLowerCase(Locale.ROOT))
@@ -115,7 +115,7 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
             String id = entry.getKey();
             boolean editable = customTags.containsKey(id) && CustomPonderTags.isCustomId(id);
             entries.add(new PonderTagListEntry(id, entry.getValue(),
-                () -> selectedTags.contains(id), PondererAttribution.isTag(id) ? null : () -> toggleTag(id),
+                () -> selectedTags.contains(id), () -> toggleTag(id),
                 editable ? () -> ScreenOpener.open(new CustomTagEditorScreen(this, id, customTags.get(id))) : null,
                 editable ? () -> deleteCustomTag(id) : null));
         }
@@ -158,9 +158,6 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
     }
 
     private void toggleTag(String id) {
-        if (PondererAttribution.isTag(id)) {
-            return;
-        }
         if (!selectedTags.remove(id)) {
             selectedTags.add(id);
         }
@@ -169,10 +166,8 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
 
     @Nullable
     String updateCustomTag(@Nullable String oldId, String id, DslScene.CustomTag definition) {
-        if (PondererAttribution.isTag(id) || PondererAttribution.isTag(oldId)) {
-            return UIText.of("ponderer.ui.scene_tags.required.tooltip");
-        }
-        if (!id.equals(oldId) && (customTags.containsKey(id) || availableTags.get(id) != null)) {
+        if (PondererAttribution.isTag(id)
+            || (!id.equals(oldId) && (customTags.containsKey(id) || availableTags.get(id) != null))) {
             return UIText.of("ponderer.ui.custom_tag.error.exists", id);
         }
         if (!id.equals(oldId)) {
@@ -206,9 +201,6 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
     }
 
     private void deleteCustomTag(String id) {
-        if (PondererAttribution.isTag(id)) {
-            return;
-        }
         DslScene reference = findReference(id);
         if (reference != null) {
             setErrorMessage(UIText.of("ponderer.ui.custom_tag.error.in_use", reference.sceneKey()));
@@ -230,10 +222,9 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
 
     public static String summarize(List<String> tags, Map<String, DslScene.CustomTag> definitions) {
         List<String> titles = new ArrayList<>();
-        for (String id : PondererAttribution.withTag(tags)) {
+        for (String id : tags) {
             DslScene.CustomTag definition = definitions.get(id);
-            PonderTag tag = PondererAttribution.isTag(id) ? PondererAttribution.preview()
-                : definition != null && CustomPonderTags.isCustomId(id)
+            PonderTag tag = definition != null && CustomPonderTags.isCustomId(id)
                 ? CustomPonderTags.preview(id, definition) : resolveTag(id);
             titles.add(tag == null ? id : tag.getTitle() + " (" + id + ")");
         }

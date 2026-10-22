@@ -2,6 +2,11 @@
 
 AI 使用单 Agent 工具循环。共享实现位于 `Common`，由 Fabric 和 NeoForge 共用。
 
+`AiSceneAgentPipeline` 负责轮次与结束条件；`AiConversation` 负责模型上下文和压缩，
+`AiToolCalls` 将原生调用与 JSON 协议归一到相同校验，`AiToolExecutor` 负责工具调度，
+`AiRunEvents` 记录有序运行事件。原生调用直接读取类型化参数，仅在诊断输出时序列化，
+不再先转换为 JSON 文本再解析。
+
 ## 编辑边界
 
 调整模式须先读取原场景，然后在响应的顶层提供 `edit_scope.paths`，使用精确 JSON Pointer，
@@ -68,6 +73,12 @@ Anthropic thinking/signature 以不透明内容回放，兼容模式只在适配
 中断其他独立读取。图像放在完整工具结果批次之后，避免打断原生调用结果配对。
 不因任意 HTTP 错误自动切换协议；令牌耗尽与上下文容量分别处理。
 
+`query_structure`、`get_step_schema`、`search_references`、`read_reference`、
+`inspect_existing_scene`、`get_scene_draft` 的连续读取可最多三路并发；运行状态中的读取
+回执同步更新，模型历史仍按原调用顺序加入结果。访问运行时注册表的工具保留串行，
+未明确标记安全的工具也是顺序屏障。草稿修改、任务记忆修改和终止工具必须独占一轮。
+读取线程由运行取消域管理，取消、到期或退出时关闭线程池；读取中仍通过协作检查退出。
+
 ai.streaming 默认开启；三种协议均支持 SSE，按完整结束事件组装工具调用和不透明
 reasoning/thinking/signature，再交给 Agent 执行。界面显示节流后的接收字符数，
 不展示思考正文。服务返回普通 JSON 时仍可读取；不支持流式请求的端点可在配置页关闭。
@@ -98,18 +109,36 @@ Unicode，使用服务返回的输入用量向上校准安全余量；图像按�
 
 临时网络失败、HTTP 408/429/5xx 最多重试两次，尊重 Retry-After，等待也可取消并受时间
 预算限制。无法确定是否计费用量的失败请求按输入估算和预留输出上限保守入账。
+明确的上下文溢出错误每轮允许一次强制压缩重试；该次压缩移除旧轮次，保留宿主状态和任务
+记忆。压缩不能缩小输入或重试仍溢出时，以 context_exhausted 停止并保留草稿。
+HTTP 错误只读取有限长度的错误包用于分类，不记录或回显任意服务响应正文。
 其他 HTTP 错误不会自动重试或切换协议。到期取消在途 HTTP future；本地结构解析等同步
 工作在协作取消检查点退出，不会强行终止游戏线程。
 
 上下文接近容量时优先保留最近三轮，仍超预算则从最早轮次开始移除，调用、结果和不透明
 reasoning 始终一起保留或移除。宿主固定保留原始场景、当前草稿、编辑范围、验证错误、
 用户补充指令、变更路径和最近读取位置索引；读取索引不代表证据正文，模型须按需重新读取被移除的
-具体证据，不依赖模型生成的摘要。`finish_task` 支持 partial、needs_input、failed，
+具体证据，不把模型生成的摘要当成证据。`finish_task` 支持 partial、needs_input、failed，
 这些结果保留草稿但不会保存成成功场景。
+
+复杂任务可以通过 `update_task_state` 替换小型结构化工作记忆：`facts` 中保存备注及其读取
+工具和参数，`decisions` 保存方案选择，`next_steps` 保存未完成步骤。事实备注的来源必须
+匹配本轮成功执行的读取；最多保留 12 条事实备注、8 条决策和 8 条待办，总长最多 16384
+字符。该工具不修改场景、不会单独重置“无进展”计数，也不增加编辑权限。工作记忆在
+压缩、checkpoint 和恢复间保留，`get_scene_draft` 也会返回；恢复后旧回执不恢复，必须
+重新读取来源才能依赖或更新事实备注。宿主只验证读取来源存在，不证明备注语义为真。
 
 每次运行独立保存在 `config/ponderer/logs/runs/<UUID>/`，包含有效提示词、manifest、
 逐轮 trace/usage、metrics、checkpoint、diff、status；模型与协议记录不包含 API key。
 checkpoint 在工具调用后和退出时原子更新。原有 last_agent_trace.log 仍保留最新运行记录。
+
+`events.jsonl` 是新增运行的有序事件记录，事件包含 version、run_id、sequence、type、turn、
+at 和 data。请求、工具执行、上下文压缩、轮次结束、草稿变化、进度和运行状态走同一
+事件入口。先追加完整事件，再通知进度或更新状态、检查点与 metrics 的兼容 JSON 文件。
+运行记录和恢复优先读取事件中最新的对应快照，旧记录继续读取原 JSON 文件；事件落盘后
+进程中断、兼容文件尚未更新时仍能读取最新快照。末尾未完成的事件行不会参与恢复，下次
+追加前移除该残行；已完成行的版本或顺序损坏则报错，不猜测恢复。该日志不提供跨进程
+并发写入或远程会话重放，场景恢复仍以最近一次完整 checkpoint 为准。
 
 生成界面的“AI 运行记录与差异”可查看最近 50 次运行、前后值、原有/新增/变化的警告，
 复制完整差异、打开已保存场景或运行目录、为中断草稿补充说明并恢复。
@@ -124,7 +153,8 @@ checkpoint 在工具调用后和退出时原子更新。原有 last_agent_trace.
 
 使用现有 `:Common:test`、`:NeoForge:build`、`:Fabric:build`。
 本轮不新增测试文件或用例。现有自动测试覆盖基础修复循环、配置读取和场景校验，
-不代表新增流式协议、预览反馈、补充指令、恢复和撤销已完成真实服务或游戏内验收。
+不代表并发读取、上下文溢出重试、事件日志恢复、流式协议、预览反馈、补充指令和撤销
+已完成真实服务或游戏内验收。
 
 真实模型连通性使用现有命令：
 `gradlew.bat --offline :Common:test --tests com.nododiiiii.ponderer.ai.RealLlmCodexConfigTest -PrealLlm=true`。

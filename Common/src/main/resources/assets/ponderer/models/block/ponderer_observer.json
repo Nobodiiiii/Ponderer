@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/observer",
+  "textures": {
+    "front": "ponderer:block/ponderer_observer_front"
+  }
+}

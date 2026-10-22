@@ -4,7 +4,7 @@ import com.nododiiiii.ponderer.ponder.PonderPackInfo;
 import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
+import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.SelectionRowListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
@@ -16,25 +16,26 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
-public class PonderPackSelectScreen extends AbstractReadonlyDeclarativeListScreen {
+public class PonderPackSelectScreen extends AbstractDeclarativeListScreen {
 
     private final Screen parent;
-    private final Consumer<String> onSelect;
+    private final Consumer<List<String>> onSelect;
     private final Runnable onCancel;
     private final List<PonderPackInfo> packs = new ArrayList<>();
-    private String selectedPack;
+    private final Set<String> originalSelection;
+    private final Set<String> selectedPacks;
 
-    public PonderPackSelectScreen(Screen parent, Consumer<String> onSelect, Runnable onCancel) {
-        this(parent, "", onSelect, onCancel);
-    }
-
-    public PonderPackSelectScreen(Screen parent, String selectedPack, Consumer<String> onSelect, Runnable onCancel) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.pack_select.title", UILayoutConstants.EDITOR_LIST_W + 80);
+    public PonderPackSelectScreen(Screen parent, List<String> selectedPacks,
+                                  Consumer<List<String>> onSelect, Runnable onCancel) {
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.pack_select.title", UILayoutConstants.EDITOR_LIST_W);
         this.parent = parent;
-        this.selectedPack = selectedPack;
+        this.originalSelection = new LinkedHashSet<>(selectedPacks);
+        this.selectedPacks = new LinkedHashSet<>(selectedPacks);
         this.onSelect = onSelect;
         this.onCancel = onCancel;
     }
@@ -43,13 +44,16 @@ public class PonderPackSelectScreen extends AbstractReadonlyDeclarativeListScree
     protected void init() {
         reloadPacks();
         super.init();
+        useConfirmationActionIcons();
+        if (discardChanges != null) discardChanges.withCallback(this::cancelSelection);
     }
 
     @Override
     protected void collectHeaderEntries(List<ConfigScreenList.Entry> entries) {
         entries.add(new WorkspaceHeaderListEntry(
             () -> UIText.of("ponderer.ui.pack_select.title"),
-            () -> UIText.of("ponderer.ui.pack_select.available_count", packs.size()),
+            () -> UIText.of("ponderer.ui.pack_select.available_count", packs.size()) + " · "
+                + UIText.of("ponderer.ui.function_page.selected_packs", selectedPacks.size()),
             List.of()));
     }
 
@@ -66,12 +70,8 @@ public class PonderPackSelectScreen extends AbstractReadonlyDeclarativeListScree
                 () -> info.name,
                 () -> packDetail(info),
                 () -> packLabel(info) + " " + packTooltip(info),
-                () -> info.name.equals(selectedPack),
-                () -> {
-                    selectedPack = info.name;
-                    onSelect.accept(info.name);
-                    Minecraft.getInstance().setScreen(parent);
-                },
+                () -> selectedPacks.contains(info.name),
+                () -> togglePack(info.name),
                 () -> List.of(Component.literal(packLabel(info)), Component.literal(packTooltip(info))),
                 () -> icon, List.of()));
         }
@@ -82,6 +82,56 @@ public class PonderPackSelectScreen extends AbstractReadonlyDeclarativeListScree
         return UILayoutConstants.LIST_ENTRY_H;
     }
 
+    private void togglePack(String pack) {
+        if (!selectedPacks.remove(pack)) selectedPacks.add(pack);
+        clearStatusMessages();
+    }
+
+    @Override
+    protected boolean hasUnsavedChanges() {
+        return !selectedPacks.equals(originalSelection);
+    }
+
+    @Override
+    protected int getUnsavedChangeCount() {
+        Set<String> added = new LinkedHashSet<>(selectedPacks);
+        added.removeAll(originalSelection);
+        Set<String> removed = new LinkedHashSet<>(originalSelection);
+        removed.removeAll(selectedPacks);
+        return added.size() + removed.size();
+    }
+
+    @Override
+    protected boolean saveEdits() {
+        onSelect.accept(List.copyOf(selectedPacks));
+        originalSelection.clear();
+        originalSelection.addAll(selectedPacks);
+        Minecraft.getInstance().setScreen(parent);
+        return true;
+    }
+
+    @Override
+    protected void discardEdits() {
+        selectedPacks.clear();
+        selectedPacks.addAll(originalSelection);
+        clearStatusMessages();
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
+        return true;
+    }
+
+    @Override
+    protected boolean isDiscardButtonActive() {
+        return true;
+    }
+
+    private void cancelSelection() {
+        discardEdits();
+        onCancel.run();
+    }
+
     private void reloadPacks() {
         packs.clear();
         packs.addAll(SceneStore.scanAvailableSourcePacks());
@@ -89,7 +139,7 @@ public class PonderPackSelectScreen extends AbstractReadonlyDeclarativeListScree
 
     @Override
     protected void attemptBackToParent() {
-        onCancel.run();
+        cancelSelection();
     }
 
     private ItemStack packIcon(PonderPackInfo info) {
