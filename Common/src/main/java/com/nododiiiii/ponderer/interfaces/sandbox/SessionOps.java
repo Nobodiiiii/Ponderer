@@ -283,12 +283,7 @@ public final class SessionOps {
             session.report("interface_action: target could not be resolved");
             return;
         }
-        session.dispatch("interface_action", () -> {
-            screen.mouseMoved(p[0], p[1]);
-            screen.mouseClicked(p[0], p[1], button);
-            screen.mouseReleased(p[0], p[1], button);
-            return null;
-        }, null);
+        session.click(p[0], p[1], button);
     }
 
     @Nullable
