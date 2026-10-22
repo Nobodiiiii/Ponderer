@@ -49,7 +49,7 @@ public final class ClaudeCodeAiConfig {
             String baseUrl = normalizeBaseUrl(firstNonBlank(
                 environment.get("ANTHROPIC_BASE_URL"),
                 stringValue(env, "ANTHROPIC_BASE_URL"),
-                "https://api.anthropic.com"
+                "https://api.anthropic.com/v1"
             ));
             String model = firstNonBlank(
                 environment.get("ANTHROPIC_MODEL"),
@@ -57,7 +57,7 @@ public final class ClaudeCodeAiConfig {
                 stringValue(env, "ANTHROPIC_DEFAULT_OPUS_MODEL"),
                 stringValue(env, "ANTHROPIC_DEFAULT_SONNET_MODEL"),
                 stringValue(settings, "model"),
-                "claude-sonnet-4-20250514"
+                AiDefaults.ANTHROPIC_MODEL
             );
 
             return Optional.of(new AiRuntimeConfig(
@@ -67,7 +67,11 @@ public final class ClaudeCodeAiConfig {
                 authToken.isBlank() ? apiKey : bearerToken(authToken),
                 model,
                 maxTokens,
-                "claude-code:" + settingsFile
+                "claude-code:" + settingsFile,
+                firstNonBlank(
+                    environment.get("CLAUDE_CODE_EFFORT_LEVEL"),
+                    stringValue(env, "CLAUDE_CODE_EFFORT_LEVEL"),
+                    stringValue(settings, "effortLevel"))
             ));
         } catch (Exception e) {
             LOGGER.warn("Failed to read Claude Code AI config from {}", claudeHome, e);
@@ -110,9 +114,8 @@ public final class ClaudeCodeAiConfig {
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             url = "https://" + url;
         }
-        if (url.endsWith("/v1")) {
-            url = url.substring(0, url.length() - 3);
-        }
+        // Claude Code supplies a service root; preserve the original /v1/messages endpoint.
+        if (!url.endsWith("/v1")) url += "/v1";
         return url;
     }
 

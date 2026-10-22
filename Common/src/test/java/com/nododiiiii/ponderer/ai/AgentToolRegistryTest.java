@@ -32,14 +32,14 @@ class AgentToolRegistryTest {
     }
 
     @Test
-    void registersAllEightToolsAndProvidesSchemas() {
+    void registersAllToolsAndProvidesSchemas() {
         AgentToolRegistry registry = new AgentToolRegistry();
 
-        assertEquals(8, registry.all().size());
+        assertEquals(13, registry.all().size());
         assertNotNull(registry.get("query_structure"));
         assertNotNull(registry.get("submit_scene"));
         assertTrue(registry.promptSpecification().contains("\"input_schema\""));
-        assertEquals(32, SceneStepCatalog.types().size());
+        assertEquals(39, SceneStepCatalog.types().size());
     }
 
     @Test
@@ -139,7 +139,7 @@ class AgentToolRegistryTest {
             .execute(context, arguments, cancellation);
         assertFalse(rejected.result().get("ok").getAsBoolean());
         String preconditionErrors = rejected.result().getAsJsonArray("errors").toString();
-        assertTrue(preconditionErrors.contains("query_structure"));
+        assertFalse(preconditionErrors.contains("query_structure"));
         assertTrue(preconditionErrors.contains("search_references"));
         assertTrue(preconditionErrors.contains("inspect_existing_scene"));
 

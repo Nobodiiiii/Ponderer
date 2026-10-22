@@ -23,6 +23,12 @@ public class ExportPackScreen extends AbstractStatefulDeclarativeFormScreen {
     }
 
     @Override
+    protected void init() {
+        super.init();
+        useConfirmationActionIcons();
+    }
+
+    @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> draftName, value -> {

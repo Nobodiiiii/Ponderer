@@ -1,26 +1,41 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.Config;
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import com.nododiiiii.ponderer.ui.BlueprintItemConfigScreen;
-import com.nododiiiii.ponderer.ui.UIText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 public record BlueprintConfigResponsePayload(boolean enableBuiltinItem, boolean canManage,
-                                             String messageKey, boolean error) {
+                                             String messageKey, boolean error) implements CustomPacketPayload {
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeBoolean(enableBuiltinItem());
-        buf.writeBoolean(canManage());
-        buf.writeUtf(messageKey() == null ? "" : messageKey());
-        buf.writeBoolean(error());
+    public static final Type<BlueprintConfigResponsePayload> TYPE =
+            new Type<>(new ResourceLocation(Ponderer.MODID, "blueprint_config_response"));
+    public static final StreamCodec<FriendlyByteBuf, BlueprintConfigResponsePayload> CODEC =
+            StreamCodec.of(BlueprintConfigResponsePayload::encode, BlueprintConfigResponsePayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
-    public static BlueprintConfigResponsePayload decode(FriendlyByteBuf buf) {
+    private static void encode(FriendlyByteBuf buf, BlueprintConfigResponsePayload payload) {
+        buf.writeBoolean(payload.enableBuiltinItem());
+        buf.writeBoolean(payload.canManage());
+        buf.writeUtf(payload.messageKey() == null ? "" : payload.messageKey());
+        buf.writeBoolean(payload.error());
+    }
+
+    private static BlueprintConfigResponsePayload decode(FriendlyByteBuf buf) {
         return new BlueprintConfigResponsePayload(
             buf.readBoolean(),
             buf.readBoolean(),
@@ -38,13 +53,14 @@ public record BlueprintConfigResponsePayload(boolean enableBuiltinItem, boolean 
 
     public static void handle(BlueprintConfigResponsePayload payload) {
         Minecraft client = Minecraft.getInstance();
-        if (client.screen instanceof BlueprintItemConfigScreen screen) {
+        if (ClientFeedback.responseScreen() instanceof BlueprintItemConfigScreen screen) {
             screen.receiveServerState(payload);
             return;
         }
 
         if (payload.messageKey() != null && !payload.messageKey().isBlank() && client.player != null) {
-            client.player.displayClientMessage(Component.literal(UIText.of(payload.messageKey())), false);
+            ClientFeedback.result(Component.translatable(payload.messageKey()),
+                payload.error() ? FeedbackLevel.ERROR : FeedbackLevel.SUCCESS);
         }
     }
 

@@ -8,6 +8,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(PonderKeybinds.class)
 public interface PonderKeybindsAccessor {
 
-    @Accessor(value = "mapping", remap = false)
+    @Accessor("mapping")
     KeyMapping ponderer$getMapping();
 }

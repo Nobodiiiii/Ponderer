@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -40,6 +41,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_TAG_PATH;
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_TITLE_EN_US;
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_TITLE_ZH_CN;
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_DESCRIPTION_EN_US;
+import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_DESCRIPTION_ZH_CN;
+
 public final class JavaModuleExportService {
     private static final Gson GSON = new GsonBuilder()
         .setPrettyPrinting()
@@ -69,6 +76,7 @@ public final class JavaModuleExportService {
         "modify_block_entity_nbt",
         "indicate_redstone",
         "indicate_success",
+        "spawn_particles",
         "clear_entities",
         "clear_item_entities",
         "modify_entities_nbt",
@@ -80,6 +88,12 @@ public final class JavaModuleExportService {
         "show_interface",
         "click_interface",
         "change_interface_slot",
+        "set_interface_slots",
+        "set_interface_data",
+        "set_interface_context",
+        "interface_action",
+        "hide_interface",
+        "await_interface",
         "zoom_scene"
     );
 
@@ -91,13 +105,6 @@ public final class JavaModuleExportService {
     private static final String GENERATED_DIR = ".ponderer-export";
     private static final String MANIFEST_NAME = "manifest.json";
     private static final String REPORT_NAME = "last-report.json";
-    private static final String ATTRIBUTION_TAG_PATH = "ponderer_exported";
-    private static final String ATTRIBUTION_TITLE_EN_US = "The Ponderer...";
-    private static final String ATTRIBUTION_TITLE_ZH_CN = "思索者...";
-    private static final String ATTRIBUTION_DESCRIPTION_EN_US =
-        "This mod's Ponder scenes were created and exported with The Ponderer. Learn more: https://modrinth.com/mod/the-ponderer";
-    private static final String ATTRIBUTION_DESCRIPTION_ZH_CN =
-        "以上思索由模组思索者（Ponderer）制作并导出，了解更多：https://modrinth.com/mod/the-ponderer";
 
     private JavaModuleExportService() {
     }
@@ -153,6 +160,22 @@ public final class JavaModuleExportService {
 
         List<TextFile> textWrites = new ArrayList<>();
         List<BinaryFile> binaryWrites = new ArrayList<>();
+        for (String iconPath : List.of(PondererAttribution.ICON_TEXTURE_PATH, PondererAttribution.ICON_MODEL_RESOURCE_PATH)) {
+            try (InputStream icon = JavaModuleExportService.class.getResourceAsStream("/assets/ponderer/" + iconPath)) {
+                if (icon == null) {
+                    return JavaModuleExportResult.failure("Missing bundled Ponderer attribution resource: " + iconPath);
+                }
+                byte[] bytes = icon.readAllBytes();
+                if (iconPath.endsWith(".json")) {
+                    bytes = new String(bytes, StandardCharsets.UTF_8)
+                        .replace("ponderer:", scanResult.targetProject.modId + ":").getBytes(StandardCharsets.UTF_8);
+                }
+                binaryWrites.add(new BinaryFile("src/main/resources/assets/" + scanResult.targetProject.modId
+                    + "/" + iconPath, bytes));
+            } catch (IOException e) {
+                return JavaModuleExportResult.failure("Failed to read Ponderer attribution resource: " + e.getMessage());
+            }
+        }
         List<Path> deletions = new ArrayList<>();
         List<SceneExportOutcome> outcomes = new ArrayList<>();
         Map<String, Set<String>> staleManagedLangKeys = new LinkedHashMap<>();
@@ -306,20 +329,27 @@ public final class JavaModuleExportService {
         if (!Files.isRegularFile(forgeMetadata)) {
             forgeMetadata = resourcesRoot.resolve("META-INF/mods.toml").normalize();
         }
+        Path neoForgeMetadata = normalizedRoot.resolve("src/main/templates/META-INF/neoforge.mods.toml").normalize();
+        if (!Files.isRegularFile(neoForgeMetadata)) {
+            neoForgeMetadata = resourcesRoot.resolve("META-INF/neoforge.mods.toml").normalize();
+        }
 
         boolean hasFabric = Files.isRegularFile(fabricMetadata);
         boolean hasForge = Files.isRegularFile(forgeMetadata);
-        if (hasFabric == hasForge) {
+        boolean hasNeoForge = Files.isRegularFile(neoForgeMetadata);
+        int detectedLoaders = (hasFabric ? 1 : 0) + (hasForge ? 1 : 0) + (hasNeoForge ? 1 : 0);
+        if (detectedLoaders != 1) {
             addFinding(fatals, "fatal", null, null, null, null,
-                hasFabric
-                    ? "Target root contains both Fabric and Forge metadata. Select a single loader module root."
-                    : "Unable to detect Fabric or Forge metadata in the target module.");
+                detectedLoaders > 1
+                    ? "Target root contains metadata for multiple loaders. Select a single Fabric, Forge, or NeoForge module root."
+                    : "Unable to detect Fabric, Forge, or NeoForge metadata in the target module.");
             return null;
         }
 
         Properties properties = loadGradleProperties(normalizedRoot);
-        String loader = hasFabric ? "fabric" : "forge";
-        String modId = hasFabric ? parseFabricModId(fabricMetadata, properties) : parseForgeModId(forgeMetadata, properties);
+        String loader = hasFabric ? "fabric" : hasNeoForge ? "neoforge" : "forge";
+        Path metadataPath = hasFabric ? fabricMetadata : hasNeoForge ? neoForgeMetadata : forgeMetadata;
+        String modId = hasFabric ? parseFabricModId(fabricMetadata, properties) : parseTomlModId(metadataPath, properties);
         if (modId == null || modId.isBlank()) {
             addFinding(fatals, "fatal", null, null, null, null, "Unable to detect the target mod id.");
             return null;
@@ -350,7 +380,7 @@ public final class JavaModuleExportService {
         project.targetRoot = normalizedRoot;
         project.javaRoot = javaRoot;
         project.resourcesRoot = resourcesRoot;
-        project.metadataPath = hasFabric ? fabricMetadata : forgeMetadata;
+        project.metadataPath = metadataPath;
         return project;
     }
 
@@ -378,14 +408,8 @@ public final class JavaModuleExportService {
         plan.className = classNameFor(scene.id);
         plan.storyboardBasePath = storyboardBasePath(scene.id);
 
-        for (String itemId : safeList(scene.items)) {
-            ResourceLocation itemLoc = ResourceLocation.tryParse(itemId);
-            if (itemLoc != null) {
-                Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(itemLoc).orElse(Items.AIR);
-                if (item != Items.AIR) {
-                    plan.componentItems.add(itemLoc.toString());
-                }
-            }
+        for (ResourceLocation itemLoc : SceneItemBindings.resolve(scene.items)) {
+            plan.componentItems.add(itemLoc.toString());
         }
         if (plan.componentItems.isEmpty()) {
             plan.skippedScene = true;
@@ -396,11 +420,16 @@ public final class JavaModuleExportService {
         }
 
         for (String tagId : safeList(scene.tags)) {
+            // Standalone exports register attribution under the target mod's namespace.
+            if (PondererAttribution.isTag(tagId)) {
+                continue;
+            }
             ResourceLocation tagLoc = ResourceLocation.tryParse(tagId);
             if (tagLoc != null) {
                 plan.tags.add(tagLoc.toString());
             }
         }
+        plan.customTags = CustomPonderTags.copy(CustomPonderTags.forScene(scene));
 
         collectSceneMetaWarnings(scene, result, plan);
 
@@ -525,7 +554,13 @@ public final class JavaModuleExportService {
     private static void collectSceneMetaWarnings(DslScene scene,
                                                  JavaModuleScanResult result,
                                                  JavaModuleScanResult.ScenePlan plan) {
-        if (scene.nbtFilter != null && !scene.nbtFilter.isBlank()) {
+        if (SceneItemBindings.hasTagBindings(scene)) {
+            plan.partial = true;
+            plan.hadMetaDrops = true;
+            addFinding(result.warningFindings, "step/meta warnings", scene.id, scene.sceneKey(), null, null,
+                "Item tag bindings export as the currently resolved item IDs.");
+        }
+        if (SceneItemBindings.hasNbtFilters(scene)) {
             plan.partial = true;
             plan.hadMetaDrops = true;
             addFinding(result.warningFindings, "step/meta warnings", scene.id, scene.sceneKey(), null, null,
@@ -687,6 +722,14 @@ public final class JavaModuleExportService {
                 "show_section_and_merge" -> hasPos(step.blockPos);
             case "encapsulate_bounds" -> step.bounds != null && step.bounds.size() >= 3;
             case "play_sound" -> isNonBlank(step.sound);
+            case "spawn_particles" -> {
+                try {
+                    ParticleEffectSpec.validate(step);
+                    yield true;
+                } catch (IllegalArgumentException e) {
+                    yield false;
+                }
+            }
             case "replace_blocks", "set_block" -> hasPos(step.blockPos) && isNonBlank(step.block);
             case "rotate_section", "move_section" -> isNonBlank(step.linkId) || hasPos(step.blockPos);
             case "clear_entities", "clear_item_entities", "modify_entities_nbt", "modify_item_entities_nbt" ->
@@ -747,12 +790,17 @@ public final class JavaModuleExportService {
         writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderSupport.java",
             buildSupportSource(target)));
         writes.addAll(buildLangWrites(target, manifest, currentSceneIds, staleManagedLangKeys));
-        if ("fabric".equals(target.loader)) {
-            writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderFabricClient.java",
+        switch (target.loader) {
+            case "fabric" -> writes.add(new TextFile(
+                "src/main/java/" + generatedPackagePath + "/GeneratedPonderFabricClient.java",
                 buildFabricClientSource(target)));
-        } else {
-            writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderForgeClient.java",
+            case "neoforge" -> writes.add(new TextFile(
+                "src/main/java/" + generatedPackagePath + "/GeneratedPonderNeoForgeClient.java",
+                buildNeoForgeClientSource(target)));
+            case "forge" -> writes.add(new TextFile(
+                "src/main/java/" + generatedPackagePath + "/GeneratedPonderForgeClient.java",
                 buildForgeClientSource(target)));
+            default -> throw new IllegalArgumentException("Unsupported target loader: " + target.loader);
         }
         return writes;
     }
@@ -836,6 +884,11 @@ public final class JavaModuleExportService {
     private static Map<String, Map<String, String>> buildSceneLangEntries(JavaModuleScanResult.TargetProject target,
                                                                           JavaModuleScanResult.ScenePlan scenePlan) {
         Map<String, Map<String, String>> langEntries = new LinkedHashMap<>();
+        scenePlan.customTags.forEach((id, definition) -> {
+            ResourceLocation location = new ResourceLocation(exportedTagId(target, scenePlan, id));
+            addLangEntries(langEntries, tagTitleLangKey(location.getNamespace(), location.getPath()), definition.title, id);
+            addLangEntries(langEntries, tagDescriptionLangKey(location.getNamespace(), location.getPath()), definition.description, "");
+        });
         for (int segmentIndex = 0; segmentIndex < scenePlan.segments.size(); segmentIndex++) {
             JavaModuleScanResult.SegmentPlan segment = scenePlan.segments.get(segmentIndex);
             if (segment.schematic == null) {
@@ -941,6 +994,15 @@ public final class JavaModuleExportService {
 
     private static String generatedAttributionTagId(String modId) {
         return modId + ":" + ATTRIBUTION_TAG_PATH;
+    }
+
+    /** Generated custom categories belong to the destination mod; external categories keep their IDs. */
+    private static String exportedTagId(JavaModuleScanResult.TargetProject target,
+                                         JavaModuleScanResult.ScenePlan plan, String id) {
+        if (!plan.customTags.containsKey(id)) {
+            return id;
+        }
+        return new ResourceLocation(target.modId, new ResourceLocation(id).getPath()).toString();
     }
 
     private static String tagTitleLangKey(String modId, String tagPath) {
@@ -1064,6 +1126,7 @@ public final class JavaModuleExportService {
             public final class GeneratedPonderFabricClient implements ClientModInitializer {
                 @Override
                 public void onInitializeClient() {
+                    GeneratedPonderAttribution.iconModelLocation();
                     PonderIndex.addPlugin(new GeneratedPonderPlugin());
                 }
             }
@@ -1079,10 +1142,16 @@ public final class JavaModuleExportService {
             import net.minecraftforge.eventbus.api.SubscribeEvent;
             import net.minecraftforge.fml.common.Mod;
             import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+            import net.minecraftforge.client.event.ModelEvent;
 
             @Mod.EventBusSubscriber(modid = "%s", bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
             public final class GeneratedPonderForgeClient {
                 private GeneratedPonderForgeClient() {
+                }
+
+                @SubscribeEvent
+                public static void onRegisterModels(ModelEvent.RegisterAdditional event) {
+                    event.register(GeneratedPonderAttribution.iconModelLocation());
                 }
 
                 @SubscribeEvent
@@ -1093,16 +1162,60 @@ public final class JavaModuleExportService {
             """.formatted(target.generatedPackage, escapeJava(target.modId));
     }
 
-    private static String buildAttributionSource(JavaModuleScanResult.TargetProject target) {
+    static String buildNeoForgeClientSource(JavaModuleScanResult.TargetProject target) {
         return GENERATED_NOTICE_BLOCK + """
             package %s;
 
+            import net.createmod.ponder.foundation.PonderIndex;
+            import net.neoforged.api.distmarker.Dist;
+            import net.neoforged.bus.api.SubscribeEvent;
+            import net.neoforged.fml.common.EventBusSubscriber;
+            import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+            import net.neoforged.neoforge.client.event.ModelEvent;
+            import net.minecraft.client.resources.model.ModelResourceLocation;
+
+            @EventBusSubscriber(modid = "%s", value = Dist.CLIENT)
+            public final class GeneratedPonderNeoForgeClient {
+                private GeneratedPonderNeoForgeClient() {
+                }
+
+                @SubscribeEvent
+                public static void onRegisterModels(ModelEvent.RegisterAdditional event) {
+                    event.register(ModelResourceLocation.standalone(GeneratedPonderAttribution.iconModelLocation()));
+                }
+
+                @SubscribeEvent
+                public static void onClientSetup(FMLClientSetupEvent event) {
+                    event.enqueueWork(() -> PonderIndex.addPlugin(new GeneratedPonderPlugin()));
+                }
+            }
+            """.formatted(target.generatedPackage, escapeJava(target.modId));
+    }
+
+    static String buildAttributionSource(JavaModuleScanResult.TargetProject target) {
+        return GENERATED_NOTICE_BLOCK + """
+            package %s;
+
+            import com.mojang.blaze3d.systems.RenderSystem;
+            import dev.engine_room.flywheel.lib.model.baked.PartialModel;
+            import net.createmod.catnip.animation.AnimationTickHolder;
+            import net.createmod.catnip.gui.element.GuiGameElement;
             import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
+            import net.createmod.ponder.foundation.PonderIndex;
+            import net.createmod.ponder.foundation.PonderTag;
+            import net.createmod.ponder.foundation.registration.PonderTagRegistry;
+            import net.minecraft.client.gui.GuiGraphics;
             import net.minecraft.resources.ResourceLocation;
-            import net.minecraft.world.item.Items;
+            import net.minecraft.world.item.ItemStack;
 
             public final class GeneratedPonderAttribution {
+                private static final int ICON_ROTATION_TICKS = 20 * 30;
                 private static final ResourceLocation TAG = new ResourceLocation(%s, %s);
+
+                private static final class Icon {
+                    private static final PartialModel MODEL = PartialModel.of(
+                        new ResourceLocation(TAG.getNamespace(), %s));
+                }
 
                 private GeneratedPonderAttribution() {
                 }
@@ -1111,18 +1224,38 @@ public final class JavaModuleExportService {
                     return TAG;
                 }
 
+                public static ResourceLocation iconModelLocation() {
+                    return Icon.MODEL.modelLocation();
+                }
+
                 public static void registerTag(PonderTagRegistrationHelper<ResourceLocation> helper) {
                     helper.registerTag(TAG)
                         .title(%s)
                         .description(%s)
-                        .item(Items.WRITABLE_BOOK)
                         .register();
+                    PonderTag tag = new PonderTag(TAG, null, ItemStack.EMPTY, ItemStack.EMPTY) {
+                        @Override
+                        public void render(GuiGraphics graphics, int x, int y) {
+                            // UI time keeps the icon rotating while scene playback or the game is paused.
+                            double ticks = AnimationTickHolder.getTicks(true) %% ICON_ROTATION_TICKS
+                                + net.minecraft.client.Minecraft.getInstance().getFrameTime();
+                            GuiGameElement.of(Icon.MODEL)
+                                .rotateBlock(30, 135 + ticks * 360 / ICON_ROTATION_TICKS, 0)
+                                .scale(10)
+                                .at(x + 3, y + 13, 100)
+                                .render(graphics);
+                            // Model batch cleanup disables depth testing; following native widgets expect it enabled.
+                            RenderSystem.enableDepthTest();
+                        }
+                    };
+                    ((PonderTagRegistry) PonderIndex.getTagAccess()).registerTag(tag);
                 }
             }
             """.formatted(
             target.generatedPackage,
             stringExpr(target.modId),
             stringExpr(ATTRIBUTION_TAG_PATH),
+            stringExpr(PondererAttribution.ICON_MODEL_PATH),
             stringExpr(ATTRIBUTION_TITLE_EN_US),
             stringExpr(ATTRIBUTION_DESCRIPTION_EN_US));
     }
@@ -1147,7 +1280,8 @@ public final class JavaModuleExportService {
         sb.append("    }\n\n");
         sb.append("    public static void register(PonderSceneRegistrationHelper<ResourceLocation> helper) {\n");
         sb.append("        ResourceLocation[] tags = ")
-            .append(resourceLocationArrayExpr(plan.tags, generatedAttributionTagId(target.modId))).append(";\n");
+            .append(resourceLocationArrayExpr(plan.tags.stream().map(id -> exportedTagId(target, plan, id)).toList(),
+                generatedAttributionTagId(target.modId))).append(";\n");
         sb.append("        var multi = helper.forComponents(java.util.List.of(")
             .append(plan.componentItems.stream().map(JavaModuleExportService::resourceLocationExpr).collect(Collectors.joining(", ")))
             .append("));\n");
@@ -1163,11 +1297,29 @@ public final class JavaModuleExportService {
         }
         sb.append("    }\n\n");
         sb.append("    public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {\n");
+        plan.customTags.forEach((id, definition) -> {
+            String exportedId = exportedTagId(target, plan, id);
+            sb.append("        if (net.createmod.ponder.foundation.PonderIndex.getTagAccess().getListedTags().stream()\n")
+                .append("            .noneMatch(existing -> existing.getId().equals(").append(resourceLocationExpr(exportedId)).append("))) {\n")
+                .append("            helper.registerTag(").append(resourceLocationExpr(exportedId)).append(")\n")
+                .append("                .title(").append(stringExpr(resolveExportText(definition.title, id))).append(")\n")
+                .append("                .description(").append(stringExpr(resolveExportText(definition.description, ""))).append(")\n")
+                .append("                .item(net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(")
+                .append(resourceLocationExpr(BuiltInRegistries.ITEM.getKey(CustomPonderTags.iconItem(definition)).toString()))
+                .append(").orElse(net.minecraft.world.item.Items.BOOK))\n")
+                .append("                .addToIndex().register();\n")
+                .append("        }\n");
+        });
         sb.append("        ResourceLocation tag = GeneratedPonderAttribution.tag();\n");
         for (String componentItem : plan.componentItems) {
             sb.append("        helper.addTagToComponent(")
                 .append(resourceLocationExpr(componentItem))
                 .append(", tag);\n");
+            for (String sceneTag : plan.tags) {
+                sb.append("        helper.addTagToComponent(")
+                    .append(resourceLocationExpr(componentItem))
+                    .append(", ").append(resourceLocationExpr(exportedTagId(target, plan, sceneTag))).append(");\n");
+            }
         }
         sb.append("    }\n\n");
 
@@ -1413,6 +1565,14 @@ public final class JavaModuleExportService {
                 .append(blockPosExpr(step.blockPos)).append(");\n");
             case "indicate_success" -> sb.append("        GeneratedPonderSupport.indicateSuccess(scene, ")
                 .append(blockPosExpr(step.blockPos)).append(");\n");
+            case "spawn_particles" -> sb.append("        GeneratedPonderSupport.spawnParticles(scene, ")
+                .append(stringExpr(step.particle)).append(", ")
+                .append(vecExpr(step.pos)).append(", ")
+                .append(stringExpr(ParticleEffectSpec.distribution(step))).append(", ")
+                .append(vecExpr(ParticleEffectSpec.spread(step))).append(", ")
+                .append(vecExpr(ParticleEffectSpec.motion(step))).append(", ")
+                .append(ParticleEffectSpec.count(step)).append(", ")
+                .append(ParticleEffectSpec.duration(step)).append(");\n");
             case "clear_entities" -> sb.append("        GeneratedPonderSupport.clearEntities(scene, context, ")
                 .append(Boolean.TRUE.equals(step.fullScene)).append(", ")
                 .append(stringExpr(step.entity)).append(", ")
@@ -1588,7 +1748,7 @@ public final class JavaModuleExportService {
     }
 
     @Nullable
-    private static String parseForgeModId(Path modsToml, Properties properties) {
+    private static String parseTomlModId(Path modsToml, Properties properties) {
         try {
             String content = Files.readString(modsToml, StandardCharsets.UTF_8);
             Matcher matcher = MOD_ID_PATTERN.matcher(content);
@@ -1879,12 +2039,13 @@ public final class JavaModuleExportService {
         return "new ResourceLocation[]{" + combined.stream().map(JavaModuleExportService::resourceLocationExpr).collect(Collectors.joining(", ")) + "}";
     }
 
-    private static String resourceLocationExpr(String id) {
+    static String resourceLocationExpr(String id) {
         ResourceLocation loc = ResourceLocation.tryParse(id);
         if (loc == null) {
             return "new ResourceLocation(\"minecraft\", \"air\")";
         }
-        return "new ResourceLocation(" + stringExpr(loc.getNamespace()) + ", " + stringExpr(loc.getPath()) + ")";
+        return "new ResourceLocation(" + stringExpr(loc.getNamespace()) + ", "
+            + stringExpr(loc.getPath()) + ")";
     }
 
     private static String localizedTextExpr(@Nullable LocalizedText text, String fallback) {

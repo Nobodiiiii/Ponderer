@@ -1,143 +1,36 @@
 package com.nododiiiii.ponderer.ai;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
-import com.nododiiiii.ponderer.Config;
-
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * LLM provider for the Anthropic Messages API.
- * Endpoint: {base}/v1/messages
- * Auth: x-api-key header
- * Response: content[0].text
- */
+/** Adapter for anthropic; both public APIs share one wire implementation. */
 public class AnthropicProvider implements LlmProvider {
-
     private final int maxTokens;
+    private final String reasoningEffort;
+    private final int requestTimeout;
 
     public AnthropicProvider() {
-        this(Config.AI_MAX_TOKENS.get());
+        this(com.nododiiiii.ponderer.Config.AI_MAX_TOKENS.get(), com.nododiiiii.ponderer.Config.AI_REASONING_EFFORT.get(), com.nododiiiii.ponderer.Config.AI_REQUEST_TIMEOUT_SECONDS.get());
     }
 
-    public AnthropicProvider(int maxTokens) {
-        this.maxTokens = maxTokens;
+    public AnthropicProvider(int maxTokens) { this(maxTokens, ""); }
+    public AnthropicProvider(int maxTokens, String effort) { this(maxTokens, effort, AiDefaults.REQUEST_TIMEOUT_SECONDS); }
+    public AnthropicProvider(int maxTokens, String effort, int timeout) {
+        this.maxTokens = maxTokens; this.reasoningEffort = effort; this.requestTimeout = timeout;
     }
 
-    @Override
-    public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
-                                               String baseUrl, String apiKey, String model) {
-        return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, null);
+    @Override public boolean supportsNativeTools(AiRuntimeConfig config) { return true; }
+    @Override public CompletableFuture<Reply> exchange(Exchange request, AiCancellationScope cancellation) {
+        return AiWireTransport.exchange("anthropic", request, cancellation);
     }
 
-    @Override
-    public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
-                                               String baseUrl, String apiKey, String model,
-                                               AiCancellationScope cancellation) {
-        return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, cancellation);
+    @Override public CompletableFuture<String> generate(String system, List<ContentBlock> content, String url, String key, String model) {
+        return generate(system, content, url, key, model, new AiCancellationScope());
     }
 
-    private CompletableFuture<String> generateInternal(String systemPrompt, List<ContentBlock> userContent,
-                                                       String baseUrl, String apiKey, String model,
-                                                       AiCancellationScope cancellation) {
-        if (cancellation != null) {
-            cancellation.throwIfCancelled();
-        }
-        String requestedModel = model == null ? "" : model.trim();
-        boolean oneMillionContext = requestedModel.toLowerCase(java.util.Locale.ROOT).endsWith("[1m]");
-        String apiModel = oneMillionContext
-            ? requestedModel.substring(0, requestedModel.length() - "[1m]".length()).trim()
-            : requestedModel;
-        JsonObject body = new JsonObject();
-        body.addProperty("model", apiModel);
-        body.addProperty("max_tokens", maxTokens);
-        body.addProperty("system", systemPrompt);
-
-        JsonArray messages = new JsonArray();
-        JsonObject userMsg = new JsonObject();
-        userMsg.addProperty("role", "user");
-
-        JsonArray content = new JsonArray();
-        for (ContentBlock block : userContent) {
-            if (block instanceof ContentBlock.Text t) {
-                JsonObject textBlock = new JsonObject();
-                textBlock.addProperty("type", "text");
-                textBlock.addProperty("text", t.text());
-                content.add(textBlock);
-            } else if (block instanceof ContentBlock.Image img) {
-                JsonObject imageBlock = new JsonObject();
-                imageBlock.addProperty("type", "image");
-                JsonObject source = new JsonObject();
-                source.addProperty("type", "base64");
-                source.addProperty("media_type", img.mediaType());
-                source.addProperty("data", img.base64Data());
-                imageBlock.add("source", source);
-                content.add(imageBlock);
-            }
-        }
-        userMsg.add("content", content);
-        messages.add(userMsg);
-        body.add("messages", messages);
-
-        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-            .uri(URI.create(baseUrl + "/v1/messages"))
-            .header("Content-Type", "application/json")
-            .header("anthropic-version", "2023-06-01")
-            .timeout(Duration.ofSeconds(120))
-            .POST(HttpRequest.BodyPublishers.ofString(body.toString()));
-        if (oneMillionContext) {
-            requestBuilder.header("anthropic-beta", "context-1m-2025-08-07");
-        }
-        if (apiKey.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
-            requestBuilder.header("Authorization", apiKey);
-        } else {
-            requestBuilder.header("x-api-key", apiKey);
-        }
-        HttpRequest request = requestBuilder.build();
-
-        CompletableFuture<HttpResponse<String>> requestFuture =
-            HttpClientFactory.get().sendAsync(request, HttpResponse.BodyHandlers.ofString());
-        if (cancellation != null) {
-            cancellation.track(requestFuture);
-        }
-        CompletableFuture<String> result = requestFuture
-            .thenApply(response -> {
-                String responseBody = response.body();
-                if (response.statusCode() != 200) {
-                    throw new RuntimeException("Anthropic API error " + response.statusCode() + ": " + responseBody);
-                }
-                try {
-                    if (responseBody == null || responseBody.isBlank()) {
-                        throw new RuntimeException("Anthropic API returned empty response body");
-                    }
-                    JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
-                    JsonArray contentArr = json.getAsJsonArray("content");
-                    if (contentArr == null || contentArr.isEmpty()) {
-                        String stopReason = json.has("stop_reason") && !json.get("stop_reason").isJsonNull()
-                            ? json.get("stop_reason").getAsString() : "unknown";
-                        throw new RuntimeException("Anthropic API returned no content (stop_reason: " + stopReason
-                            + "). Response: " + responseBody.substring(0, Math.min(500, responseBody.length())));
-                    }
-                    JsonObject firstBlock = contentArr.get(0).getAsJsonObject();
-                    if (!firstBlock.has("text") || firstBlock.get("text").isJsonNull()) {
-                        throw new RuntimeException("Anthropic API content block has no text. Response: "
-                            + responseBody.substring(0, Math.min(500, responseBody.length())));
-                    }
-                    return firstBlock.get("text").getAsString();
-                } catch (RuntimeException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse Anthropic response: " + e.getMessage()
-                        + "\nResponse: " + responseBody.substring(0, Math.min(500, responseBody.length())), e);
-                }
-            });
-        return cancellation == null ? result : cancellation.track(result);
+    @Override public CompletableFuture<String> generate(String system, List<ContentBlock> content, String url, String key, String model, AiCancellationScope cancellation) {
+        AiRuntimeConfig config = new AiRuntimeConfig("anthropic", "anthropic", url, key, model, maxTokens, "direct", reasoningEffort, requestTimeout);
+        return exchange(new Exchange(system, List.of(new Message("user", content, List.of(), "", "", null)), List.of(), config, false, maxTokens), cancellation)
+            .thenApply(Reply::completeText);
     }
 }

@@ -1,8 +1,14 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.nododiiiii.ponderer.Config;
+import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
 import com.nododiiiii.ponderer.ponder.TextIndexStore;
+import net.createmod.catnip.gui.UIRenderHelper;
+import net.createmod.catnip.gui.element.BoxElement;
+import net.createmod.ponder.enums.PonderGuiTextures;
 import net.createmod.ponder.foundation.PonderScene;
+import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -19,50 +25,73 @@ import java.util.List;
  * Ponder scene segment. Clicking a row seeks the scene to the tick at which
  * that text appears, mirroring keyframe navigation in {@link PonderUI#seekToTime(int)}.
  *
- * Visibility is controlled by a toggle button set up in PonderUIMixin via the
- * {@code VISIBLE} flag.
+ * Visibility starts from the client configuration and can be toggled for this
+ * Ponder screen using the Comfy Reading button set up in PonderUIMixin.
  */
 public class PonderTextListWidget extends AbstractWidget {
-
-    /** Persistent (per-session) toggle for whether the panel is shown. */
-    public static boolean VISIBLE = true;
 
     /** Desired width when there is room. The actual width is computed dynamically. */
     public static final int DESIRED_PANEL_WIDTH = 144;
     /** Right padding — matches the slowMode button's right padding. */
     public static final int DESIRED_RIGHT_PADDING = 30;
-    public static final int TOP_Y = 70;
     public static final int BOTTOM_PAD = 60; // leave room for the bottom button row
 
+    private static final int BORDER_SIZE = 2;
+    /** Screen margin measured to the outside of the panel's border. */
+    public static final int OUTER_RIGHT_PADDING = DESIRED_RIGHT_PADDING - BORDER_SIZE;
     private static final int ROW_HEIGHT = 11;
     private static final int HEADER_HEIGHT = 14;
     private static final int PADDING_X = 7;
     private static final int CONTENT_RIGHT_PAD = 10;
 
-    // Catnip-style blue/navy palette.
-    private static final int BG_FILL          = 0xFF_000000;
-    private static final int BG_OUTER_BORDER  = 0xC0_28324a;
-    private static final int BG_INNER_BORDER  = 0x60_3d5070;
-    private static final int HEADER_RULE      = 0x80_4a6080;
-    private static final int HEADER_TEXT      = 0xFF_d6e4ff;
-    private static final int SUBHEADER_TEXT   = 0xFF_8ab6d6;
-    private static final int ACCENT_PLAYED    = 0xFF_8ab6d6;
-    private static final int ACCENT_UNPLAYED  = 0xFF_3a4666;
-    private static final int TEXT_PLAYED      = 0xFF_d8e6fa;
-    private static final int TEXT_HOVER       = 0xFF_ffffff;
-    private static final int TEXT_UNPLAYED    = 0xFF_707a90;
-    private static final int ROW_HOVER_BG     = 0x60_3a5a8a;
-    private static final int SCROLL_TRACK     = 0x40_28324a;
-    private static final int SCROLL_THUMB     = 0xC0_8ab6d6;
+    // Share Ponder's speech-box, text and button colors rather than a separate panel palette.
+    private static final int HEADER_RULE     = PonderUI.COLOR_IDLE.getSecond().getRGB();
+    private static final int HEADER_TEXT     = UIRenderHelper.COLOR_TEXT.getFirst().getRGB();
+    private static final int SUBHEADER_TEXT  = UIRenderHelper.COLOR_TEXT_DARKER.getFirst().getRGB();
+    private static final int ACCENT_PLAYED   = PonderUI.COLOR_HIGHLIGHT.getFirst().getRGB();
+    private static final int ACCENT_UNPLAYED = PonderUI.COLOR_IDLE.getFirst().getRGB();
+    private static final int TEXT_PLAYED     = UIRenderHelper.COLOR_TEXT.getFirst().getRGB();
+    private static final int TEXT_HOVER      = UIRenderHelper.COLOR_TEXT_ACCENT.getFirst().getRGB();
+    private static final int TEXT_UNPLAYED   = UIRenderHelper.COLOR_TEXT_DARKER.getSecond().getRGB();
+    private static final int ROW_HOVER_BG    = PonderButton.COLOR_IDLE.getSecond().getRGB();
+    private static final int SCROLL_TRACK    = PonderUI.COLOR_IDLE.getSecond().getRGB();
+    private static final int SCROLL_THUMB    = PonderButton.COLOR_IDLE.getFirst().getRGB();
 
     private final PonderUI ponderUi;
+    private boolean configuredDefault;
+    private boolean panelVisible;
     private int scrollOffset;
 
     public PonderTextListWidget(PonderUI ponderUi) {
-        super(computeLeft(ponderUi.width), TOP_Y,
-            computeWidth(ponderUi.width), Math.max(60, ponderUi.height - TOP_Y - BOTTOM_PAD),
+        super(computeLeft(ponderUi.width) - BORDER_SIZE, top(ponderUi) - BORDER_SIZE,
+            computeWidth(ponderUi.width) + 2 * BORDER_SIZE,
+            Math.max(60, ponderUi.height - top(ponderUi) - BOTTOM_PAD) + 2 * BORDER_SIZE,
             Component.empty());
         this.ponderUi = ponderUi;
+        this.configuredDefault = Config.DEFAULT_TEXT_PROGRESS.get();
+        this.panelVisible = configuredDefault;
+    }
+
+    private static int top(PonderUI ponderUi) {
+        return ((PonderUiPreviewAccess) ponderUi).ponderer$getFreePreview().getTextPanelTop() + BORDER_SIZE;
+    }
+
+    public boolean isPanelVisible() {
+        boolean currentDefault = Config.DEFAULT_TEXT_PROGRESS.get();
+        if (configuredDefault != currentDefault) {
+            configuredDefault = currentDefault;
+            panelVisible = currentDefault;
+        }
+        return panelVisible;
+    }
+
+    public void setPanelVisible(boolean visible) {
+        configuredDefault = Config.DEFAULT_TEXT_PROGRESS.get();
+        panelVisible = visible;
+    }
+
+    public void togglePanel() {
+        setPanelVisible(!isPanelVisible());
     }
 
     private static int rightEdge(int screenWidth) {
@@ -97,17 +126,18 @@ public class PonderTextListWidget extends AbstractWidget {
             return;
         }
 
-        int x = getX();
-        int y = getY();
-        int w = getWidth();
-        int h = getHeight();
+        int x = getX() + BORDER_SIZE;
+        int y = getY() + BORDER_SIZE;
+        int w = getWidth() - 2 * BORDER_SIZE;
+        int h = getHeight() - 2 * BORDER_SIZE;
 
+        graphics.pose().pushPose();
+        // Both the ordinary and raised widget passes must place the entire panel below scene text.
+        graphics.pose().last().pose().m32(PonderRuntimeZLayers.TEXT_PROGRESS_LAYER);
+        renderSpeechBox(graphics, x, y, w, h);
+        // BoxElement draws immediately and writes depth; keep the list above its background.
+        graphics.pose().translate(0, 0, 20);
         RenderSystem.enableBlend();
-
-        // Outer border + inner border + fill (catnip-style dark navy box)
-        graphics.fill(x - 2, y - 2, x + w + 2, y + h + 2, BG_OUTER_BORDER);
-        graphics.fill(x - 1, y - 1, x + w + 1, y + h + 1, BG_INNER_BORDER);
-        graphics.fill(x,     y,     x + w,     y + h,     BG_FILL);
 
         Font font = Minecraft.getInstance().font;
 
@@ -172,11 +202,36 @@ public class PonderTextListWidget extends AbstractWidget {
             graphics.fill(barX, trackTop, barX + 2, trackBottom, SCROLL_TRACK);
             graphics.fill(barX, thumbY, barX + 2, thumbY + thumbH, SCROLL_THUMB);
         }
-
         TextIndexStore.Entry hoveredEntry = entryAt(mouseX, mouseY, entries, listTop, listBottom, visibleRows);
         if (hoveredEntry != null) {
             graphics.renderTooltip(font, Component.literal(previewLabel(hoveredEntry)), mouseX, mouseY);
         }
+        // Flush the panel and its tooltip together, retaining the same depth ordering in both passes.
+        graphics.flush();
+        graphics.pose().popPose();
+    }
+
+    private void renderSpeechBox(GuiGraphics graphics, int x, int y, int w, int h) {
+        PonderButton readingButton = ((PonderUIAccessor) ponderUi).ponderer$getSlowMode();
+        var borderColors = readingButton.isHoveredOrFocused() ? PonderButton.COLOR_HOVER : PonderButton.COLOR_IDLE;
+        graphics.flush();
+        RenderSystem.enableDepthTest();
+        new BoxElement()
+            .withBackground(PonderUI.BACKGROUND_FLAT)
+            .gradientBorder(borderColors)
+            .withBorderOffset(0)
+            .at(x, y, 0)
+            .withBounds(w, h)
+            .render(graphics);
+
+        // Use the same downward divot as "Next Up", aligned to the actual Comfy Reading button.
+        int pointerX = readingButton.getX() + readingButton.getWidth() / 2
+            - PonderGuiTextures.SPEECH_TOOLTIP_BACKGROUND.getWidth() / 2 + 1;
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 10);
+        PonderGuiTextures.SPEECH_TOOLTIP_BACKGROUND.render(graphics, pointerX, y + h - 1);
+        PonderGuiTextures.SPEECH_TOOLTIP_COLOR.render(graphics, pointerX, y + h - 1, borderColors.getSecond());
+        graphics.pose().popPose();
     }
 
     private FormattedCharSequence truncate(Font font, TextIndexStore.Entry e, int maxWidth) {
@@ -201,8 +256,8 @@ public class PonderTextListWidget extends AbstractWidget {
 
     private TextIndexStore.Entry entryAt(int mouseX, int mouseY, List<TextIndexStore.Entry> entries,
                                           int listTop, int listBottom, int visibleRows) {
-        int x = getX();
-        int w = getWidth();
+        int x = getX() + BORDER_SIZE;
+        int w = getWidth() - 2 * BORDER_SIZE;
         if (mouseX < x + 3 || mouseX >= x + w - CONTENT_RIGHT_PAD) return null;
         if (mouseY < listTop || mouseY >= listBottom) return null;
         int row = (mouseY - listTop) / ROW_HEIGHT;
@@ -219,8 +274,8 @@ public class PonderTextListWidget extends AbstractWidget {
         List<TextIndexStore.Entry> entries = currentEntries();
         if (entries.isEmpty()) return false;
 
-        int y = getY();
-        int h = getHeight();
+        int y = getY() + BORDER_SIZE;
+        int h = getHeight() - 2 * BORDER_SIZE;
         int listTop = y + HEADER_HEIGHT + 4;
         int listBottom = y + h - 4;
         int visibleRows = Math.max(0, (listBottom - listTop) / ROW_HEIGHT);
@@ -238,8 +293,8 @@ public class PonderTextListWidget extends AbstractWidget {
         List<TextIndexStore.Entry> entries = currentEntries();
         if (entries.isEmpty()) return false;
 
-        int listTop = getY() + HEADER_HEIGHT + 4;
-        int listBottom = getY() + getHeight() - 4;
+        int listTop = getY() + BORDER_SIZE + HEADER_HEIGHT + 4;
+        int listBottom = getY() + getHeight() - BORDER_SIZE - 4;
         int visibleRows = Math.max(0, (listBottom - listTop) / ROW_HEIGHT);
         int maxScroll = Math.max(0, entries.size() - visibleRows);
         if (maxScroll <= 0) return true;
@@ -264,10 +319,14 @@ public class PonderTextListWidget extends AbstractWidget {
 
     private boolean shouldShow() {
         if (!this.visible) return false;
-        if (!VISIBLE) return false;
+        if (!isPanelVisible()) return false;
         if (PickState.isActive() || InterfaceSlotEditState.isActive()) return false;
         PonderScene active = ponderUi.getActiveScene();
         return active != null;
+    }
+
+    boolean hasVisibleEntries() {
+        return shouldShow() && !currentEntries().isEmpty();
     }
 
     private List<TextIndexStore.Entry> currentEntries() {

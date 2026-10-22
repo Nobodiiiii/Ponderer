@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
 
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
@@ -8,6 +9,8 @@ import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
@@ -17,26 +20,36 @@ import java.util.List;
 
 public record UploadScenePayload(String sceneId, @Nullable String pack, String json,
                                  List<StructureEntry> structures,
-                                 String mode, String lastSyncHash) {
+                                 String mode, String lastSyncHash) implements CustomPacketPayload {
+
+    public static final Type<UploadScenePayload> TYPE =
+            new Type<>(new ResourceLocation(Ponderer.MODID, "upload_scene"));
+    public static final StreamCodec<FriendlyByteBuf, UploadScenePayload> CODEC =
+            StreamCodec.of(UploadScenePayload::encode, UploadScenePayload::decode);
 
     public record StructureEntry(String id, @Nullable String pack, byte[] bytes) {
     }
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(sceneId());
-        writeOptionalUtf(buf, pack());
-        buf.writeUtf(json());
-        buf.writeVarInt(structures().size());
-        for (StructureEntry entry : structures()) {
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
+    private static void encode(FriendlyByteBuf buf, UploadScenePayload payload) {
+        buf.writeUtf(payload.sceneId());
+        writeOptionalUtf(buf, payload.pack());
+        buf.writeUtf(payload.json());
+        buf.writeVarInt(payload.structures().size());
+        for (StructureEntry entry : payload.structures()) {
             buf.writeUtf(entry.id());
             writeOptionalUtf(buf, entry.pack());
             buf.writeByteArray(entry.bytes());
         }
-        buf.writeUtf(mode() == null ? "check" : mode());
-        buf.writeUtf(lastSyncHash() == null ? "" : lastSyncHash());
+        buf.writeUtf(payload.mode() == null ? "check" : payload.mode());
+        buf.writeUtf(payload.lastSyncHash() == null ? "" : payload.lastSyncHash());
     }
 
-    public static UploadScenePayload decode(FriendlyByteBuf buf) {
+    private static UploadScenePayload decode(FriendlyByteBuf buf) {
         String sceneId = buf.readUtf();
         String pack = readOptionalUtf(buf);
         String json = buf.readUtf();
@@ -55,20 +68,19 @@ public record UploadScenePayload(String sceneId, @Nullable String pack, String j
             return;
         }
         if (!UploadPermissions.canUpload(player)) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.no_permission"));
+            PondererServices.NETWORK.sendToPlayer(player, new UploadResponsePayload(payload.sceneId(), payload.pack(), "denied"));
             return;
         }
 
         String pushMode = payload.mode() == null ? "check" : payload.mode();
         String displayId = SceneStore.displaySceneKey(payload.sceneId(), payload.pack());
 
-        // Conflict detection for non-force push
         if (!"force".equals(pushMode)) {
             String lastSyncHash = payload.lastSyncHash() == null ? "" : payload.lastSyncHash();
             String serverHash = computeServerSceneHash(player.server, payload.sceneId(), payload.pack());
 
             if (!serverHash.isEmpty() && !lastSyncHash.isEmpty() && !serverHash.equals(lastSyncHash)) {
-                player.sendSystemMessage(Component.translatable("ponderer.cmd.push.server_conflict", displayId));
+
                 PondererServices.NETWORK.sendToPlayer(player,
                         new UploadResponsePayload(payload.sceneId(), payload.pack(), "conflict"));
                 return;
@@ -79,11 +91,11 @@ public record UploadScenePayload(String sceneId, @Nullable String pack, String j
         boolean ok = result.success();
 
         if (ok) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_ok", displayId));
+
             PondererServices.NETWORK.sendToPlayer(player,
                     new UploadResponsePayload(payload.sceneId(), payload.pack(), "ok:" + result.hash()));
         } else {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.push.upload_failed", displayId));
+
             PondererServices.NETWORK.sendToPlayer(player,
                     new UploadResponsePayload(payload.sceneId(), payload.pack(), "error"));
         }

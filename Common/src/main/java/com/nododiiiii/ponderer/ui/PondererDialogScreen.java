@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.ui.catnip.BoundedBoxWidget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.createmod.catnip.gui.AbstractSimiScreen;
@@ -27,10 +28,10 @@ import java.util.function.Consumer;
 
 public class PondererDialogScreen extends AbstractSimiScreen {
 
-    private static final int BUTTON_HEIGHT = 16;
-    private static final int BUTTON_GAP = 12;
+    private static final int BUTTON_HEIGHT = 24;
+    private static final int BUTTON_GAP = 4;
     private static final int MAX_TEXT_WIDTH = 300;
-    private static final int MIN_BUTTON_WIDTH = 70;
+    private static final int MIN_BUTTON_WIDTH = 78;
 
     private final Screen source;
     private final List<Component> titleLines;
@@ -110,7 +111,7 @@ public class PondererDialogScreen extends AbstractSimiScreen {
         int totalButtonWidth = 0;
         List<Integer> buttonWidths = new ArrayList<>();
         for (DialogButton button : buttons) {
-            int buttonWidth = Math.max(MIN_BUTTON_WIDTH, font.width(button.label()) + 12);
+            int buttonWidth = Math.max(MIN_BUTTON_WIDTH, font.width(button.label()) + 20);
             buttonWidths.add(buttonWidth);
             totalButtonWidth += buttonWidth;
         }
@@ -119,11 +120,11 @@ public class PondererDialogScreen extends AbstractSimiScreen {
         }
 
         int buttonX = x + textWidth / 2 - totalButtonWidth / 2;
-        int buttonY = y + textHeight + 6;
+        int buttonY = y + textHeight + 2;
         for (int i = 0; i < buttons.size(); i++) {
             int buttonWidth = buttonWidths.get(i);
             DialogButton spec = buttons.get(i);
-            BoxWidget widget = new BoxWidget(buttonX, buttonY, buttonWidth, BUTTON_HEIGHT)
+            BoxWidget widget = new BoundedBoxWidget(buttonX, buttonY, buttonWidth, BUTTON_HEIGHT)
                 .withCallback(() -> spec.action().accept(this));
             TextStencilElement textElement = new TextStencilElement(font, spec.label().copy()).centered(true, true);
             widget.showingElement(textElement.withElementRenderer(BoxWidget.gradientFactory.apply(widget)));

@@ -13,13 +13,13 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(InputWindowElement.class)
 public interface InputWindowElementAccessor {
 
-    @Accessor(value = "sceneSpace", remap = false)
+    @Accessor("sceneSpace")
     Vec3 ponderer$getSceneSpace();
 
     @Accessor(value = "direction", remap = false)
     Pointing ponderer$getDirection();
 
-    @Accessor(value = "key", remap = false)
+    @Accessor("key")
     @Nullable
     ResourceLocation ponderer$getKey();
 
@@ -27,6 +27,6 @@ public interface InputWindowElementAccessor {
     @Nullable
     ScreenElement ponderer$getIcon();
 
-    @Accessor(value = "item", remap = false)
+    @Accessor("item")
     ItemStack ponderer$getItem();
 }

@@ -2,7 +2,6 @@ package com.nododiiiii.ponderer.projector;
 
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
@@ -37,8 +36,12 @@ public class ProjectorMenu extends AbstractContainerMenu {
     @Nullable
     private final ProjectorBlockEntity projector;
 
-    public ProjectorMenu(int id, Inventory inventory, FriendlyByteBuf extraData) {
-        this(id, inventory, findProjector(inventory.player.level(), extraData.readBlockPos()));
+    public ProjectorMenu(int id, Inventory inventory, net.minecraft.network.FriendlyByteBuf data) {
+        this(id, inventory, data.readBlockPos());
+    }
+
+    public ProjectorMenu(int id, Inventory inventory, BlockPos projectorPos) {
+        this(id, inventory, findProjector(inventory.player.level(), projectorPos));
     }
 
     public ProjectorMenu(int id, Inventory inventory, ProjectorBlockEntity projector) {

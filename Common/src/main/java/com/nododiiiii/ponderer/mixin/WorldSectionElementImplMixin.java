@@ -1,7 +1,12 @@
 package com.nododiiiii.ponderer.mixin;
 
+import com.nododiiiii.ponderer.ponder.PonderRenderCache;
+import net.createmod.ponder.api.level.PonderLevel;
 import net.createmod.ponder.api.scene.Selection;
 import net.createmod.ponder.foundation.element.WorldSectionElementImpl;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -21,6 +26,12 @@ public class WorldSectionElementImplMixin {
     @Shadow(remap = false)
     @Nullable
     Selection section;
+
+    @Inject(method = "renderLayer", at = @At("HEAD"))
+    private void ponderer$trackRenderCache(PonderLevel world, MultiBufferSource buffer, RenderType layer,
+                                         GuiGraphics graphics, float fade, float partialTicks, CallbackInfo ci) {
+        PonderRenderCache.record(world, (WorldSectionElementImpl) (Object) this, layer);
+    }
 
     @Inject(method = "erase", at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$safeErase(Selection toErase, CallbackInfo ci) {

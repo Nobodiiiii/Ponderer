@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
 import com.nododiiiii.ponderer.network.RemoteCatalogRequestPayload;
 import com.nododiiiii.ponderer.network.RemoteCatalogResponsePayload;
@@ -8,9 +9,11 @@ import com.nododiiiii.ponderer.network.RemoteHistoryRequestPayload;
 import com.nododiiiii.ponderer.network.RemoteHistoryResponsePayload;
 import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
 import com.nododiiiii.ponderer.network.RemoteRollbackRequestPayload;
+import com.nododiiiii.ponderer.network.SyncResponsePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
+import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -19,9 +22,11 @@ import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.DynamicActionRowListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -47,11 +52,12 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
+    private static final int LIST_ACTION_ICON_SIZE = 12;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
         .withZone(ZoneId.systemDefault());
 
     private enum Tab {
-        SCENES, STRUCTURES, PACKS, HISTORY
+        SCENES, STRUCTURES, PACKS, HISTORY, UPDATES
     }
 
     private record LocalComparison(boolean priority, String detail) {
@@ -63,7 +69,8 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     private record RemoteRow(RemoteCatalogResponsePayload.Entry entry, LocalComparison comparison, ItemStack iconStack) {
     }
 
-    private Tab tab = Tab.SCENES;
+    private Tab tab = PendingRemoteUpdates.list().isEmpty() ? Tab.SCENES : Tab.UPDATES;
+    private int syncRevision = -1;
     private boolean requestSent;
     private boolean waitingForServer = true;
     private boolean canPull;
@@ -87,9 +94,51 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     @Override
     protected void init() {
         super.init();
+        useConfirmationActionIcons();
+        if (saveChanges != null) {
+            saveChanges.visible = true;
+            saveChanges.withCallback(() -> overwriteUpdates(PendingRemoteUpdates.list()));
+            PonderIconStencils.attachFail(saveChanges, PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIRM));
+            setActionButtonTooltip(saveChanges, "ponderer.ui.remote_browser.action.overwrite_all",
+                "ponderer.ui.remote_browser.action.overwrite_all.tooltip");
+        }
+        if (discardChanges != null) {
+            discardChanges.visible = true;
+            discardChanges.withCallback(() -> ignoreUpdates(PendingRemoteUpdates.list()));
+            setActionButtonTooltip(discardChanges, "ponderer.ui.remote_browser.action.ignore_all",
+                "ponderer.ui.remote_browser.action.ignore_all.tooltip");
+        }
+        updateButtonState(saveChanges, isSaveButtonActive());
+        updateButtonState(discardChanges, isDiscardButtonActive());
+        syncRevision = PendingRemoteUpdates.revision();
         if (!requestSent) {
             requestCatalog();
         }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (syncRevision != PendingRemoteUpdates.revision()) {
+            onSyncUpdatesChanged();
+        }
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
+        return !PendingRemoteUpdates.list().isEmpty();
+    }
+
+    @Override
+    protected boolean isDiscardButtonActive() {
+        return !PendingRemoteUpdates.list().isEmpty();
+    }
+
+    public void onSyncUpdatesChanged() {
+        syncRevision = PendingRemoteUpdates.revision();
+        rebuildListPreservingScroll();
+        updateButtonState(saveChanges, isSaveButtonActive());
+        updateButtonState(discardChanges, isDiscardButtonActive());
     }
 
     public void receiveCatalog(RemoteCatalogResponsePayload payload) {
@@ -106,33 +155,24 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             } else {
                 setInfoMessage(payload.message());
             }
-        } else {
+        } else if (!preserveActionStatus) {
             setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.catalog_loaded", scenes.size(), structures.size()));
         }
+        preserveActionStatus = false;
         rebuildListPreservingScroll();
     }
 
     public void receiveAction(RemoteActionResponsePayload payload) {
-        if (payload.success()) {
-            setInfoMessage(payload.message());
-        } else {
-            setErrorMessage(payload.message());
-        }
         if (payload.refreshCatalog()) {
-            requestCatalog();
+            requestCatalog(true);
         } else {
             rebuildListPreservingScroll();
         }
     }
 
-    public void receiveUploadResult(boolean success, String message) {
-        if (success) {
-            setInfoMessage(message);
-            requestCatalog();
-        } else {
-            setErrorMessage(message);
-            rebuildListPreservingScroll();
-        }
+    public void refreshAfterUpload(boolean success) {
+        if (success) requestCatalog(true);
+        else rebuildListPreservingScroll();
     }
 
     public void receiveHistory(RemoteHistoryResponsePayload payload) {
@@ -160,11 +200,17 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.scenes"), null, () -> switchTab(Tab.SCENES), () -> 0xFFFFFF, () -> true),
             ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.structures"), null, () -> switchTab(Tab.STRUCTURES), () -> 0xFFFFFF, () -> true),
             ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.packs"), null, () -> switchTab(Tab.PACKS), () -> 0xFFFFFF, () -> true),
-            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.history"), null, () -> switchTab(Tab.HISTORY), () -> 0xFFFFFF, () -> true))));
+            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.history"), null, () -> switchTab(Tab.HISTORY), () -> 0xFFFFFF, () -> true),
+            ActionStripListEntry.button(() -> UIText.of("ponderer.ui.remote_browser.tab.updates", PendingRemoteUpdates.list().size()),
+                null, () -> switchTab(Tab.UPDATES), () -> 0xFFE08A, () -> true))));
     }
 
     @Override
     protected void collectEntries(List<ConfigScreenList.Entry> entries) {
+        if (tab == Tab.UPDATES) {
+            collectUpdateEntries(entries);
+            return;
+        }
         if (waitingForServer) {
             entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.loading")));
             return;
@@ -175,7 +221,46 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             case STRUCTURES -> collectStructureEntries(entries);
             case PACKS -> collectPackEntries(entries);
             case HISTORY -> collectHistoryEntries(entries);
+            case UPDATES -> collectUpdateEntries(entries);
         }
+    }
+
+    private void collectUpdateEntries(List<ConfigScreenList.Entry> entries) {
+        List<PendingRemoteUpdates.Update> updates = PendingRemoteUpdates.list();
+        if (updates.isEmpty()) {
+            entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.remote_browser.empty.updates")));
+            return;
+        }
+        for (PendingRemoteUpdates.Update update : updates) {
+            entries.add(new DynamicActionRowListEntry(
+                () -> displayKey(update.id(), update.pack()),
+                () -> UIText.of(update.deletion() ? "ponderer.ui.remote_browser.update.remote_deleted"
+                    : "local_deleted".equals(update.conflict()) ? "ponderer.ui.remote_browser.update.local_deleted"
+                    : "ponderer.ui.remote_browser.update.local_modified"),
+                () -> update.category() + " " + displayKey(update.id(), update.pack()),
+                List.of(
+                    actionButton(PondererGuiIcons.IGNORE, "ponderer.ui.remote_browser.action.ignore", "ponderer.ui.remote_browser.action.ignore.tooltip",
+                        () -> ignoreUpdates(List.of(update)), false, () -> true),
+                    actionButton(PondererGuiIcons.OVERWRITE, "ponderer.ui.remote_browser.action.overwrite", "ponderer.ui.remote_browser.action.overwrite.tooltip",
+                        () -> overwriteUpdates(List.of(update)), true, () -> true)),
+                null, () -> true));
+        }
+    }
+
+    private void ignoreUpdates(List<PendingRemoteUpdates.Update> updates) {
+        int count = PendingRemoteUpdates.ignore(updates);
+        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.ignored", count));
+        onSyncUpdatesChanged();
+    }
+
+    private void overwriteUpdates(List<PendingRemoteUpdates.Update> updates) {
+        int count = SyncResponsePayload.overwritePending(updates);
+        if (count < updates.size()) {
+            setErrorMessage(UIText.of("ponderer.ui.remote_browser.status.overwrite_failed", count, updates.size() - count));
+        } else {
+            setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.overwritten", count));
+        }
+        onSyncUpdatesChanged();
     }
 
     @Override
@@ -195,14 +280,14 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
                 () -> resourceDetail(entry, row.comparison()),
                 () -> searchText(entry),
                 List.of(
-                    actionButton("ponderer.ui.remote_browser.action.pull", "ponderer.ui.remote_browser.action.pull.tooltip",
-                        () -> pull(entry, true), 0xA8E6FF, () -> canPull),
-                    actionButton("ponderer.ui.remote_browser.action.upload", "ponderer.ui.remote_browser.action.upload.tooltip",
-                        () -> uploadLocal(entry), 0xB5F5A8, () -> canUpload && hasLocalScene(entry)),
-                    actionButton("ponderer.ui.remote_browser.action.history", "ponderer.ui.remote_browser.action.history.tooltip",
-                        () -> requestHistory(entry), 0xFFFFFF, () -> true),
-                    actionButton("ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
-                        () -> delete(entry), 0xFF9A9A, () -> canManage)),
+                    actionButton(PondererGuiIcons.PULL, "ponderer.ui.remote_browser.action.pull", "ponderer.ui.remote_browser.action.pull.tooltip",
+                        () -> pull(entry, true), false, () -> canPull),
+                    actionButton(PondererGuiIcons.UPLOAD, "ponderer.ui.remote_browser.action.upload", "ponderer.ui.remote_browser.action.upload.tooltip",
+                        () -> uploadLocal(entry), false, () -> canUpload && hasLocalScene(entry)),
+                    actionButton(PondererGuiIcons.HISTORY, "ponderer.ui.remote_browser.action.history", "ponderer.ui.remote_browser.action.history.tooltip",
+                        () -> requestHistory(entry), false, () -> true),
+                    actionButton(PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_DISCARD, LIST_ACTION_ICON_SIZE), "ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
+                        () -> delete(entry), true, () -> canManage)),
                 row::iconStack,
                 row.comparison()::priority));
         }
@@ -220,12 +305,12 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
                 () -> resourceDetail(entry, row.comparison()),
                 () -> searchText(entry),
                 List.of(
-                    actionButton("ponderer.ui.remote_browser.action.pull", "ponderer.ui.remote_browser.action.pull.tooltip",
-                        () -> pull(entry, false), 0xA8E6FF, () -> canPull),
-                    actionButton("ponderer.ui.remote_browser.action.history", "ponderer.ui.remote_browser.action.history.tooltip",
-                        () -> requestHistory(entry), 0xFFFFFF, () -> true),
-                    actionButton("ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
-                        () -> delete(entry), 0xFF9A9A, () -> canManage)),
+                    actionButton(PondererGuiIcons.PULL, "ponderer.ui.remote_browser.action.pull", "ponderer.ui.remote_browser.action.pull.tooltip",
+                        () -> pull(entry, false), false, () -> canPull),
+                    actionButton(PondererGuiIcons.HISTORY, "ponderer.ui.remote_browser.action.history", "ponderer.ui.remote_browser.action.history.tooltip",
+                        () -> requestHistory(entry), false, () -> true),
+                    actionButton(PonderIconStencils.centered(PonderGuiTextures.ICON_CONFIG_DISCARD, LIST_ACTION_ICON_SIZE), "ponderer.ui.remote_browser.action.delete", "ponderer.ui.remote_browser.action.delete.tooltip",
+                        () -> delete(entry), true, () -> canManage)),
                 row::iconStack,
                 row.comparison()::priority));
         }
@@ -242,8 +327,8 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
                 entry::id,
                 () -> resourceDetail(entry, row.comparison()),
                 () -> entry.id() + " " + entry.summary(),
-                List.of(actionButton("ponderer.ui.remote_browser.action.pull", "ponderer.ui.remote_browser.action.pull_pack.tooltip",
-                    () -> pullPack(entry.id()), 0xA8E6FF, () -> canPull)),
+                List.of(actionButton(PondererGuiIcons.PULL, "ponderer.ui.remote_browser.action.pull", "ponderer.ui.remote_browser.action.pull_pack.tooltip",
+                    () -> pullPack(entry.id()), false, () -> canPull)),
                 row::iconStack,
                 row.comparison()::priority));
         }
@@ -265,8 +350,8 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
                 () -> UIText.of("ponderer.ui.remote_browser.history.row", entry.revision(), entry.action()),
                 () -> historyDetail(entry),
                 () -> entry.revision() + " " + entry.action() + " " + entry.actor(),
-                List.of(actionButton("ponderer.ui.remote_browser.action.rollback", "ponderer.ui.remote_browser.action.rollback.tooltip",
-                    () -> rollback(entry.revision()), 0xFFE08A, () -> historyCanManage))));
+                List.of(actionButton(PonderIconStencils.mirrored(PonderGuiTextures.ICON_CONFIG_RESET, LIST_ACTION_ICON_SIZE), "ponderer.ui.remote_browser.action.rollback", "ponderer.ui.remote_browser.action.rollback.tooltip",
+                    () -> rollback(entry.revision()), false, () -> historyCanManage))));
         }
     }
 
@@ -275,10 +360,15 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
         rebuildListAtTop();
     }
 
-    private void requestCatalog() {
+    private boolean preserveActionStatus;
+
+    private void requestCatalog() { requestCatalog(false); }
+
+    private void requestCatalog(boolean preserveStatus) {
+        preserveActionStatus = preserveStatus;
         requestSent = true;
         waitingForServer = true;
-        setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.loading"));
+        if (!preserveStatus) setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.loading"));
         PondererServices.NETWORK.sendToServer(new RemoteCatalogRequestPayload());
         if (list != null) {
             rebuildListPreservingScroll();
@@ -382,6 +472,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
             case HISTORY -> historyId.isBlank()
                 ? UIText.of("ponderer.ui.remote_browser.subtitle.no_history")
                 : displayKey(historyId, historyPack);
+            case UPDATES -> UIText.of("ponderer.ui.remote_browser.subtitle.updates", PendingRemoteUpdates.list().size());
         };
     }
 
@@ -484,6 +575,10 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
         if (nbtStart >= 0) {
             itemId = itemId.substring(0, nbtStart).trim();
         }
+        if (SceneItemBindings.isTag(itemId)) {
+            List<ResourceLocation> items = SceneItemBindings.resolve(List.of(itemId));
+            return items.isEmpty() ? null : items.get(0);
+        }
         ResourceLocation loc = ResourceLocation.tryParse(itemId);
         if (loc == null) {
             return null;
@@ -492,15 +587,18 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
         return item == Items.AIR ? null : loc;
     }
 
-    private static ActionStripListEntry.ButtonModel actionButton(String labelKey, @Nullable String tooltipKey,
-                                                                 Runnable action, int color,
+    private static ActionStripListEntry.ButtonModel actionButton(PondererGuiIcons icon, String labelKey, String tooltipKey,
+                                                                 Runnable action, boolean danger,
                                                                  BooleanSupplier activeGetter) {
-        return ActionStripListEntry.button(
-            () -> UIText.of(labelKey),
-            tooltipKey == null ? null : tooltip(tooltipKey),
-            action,
-            () -> color,
-            activeGetter);
+        return actionButton(icon.asStencil(LIST_ACTION_ICON_SIZE), labelKey, tooltipKey, action, danger, activeGetter);
+    }
+
+    private static ActionStripListEntry.ButtonModel actionButton(DelegatedStencilElement icon, String labelKey, String tooltipKey,
+                                                                 Runnable action, boolean danger,
+                                                                 BooleanSupplier activeGetter) {
+        return ActionStripListEntry.rowIconButton(icon, action,
+            () -> List.of(Component.literal(UIText.of(labelKey)), Component.literal(UIText.of(tooltipKey))),
+            activeGetter, danger);
     }
 
     private static Supplier<List<Component>> tooltip(String key) {

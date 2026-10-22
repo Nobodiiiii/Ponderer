@@ -1,12 +1,15 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.ui.IdFieldMode;
+import com.nododiiiii.ponderer.ui.FieldType;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.client.renderer.Rect2i;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -17,23 +20,40 @@ import java.util.function.Supplier;
 
 public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    protected static final int CONTROL_GAP = EntryTextSupport.rightControlGap();
+    protected static final int CONTROL_GAP = EntryTextSupport.multiControlGap();
 
     protected record TrailingButton(BoxWidget widget, int width, Supplier<String> labelGetter, IntSupplier colorGetter) {
+        int renderedWidth() {
+            return EntryTextSupport.buttonWidth(labelGetter.get(), width);
+        }
     }
 
     protected final ConfigTextField textField;
-    private final String searchText;
+    private final String labelKey;
+    @Nullable
+    private final String contextTooltipKey;
+    private String searchText;
+    private boolean preserveDefaultHint;
     protected final List<TrailingButton> trailingButtons = new ArrayList<>();
     @Nullable
     private Supplier<String> trailingTextGetter;
     private int preferredFieldWidth = -1;
     private int minimumControlWidth = -1;
     private float controlWidthScale = 1.0f;
+    @Nullable
+    private IngredientSlotWidget ingredientSlot;
+    @Nullable
+    private IdFieldMode ingredientMode;
+    @Nullable
+    private Rect2i ingredientSlotArea;
+    @Nullable
+    private Rect2i renderedFieldArea;
 
     public PlainTextListEntry(String labelKey, @Nullable String tooltipKey, @Nullable String hintKey,
                               String initialValue, Consumer<String> responder) {
         super(UIText.of(labelKey));
+        this.labelKey = labelKey;
+        this.contextTooltipKey = tooltipKey;
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
@@ -50,8 +70,55 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         return textField;
     }
 
+    public void setSharedField(FieldType type) {
+        String tooltipKey = type.tooltipKey();
+        EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        ((ClippedConfigTextField) textField).setNumericDrag(type);
+        if (!preserveDefaultHint) {
+            EntryTextSupport.applyHint(textField, type.hintKey());
+        }
+        searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey, contextTooltipKey);
+    }
+
+    /** Numeric defaults remain visible instead of the shared descriptive hint. */
+    public void setDefaultHint(String hintKey) {
+        preserveDefaultHint = true;
+        EntryTextSupport.applyHint(textField, hintKey);
+    }
+
     public void setValue(String value) {
         textField.setValue(value != null ? value : "");
+    }
+
+    public void addIngredientSlot(IdFieldMode mode, @Nullable String tooltipText) {
+        ingredientMode = mode;
+        ingredientSlot = new IngredientSlotWidget(mode, textField::getValue, tooltipText);
+    }
+
+    @Nullable
+    public IdFieldMode ingredientMode() {
+        return ingredientMode;
+    }
+
+    @Nullable
+    public Rect2i ingredientSlotArea() {
+        return ingredientSlotArea;
+    }
+
+    public void clearRenderedAreas() {
+        ingredientSlotArea = null;
+        renderedFieldArea = null;
+    }
+
+    @Nullable
+    public Rect2i renderedFieldArea() {
+        return renderedFieldArea;
+    }
+
+    public void renderIngredientTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (ingredientSlot != null && ingredientSlotArea != null && ingredientSlotArea.contains(mouseX, mouseY)) {
+            ingredientSlot.renderSlotTooltip(graphics, mouseX, mouseY);
+        }
     }
 
     public BoxWidget addTrailingButton(int width, Runnable onClick, Supplier<String> labelGetter,
@@ -63,6 +130,11 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         trailingButtons.add(new TrailingButton(button, width, labelGetter, colorGetter));
         listeners.add(button);
         return button;
+    }
+
+    public BoxWidget addTrailingIcon(PondererGuiIcons icon, Runnable onClick, @Nullable String tooltipText) {
+        BoxWidget button = addTrailingButton(EntryTextSupport.squareSize(), onClick, () -> "", () -> 0xFFFFFF, tooltipText);
+        return icon.attach(button);
     }
 
     public void setTrailingText(@Nullable Supplier<String> trailingTextGetter) {
@@ -111,10 +183,13 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
     @Override
     public void tick() {
         super.tick();
-        textField.tick();
         for (TrailingButton trailingButton : trailingButtons) {
             trailingButton.widget().tick();
         }
+    }
+
+    protected boolean hasMultipleControls() {
+        return ingredientSlot != null || !trailingButtons.isEmpty();
     }
 
     @Override
@@ -124,19 +199,26 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
 
         int labelWidth = getLabelWidth(width);
         int trailingWidth = getTrailingWidth();
-        int controlMinimum = minimumControlWidth > 0 ? minimumControlWidth : trailingWidth + 60;
+        int leadingWidth = ingredientSlot == null ? 0 : IngredientSlotWidget.OUTER_SIZE + EntryTextSupport.inputControlGap();
+        int controlMinimum = minimumControlWidth > 0 ? minimumControlWidth : leadingWidth + trailingWidth + 60;
         if (preferredFieldWidth > 0) {
-            controlMinimum = Math.max(controlMinimum, preferredFieldWidth + trailingWidth);
+            controlMinimum = Math.max(controlMinimum, preferredFieldWidth + leadingWidth + trailingWidth);
         }
         EntryTextSupport.AlignedControlBounds controlBounds = EntryTextSupport.rightAlignedControlBounds(
             x, width, labelWidth, controlWidthScale, controlMinimum);
-        int actualFieldWidth = Math.max(60, controlBounds.width() - trailingWidth);
-        int fieldX = controlBounds.x();
+        int actualFieldWidth = Math.max(60, controlBounds.width() - leadingWidth - trailingWidth);
+        int fieldX = controlBounds.x() + leadingWidth;
 
-        textField.setX(fieldX);
-        textField.setY(y + 8);
-        textField.setWidth(actualFieldWidth);
-        textField.setHeight(20);
+        if (ingredientSlot != null) {
+            ingredientSlot.setX(EntryTextSupport.inputX(controlBounds.x()));
+            ingredientSlot.setY(EntryTextSupport.inputY(EntryTextSupport.controlY(y, height)));
+            ingredientSlotArea = new Rect2i(ingredientSlot.getX(), ingredientSlot.getY(),
+                IngredientSlotWidget.SIZE, IngredientSlotWidget.SIZE);
+            ingredientSlot.render(graphics, mouseX, mouseY, partialTicks);
+        }
+
+        EntryTextSupport.setRowInputBounds(textField, fieldX, actualFieldWidth, y, height);
+        renderedFieldArea = new Rect2i(textField.getX(), textField.getY(), textField.getWidth(), textField.getHeight());
         textField.render(graphics, mouseX, mouseY, partialTicks);
 
         renderTrailing(graphics, y, x, width, height, mouseX, mouseY, partialTicks);
@@ -146,39 +228,34 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         int width = 0;
         String trailingText = getTrailingText();
         if (!trailingText.isEmpty()) {
-            width += Minecraft.getInstance().font.width(trailingText) + CONTROL_GAP;
-        }
-        if (!trailingButtons.isEmpty()) {
-            width += CONTROL_GAP;
+            width += Minecraft.getInstance().font.width(trailingText);
+            if (!trailingButtons.isEmpty()) {
+                width += CONTROL_GAP;
+            }
         }
         for (int i = 0; i < trailingButtons.size(); i++) {
-            width += trailingButtons.get(i).width();
+            width += trailingButtons.get(i).renderedWidth();
             if (i + 1 < trailingButtons.size()) {
                 width += CONTROL_GAP;
             }
         }
-        return width;
+        return width == 0 ? 0 : width + (hasMultipleControls()
+            ? EntryTextSupport.inputControlGap() : EntryTextSupport.rightControlGap());
     }
 
     protected void renderTrailing(GuiGraphics graphics, int y, int x, int width, int height,
                                   int mouseX, int mouseY, float partialTicks) {
-        int cursorX = x + width - 4;
-        int buttonY = y + 10;
-        int buttonHeight = Math.max(16, height - 20);
+        int cursorX = EntryTextSupport.contentRight(x, width);
         var font = Minecraft.getInstance().font;
 
         for (int i = trailingButtons.size() - 1; i >= 0; i--) {
             TrailingButton trailingButton = trailingButtons.get(i);
             BoxWidget button = trailingButton.widget();
-            cursorX -= trailingButton.width();
-            button.setX(cursorX);
-            button.setY(buttonY);
-            button.setWidth(trailingButton.width());
-            button.setHeight(buttonHeight);
+            int buttonWidth = trailingButton.renderedWidth();
+            cursorX -= buttonWidth;
+            EntryTextSupport.setRowButtonBounds(button, cursorX, buttonWidth, y, height);
             button.render(graphics, mouseX, mouseY, partialTicks);
-            graphics.drawCenteredString(font, trailingButton.labelGetter().get(),
-                button.getX() + button.getWidth() / 2,
-                button.getY() + (button.getHeight() - 8) / 2,
+            EntryTextSupport.drawButtonLabel(graphics, button, trailingButton.labelGetter().get(),
                 trailingButton.colorGetter().getAsInt());
             cursorX -= CONTROL_GAP;
         }
@@ -187,7 +264,7 @@ public class PlainTextListEntry extends ConfigScreenList.LabeledEntry implements
         if (!trailingText.isEmpty()) {
             graphics.drawString(font, trailingText,
                 cursorX - font.width(trailingText),
-                y + 14,
+                EntryTextSupport.controlY(y, height) + (EntryTextSupport.controlHeight() - 8) / 2,
                 0xA0A0A0);
         }
     }

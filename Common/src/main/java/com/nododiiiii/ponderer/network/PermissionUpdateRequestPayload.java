@@ -1,19 +1,33 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
-public record PermissionUpdateRequestPayload(String action, String subject, String role) {
+public record PermissionUpdateRequestPayload(String action, String subject, String role) implements CustomPacketPayload {
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(action() == null ? "" : action());
-        buf.writeUtf(subject() == null ? "" : subject());
-        buf.writeUtf(role() == null ? "" : role());
+    public static final Type<PermissionUpdateRequestPayload> TYPE =
+            new Type<>(new ResourceLocation(Ponderer.MODID, "permission_update"));
+    public static final StreamCodec<FriendlyByteBuf, PermissionUpdateRequestPayload> CODEC =
+            StreamCodec.of(PermissionUpdateRequestPayload::encode, PermissionUpdateRequestPayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
-    public static PermissionUpdateRequestPayload decode(FriendlyByteBuf buf) {
+    private static void encode(FriendlyByteBuf buf, PermissionUpdateRequestPayload payload) {
+        buf.writeUtf(payload.action() == null ? "" : payload.action());
+        buf.writeUtf(payload.subject() == null ? "" : payload.subject());
+        buf.writeUtf(payload.role() == null ? "" : payload.role());
+    }
+
+    private static PermissionUpdateRequestPayload decode(FriendlyByteBuf buf) {
         return new PermissionUpdateRequestPayload(buf.readUtf(), buf.readUtf(), buf.readUtf());
     }
 

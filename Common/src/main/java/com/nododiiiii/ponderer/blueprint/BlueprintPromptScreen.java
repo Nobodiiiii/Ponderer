@@ -16,6 +16,7 @@ public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
     private String blueprintName = "";
     private String baselineName = "";
     private boolean awaitingOverrideConfirm = false;
+    private boolean saved;
 
     public BlueprintPromptScreen() {
         super(null, "ponderer.ui.scope.editor", "ponderer.ui.blueprint.prompt.title", UILayoutConstants.EDITOR_LIST_W);
@@ -32,6 +33,10 @@ public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        if (saved) {
+            entries.add(screen -> screen.createSectionHeaderEntry(blueprintName));
+            return;
+        }
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> blueprintName, value -> {
                 blueprintName = value;
@@ -46,7 +51,7 @@ public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
 
     @Override
     protected boolean hasUnsavedChanges() {
-        return !blueprintName.trim().equals(baselineName.trim()) || awaitingOverrideConfirm;
+        return !saved && (!blueprintName.trim().equals(baselineName.trim()) || awaitingOverrideConfirm);
     }
 
     @Override
@@ -60,7 +65,11 @@ public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
     }
 
     @Override
+    protected boolean isSaveButtonActive() { return !saved; }
+
+    @Override
     protected boolean saveEdits() {
+        if (saved) return true;
         String name = blueprintName.trim();
         if (!awaitingOverrideConfirm && SceneStore.isBuiltinStructureName(name)) {
             awaitingOverrideConfirm = true;
@@ -70,7 +79,12 @@ public class BlueprintPromptScreen extends AbstractDeclarativeFormScreen {
 
         BlueprintExport.SaveResult result = BlueprintHandler.INSTANCE.saveBlueprint(blueprintName);
         if (result.isSuccess()) {
-            Minecraft.getInstance().setScreen(null);
+            saved = true;
+            awaitingOverrideConfirm = false;
+            baselineName = blueprintName;
+            rebuildListPreservingScroll();
+            String file = result.exportResult().file().getFileName().toString();
+            setInfoMessage(UIText.of("item.ponderer.blueprint.saved", "ponderer:" + file.replaceFirst("\\.nbt$", "")));
             return true;
         }
 

@@ -1,15 +1,29 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
-public record BlueprintConfigRequestPayload() {
+public record BlueprintConfigRequestPayload() implements CustomPacketPayload {
 
-    public void encode(FriendlyByteBuf buf) {
+    public static final Type<BlueprintConfigRequestPayload> TYPE =
+            new Type<>(new ResourceLocation(Ponderer.MODID, "blueprint_config_request"));
+    public static final StreamCodec<FriendlyByteBuf, BlueprintConfigRequestPayload> CODEC =
+            StreamCodec.of(BlueprintConfigRequestPayload::encode, BlueprintConfigRequestPayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
-    public static BlueprintConfigRequestPayload decode(FriendlyByteBuf buf) {
+    private static void encode(FriendlyByteBuf buf, BlueprintConfigRequestPayload payload) {
+    }
+
+    private static BlueprintConfigRequestPayload decode(FriendlyByteBuf buf) {
         return new BlueprintConfigRequestPayload();
     }
 

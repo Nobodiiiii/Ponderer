@@ -7,21 +7,20 @@ import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
-public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareFormScreen
-    implements HeldItemButtonHost, NbtPickButtonHost, NbtExpandButtonHost {
+public abstract class AbstractSceneEditorFormScreen extends AbstractInventoryPickerFormScreen
+    implements NbtPickButtonHost, NbtExpandButtonHost {
 
+    @Nullable
     protected final DslScene scene;
     protected final int sceneIndex;
+    @Nullable
     protected final SceneEditorScreen parent;
     @Nullable
     protected Screen returnScreen;
@@ -39,10 +38,9 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
     @Nullable
     private Map<String, String> pendingBaselineRestore = null;
 
-    protected AbstractSceneEditorFormScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent,
-                                            String scopeKey, String titleKey, int preferredListWidth,
-                                            BiConsumer<JeiAwareScreen, IdFieldMode> activationAction) {
-        super(parent, scopeKey, titleKey, preferredListWidth, activationAction);
+    protected AbstractSceneEditorFormScreen(@Nullable DslScene scene, int sceneIndex, @Nullable SceneEditorScreen parent,
+                                            String scopeKey, String titleKey, int preferredListWidth) {
+        super(parent, scopeKey, titleKey, preferredListWidth);
         this.scene = scene;
         this.sceneIndex = sceneIndex;
         this.parent = parent;
@@ -128,11 +126,6 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
             }
             returnToParent();
         });
-    }
-
-    @Override
-    public void onClose() {
-        attemptBackToParent();
     }
 
     protected void prepareInitialState() {
@@ -228,25 +221,6 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
             nbtSnapshotKey));
     }
 
-    @Override
-    public final void useHeldItemFromButton(Consumer<ItemStack> onItemPicked) {
-        var mc = Minecraft.getInstance();
-        if (mc.player == null) {
-            return;
-        }
-        ItemStack held = mc.player.getMainHandItem();
-        if (held.isEmpty()) {
-            held = mc.player.getOffhandItem();
-        }
-        if (held.isEmpty()) {
-            setErrorMessage(UIText.of("ponderer.ui.held_item.error.empty"));
-            return;
-        }
-        clearStatusMessages();
-        onItemPicked.accept(held);
-        setInfoMessage(UIText.of("ponderer.ui.nbt_pick.filled", held.getHoverName().getString()));
-    }
-
     protected void restoreNbtPickNotice(Map<String, String> snapshot) {
         if (!snapshot.containsKey(NbtPickState.SNAPSHOT_NOTICE_KEY)) {
             return;
@@ -312,6 +286,16 @@ public abstract class AbstractSceneEditorFormScreen extends AbstractJeiAwareForm
         } catch (NumberFormatException e) {
             return fallback;
         }
+    }
+
+    @Nullable
+    protected Integer parseBlockCoordinate(String value, String fieldName) {
+        FormParsers.ParseResult<Integer> result = FormParsers.requiredBlockCoordinate(value, fieldName);
+        if (result.failed()) {
+            setErrorMessage(result.errorMessage());
+            return null;
+        }
+        return result.value();
     }
 
     protected abstract SnapshotReturnContext createReturnContext();

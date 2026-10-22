@@ -27,6 +27,10 @@ public final class UILayoutConstants {
     public static final int LIST_ENTRY_H = 40;
     /** Compact entry height used by menu-style selection lists. */
     public static final int COMPACT_LIST_ENTRY_H = 24;
+    /** Equal space between either list edge and its rows. */
+    public static final int LIST_ROW_MARGIN = 8;
+    /** Equal inset for labels and allocated row control bounds. */
+    public static final int ENTRY_CONTENT_PADDING = 10;
     /** Y offset from window top to first form row. */
     public static final int FORM_TOP = 26;
     /** Left margin for labels. */
@@ -39,6 +43,17 @@ public final class UILayoutConstants {
     public static final int FIELD_LEFT = 70;
 
     // ─── Fields ─────────────────────────────────────────────────────────
+    /** Transparent space outside every input's visible bounds, on all four sides. */
+    public static final int INPUT_OUTER_PADDING = 1;
+    public static final int INPUT_HORIZONTAL_INSET = INPUT_OUTER_PADDING;
+    /** Shared input height for ordinary and multi-control list rows. */
+    public static final int LIST_INPUT_H = 20;
+    /** Input height including its transparent outer padding. */
+    public static final int LIST_INPUT_OUTER_H = LIST_INPUT_H + 2 * INPUT_OUTER_PADDING;
+    /** Gap between allocated control bounds in labeled multi-control list rows. */
+    public static final int MULTI_CONTROL_GAP = 0;
+    /** Square buttons in multi-control rows. */
+    public static final int MULTI_SQUARE_SIZE = LIST_INPUT_OUTER_H;
     /** Standard text / number field height. */
     public static final int FIELD_H = 18;
     /** Small number field height. */
@@ -49,6 +64,10 @@ public final class UILayoutConstants {
     public static final int XYZ_GAP = 5;
 
     // ─── Buttons ────────────────────────────────────────────────────────
+    /** Minimum height of a full-width list button. */
+    public static final int FULL_BUTTON_MIN_H = 24;
+    /** Space above and below full-width buttons in regular list rows. */
+    public static final int FULL_BUTTON_VERTICAL_PADDING = 6;
     /** Inline action button width (JEI, Pick, etc.). */
     public static final int ACTION_BTN_W = 14;
     /** Inline action button height. */

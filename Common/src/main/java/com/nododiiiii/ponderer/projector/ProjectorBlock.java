@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.projector;
 
+import com.mojang.serialization.MapCodec;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
@@ -50,6 +51,7 @@ public class ProjectorBlock extends BaseEntityBlock {
         return kind;
     }
 
+
     @Override
     public RenderShape getRenderShape(BlockState state) {
         return RenderShape.MODEL;
@@ -90,11 +92,8 @@ public class ProjectorBlock extends BaseEntityBlock {
     }
 
     @Override
-    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand,
-                                 BlockHitResult hitResult) {
-        if (hand != InteractionHand.MAIN_HAND) {
-            return InteractionResult.PASS;
-        }
+    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
+                                 InteractionHand hand, BlockHitResult hitResult) {
         if (!level.isClientSide
             && player instanceof ServerPlayer serverPlayer
             && level.getBlockEntity(pos) instanceof ProjectorBlockEntity projector) {

@@ -17,7 +17,7 @@ dependencies {
     // ForgeConfigSpec on Common (Fabric uses ForgeConfigAPIPort to provide it)
     implementation "com.electronwill.night-config:core:3.6.5"
     implementation "com.electronwill.night-config:toml:3.6.5"
-    compileOnly "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forgeconfigapiport_version}"
+    compileOnly("fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forgeconfigapiport_version}") { transitive = false }
 
     // Ponder & Flywheel common APIs
     compileOnly "net.createmod.ponder:Ponder-Common-${minecraft_version}:${ponder_version}"
@@ -27,7 +27,7 @@ dependencies {
     compileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"
 
     // Resourcify (optional, for Modrinth resource pack browsing)
-    compileOnly "maven.modrinth:resourcify:${resourcify_version}"
+    compileOnly("maven.modrinth:resourcify:${resourcify_version}") { transitive = false }
 
     testImplementation platform("org.junit:junit-bom:5.10.2")
     testImplementation "org.junit.jupiter:junit-jupiter"

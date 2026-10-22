@@ -1,16 +1,12 @@
 package com.nododiiiii.ponderer.forge;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
-import com.nododiiiii.ponderer.forge.mirror.client.ForgeShowInterfaceClient;
 import com.nododiiiii.ponderer.platform.services.PlatformHelper;
+import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.network.NetworkHooks;
 
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -22,7 +18,7 @@ public class ForgePlatformHelper implements PlatformHelper {
 
     @Override
     public String getPlatformName() {
-        return "forge";
+        return "neoforge";
     }
 
     @Override
@@ -38,6 +34,13 @@ public class ForgePlatformHelper implements PlatformHelper {
     @Override
     public boolean isModLoaded(String modId) {
         return ModList.get().isLoaded(modId);
+    }
+
+    @Override
+    public java.util.Map<String, String> loadedModVersions() {
+        java.util.Map<String, String> versions = new java.util.TreeMap<>();
+        ModList.get().getMods().forEach(mod -> versions.put(mod.getModId(), mod.getVersion().toString()));
+        return versions;
     }
 
     @Override
@@ -58,30 +61,7 @@ public class ForgePlatformHelper implements PlatformHelper {
     }
 
     @Override
-    public void showInterfaceStep(DslScene.DslStep step) {
-        DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-            () -> () -> ForgeShowInterfaceClient.showInterfaceStep(step));
-    }
-
-    @Override
-    public void clickInterfaceStep(DslScene.DslStep step) {
-        DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-            () -> () -> ForgeShowInterfaceClient.clickInterfaceStep(step));
-    }
-
-    @Override
-    public void closeInterfaceStep(String reason) {
-        DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-            () -> () -> com.nododiiiii.ponderer.forge.mirror.client.ClientInputHandler.closeEmbeddedMirrorFromPonder(reason));
-    }
-
-    @Override
-    public boolean supportsEmbeddedInterfacePreview() {
-        return true;
-    }
-
-    @Override
     public void openProjectorMenu(ServerPlayer player, ProjectorBlockEntity projector) {
-        NetworkHooks.openScreen(player, projector, projector::writeMenuData);
+        net.minecraftforge.network.NetworkHooks.openScreen(player, projector, projector::writeMenuData);
     }
 }

@@ -1,12 +1,11 @@
 package com.nododiiiii.ponderer.blueprint;
 
+import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.math.VecHelper;
 import net.createmod.catnip.outliner.Outliner;
 import net.createmod.ponder.enums.PonderSpecialTextures;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -82,9 +81,7 @@ public class BlueprintHandler {
 
         firstPos = BlockPos.containing(bb.minX, bb.minY, bb.minZ);
         secondPos = BlockPos.containing(bb.maxX, bb.maxY, bb.maxZ);
-        LocalPlayer player = Minecraft.getInstance().player;
-        sendStatus(player, Component.translatable("item.ponderer.blueprint.dimensions",
-                (int) bb.getXsize() + 1, (int) bb.getYsize() + 1, (int) bb.getZsize() + 1));
+
         return true;
     }
 
@@ -134,8 +131,10 @@ public class BlueprintHandler {
     // -- tick ---------------------------------------------------------------------
 
     public void tick() {
-        if (!isActive())
+        if (!isActive()) {
+            WorldFeedback.clear("blueprint");
             return;
+        }
 
         LocalPlayer player = Minecraft.getInstance().player;
 
@@ -172,6 +171,13 @@ public class BlueprintHandler {
                     : inside ? result.getFacing().getOpposite() : result.getFacing();
         }
 
+        Component hint = Component.translatable(secondPos != null ? "ponderer.blueprint.hint.confirm"
+            : firstPos != null ? "ponderer.blueprint.hint.second" : "ponderer.blueprint.hint.first");
+        if (firstPos != null && secondPos != null) hint = hint.copy().append(" | ").append(
+            Component.translatable("item.ponderer.blueprint.dimensions", Math.abs(secondPos.getX() - firstPos.getX()) + 1,
+                Math.abs(secondPos.getY() - firstPos.getY()) + 1, Math.abs(secondPos.getZ() - firstPos.getZ()) + 1));
+        WorldFeedback.hint("blueprint", hint, 40, 2);
+
         AABB currentSelectionBox = getCurrentSelectionBox();
         if (currentSelectionBox != null) {
             Outliner.getInstance().chaseAABB(outlineSlot, currentSelectionBox)
@@ -205,10 +211,6 @@ public class BlueprintHandler {
                 "ponderer.ui.save_error.io",
                 "Selection is incomplete"
             );
-            if (player != null) {
-                sendStatus(player, Component.literal(UIText.of(failure.uiMessageKey(), failure.uiMessageArgs()))
-                    .withStyle(ChatFormatting.RED));
-            }
             return failure;
         }
 
@@ -218,18 +220,8 @@ public class BlueprintHandler {
                 mc.level, firstPos, secondPos
         );
         if (!result.isSuccess() || result.exportResult() == null) {
-            sendStatus(player, Component.literal(UIText.of(result.uiMessageKey(), result.uiMessageArgs()))
-                .withStyle(ChatFormatting.RED));
             return result;
         }
-        Path file = result.exportResult().file();
-        String savedName = file.getFileName().toString();
-        if (savedName.endsWith(".nbt")) {
-            savedName = savedName.substring(0, savedName.length() - 4);
-        }
-        String id = "ponderer:" + savedName;
-        sendStatus(player, Component.translatable("item.ponderer.blueprint.saved", id)
-                .withStyle(ChatFormatting.GREEN));
         firstPos = null;
         secondPos = null;
         return result;
@@ -258,6 +250,6 @@ public class BlueprintHandler {
 
     private static void sendStatus(LocalPlayer player, Component message) {
         if (player != null)
-            player.displayClientMessage(message, true);
+            WorldFeedback.interaction(message);
     }
 }

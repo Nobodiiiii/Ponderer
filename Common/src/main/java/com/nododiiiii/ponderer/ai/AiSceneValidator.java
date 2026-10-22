@@ -1,6 +1,9 @@
 package com.nododiiiii.ponderer.ai;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.LocalizedText;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptorJson;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -19,8 +22,13 @@ import java.util.Set;
  * Deterministic checks used by the multi-round agent loop before a scene is saved.
  */
 public final class AiSceneValidator {
+    private static final com.google.gson.Gson STEP_GSON = new com.google.gson.GsonBuilder()
+        .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter()).create();
 
-    public record Issue(String path, String message) {
+    public record Issue(String path, String message, String code, boolean retryable) {
+        public Issue(String path, String message) {
+            this(path, message, message.matches("^[A-Z_]+:.*") ? message.substring(0, message.indexOf(':')) : "SCENE_VALIDATION", true);
+        }
         public String format() {
             return path + ": " + message;
         }
@@ -144,6 +152,13 @@ public final class AiSceneValidator {
             return;
         }
 
+        if (SceneStepCatalog.get(type) == null) {
+            issues.add(new Issue(path + ".type", "UNKNOWN_STEP: unsupported step type; query get_step_schema"));
+            return;
+        }
+        issues.addAll(SceneStepCatalog.validateFields(STEP_GSON.toJsonTree(step).getAsJsonObject(), path));
+        if (step.scale != null && (!Float.isFinite(step.scale) || ("zoom_scene".equals(type) && step.scale <= 0)))
+            issues.add(new Issue(path + ".scale", "scale must be finite and zoom scale must be positive"));
         switch (type) {
             case "idle" -> requireNonNegative(issues, path + ".duration", step.duration, "duration");
             case "text" -> {
@@ -177,6 +192,19 @@ public final class AiSceneValidator {
             }
             case "destroy_block", "indicate_success", "indicate_redstone", "toggle_redstone_power" ->
                 requireBlockPos(issues, path + ".blockPos", step.blockPos, bounds);
+            case "spawn_particles" -> {
+                try {
+                    com.nododiiiii.ponderer.ponder.ParticleEffectSpec.validate(step);
+                } catch (IllegalArgumentException e) {
+                    issues.add(new Issue(path, e.getMessage()));
+                }
+                requirePoint(issues, path + ".pos", step.pos, bounds, false);
+                if (step.particle != null) {
+                    String id = step.particle.split("\\{", 2)[0].trim();
+                    validateRegisteredId(issues, path + ".particle", id, "particle",
+                        location -> BuiltInRegistries.PARTICLE_TYPE.getOptional(location).isPresent());
+                }
+            }
             case "create_item_entity" -> {
                 requireResourceId(issues, path + ".item", step.item, "item id");
                 validateRegisteredItem(issues, path + ".item", step.item);
@@ -188,21 +216,109 @@ public final class AiSceneValidator {
                     id -> BuiltInRegistries.ENTITY_TYPE.getOptional(id).isPresent());
                 requirePoint(issues, path + ".pos", step.pos != null ? step.pos : step.point, bounds, false);
             }
-            case "move_section" -> {
-                requireString(issues, path + ".linkId", step.linkId, "linkId is required");
-                requireDoubleVector(issues, path + ".offset", step.offset, "offset");
+            case "move_section", "rotate_section" -> {
+                if (step.linkId == null || step.linkId.isBlank()) {
+                    requireBlockPos(issues, path + ".blockPos", step.blockPos, bounds);
+                    if (step.blockPos2 != null) requireBlockPos(issues, path + ".blockPos2", step.blockPos2, bounds);
+                }
             }
-            case "rotate_section" -> requireString(issues, path + ".linkId", step.linkId, "linkId is required");
+            case "highlight_section", "modify_block_entity_nbt" -> {
+                requireBlockPos(issues, path + ".blockPos", step.blockPos, bounds);
+                if (step.blockPos2 != null) requireBlockPos(issues, path + ".blockPos2", step.blockPos2, bounds);
+            }
+            case "encapsulate_bounds" -> {
+                if (step.bounds != null && step.bounds.stream().anyMatch(value -> value == null || value <= 0))
+                    issues.add(new Issue(path + ".bounds", "all bounds dimensions must be positive"));
+            }
+            case "show_extra_structure" -> {
+                if (step.rotation != null && (!Float.isFinite(step.rotation) || step.rotation % 90 != 0))
+                    issues.add(new Issue(path + ".rotation", "extra structure rotation must be a multiple of 90 degrees"));
+            }
+            case "clear_entities", "clear_item_entities", "modify_entities_nbt", "modify_item_entities_nbt" -> {
+                if (!Boolean.TRUE.equals(step.fullScene) && step.blockPos == null
+                    && (step.linkId == null || step.linkId.isBlank()) && (step.entity == null || step.entity.isBlank())
+                    && (step.item == null || step.item.isBlank())) issues.add(new Issue(path, "an entity target or fullScene is required"));
+                if (step.blockPos != null) requireBlockPos(issues, path + ".blockPos", step.blockPos, bounds);
+                if (step.blockPos2 != null) requireBlockPos(issues, path + ".blockPos2", step.blockPos2, bounds);
+            }
+            case "show_interface", "set_interface_slots", "change_interface_slot", "set_interface_data",
+                 "set_interface_context", "interface_action", "await_interface", "click_interface" -> validateInterface(issues, path, step, bounds);
             case "play_sound" -> {
                 requireString(issues, path + ".sound", step.sound, "sound id is required");
                 validateRegisteredId(issues, path + ".sound", step.sound, "sound",
                     id -> BuiltInRegistries.SOUND_EVENT.getOptional(id).isPresent());
             }
             default -> {
-                // Unknown step types are allowed by the runtime more often than this validator knows.
-                // The required type check above still catches malformed empty steps.
+                // Known catalog entries may use their runtime-specific validators.
             }
         }
+    }
+
+    private static void validateInterface(List<Issue> issues, String path, DslScene.DslStep step,
+                                          @Nullable StructureDescriber.StructureInfo bounds) {
+        try {
+            switch (lower(step.type)) {
+                case "show_interface" -> {
+                    if (step.interfaceSpec != null) {
+                        var descriptor = InterfaceDescriptorJson.parse(step.interfaceSpec);
+                        switch (descriptor.targetKind) {
+                            case BLOCK -> {
+                                requireResourceId(issues, path + ".interface.target.block", descriptor.block, "block id");
+                                validateBlock(issues, path + ".interface.target", descriptor.block, descriptor.blockProperties);
+                            }
+                            case SCENE_BLOCK -> requireBlockPos(issues, path + ".interface.target.pos", descriptor.scenePos == null ? null
+                                : java.util.Arrays.stream(descriptor.scenePos).boxed().toList(), bounds);
+                            case ITEM -> {
+                                if (descriptor.item == null) issues.add(new Issue(path + ".interface.target.item", "item target is required"));
+                                else validateRegisteredItem(issues, path + ".interface.target.item.id", descriptor.item.id());
+                            }
+                            case MENU -> requireResourceId(issues, path + ".interface.menuType", descriptor.menuType, "menu id");
+                            default -> { }
+                        }
+                    } else switch (step.interfaceSource == null ? "block" : step.interfaceSource) {
+                        case "block" -> requireBlockPos(issues, path + ".blockPos", step.blockPos, bounds);
+                        case "held_item" -> validateRegisteredItem(issues, path + ".item", step.item);
+                        case "ui_id" -> requireResourceId(issues, path + ".uiId", step.uiId, "menu id");
+                        default -> issues.add(new Issue(path + ".interfaceSource", "unknown interface source"));
+                    }
+                }
+                case "set_interface_slots" -> {
+                    var slots = InterfaceStepSpecs.slots(step);
+                    if ((step.slots != null && slots.slots().size() != step.slots.size())
+                        || (step.ghosts != null && slots.ghosts().size() != step.ghosts.size()))
+                        issues.add(new Issue(path, "interface slot entries need non-negative indices and valid item/ingredient data"));
+                }
+                case "change_interface_slot" -> {
+                    if (step.interfaceSlots != null && InterfaceStepSpecs.fromLegacyChangeSlot(step.interfaceSlots).slots().size()
+                        + InterfaceStepSpecs.fromLegacyChangeSlot(step.interfaceSlots).ghosts().size() != step.interfaceSlots.size())
+                        issues.add(new Issue(path + ".interfaceSlots", "invalid legacy interface slot binding"));
+                }
+                case "set_interface_data" -> {
+                    if (step.data != null && InterfaceStepSpecs.data(step).size() != step.data.size())
+                        issues.add(new Issue(path + ".data", "each data entry needs an id and to/value"));
+                }
+                case "set_interface_context" -> InterfaceStepSpecs.context(step);
+                case "interface_action" -> {
+                    var action = InterfaceStepSpecs.action(step);
+                    if (action == null) issues.add(new Issue(path + ".action", "unsupported interface action"));
+                    else {
+                        boolean targeted = switch (action.kind()) { case KEY, TYPE_TEXT -> false; default -> true; };
+                        if (targeted && action.target() == null) issues.add(new Issue(path + ".target", "this action needs a target"));
+                        if (action.kind() == InterfaceStepSpecs.ActionKind.DRAG && action.to() == null)
+                            issues.add(new Issue(path + ".to", "drag needs a destination"));
+                        if (action.kind() == InterfaceStepSpecs.ActionKind.TYPE_TEXT) requireString(issues, path + ".chars", step.chars, "text is required");
+                        if (action.kind() == InterfaceStepSpecs.ActionKind.KEY) requireString(issues, path + ".key", step.key, "key is required");
+                    }
+                }
+                case "await_interface" -> {
+                    if (InterfaceStepSpecs.goal(step) == null) issues.add(new Issue(path + ".goal", "goal needs a non-negative slot"));
+                }
+                case "click_interface" -> {
+                    if (InterfaceStepSpecs.fromLegacyClick(step) == null) issues.add(new Issue(path, "click needs pos:[u,v] and action:left|right"));
+                }
+                default -> { }
+            }
+        } catch (RuntimeException invalid) { issues.add(new Issue(path, "invalid interface data: " + invalid.getMessage())); }
     }
 
     private static void requireResourceId(List<Issue> issues, String path, @Nullable String value, String label) {

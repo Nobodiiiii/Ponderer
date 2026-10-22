@@ -6,6 +6,9 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.mojang.logging.LogUtils;
 import net.createmod.ponder.foundation.PonderScene;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
@@ -29,8 +32,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class NbtSceneFilter {
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    // sceneId (e.g. "ponderer:my_scene") -> required NBT pattern
-    private static final Map<String, CompoundTag> FILTERS = new ConcurrentHashMap<>();
+    private record BindingFilter(ResourceLocation itemId, @Nullable CompoundTag nbt) {
+    }
+
+    // A scene may have several alternative bindings, including overlapping item tags.
+    private static final Map<String, List<BindingFilter>> FILTERS = new ConcurrentHashMap<>();
 
     // itemId -> set of scene IDs registered by our plugin (both filtered and unfiltered)
     private static final Map<ResourceLocation, Set<String>> ALL_SCENES = new ConcurrentHashMap<>();
@@ -45,15 +51,14 @@ public final class NbtSceneFilter {
     /**
      * Register a scene for an item. Called for ALL scenes (with or without NBT filter).
      */
-    public static void registerScene(ResourceLocation itemId, String sceneId) {
+    public static void registerScene(ResourceLocation itemId, String sceneId, @Nullable CompoundTag nbtFilter) {
         ALL_SCENES.computeIfAbsent(itemId, k -> ConcurrentHashMap.newKeySet()).add(sceneId);
-    }
-
-    /**
-     * Register an NBT filter for a specific scene.
-     */
-    public static void registerFilter(String sceneId, CompoundTag nbtFilter) {
-        FILTERS.put(sceneId, nbtFilter);
+        FILTERS.compute(sceneId, (key, existing) -> {
+            List<BindingFilter> filters = existing == null ? new ArrayList<>() : new ArrayList<>(existing);
+            BindingFilter binding = new BindingFilter(itemId, nbtFilter);
+            if (!filters.contains(binding)) filters.add(binding);
+            return List.copyOf(filters);
+        });
     }
 
     /**
@@ -81,6 +86,21 @@ public final class NbtSceneFilter {
 
     // ---- Filtering ----
 
+    /** Builds a preview carrier using either custom NBT, legacy tag data, or 1.21 components. */
+    public static ItemStack createStack(ResourceLocation itemId, @Nullable String snbt) {
+        ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.get(itemId));
+        CompoundTag filter = parseNbt(snbt);
+        if (filter == null || filter.isEmpty()) return stack;
+
+        CompoundTag custom = filter.contains("tag", Tag.TAG_COMPOUND) ? filter.getCompound("tag") : filter;
+        if (!custom.isEmpty()) {
+            CompoundTag combined = stack.getOrCreateTag().copy();
+            combined.merge(custom);
+            stack.setTag(combined);
+        }
+        return stack;
+    }
+
     /**
      * Check whether any registered filters exist for the given item.
      */
@@ -88,7 +108,9 @@ public final class NbtSceneFilter {
         Set<String> sceneIds = ALL_SCENES.get(itemId);
         if (sceneIds == null || sceneIds.isEmpty()) return false;
         for (String sid : sceneIds) {
-            if (FILTERS.containsKey(sid)) return true;
+            List<BindingFilter> filters = FILTERS.get(sid);
+            if (filters != null && filters.stream().anyMatch(filter ->
+                filter.itemId().equals(itemId) && filter.nbt() != null)) return true;
         }
         return false;
     }
@@ -103,22 +125,14 @@ public final class NbtSceneFilter {
         if (sceneIds == null || sceneIds.isEmpty()) return true;
 
         for (String sid : sceneIds) {
-            CompoundTag filter = FILTERS.get(sid);
-            if (filter == null) {
-                // Unfiltered scene -> always visible
-                return true;
-            }
-            if (matchesNbt(stack, filter)) {
-                return true;
-            }
+            if (matchesBindings(stack, FILTERS.get(sid))) return true;
         }
         return false;
     }
 
     /**
      * Filter a compiled scene list based on the current ItemStack.
-     * Scenes without an NBT filter are always included.
-     * Scenes with an NBT filter are only included if the stack matches.
+     * A scene is included when at least one of its bindings for this item matches.
      * If ALL scenes would be filtered out, returns the original list as fallback.
      */
     public static List<PonderScene> filter(ItemStack stack, List<PonderScene> scenes) {
@@ -129,12 +143,12 @@ public final class NbtSceneFilter {
 
         for (PonderScene scene : scenes) {
             String sceneId = scene.getId().toString();
-            CompoundTag filter = FILTERS.get(sceneId);
-            if (filter == null) {
+            List<BindingFilter> filters = FILTERS.get(sceneId);
+            if (filters == null) {
                 filtered.add(scene);
             } else {
                 anyFiltered = true;
-                if (matchesNbt(stack, filter)) {
+                if (matchesBindings(stack, filters)) {
                     filtered.add(scene);
                 }
             }
@@ -142,6 +156,17 @@ public final class NbtSceneFilter {
 
         if (!anyFiltered) return scenes;
         return filtered.isEmpty() ? scenes : filtered;
+    }
+
+    private static boolean matchesBindings(ItemStack stack, @Nullable List<BindingFilter> filters) {
+        if (filters == null) return true;
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        for (BindingFilter filter : filters) {
+            if (filter.itemId().equals(itemId) && (filter.nbt() == null || matchesNbt(stack, filter.nbt()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -161,15 +186,42 @@ public final class NbtSceneFilter {
                 }
             }
 
-            // Check against the item's custom tag (where book data like author/title lives)
-            CompoundTag itemTag = stack.getTag();
-            if (itemTag != null && isSubset(filter, itemTag)) {
+            CompoundTag customTag = stack.getOrCreateTag().copy();
+
+            if (!customTag.isEmpty() && isSubset(filter, customTag)) {
                 return true;
             }
 
-            // Fallback: check against the full serialized stack (for filters that include id/Count/tag)
-            CompoundTag stackTag = stack.save(new CompoundTag());
-            return isSubset(filter, stackTag);
+            if (filter.contains("tag", Tag.TAG_COMPOUND)) {
+                CompoundTag legacyTag = filter.getCompound("tag");
+                if (!legacyTag.isEmpty() && isSubset(legacyTag, customTag)) {
+                    return true;
+                }
+            }
+
+            RegistryAccess registryAccess = getRegistryAccess();
+            if (registryAccess == null) {
+                return false;
+            }
+
+            Tag savedTag = stack.save(new net.minecraft.nbt.CompoundTag());
+            if (!(savedTag instanceof CompoundTag stackTag)) {
+                return false;
+            }
+
+            if (isSubsetIgnoringCount(filter, stackTag)) {
+                return true;
+            }
+
+            if (filter.contains("components", Tag.TAG_COMPOUND)
+                    && stackTag.contains("components", Tag.TAG_COMPOUND)
+                    && isSubset(filter.getCompound("components"), stackTag.getCompound("components"))) {
+                return true;
+            }
+
+            return filter.contains("tag", Tag.TAG_COMPOUND)
+                    && stackTag.contains("tag", Tag.TAG_COMPOUND)
+                    && isSubset(filter.getCompound("tag"), stackTag.getCompound("tag"));
         } catch (Exception e) {
             LOGGER.debug("NBT match check failed", e);
             return false;
@@ -185,7 +237,21 @@ public final class NbtSceneFilter {
 
     @Nullable
     private static String extractWrittenBookTitle(ItemStack stack) {
-        return extractWrittenBookTitle(stack.getTag());
+        CompoundTag customTag = stack.getOrCreateTag().copy();
+        String fromCustom = extractWrittenBookTitle(customTag);
+        if (fromCustom != null && !fromCustom.isBlank()) {
+            return fromCustom;
+        }
+
+        RegistryAccess registryAccess = getRegistryAccess();
+        if (registryAccess == null) {
+            return null;
+        }
+        Tag savedTag = stack.save(new net.minecraft.nbt.CompoundTag());
+        if (!(savedTag instanceof CompoundTag ct)) {
+            return null;
+        }
+        return extractWrittenBookTitle(ct);
     }
 
     @Nullable
@@ -306,6 +372,12 @@ public final class NbtSceneFilter {
         return null;
     }
 
+    @Nullable
+    private static RegistryAccess getRegistryAccess() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.level == null ? null : minecraft.level.registryAccess();
+    }
+
     /**
      * Recursive subset check: every key in subset must exist in superset with the same value.
      * For nested CompoundTags, recurse. For other tag types, use equals().
@@ -320,6 +392,24 @@ public final class NbtSceneFilter {
                 if (!isSubset(subCompound, superCompound)) return false;
             } else {
                 if (!subVal.equals(superVal)) return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isSubsetIgnoringCount(CompoundTag subset, CompoundTag superset) {
+        for (String key : subset.getAllKeys()) {
+            if ("Count".equals(key) || "count".equals(key)) {
+                continue;
+            }
+            Tag subVal = subset.get(key);
+            Tag superVal = superset.get(key);
+            if (superVal == null) return false;
+
+            if (subVal instanceof CompoundTag subCompound && superVal instanceof CompoundTag superCompound) {
+                if (!isSubsetIgnoringCount(subCompound, superCompound)) return false;
+            } else if (!subVal.equals(superVal)) {
+                return false;
             }
         }
         return true;

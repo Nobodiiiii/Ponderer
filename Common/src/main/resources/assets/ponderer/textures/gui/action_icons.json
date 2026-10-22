@@ -1,0 +1,171 @@
+{
+  "license": "Mixed; see action_icons.LICENSE.txt",
+  "size": [
+    64,
+    64
+  ],
+  "cell_size": 16,
+  "processing": "Preserve source pixel sizes without resampling. Nikoichu sprites retain only opaque pure-white pixels. EDIT_SCENE uses that mask with Ponder's light-gray foreground and a gray lower-contour shadow offset two pixels downward, preserving the source's internal transparent gaps. The Create folder and projector pull/upload icons retain their nonblack alpha masks, normalized to opaque white. PULL and UPLOAD are translated one pixel left and up within their 16x16 atlas cells to center their visible bounds. All other pixels are transparent.",
+  "icons": [
+    {
+      "name": "PICK_POSITION",
+      "aliases": [
+        "PICK_BLOCK",
+        "PICK_NBT",
+        "CAPTURE"
+      ],
+      "x": 0,
+      "y": 0,
+      "source": "Sprites/Software_Window_Fullscreen_Mode_Select_2.png"
+    },
+    {
+      "name": "PICK_ITEM",
+      "x": 16,
+      "y": 0,
+      "source": "Sprites/Travel_Backpack_Bag_School.png"
+    },
+    {
+      "name": "ADD",
+      "aliases": [
+        "INSERT"
+      ],
+      "x": 32,
+      "y": 0,
+      "source": "Sprites/Software_Signs_Maths_Plus_Addition_Bonus_Add_New.png"
+    },
+    {
+      "name": "EDIT_NBT",
+      "x": 0,
+      "y": 16,
+      "source": "Sprites/Software_Terminal_Window_CMD_Command_Line_Development_Code_Programming.png"
+    },
+    {
+      "name": "COPY",
+      "x": 16,
+      "y": 16,
+      "source": "Sprites/Software_Windowed_Mode_Floating_Maximize.png"
+    },
+    {
+      "name": "PASTE",
+      "x": 32,
+      "y": 16,
+      "source": "Sprites/Software_Clipbaord_List_File_Copy_Paste.png"
+    },
+    {
+      "name": "LIST",
+      "aliases": [
+        "STRUCTURE"
+      ],
+      "x": 0,
+      "y": 32,
+      "source": "Sprites/Software_Text_Document_Credits_Roll_Attributions.png"
+    },
+    {
+      "name": "BROWSE_FOLDER",
+      "x": 16,
+      "y": 32,
+      "source": "ref/1.21.1/Create/src/main/resources/assets/create/textures/gui/icons.png",
+      "source_icon": "com.simibubi.create.foundation.gui.AllIcons.I_OPEN_FOLDER",
+      "source_rect": [
+        32,
+        16,
+        16,
+        16
+      ],
+      "author": "The Create Team / The Creators of Create",
+      "license": "All Rights Reserved (assets)"
+    },
+    {
+      "name": "PULL",
+      "x": 48,
+      "y": 0,
+      "source": "Common/src/main/resources/assets/ponderer/textures/gui/projector.png",
+      "source_rect": [
+        0,
+        441,
+        16,
+        16
+      ],
+      "source_icon": "ProjectorConfigScreen.ButtonVisual.ACTION_ICON_REMOTE_PULL",
+      "modifications": "Translate one pixel left and up within the 16x16 atlas cell, centering visible bounds at (2, 2, 14, 14). No resampling."
+    },
+    {
+      "name": "UPLOAD",
+      "x": 48,
+      "y": 16,
+      "source": "Common/src/main/resources/assets/ponderer/textures/gui/projector.png",
+      "source_rect": [
+        0,
+        441,
+        16,
+        16
+      ],
+      "modifications": "Flip only the arrow vertically inside source rectangle (5, 3, 12, 11), preserving the tray shape. Then translate the whole icon one pixel left and up within the 16x16 atlas cell, centering visible bounds at (2, 2, 14, 14). No resampling."
+    },
+    {
+      "name": "HISTORY",
+      "x": 32,
+      "y": 32,
+      "source": "Sprites/Software_Clock_Time_Wait_2.png"
+    },
+    {
+      "name": "IGNORE",
+      "x": 48,
+      "y": 32,
+      "source": "Sprites/Arrows_Media_Controls_Next.png"
+    },
+    {
+      "name": "OVERWRITE",
+      "x": 0,
+      "y": 48,
+      "source": "Sprites/Software_File_Document_Page_Arrow_Send_Import.png"
+    },
+    {
+      "name": "EDIT_SCENE",
+      "x": 16,
+      "y": 48,
+      "source": "Sprites/Tools_Crafting_Writing_Parchment_Scroll_Document_Quill_Pen.png",
+      "modifications": "Retain the pure-white mask as RGB (226, 226, 226). Project only the lowest foreground pixel in each column two pixels downward in RGB (142, 142, 142), clipped to the 16x16 cell. Preserve the source's internal transparent gaps instead of outlining the entire mask."
+    }
+  ],
+  "native_icons": [
+    {
+      "name": "REMOVE",
+      "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_CONFIG_DISCARD",
+      "rotation_degrees": 0
+    },
+    {
+      "name": "EXPAND",
+      "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_PONDER_RIGHT",
+      "rotation_degrees": 0
+    },
+    {
+      "name": "COLLAPSE",
+      "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_PONDER_RIGHT",
+      "rotation_degrees": 90
+    },
+    {
+      "name": "ROLLBACK",
+      "source": "net.createmod.ponder.enums.PonderGuiTextures.ICON_CONFIG_RESET",
+      "mirror_x": true,
+      "rendered_by": "RemoteBrowserScreen via PonderIconStencils.mirrored"
+    }
+  ],
+  "sources": [
+    {
+      "name": "1-bit Pixel Icons",
+      "url": "https://nikoichu.itch.io/pixel-icons",
+      "author": "Nikoichu",
+      "license": "CC0-1.0",
+      "pack": "1-bit_Pixel_Icons.zip (upload 15668268, v1.2)"
+    },
+    {
+      "name": "Create I_OPEN_FOLDER",
+      "repository": "https://github.com/Creators-of-Create/Create",
+      "ref": "mc1.21.1/dev",
+      "author": "The Create Team / The Creators of Create",
+      "license": "All Rights Reserved (assets)",
+      "license_file": "ref/1.21.1/Create/LICENSE.md"
+    }
+  ]
+}

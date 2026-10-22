@@ -4,10 +4,17 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
-import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.mixin.TickingInstructionAccessor;
 import com.nododiiiii.ponderer.projector.client.ProjectorCueMarkerInstruction;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
-import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
+import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.interfaces.instruction.AwaitInterfaceInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.HideInterfaceInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.InterfaceActionInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceContextInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceDataInstruction;
+import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceSlotsInstruction;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
 import com.nododiiiii.ponderer.ui.UiAnchorViewport;
 import net.createmod.catnip.math.Pointing;
@@ -19,15 +26,21 @@ import net.createmod.ponder.api.element.TextElementBuilder;
 import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.api.registration.PonderPlugin;
 import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
+import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
 import net.createmod.ponder.api.registration.SharedTextRegistrationHelper;
 import net.createmod.ponder.api.scene.Selection;
 import net.createmod.ponder.api.scene.PonderStoryBoard;
 import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
 import net.createmod.ponder.foundation.PonderScene;
-import net.createmod.ponder.foundation.instruction.DisplayWorldSectionInstruction;
-import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
+import net.createmod.ponder.foundation.PonderSceneBuilder;
+import net.createmod.ponder.foundation.instruction.RotateSceneInstruction;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
+import net.createmod.ponder.foundation.instruction.PonderInstruction;
+import net.createmod.ponder.foundation.registration.PonderLocalization;
+import net.createmod.ponder.foundation.registration.PonderSceneRegistry;
+import net.createmod.ponder.api.level.PonderLevel;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -66,7 +79,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -76,93 +88,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
     private static class StepContext {
         final Map<String, ElementLink<WorldSectionElement>> sectionLinks = new HashMap<>();
         final Map<String, List<ElementLink<EntityElement>>> entityLinks = new HashMap<>();
-        final VisibilityTracker visibility = new VisibilityTracker();
+        final SceneSectionOwnership sections = new SceneSectionOwnership();
         boolean uiAnchorMode;
-    }
-
-    /**
-     * Tracks which scene positions currently have a rendered block, for smart-display filtering.
-     * Two modes: when allVisible is set (show_structure everywhere), unknown positions count as
-     * visible and the explicit set tracks exceptions (hidden). Otherwise, the explicit set tracks
-     * what is visible. All visibility-mutating steps funnel through here so a new step type only
-     * needs to call one method.
-     */
-    private static final class VisibilityTracker {
-        private final Set<Long> visibleKeys = new java.util.HashSet<>();
-        private final Set<Long> hiddenKeys = new java.util.HashSet<>();
-        private boolean allVisible;
-
-        void markAllVisible() {
-            allVisible = true;
-            visibleKeys.clear();
-            hiddenKeys.clear();
-        }
-
-        void markRange(BlockPos pos1, BlockPos pos2, boolean visible) {
-            if (pos1 == null) {
-                return;
-            }
-            BlockPos b = pos2 == null ? pos1 : pos2;
-            int minX = Math.min(pos1.getX(), b.getX());
-            int minY = Math.min(pos1.getY(), b.getY());
-            int minZ = Math.min(pos1.getZ(), b.getZ());
-            int maxX = Math.max(pos1.getX(), b.getX());
-            int maxY = Math.max(pos1.getY(), b.getY());
-            int maxZ = Math.max(pos1.getZ(), b.getZ());
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    for (int x = minX; x <= maxX; x++) {
-                        mark(BlockPos.asLong(x, y, z), visible);
-                    }
-                }
-            }
-        }
-
-        void markPlaced(List<ExtraStructurePlanner.PlacedBlock> placed, boolean visible) {
-            for (ExtraStructurePlanner.PlacedBlock b : placed) {
-                // Air placements render nothing, so they must not count as visible — otherwise
-                // a subsequent step that places a real block at the same scene-coord would be
-                // filtered out by smart-display as "already visible". Matters when the source
-                // structure was planned with replaceAir=true.
-                mark(b.pos.asLong(), visible && !b.state.isAir());
-            }
-        }
-
-        boolean isVisible(long key) {
-            return allVisible ? !hiddenKeys.contains(key) : visibleKeys.contains(key);
-        }
-
-        List<List<BlockPos>> filterAlreadyVisible(List<List<BlockPos>> groups) {
-            List<List<BlockPos>> filtered = new ArrayList<>();
-            for (List<BlockPos> group : groups) {
-                List<BlockPos> pending = new ArrayList<>();
-                for (BlockPos pos : group) {
-                    if (!isVisible(pos.asLong())) {
-                        pending.add(pos);
-                    }
-                }
-                if (!pending.isEmpty()) {
-                    filtered.add(pending);
-                }
-            }
-            return filtered;
-        }
-
-        private void mark(long key, boolean visible) {
-            if (allVisible) {
-                if (visible) {
-                    hiddenKeys.remove(key);
-                } else {
-                    hiddenKeys.add(key);
-                }
-            } else {
-                if (visible) {
-                    visibleKeys.add(key);
-                } else {
-                    visibleKeys.remove(key);
-                }
-            }
-        }
     }
 
     private static final class EntityMoveTarget {
@@ -405,6 +332,25 @@ public class DynamicPonderPlugin implements PonderPlugin {
         registerBlueprintGuideScene(helper);
     }
 
+    @Override
+    public void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
+        PondererAttribution.register();
+        CustomPonderTags.register();
+        for (DslScene scene : SceneRuntime.getScenes()) {
+            ResourceLocation[] tags = resolveTags(scene.tags);
+            for (ResourceLocation item : SceneItemBindings.resolve(scene.items)) {
+                for (ResourceLocation tag : tags) {
+                    helper.addTagToComponent(item, tag);
+                }
+            }
+        }
+        Item carrierItem = BlueprintFeature.resolveCarrierItem();
+        if (carrierItem != Items.AIR) {
+            helper.addTagToComponent(BuiltInRegistries.ITEM.getKey(carrierItem),
+                new ResourceLocation(PondererAttribution.TAG_ID));
+        }
+    }
+
     private void registerBlueprintGuideScene(PonderSceneRegistrationHelper<ResourceLocation> helper) {
         Item carrierItem = BlueprintFeature.resolveCarrierItem();
         if (carrierItem == Items.AIR) {
@@ -424,6 +370,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
                     scene.addKeyframe();
                     scene.idle(20);
+
+                    scene.overlay().showText(160)
+                        .text(I18n.get("ponderer.guide.blueprint.intro"))
+                        .pointAt(new Vec3(2.5, 1.0, 2.5))
+                        .placeNearTarget();
+                    scene.idle(170);
 
                     Vec3 firstPoint = new Vec3(1.5, 1.0, 1.5);
                     Vec3 secondPoint = new Vec3(3.5, 4.0, 3.5);
@@ -475,7 +427,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
                         .pointAt(resizePoint)
                         .placeNearTarget();
                     scene.overlay().showOutline(PonderPalette.RED, new Object(), resizedSelection, 40);
-                });
+                }, new ResourceLocation(PondererAttribution.TAG_ID));
     }
 
     @Override
@@ -508,15 +460,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        List<ResourceLocation> components = new ArrayList<>();
-        for (String itemId : scene.items) {
-            ResourceLocation item = ResourceLocation.tryParse(itemId);
-            if (item == null) {
-                LOGGER.warn("Invalid item id {} in scene {}", itemId, scene.id);
-                continue;
-            }
-            components.add(item);
-        }
+        List<ResourceLocation> components = SceneItemBindings.resolve(scene.items);
+        List<SceneItemBindings.ResolvedBinding> bindings = SceneItemBindings.resolveWithNbt(scene);
 
         if (components.isEmpty()) {
             LOGGER.warn("Scene {} has no valid items; skipping", scene.id);
@@ -541,14 +486,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
             String basePath = baseId == null ? "scene" : baseId.getPath();
             String scenePath = sceneList.size() > 1 ? basePath + "_" + sceneSuffix(sc, i) : basePath;
             String fullSceneId = getModId() + ":" + scenePath;
-            for (ResourceLocation comp : components) {
-                NbtSceneFilter.registerScene(comp, fullSceneId);
-            }
-            if (scene.nbtFilter != null && !scene.nbtFilter.isBlank()) {
-                CompoundTag nbt = NbtSceneFilter.parseNbt(scene.nbtFilter);
-                if (nbt != null) {
-                    NbtSceneFilter.registerFilter(fullSceneId, nbt);
-                }
+            for (SceneItemBindings.ResolvedBinding binding : bindings) {
+                NbtSceneFilter.registerScene(binding.itemId(), fullSceneId,
+                    NbtSceneFilter.parseNbt(binding.nbtFilter()));
             }
 
             // Register mapping from PonderScene ID to DslScene sceneKey for pack disambiguation
@@ -659,11 +599,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private ResourceLocation[] resolveTags(List<String> tags) {
-        if (tags == null || tags.isEmpty()) {
-            return new ResourceLocation[0];
-        }
         List<ResourceLocation> result = new ArrayList<>();
-        for (String tagId : tags) {
+        for (String tagId : PondererAttribution.withTag(tags)) {
             ResourceLocation tag = ResourceLocation.tryParse(tagId);
             if (tag != null) {
                 result.add(tag);
@@ -672,7 +609,133 @@ public class DynamicPonderPlugin implements PonderPlugin {
         return result.toArray(ResourceLocation[]::new);
     }
 
+    /** Compile just the edited segment, using the same schematic resolution and storyboard as playback. */
+    public record EditorScene(PonderScene scene, List<Integer> stepTicks,
+                              EditorScenePlayback playback) {}
+
+    /** Pause later instructions during a step preview without removing them from the timeline. */
+    public static final class EditorScenePlayback {
+        private final List<List<PonderInstruction>> steps = new ArrayList<>();
+        private int previewStep = -1;
+
+        public void previewStep(int index) {
+            previewStep = index;
+        }
+
+        public boolean isPreviewingStep() {
+            return previewStep >= 0;
+        }
+
+        public boolean isStepComplete() {
+            return isPreviewingStep() && steps.get(previewStep).stream().allMatch(PonderInstruction::isComplete);
+        }
+
+        public void resumeTimeline() {
+            previewStep = -1;
+        }
+
+        private boolean pausesStep(int index) {
+            return isPreviewingStep() && index > previewStep;
+        }
+    }
+
+    /** Capture actual instruction completion, including non-blocking effects and native fade times. */
+    private static final class EditorSceneBuilder extends PonderSceneBuilder {
+        private final EditorScenePlayback playback = new EditorScenePlayback();
+        private int stepIndex = -1;
+        private int scheduledTicks;
+        private int effectEndTick;
+
+        EditorSceneBuilder(PonderScene scene) {
+            super(scene);
+        }
+
+        void beginStep() {
+            stepIndex++;
+            playback.steps.add(new ArrayList<>());
+        }
+
+        void finishTimeline() {
+            int endTick = Math.max(scheduledTicks, effectEndTick);
+            // Apply the full effect duration on every begin/replay, after native keyframe scheduling.
+            super.addInstruction(new PonderInstruction() {
+                @Override public void onScheduled(PonderScene scene) {
+                    scene.addToSceneTime(Math.max(0, endTick - scene.getTotalTime()));
+                }
+                @Override public boolean isComplete() { return true; }
+                @Override public void tick(PonderScene scene) {}
+            });
+        }
+
+        @Override
+        public void addInstruction(PonderInstruction instruction) {
+            int nativeTicks = instruction instanceof TickingInstruction
+                ? ((TickingInstructionAccessor) instruction).ponderer$getTotalTicks() : 1;
+            int duration = Math.max(1, nativeTicks);
+            effectEndTick = Math.max(effectEndTick, scheduledTicks + duration);
+            if (instruction.isBlocking()) scheduledTicks += duration;
+            int instructionStep = stepIndex;
+            PonderInstruction tracked = new PonderInstruction() {
+                private boolean started;
+
+                @Override public boolean isBlocking() {
+                    return playback.pausesStep(instructionStep) || instruction.isBlocking();
+                }
+                @Override public boolean isComplete() {
+                    return !playback.pausesStep(instructionStep) && started && instruction.isComplete();
+                }
+                @Override public void onScheduled(PonderScene scene) {
+                    instruction.onScheduled(scene);
+                    // Even a zero-duration blocking instruction consumes a native scheduling tick.
+                    if (instruction.isBlocking() && nativeTicks == 0) scene.addToSceneTime(1);
+                }
+                @Override public void reset(PonderScene scene) {
+                    started = false;
+                    instruction.reset(scene);
+                }
+                @Override public void tick(PonderScene scene) {
+                    if (playback.pausesStep(instructionStep)) return;
+                    started = true;
+                    instruction.tick(scene);
+                }
+            };
+            if (stepIndex >= 0) playback.steps.get(stepIndex).add(tracked);
+            super.addInstruction(tracked);
+        }
+    }
+
+    @Nullable
+    public EditorScene compileEditorScene(DslScene dsl, int segmentIndex) {
+        List<DslScene.SceneSegment> segments = normalizeScenes(dsl);
+        if (Minecraft.getInstance().level == null || segmentIndex < 0 || segmentIndex >= segments.size()) {
+            return null;
+        }
+        return ProjectorRenderContext.supply(() -> {
+            ResourceLocation schematic = resolveSceneSchematics(dsl, segments).get(segmentIndex);
+            PonderLevel level = new PonderLevel(BlockPos.ZERO, Minecraft.getInstance().level);
+            PonderSceneRegistry.loadSchematic(schematic).placeInWorld(level, BlockPos.ZERO, BlockPos.ZERO,
+                new StructurePlaceSettings(), level.random, Block.UPDATE_CLIENTS);
+            level.createBackup();
+            ResourceLocation component = SceneItemBindings.firstItem(dsl);
+            if (component == null) component = new ResourceLocation("stick");
+            PonderScene compiled = new PonderScene(level, new PonderLocalization(), getModId(), component,
+                List.of(), List.of());
+            List<Integer> stepTicks = new ArrayList<>();
+            EditorSceneBuilder builder = new EditorSceneBuilder(compiled);
+            createStoryBoard(dsl, segments.get(segmentIndex), segmentIndex, segments.size(), stepTicks)
+                .program(builder, compiled.getSceneBuildingUtil());
+            builder.finishTimeline();
+            compiled.begin();
+            return new EditorScene(compiled, stepTicks, builder.playback);
+        });
+    }
+
     private PonderStoryBoard createStoryBoard(DslScene scene, DslScene.SceneSegment sc, int index, int total) {
+        return createStoryBoard(scene, sc, index, total, null);
+    }
+
+    private PonderStoryBoard createStoryBoard(DslScene scene, DslScene.SceneSegment sc, int index, int total,
+                                             @Nullable List<Integer> stepTicks) {
         BoundingBox scanBox = preScanSegmentBounds(sc);
         return (builder, util) -> {
             try {
@@ -709,6 +772,19 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 }
 
                 for (DslScene.DslStep step : sc.steps) {
+                    if (builder instanceof EditorSceneBuilder editorBuilder) editorBuilder.beginStep();
+                    if (stepTicks != null) {
+                        int stepIndex = stepTicks.size();
+                        stepTicks.add(0);
+                        // onScheduled runs in schedule order, after preceding blocking durations are counted.
+                        builder.addInstruction(new PonderInstruction() {
+                            @Override public void onScheduled(PonderScene ps) {
+                                stepTicks.set(stepIndex, ps.getTotalTime() + 1);
+                            }
+                            @Override public boolean isComplete() { return true; }
+                            @Override public void tick(PonderScene ps) {}
+                        });
+                    }
                     if (step == null || step.type == null) {
                         continue;
                     }
@@ -789,6 +865,18 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "show_interface" -> applyShowInterface(scene, step, context);
             case "change_interface_slot" -> applyChangeInterfaceSlot(scene, step);
             case "click_interface" -> applyClickInterface(scene, step);
+            case "set_interface_slots" -> scene.addInstruction(
+                new SetInterfaceSlotsInstruction(InterfaceStepSpecs.slots(step)));
+            case "set_interface_data" -> scene.addInstruction(
+                new SetInterfaceDataInstruction(InterfaceStepSpecs.data(step), step.durationOrDefault(1)));
+            case "set_interface_context" -> scene.addInstruction(
+                new SetInterfaceContextInstruction(InterfaceStepSpecs.context(step)));
+            case "interface_action" -> applyInterfaceAction(scene, step);
+            case "hide_interface" -> {
+                scene.addInstruction(new HideInterfaceInstruction(step.durationOrDefault(1)));
+                context.uiAnchorMode = false;
+            }
+            case "await_interface" -> applyAwaitInterface(scene, step);
             case "encapsulate_bounds" -> applyEncapsulateBounds(scene, step);
             case "play_sound" -> applyPlaySound(scene, step);
             case "set_block" -> applySetBlock(scene, step, context);
@@ -802,6 +890,13 @@ public class DynamicPonderPlugin implements PonderPlugin {
             case "modify_block_entity_nbt" -> applyModifyBlockEntityNbt(scene, step);
             case "indicate_redstone" -> applyIndicateRedstone(scene, step);
             case "indicate_success" -> applyIndicateSuccess(scene, step);
+            case "spawn_particles" -> {
+                try {
+                    ParticleEffects.emit(scene, step);
+                } catch (IllegalArgumentException e) {
+                    LOGGER.warn("Invalid spawn_particles step: {}", e.getMessage());
+                }
+            }
             case "clear_entities" -> applyClearEntities(scene, step, context);
             case "clear_item_entities" -> applyClearItemEntities(scene, step, context);
             case "modify_entities_nbt" -> applyModifyEntitiesNbt(scene, step, context);
@@ -986,27 +1081,22 @@ public class DynamicPonderPlugin implements PonderPlugin {
         float degreesY = step.degrees == null ? 90f : step.degrees;
         Float degreesX = step.degreesX;
         int duration = step.durationOrDefault(20);
+        if (duration > 0) {
+            // Match Ponder's exponential rotation; duration only controls the scene wait.
+            scene.addInstruction(new RotateSceneInstruction(degreesX == null ? 0f : degreesX, degreesY, true));
+            scene.idle(duration);
+            return;
+        }
         scene.addInstruction(ponderScene -> {
             var yRotation = ponderScene.getTransform().yRotation;
             float targetY = yRotation.getChaseTarget() + degreesY;
-            if (duration == 0) {
-                yRotation.startWithValue(targetY);
-            } else {
-                yRotation.chaseTimed(targetY, duration);
-            }
+            yRotation.startWithValue(targetY);
             if (degreesX != null) {
                 var xRotation = ponderScene.getTransform().xRotation;
                 float targetX = xRotation.getChaseTarget() + degreesX;
-                if (duration == 0) {
-                    xRotation.startWithValue(targetX);
-                } else {
-                    xRotation.chaseTimed(targetX, duration);
-                }
+                xRotation.startWithValue(targetX);
             }
         });
-        if (duration > 0) {
-            scene.idle(duration);
-        }
     }
 
     private void applyZoomScene(SceneBuilder scene, DslScene.DslStep step) {
@@ -1067,43 +1157,33 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowInterface(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        String source = step.interfaceSource == null ? "block" : step.interfaceSource.toLowerCase(java.util.Locale.ROOT);
-        switch (source) {
-            case "block" -> {
-                if (step.block == null || step.block.isBlank()) {
-                    LOGGER.warn("show_interface missing block id");
-                    return;
+        if (step.interfaceSpec == null) {
+            String source = step.interfaceSource == null ? "block" : step.interfaceSource.toLowerCase(java.util.Locale.ROOT);
+            switch (source) {
+                case "held_item" -> {
+                    if (step.item == null || step.item.isBlank()) {
+                        LOGGER.warn("show_interface missing item id for held_item source");
+                        return;
+                    }
                 }
-                if (step.blockPos == null || step.blockPos.size() < 3) {
-                    LOGGER.warn("show_interface missing block context position");
-                    return;
+                case "ui_id" -> {
+                    if (step.uiId == null || step.uiId.isBlank()) {
+                        LOGGER.warn("show_interface missing uiId for ui_id source");
+                        return;
+                    }
                 }
-            }
-            case "held_item" -> {
-                if (step.item == null || step.item.isBlank()) {
-                    LOGGER.warn("show_interface missing item id for held_item source");
-                    return;
-                }
-            }
-            case "ui_id" -> {
-                if (step.uiId == null || step.uiId.isBlank()) {
-                    LOGGER.warn("show_interface missing uiId for ui_id source");
-                    return;
-                }
-            }
-            default -> {
-                LOGGER.warn("show_interface unknown interfaceSource '{}', treating as block", step.interfaceSource);
-                if (step.block == null || step.block.isBlank()
-                    || step.blockPos == null || step.blockPos.size() < 3) {
-                    return;
+                default -> {
+                    if (!"block".equals(source)) {
+                        LOGGER.warn("show_interface unknown interfaceSource '{}', treating as block", step.interfaceSource);
+                    }
+                    if (step.block == null || step.block.isBlank()) {
+                        LOGGER.warn("show_interface missing block id");
+                        return;
+                    }
                 }
             }
         }
 
-        if (!ProjectorRenderContext.isActive()) {
-            PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_interface");
-            InterfaceSlotOverlayRenderer.clearRuntimeBindings();
-        }
         // Build-time pointAt() conversion for UI-anchored overlays happens after this step.
         // Reset immediately so subsequent resolveOverlayPoint() uses a clean baseline.
         ponderer$resetSceneViewState(scene.getScene());
@@ -1115,15 +1195,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyClickInterface(SceneBuilder scene, DslScene.DslStep step) {
-        if (step.pos == null || step.pos.size() < 2) {
-            LOGGER.warn("click_interface missing point");
+        InterfaceStepSpecs.Action action = InterfaceStepSpecs.fromLegacyClick(step);
+        if (action == null) {
+            LOGGER.warn("click_interface needs pos [u, v] and action left|right");
             return;
         }
-        if (step.action == null || step.action.isBlank()) {
-            LOGGER.warn("click_interface missing action");
-            return;
-        }
-        scene.addInstruction(new ClickInterfaceInstruction(step));
+        scene.addInstruction(new InterfaceActionInstruction(action));
     }
 
     private void applyChangeInterfaceSlot(SceneBuilder scene, DslScene.DslStep step) {
@@ -1131,7 +1208,27 @@ public class DynamicPonderPlugin implements PonderPlugin {
             LOGGER.warn("change_interface_slot missing interfaceSlots");
             return;
         }
-        scene.addInstruction(new ChangeInterfaceSlotInstruction(step));
+        scene.addInstruction(new SetInterfaceSlotsInstruction(InterfaceStepSpecs.fromLegacyChangeSlot(step.interfaceSlots)));
+    }
+
+    private void applyInterfaceAction(SceneBuilder scene, DslScene.DslStep step) {
+        InterfaceStepSpecs.Action action = InterfaceStepSpecs.action(step);
+        if (action == null) {
+            LOGGER.warn("interface_action unknown action '{}'", step.action);
+            return;
+        }
+        scene.addInstruction(new InterfaceActionInstruction(action));
+    }
+
+    private void applyAwaitInterface(SceneBuilder scene, DslScene.DslStep step) {
+        InterfaceStepSpecs.Goal goal = InterfaceStepSpecs.goal(step);
+        if (goal == null) {
+            LOGGER.warn("await_interface needs goal.slot");
+            return;
+        }
+        String hint = step.hint == null ? null : step.hint.resolve();
+        scene.addInstruction(new AwaitInterfaceInstruction(goal, hint == null || hint.isBlank() ? null : hint,
+            step.timeout == null ? 600 : step.timeout));
     }
 
     private void ponderer$resetSceneViewState(net.createmod.ponder.foundation.PonderScene ps) {
@@ -1236,12 +1333,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
     }
 
     private void applyShowStructure(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
-        if (!ProjectorRenderContext.isActive()) {
-            PondererServices.PLATFORM.closeInterfaceStep("replace-with-show_structure");
+        if (context.uiAnchorMode) {
+            scene.addInstruction(InterfaceHost::hide);
         }
         context.uiAnchorMode = false;
         Selection selection;
-        boolean isEverywhere;
         if (step.blockPos != null && step.blockPos.size() >= 3) {
             BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
             BlockPos pos2 = pos1;
@@ -1249,18 +1345,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
             }
             selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
-            isEverywhere = false;
         } else {
             // Default behavior: show full structure when no region is provided.
             selection = scene.getScene().getSceneBuildingUtil().select().everywhere();
-            isEverywhere = true;
         }
-        scene.world().showSection(selection, Direction.UP);
-        if (isEverywhere) {
-            context.visibility.markAllVisible();
-        } else {
-            updateVisibleRange(context, step, true);
-        }
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection, false);
+        context.sections.show(scene, selection, 15, Direction.UP, scene.getScene()::getBaseWorldSection, reveal);
         if (step.scale != null) {
             scene.scaleSceneView(step.scale);
         }
@@ -1308,22 +1398,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-        for (ExtraStructurePlanner.PlacedBlock b : placed) {
-            int x = b.pos.getX();
-            int y = b.pos.getY();
-            int z = b.pos.getZ();
-            if (x < minX) minX = x;
-            if (y < minY) minY = y;
-            if (z < minZ) minZ = z;
-            if (x > maxX) maxX = x;
-            if (y > maxY) maxY = y;
-            if (z > maxZ) maxZ = z;
-        }
-        BlockPos minCorner = new BlockPos(minX, minY, minZ);
-        BlockPos maxCorner = new BlockPos(maxX, maxY, maxZ);
-
         // Three exclusive entrance paths:
         //   - "none" / null   → no animated reveal; obey step.immediateDisplay.
         //   - "simultaneous"  → fade-in once, in parallel across strips so air holes are skipped.
@@ -1336,44 +1410,12 @@ public class DynamicPonderPlugin implements PonderPlugin {
         boolean placeVisible = !animatedReveal && !Boolean.FALSE.equals(step.immediateDisplay);
         boolean particles = placeVisible && !Boolean.FALSE.equals(step.spawnParticles);
 
-        // An air-free strip decomposition used by the non-animated path and the simultaneous
-        // reveal path. Smart-display may later trim positions out of these groups.
-        List<List<BlockPos>> placedStrips = ExtraStructurePlanner.segmentForAnimation(placed, "up");
-
-        List<List<BlockPos>> revealGroups = placedStrips;
-        int revealInterval = 0;
-        String linkId = null;
-        Direction direction = Direction.DOWN;
-        int rowDuration = 20;
+        Selection placement = selectionForGroup(scene, placed.stream().map(b -> b.pos).toList());
+        SceneSectionOwnership.Reveal reveal = null;
         if (animatedReveal) {
-            linkId = step.linkId == null ? "" : step.linkId.trim();
-            if (linkId.isEmpty()) {
-                linkId = autoLinkId(context);
-            }
-            direction = parseDirection(step.direction);
-            rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
-            int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
-            boolean smartDisplay = !Boolean.FALSE.equals(step.smartDisplay);
-
-            // Simultaneous → reuse the air-free strips and start every reveal at the same scene
-            // tick (rowInterval=0). Directional → segment along the chosen axis as usual.
-            if (simultaneous) {
-                revealGroups = placedStrips;
-                revealInterval = 0;
-            } else {
-                revealGroups = ExtraStructurePlanner.segmentForAnimation(placed, entranceAnimation);
-                revealInterval = rowInterval;
-            }
-
-            // Filter against PRIOR visibility (e.g. blocks already shown by a previous
-            // show_extra_structure). Only the still-hidden positions should be removed from the
-            // base section; otherwise already-visible overlaps such as shared floor blocks vanish.
-            if (smartDisplay) {
-                revealGroups = filterVisibleGroups(revealGroups, context);
-            }
-            ensureSceneCanShowExtra(scene, minCorner, maxCorner, revealGroups, false);
+            reveal = context.sections.prepare(scene, placement, !Boolean.FALSE.equals(step.smartDisplay));
         } else {
-            ensureSceneCanShowExtra(scene, minCorner, maxCorner, placedStrips, placeVisible);
+            context.sections.place(scene, placement, placeVisible);
         }
 
         for (ExtraStructurePlanner.PlacedBlock b : placed) {
@@ -1385,87 +1427,18 @@ public class DynamicPonderPlugin implements PonderPlugin {
             }
         }
 
-        if (!animatedReveal) {
-            applyPlacedVisibility(context, placed, placeVisible);
-            return;
+        if (animatedReveal) {
+            String linkId = step.linkId == null ? "" : step.linkId.trim();
+            if (linkId.isEmpty()) {
+                linkId = autoLinkId(context);
+            }
+            List<List<BlockPos>> groups = ExtraStructurePlanner.segmentForAnimation(placed,
+                    simultaneous ? "up" : entranceAnimation);
+            int rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
+            int rowInterval = simultaneous ? 0 : step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
+            showAnimatedGroups(scene, context, linkId, context.sectionLinks.get(linkId), groups,
+                    parseDirection(step.direction), rowDuration, rowInterval, reveal);
         }
-
-        if (revealGroups.isEmpty()) {
-            applyPlacedVisibility(context, placed, true);
-            return;
-        }
-
-        ElementLink<WorldSectionElement> working = context.sectionLinks.get(linkId);
-        for (List<BlockPos> group : revealGroups) {
-            if (group.isEmpty()) {
-                continue;
-            }
-            Selection groupSelection = selectionForGroup(scene, group);
-            if (working == null) {
-                DisplayWorldSectionInstruction inst =
-                        new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection, null);
-                scene.addInstruction(inst);
-                working = inst.createLink(scene.getScene());
-                context.sectionLinks.put(linkId, working);
-            } else {
-                ElementLink<WorldSectionElement> target = working;
-                scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection,
-                        () -> scene.getScene().resolve(target)));
-            }
-            if (revealInterval > 0) {
-                scene.idle(revealInterval);
-            }
-        }
-
-        applyPlacedVisibility(context, placed, true);
-    }
-
-    /**
-     * Like {@link #ensureSceneCanShowRange} but operates on exact placed-position selections
-     * rather than the entire bounding box, so existing scene blocks at air positions or
-     * smart-display-filtered overlaps are not accidentally erased from the base section.
-     */
-    private void ensureSceneCanShowExtra(SceneBuilder scene, BlockPos minPos, BlockPos maxPos,
-                                          List<List<BlockPos>> placedGroups, boolean forceVisibleNow) {
-        final List<Selection> groupSelections = new ArrayList<>(placedGroups.size());
-        for (List<BlockPos> group : placedGroups) {
-            if (group.isEmpty()) {
-                continue;
-            }
-            groupSelections.add(selectionForGroup(scene, group));
-        }
-        final List<Selection> capturedSelections = List.copyOf(groupSelections);
-        final BlockPos minCornerCaptured = minPos;
-        final BlockPos maxCornerCaptured = maxPos;
-
-        scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(minCornerCaptured);
-            ps.getWorld().getBounds().encapsulate(maxCornerCaptured);
-            if (!forceVisibleNow) {
-                if (!ps.getBaseWorldSection().isEmpty()) {
-                    for (Selection selection : capturedSelections) {
-                        ps.getBaseWorldSection().erase(selection);
-                    }
-                    ps.getBaseWorldSection().queueRedraw();
-                }
-                return;
-            }
-            if (ps.getBaseWorldSection().isEmpty()) {
-                Selection all = ps.getSceneBuildingUtil().select().everywhere();
-                ps.getBaseWorldSection().set(all);
-                ps.getBaseWorldSection().setVisible(true);
-                ps.getBaseWorldSection().setFade(1);
-            } else {
-                for (Selection selection : capturedSelections) {
-                    ps.getBaseWorldSection().add(selection);
-                }
-            }
-            ps.getBaseWorldSection().queueRedraw();
-        });
-    }
-
-    private void applyPlacedVisibility(StepContext context, List<ExtraStructurePlanner.PlacedBlock> placed, boolean visible) {
-        context.visibility.markPlaced(placed, visible);
     }
 
     @Nullable
@@ -1599,8 +1572,8 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return;
         }
 
-        ensureSceneCanShowRange(scene, pos, pos2, immediateDisplay && !isAir);
-        updateVisibleRange(context, step, immediateDisplay && !isAir);
+        ensureSceneCanShowRange(scene, context, pos, pos2, immediateDisplay && !isAir);
+
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
             var selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos, pos2);
             scene.world().setBlocks(selection, state, particles && !isAir);
@@ -1613,10 +1586,10 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private void applyAnimatedSetBlock(SceneBuilder scene, DslScene.DslStep step, StepContext context, BlockState state,
                                        BlockPos pos1, BlockPos pos2, String entranceAnimation) {
-        // Equivalent flow: hidden set_block, then animated show_section_and_merge reveal in one step.
-        ensureSceneCanShowRange(scene, pos1, pos2, false);
-
         Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        // Snapshot visibility before writing the new state, so air never counts as an existing block.
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection,
+                !Boolean.FALSE.equals(step.smartDisplay));
         scene.world().setBlocks(selection, state, false);
         applySetBlockNbtPatch(scene, step, selection);
 
@@ -1624,58 +1597,17 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (linkId.isEmpty()) {
             linkId = autoLinkId(context);
         }
-        Direction direction = parseDirection(step.direction);
-        ElementLink<WorldSectionElement> existing = context.sectionLinks.get(linkId);
         int rowDuration = step.entranceDuration == null ? 20 : Math.max(0, step.entranceDuration);
         int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
-        boolean smartDisplay = !Boolean.FALSE.equals(step.smartDisplay);
-        applyAnimatedShowSectionAndMerge(scene, context, linkId, existing, pos1, pos2,
-                entranceAnimation, direction, rowDuration, rowInterval, smartDisplay);
-        updateVisibleRange(context, step, true);
+        showAnimatedGroups(scene, context, linkId, context.sectionLinks.get(linkId),
+                orderedLayerGroups(pos1, pos2, entranceAnimation), parseDirection(step.direction),
+                rowDuration, rowInterval, reveal);
     }
 
-    /**
-     * Ensure the base visible world section covers the target range, and that world.bounds
-     * encapsulates pos1..pos2 at instruction execution time. preScanSegmentBounds handles bounds
-     * up-front for the common case, but the runtime guard here covers paths where bounds might
-     * have been reassigned (SchematicWorld.setBlock reassigns the BoundingBox reference on every
-     * placement) and ensures ReplaceBlocksInstruction's isInside() check passes for blocks placed
-     * outside the original schematic footprint — including animated-entrance set_block.
-     */
-    private void ensureSceneCanShowRange(SceneBuilder scene, BlockPos pos1, BlockPos pos2, boolean forceVisibleNow) {
-        Selection targetSelection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
-        final BlockPos minPos = new BlockPos(
-                Math.min(pos1.getX(), pos2.getX()),
-                Math.min(pos1.getY(), pos2.getY()),
-                Math.min(pos1.getZ(), pos2.getZ()));
-        final BlockPos maxPos = new BlockPos(
-                Math.max(pos1.getX(), pos2.getX()),
-                Math.max(pos1.getY(), pos2.getY()),
-                Math.max(pos1.getZ(), pos2.getZ()));
-
-        scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(minPos);
-            ps.getWorld().getBounds().encapsulate(maxPos);
-
-            if (!forceVisibleNow) {
-                if (!ps.getBaseWorldSection().isEmpty()) {
-                    ps.getBaseWorldSection().erase(targetSelection);
-                    ps.getBaseWorldSection().queueRedraw();
-                }
-                return;
-            }
-
-            if (ps.getBaseWorldSection().isEmpty()) {
-                Selection all = ps.getSceneBuildingUtil().select().everywhere();
-                ps.getBaseWorldSection().set(all);
-                ps.getBaseWorldSection().setVisible(true);
-                ps.getBaseWorldSection().setFade(1);
-            } else {
-                ps.getBaseWorldSection().add(targetSelection);
-            }
-
-            ps.getBaseWorldSection().queueRedraw();
-        });
+    private void ensureSceneCanShowRange(SceneBuilder scene, StepContext context,
+                                         BlockPos pos1, BlockPos pos2, boolean forceVisibleNow) {
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        context.sections.place(scene, selection, forceVisibleNow);
     }
 
     private void applySetBlockNbtPatch(SceneBuilder scene, DslScene.DslStep step, Selection selection) {
@@ -1702,6 +1634,7 @@ public class DynamicPonderPlugin implements PonderPlugin {
         if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
             pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
+        ensureSceneCanShowRange(scene, context, pos1, pos2, false);
         boolean particles = !Boolean.FALSE.equals(step.destroyParticles);
         if (pos1.equals(pos2)) {
             if (particles) {
@@ -1719,7 +1652,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
                 }
             }
         }
-        updateVisibleRange(context, step, false);
     }
 
     private void applyReplaceBlocks(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
@@ -1748,12 +1680,11 @@ public class DynamicPonderPlugin implements PonderPlugin {
             pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
         }
         boolean particles = !Boolean.FALSE.equals(step.spawnParticles);
-        ensureSceneCanShowRange(scene, pos1, pos2, true);
         var selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
         BlockState state = block.defaultBlockState();
         state = applyBlockProperties(state, step);
+        ensureSceneCanShowRange(scene, context, pos1, pos2, !state.isAir());
         scene.world().replaceBlocks(selection, state, particles);
-        updateVisibleRange(context, step, true);
     }
 
     private BlockState applyBlockProperties(BlockState state, DslScene.DslStep step) {
@@ -1779,56 +1710,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
 
     private void applyHideSection(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         Selection selection = selectionFromStep(scene, step, "hide_section");
-        if (selection == null) {
-            return;
+        if (selection != null) {
+            context.sections.hide(scene, selection, step.durationOrDefault(20), parseDirection(step.direction));
         }
-        updateVisibleRange(context, step, false);
-        int duration = step.durationOrDefault(20);
-        final Selection hiddenSelection = selection;
-        final List<ElementLink<WorldSectionElement>> existingSectionLinks =
-                new ArrayList<>(context.sectionLinks.values());
-        // Safety: ensure the base world section has been initialized before hiding.
-        // If show_structure was somehow skipped, the base section's internal Selection is null,
-        // and hideSection's erase() would NPE. This pre-instruction prevents that.
-        scene.addInstruction(ps -> {
-            if (ps.getBaseWorldSection().isEmpty()) {
-                LOGGER.warn("hide_section executed before show_structure; auto-showing structure");
-                Selection all = ps.getSceneBuildingUtil().select().everywhere();
-                ps.getBaseWorldSection().set(all);
-                ps.getBaseWorldSection().setVisible(true);
-                ps.getBaseWorldSection().setFade(1);
-                ps.getBaseWorldSection().queueRedraw();
-            }
-            // Erase the hidden selection from any independent sections that already
-            // contain those blocks (created by prior show_section_and_merge calls).
-            // Otherwise makeSectionIndependent only strips them from the base section,
-            // and the original independent section keeps rendering them while a fade
-            // animation plays on a different (now-empty-looking) ghost section.
-            for (ElementLink<WorldSectionElement> existing : existingSectionLinks) {
-                WorldSectionElement section = ps.resolve(existing);
-                if (section != null) {
-                    section.erase(hiddenSelection);
-                }
-            }
-        });
-        Direction direction = parseDirection(step.direction);
-
-        ElementLink<WorldSectionElement> link = scene.world().makeSectionIndependent(selection);
-        if (duration <= 0) {
-            scene.addInstruction(ps -> {
-                WorldSectionElement element = ps.resolve(link);
-                if (element != null) {
-                    element.setVisible(false);
-                    element.setFade(0);
-                }
-            });
-            return;
-        }
-        if (duration == 15) {
-            scene.world().hideIndependentSection(link, direction);
-            return;
-        }
-        scene.addInstruction(new FadeOutOfSceneInstruction<>(duration, direction, link));
     }
 
     private void applyShowSectionAndMerge(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
@@ -1859,164 +1743,49 @@ public class DynamicPonderPlugin implements PonderPlugin {
             int rowInterval = step.entranceInterval == null ? 1 : Math.max(0, step.entranceInterval);
             applyAnimatedShowSectionAndMerge(scene, context, linkId, existing, pos1, pos2,
                     entranceAnimation, direction, rowDuration, rowInterval, smartDisplay);
-            updateVisibleRange(context, step, true);
             return;
         }
 
-        // Non-animated path: the new section renders all of `selection` immediately, so any
-        // prior independent section that already contains overlapping positions must release
-        // them — otherwise both sections render the same blocks and produce the ghost effect.
-        eraseSelectionFromOtherSections(scene, context, existing, selection);
-
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection, false);
+        ElementLink<WorldSectionElement> created = context.sections.show(scene, selection, duration, direction,
+                existing == null ? null : () -> scene.getScene().resolve(existing), reveal);
         if (existing == null) {
-            ElementLink<WorldSectionElement> created;
-            if (duration <= 0) {
-                created = scene.world().showIndependentSectionImmediately(selection);
-            } else if (duration == 15) {
-                created = scene.world().showIndependentSection(selection, direction);
-            } else {
-                DisplayWorldSectionInstruction instruction = new DisplayWorldSectionInstruction(duration, direction, selection, null);
-                scene.addInstruction(instruction);
-                created = instruction.createLink(scene.getScene());
-            }
             context.sectionLinks.put(linkId, created);
-            updateVisibleRange(context, step, true);
-            return;
         }
-        if (duration <= 0) {
-            ElementLink<WorldSectionElement> target = existing;
-            scene.addInstruction(ps -> {
-                WorldSectionElement element = ps.resolve(target);
-                if (element != null) {
-                    element.add(selection);
-                    element.queueRedraw();
-                }
-            });
-            updateVisibleRange(context, step, true);
-            return;
-        }
-        if (duration == 15) {
-            scene.world().showSectionAndMerge(selection, direction, existing);
-            updateVisibleRange(context, step, true);
-            return;
-        }
-        scene.addInstruction(new DisplayWorldSectionInstruction(duration, direction, selection,
-                () -> scene.getScene().resolve(existing)));
-        updateVisibleRange(context, step, true);
     }
 
     private void applyAnimatedShowSectionAndMerge(SceneBuilder scene, StepContext context,
                                                   String linkId,
                                                   @Nullable ElementLink<WorldSectionElement> existing,
                                                   BlockPos pos1, BlockPos pos2,
-                                                  String entranceAnimation,
-                                                  Direction entryDirection,
-                                                  int rowDuration,
-                                                  int rowInterval,
-                                                  boolean smartDisplay) {
-        List<List<BlockPos>> groups = orderedLayerGroups(pos1, pos2, entranceAnimation);
-        if (smartDisplay) {
-            groups = filterVisibleGroups(groups, context);
-        }
-        if (groups.isEmpty()) {
-            return;
-        }
-
-        // Without erasing the reveal positions from previously-created independent sections,
-        // a second show_section_and_merge covering the same positions would render them via
-        // both the old section (still visible) and the new animated section, producing the
-        // "instant placement + animation" ghost.
-        List<ElementLink<WorldSectionElement>> otherSectionLinks = snapshotOtherSectionLinks(context, existing);
-
-        List<Selection> groupSelections = prepareAnimatedRevealSelections(scene, existing, groups, otherSectionLinks);
-        if (groupSelections.isEmpty()) {
-            return;
-        }
-
-        ElementLink<WorldSectionElement> working = existing;
-        for (Selection groupSelection : groupSelections) {
-            if (working == null) {
-                DisplayWorldSectionInstruction instruction = new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection, null);
-                scene.addInstruction(instruction);
-                working = instruction.createLink(scene.getScene());
-                context.sectionLinks.put(linkId, working);
-            } else {
-                ElementLink<WorldSectionElement> target = working;
-                scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection,
-                        () -> scene.getScene().resolve(target)));
-            }
-            scene.idle(rowInterval);
-        }
+                                                  String entranceAnimation, Direction entryDirection,
+                                                  int rowDuration, int rowInterval, boolean smartDisplay) {
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection, smartDisplay);
+        showAnimatedGroups(scene, context, linkId, existing, orderedLayerGroups(pos1, pos2, entranceAnimation),
+                entryDirection, rowDuration, rowInterval, reveal);
     }
 
-    private List<Selection> prepareAnimatedRevealSelections(SceneBuilder scene,
-                                                            @Nullable ElementLink<WorldSectionElement> existing,
-                                                            List<List<BlockPos>> groups,
-                                                            List<ElementLink<WorldSectionElement>> otherSectionLinks) {
-        List<Selection> selections = new ArrayList<>();
-        int minX = Integer.MAX_VALUE;
-        int minY = Integer.MAX_VALUE;
-        int minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE;
-        int maxY = Integer.MIN_VALUE;
-        int maxZ = Integer.MIN_VALUE;
-
+    private void showAnimatedGroups(SceneBuilder scene, StepContext context, String linkId,
+                                    @Nullable ElementLink<WorldSectionElement> existing,
+                                    List<List<BlockPos>> groups, Direction direction,
+                                    int rowDuration, int rowInterval, SceneSectionOwnership.Reveal reveal) {
+        ElementLink<WorldSectionElement> working = existing;
         for (List<BlockPos> group : groups) {
             if (group.isEmpty()) {
                 continue;
             }
-            selections.add(selectionForGroup(scene, group));
-            for (BlockPos pos : group) {
-                if (pos.getX() < minX) minX = pos.getX();
-                if (pos.getY() < minY) minY = pos.getY();
-                if (pos.getZ() < minZ) minZ = pos.getZ();
-                if (pos.getX() > maxX) maxX = pos.getX();
-                if (pos.getY() > maxY) maxY = pos.getY();
-                if (pos.getZ() > maxZ) maxZ = pos.getZ();
+            ElementLink<WorldSectionElement> target = working;
+            ElementLink<WorldSectionElement> created = context.sections.show(scene, selectionForGroup(scene, group),
+                    rowDuration, direction, target == null ? null : () -> scene.getScene().resolve(target), reveal);
+            if (working == null) {
+                working = created;
+                context.sectionLinks.put(linkId, working);
+            }
+            if (rowInterval > 0) {
+                scene.idle(rowInterval);
             }
         }
-        if (selections.isEmpty()) {
-            return selections;
-        }
-
-        final BlockPos minPos = new BlockPos(minX, minY, minZ);
-        final BlockPos maxPos = new BlockPos(maxX, maxY, maxZ);
-        final List<Selection> revealSelections = List.copyOf(selections);
-        final ElementLink<WorldSectionElement> target = existing;
-        final List<ElementLink<WorldSectionElement>> priorSections = List.copyOf(otherSectionLinks);
-        scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(minPos);
-            ps.getWorld().getBounds().encapsulate(maxPos);
-
-            if (!ps.getBaseWorldSection().isEmpty()) {
-                for (Selection revealSelection : revealSelections) {
-                    ps.getBaseWorldSection().erase(revealSelection);
-                }
-                ps.getBaseWorldSection().queueRedraw();
-            }
-
-            if (target != null) {
-                WorldSectionElement element = ps.resolve(target);
-                if (element != null) {
-                    for (Selection revealSelection : revealSelections) {
-                        element.erase(revealSelection);
-                    }
-                    element.queueRedraw();
-                }
-            }
-
-            for (ElementLink<WorldSectionElement> link : priorSections) {
-                WorldSectionElement element = ps.resolve(link);
-                if (element == null) {
-                    continue;
-                }
-                for (Selection revealSelection : revealSelections) {
-                    element.erase(revealSelection);
-                }
-                element.queueRedraw();
-            }
-        });
-        return selections;
     }
 
     private Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
@@ -2308,8 +2077,9 @@ public class DynamicPonderPlugin implements PonderPlugin {
         }
 
         if (!itemPatch.isEmpty()) {
-            CompoundTag stackTag = copy.getOrCreateTag();
+            CompoundTag stackTag = copy.getOrCreateTag().copy();
             stackTag.merge(itemPatch.copy());
+            copy.setTag(stackTag);
         }
         return copy;
     }
@@ -2626,48 +2396,16 @@ public class DynamicPonderPlugin implements PonderPlugin {
             return null;
         }
 
-        ElementLink<WorldSectionElement> created = scene.world().showIndependentSectionImmediately(selection);
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection, false);
+        ElementLink<WorldSectionElement> created = context.sections.show(scene, selection, 0, Direction.DOWN, null, reveal);
         String key = linkId.isEmpty() ? autoLinkId(context) : linkId;
         context.sectionLinks.put(key, created);
-        updateVisibleRange(context, step, true);
+
         return created;
     }
 
     private String autoLinkId(StepContext context) {
         return "section_" + (context.sectionLinks.size() + 1);
-    }
-
-    private List<ElementLink<WorldSectionElement>> snapshotOtherSectionLinks(
-            StepContext context, @Nullable ElementLink<WorldSectionElement> exclude) {
-        List<ElementLink<WorldSectionElement>> result = new ArrayList<>();
-        for (ElementLink<WorldSectionElement> link : context.sectionLinks.values()) {
-            if (link == exclude) {
-                continue;
-            }
-            result.add(link);
-        }
-        return result;
-    }
-
-    private void eraseSelectionFromOtherSections(SceneBuilder scene, StepContext context,
-                                                 @Nullable ElementLink<WorldSectionElement> exclude,
-                                                 Selection selection) {
-        List<ElementLink<WorldSectionElement>> others = snapshotOtherSectionLinks(context, exclude);
-        if (others.isEmpty()) {
-            return;
-        }
-        final List<ElementLink<WorldSectionElement>> snap = List.copyOf(others);
-        final Selection target = selection;
-        scene.addInstruction(ps -> {
-            for (ElementLink<WorldSectionElement> link : snap) {
-                WorldSectionElement element = ps.resolve(link);
-                if (element == null) {
-                    continue;
-                }
-                element.erase(target);
-                element.queueRedraw();
-            }
-        });
     }
 
     @Nullable
@@ -2743,22 +2481,6 @@ public class DynamicPonderPlugin implements PonderPlugin {
             currentGroup.add(pos);
         }
         return groups;
-    }
-
-    private List<List<BlockPos>> filterVisibleGroups(List<List<BlockPos>> groups, StepContext context) {
-        return context.visibility.filterAlreadyVisible(groups);
-    }
-
-    private void updateVisibleRange(StepContext context, DslScene.DslStep step, boolean visible) {
-        if (step.blockPos == null || step.blockPos.size() < 3) {
-            return;
-        }
-        BlockPos pos1 = new BlockPos(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
-        BlockPos pos2 = pos1;
-        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
-            pos2 = new BlockPos(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
-        }
-        context.visibility.markRange(pos1, pos2, visible);
     }
 
     private Direction parseDirection(String raw) {

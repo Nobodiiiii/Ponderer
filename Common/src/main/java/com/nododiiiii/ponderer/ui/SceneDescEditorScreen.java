@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.ponder.CustomPonderTags;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
@@ -9,10 +10,12 @@ import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import net.createmod.catnip.gui.ConfirmationScreen;
+import net.createmod.catnip.gui.ScreenOpener;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +25,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     private final DslScene scene;
     private final int sceneIndex;
     private final boolean hasMultiScene;
+    private boolean newSegment;
 
     private LocalizedText originalPonderTitle;
     private LocalizedText workingPonderTitle;
@@ -38,6 +42,8 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     private String originalSceneId;
     private String draftSceneId;
     private boolean workingEditable;
+    private List<String> workingTags;
+    private Map<String, DslScene.CustomTag> workingCustomTags;
 
     @Nullable
     private LocalizedTextListEntry ponderTitleEntry;
@@ -45,9 +51,14 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     private LocalizedTextListEntry sceneTitleEntry;
 
     public SceneDescEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
+        this(scene, sceneIndex, parent, false);
+    }
+
+    public SceneDescEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent, boolean newSegment) {
         super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_desc");
         this.scene = scene;
         this.sceneIndex = sceneIndex;
+        this.newSegment = newSegment;
         this.hasMultiScene = scene.scenes != null
             && !scene.scenes.isEmpty()
             && sceneIndex >= 0
@@ -116,11 +127,29 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
                 -1));
         }
 
+        entries.add(FieldSpecs.labeledButton(
+            "ponderer.ui.scene_tags",
+            "ponderer.ui.scene_tags.tooltip",
+            () -> ScreenOpener.open(new SceneTagsScreen(this, scene, workingTags, workingCustomTags, (tags, definitions) -> {
+                workingTags = new ArrayList<>(tags);
+                workingCustomTags = CustomPonderTags.copy(definitions);
+                clearStatusMessages();
+            })),
+            () -> workingTags.isEmpty()
+                ? UIText.of("ponderer.ui.scene_tags.edit")
+                : UIText.of("ponderer.ui.scene_tags.selected_tags", workingTags.size()),
+            () -> SceneTagsScreen.summarize(workingTags, workingCustomTags)));
+
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.scene_desc.editable",
             "ponderer.ui.scene_desc.editable.tooltip",
             () -> workingEditable,
             this::toggleEditable));
+    }
+
+    @Override
+    protected boolean isSaveButtonActive() {
+        return newSegment || super.isSaveButtonActive();
     }
 
     @Override
@@ -139,6 +168,8 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         }
 
         candidate.title = copyLocalizedText(workingPonderTitle);
+        candidate.tags = List.copyOf(workingTags);
+        candidate.customTags = CustomPonderTags.copy(workingCustomTags);
         candidate.editable = workingEditable;
         if (!newPonderId.isEmpty()) {
             candidate.id = newPonderId;
@@ -164,6 +195,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
 
         syncStateFromScene();
         markStateSaved();
+        newSegment = false;
         rebuildListPreservingScroll();
         setInfoMessage(UIText.of("ponderer.ui.scene_desc.saved"));
         return true;
@@ -182,6 +214,11 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         }
         snapshot.put("scene_id", draftSceneId);
         snapshot.put("editable", String.valueOf(workingEditable));
+        snapshot.put("tag_count", String.valueOf(workingTags.size()));
+        snapshot.put("custom_tags", CustomPonderTags.encode(workingCustomTags));
+        for (int i = 0; i < workingTags.size(); i++) {
+            snapshot.put("tag_" + i, workingTags.get(i));
+        }
         return snapshot;
     }
 
@@ -194,6 +231,12 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         workingSceneTitle = hasSceneTitle ? readLocalizedSnapshot(snapshot, "scene_title") : null;
         draftSceneId = snapshot.getOrDefault("scene_id", "");
         workingEditable = Boolean.parseBoolean(snapshot.getOrDefault("editable", "true"));
+        workingTags = new ArrayList<>();
+        workingCustomTags = CustomPonderTags.decode(snapshot.getOrDefault("custom_tags", "{}"));
+        int tagCount = Integer.parseInt(snapshot.getOrDefault("tag_count", "0"));
+        for (int i = 0; i < tagCount; i++) {
+            workingTags.add(snapshot.getOrDefault("tag_" + i, ""));
+        }
     }
 
     private boolean validatePonderId(String newPonderId) {
@@ -235,6 +278,8 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
 
     private void applySavedScene(DslScene candidate) {
         scene.title = candidate.title;
+        scene.tags = candidate.tags;
+        scene.customTags = candidate.customTags;
         scene.id = candidate.id;
         if (hasMultiScene && candidate.scenes != null && scene.scenes != null
             && sceneIndex >= 0 && sceneIndex < candidate.scenes.size() && sceneIndex < scene.scenes.size()) {
@@ -250,6 +295,8 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         originalPonderId = scene.id != null ? scene.id : "";
         draftPonderId = originalPonderId;
         workingEditable = scene.isEditable(Config.DEFAULT_EDITABLE.get());
+        workingCustomTags = CustomPonderTags.copy(scene.customTags);
+        workingTags = scene.tags == null ? new ArrayList<>() : new ArrayList<>(scene.tags);
 
         if (hasMultiScene && scene.scenes != null && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
             DslScene.SceneSegment currentScene = scene.scenes.get(sceneIndex);

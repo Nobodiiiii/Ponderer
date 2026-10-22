@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -21,7 +22,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
-import net.minecraft.world.phys.AABB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,6 +107,7 @@ public final class TriggerManager {
         boolean justLeft = !inZoneNow && wasInZone;
 
         if (justLeft) {
+            WorldFeedback.clear("trigger");
             activeScene = null;
             titleShownThisEntry = false;
         }
@@ -141,8 +142,7 @@ public final class TriggerManager {
             if (titleFreq != null && shouldShow(titleFreq, sceneKey + ":title")) {
                 if (justEntered && !titleShownThisEntry) {
                     Component hintMsg = getHintText(activeScene.hintTitleText);
-                    mc.gui.setTitle(hintMsg);
-                    mc.gui.setTimes(0, 20, 10);
+                    WorldFeedback.title(hintMsg);
                     titleShownThisEntry = true;
                     markShown(sceneKey, "title");
                 }
@@ -152,7 +152,7 @@ public final class TriggerManager {
             if (subtitleFreq != null && shouldShow(subtitleFreq, sceneKey + ":subtitle")) {
                 Component hintMsg = getHintText(activeScene.hintSubtitleText);
                 Component greenHint = hintMsg.copy().withStyle(ChatFormatting.GREEN);
-                mc.player.displayClientMessage(greenHint, true);
+                WorldFeedback.hint("trigger", greenHint, 10, 25);
                 if (justEntered) {
                     markShown(sceneKey, "subtitle");
                 }
@@ -332,8 +332,7 @@ public final class TriggerManager {
 
     private static void openPonderFor(DslScene scene, String sceneKey) {
         if (scene.items == null || scene.items.isEmpty()) return;
-        String itemIdStr = scene.items.get(0);
-        ResourceLocation itemId = ResourceLocation.tryParse(itemIdStr);
+        ResourceLocation itemId = SceneItemBindings.firstItem(scene);
         if (itemId == null) return;
 
         if (!PonderIndex.getSceneAccess().doScenesExistForId(itemId)) {
@@ -349,8 +348,9 @@ public final class TriggerManager {
         if (changed) saveState();
 
         PonderUI ui;
-        if (scene.nbtFilter != null && !scene.nbtFilter.isBlank()) {
-            ui = PonderUI.of(buildFilteredStack(itemId, scene.nbtFilter));
+        String nbtFilter = SceneItemBindings.firstNbtFilter(scene);
+        if (nbtFilter != null) {
+            ui = PonderUI.of(buildFilteredStack(itemId, nbtFilter));
         } else {
             ui = PonderUI.of(itemId);
         }
@@ -358,16 +358,7 @@ public final class TriggerManager {
     }
 
     private static ItemStack buildFilteredStack(ResourceLocation itemId, String nbtFilter) {
-        try {
-            var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
-            ItemStack stack = new ItemStack(item);
-            var tag = net.minecraft.nbt.TagParser.parseTag(nbtFilter);
-            stack.setTag(tag);
-            return stack;
-        } catch (Exception e) {
-            var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
-            return new ItemStack(item);
-        }
+        return NbtSceneFilter.createStack(itemId, nbtFilter);
     }
 
     // ---- Persistence for shown/read state ----

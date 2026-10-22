@@ -10,6 +10,7 @@
   "license": "${mod_license}",
   "icon": "logo.png",
   "environment": "*",
+  "accessWidener": "ponderer.accesswidener",
   "mixins": [
     "ponderer.mixins.json"
   ],

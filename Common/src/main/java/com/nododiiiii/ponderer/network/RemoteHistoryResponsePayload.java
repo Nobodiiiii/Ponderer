@@ -1,16 +1,31 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ui.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public record RemoteHistoryResponsePayload(String kind, String id, @Nullable String pack,
-                                           List<Entry> entries, boolean canManage) {
+                                           List<Entry> entries, boolean canManage) implements CustomPacketPayload {
+
+    public static final Type<RemoteHistoryResponsePayload> TYPE =
+        new Type<>(new ResourceLocation(Ponderer.MODID, "remote_history_response"));
+    public static final StreamCodec<FriendlyByteBuf, RemoteHistoryResponsePayload> CODEC =
+        StreamCodec.of((buf, payload) -> payload.encode(buf), RemoteHistoryResponsePayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
     public record Entry(int revision, String action, String actor, long createdAt, String hash, long size) {
     }
 
@@ -54,7 +69,7 @@ public record RemoteHistoryResponsePayload(String kind, String id, @Nullable Str
 
     public static void handle(RemoteHistoryResponsePayload payload) {
         Minecraft client = Minecraft.getInstance();
-        if (client.screen instanceof RemoteBrowserScreen screen) {
+        if (com.nododiiiii.ponderer.feedback.ClientFeedback.responseScreen() instanceof RemoteBrowserScreen screen) {
             screen.receiveHistory(payload);
         }
     }

@@ -1,16 +1,20 @@
 package com.nododiiiii.ponderer.mixin;
 
+import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
-import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PackStateStore;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.PonderScreenNavigation;
+import com.nododiiiii.ponderer.ui.PonderSmallHint;
 import com.nododiiiii.ponderer.ui.PonderTextListWidget;
-import com.nododiiiii.ponderer.ui.PondererConfigScreen;
+import com.nododiiiii.ponderer.ui.PonderUiZoomAccess;
+import com.nododiiiii.ponderer.ui.PonderUiPreviewAccess;
+import com.nododiiiii.ponderer.ui.PonderFreePreview;
+import com.nododiiiii.ponderer.ui.PonderZoomSlider;
+import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.ReadonlyPackImportPromptScreen;
 import com.nododiiiii.ponderer.ui.UiAnchorCoords;
@@ -19,12 +23,13 @@ import com.nododiiiii.ponderer.ui.SceneEditorScreen;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.NbtExpandedPickState;
 import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 
 import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderScene;
+import net.createmod.ponder.foundation.ui.AbstractPonderScreen;
 import net.createmod.ponder.foundation.ui.PonderButton;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
@@ -34,14 +39,13 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 import java.util.List;
@@ -52,26 +56,78 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PonderUI.class)
-public abstract class PonderUIMixin extends Screen {
+public abstract class PonderUIMixin extends AbstractPonderScreen implements PonderUiZoomAccess, PonderUiPreviewAccess {
+
+    @Shadow(remap = false)
+    protected abstract void replay();
+
+    @Unique
+    private float ponderer$userZoom = 1;
+
+    @Unique
+    private PonderZoomSlider ponderer$zoomSlider;
+
+    @Unique
+    private PonderFreePreview ponderer$freePreview;
+
+    @Unique
+    private boolean ponderer$previewSpaceHeld;
+
+    @Unique
+    private boolean ponderer$previewResumeHeld;
+
+    @Unique
+    private boolean ponderer$previewTextHeld;
+
+    @Override
+    public PonderFreePreview ponderer$getFreePreview() {
+        if (ponderer$freePreview == null) {
+            ponderer$freePreview = new PonderFreePreview((PonderUI) (Object) this);
+        }
+        return ponderer$freePreview;
+    }
+
+    @Override
+    public float ponderer$getUserZoom() {
+        return ponderer$userZoom;
+    }
+
+    @Override
+    public void ponderer$setUserZoom(float zoom) {
+        ponderer$userZoom = net.minecraft.util.Mth.clamp(zoom, PonderZoomSlider.MIN_ZOOM, PonderZoomSlider.MAX_ZOOM);
+        if (ponderer$zoomSlider != null) {
+            ponderer$zoomSlider.refreshValue();
+        }
+    }
 
     @Unique
     private PonderButton ponderer$editButton;
 
+    @Unique
+    private PonderTextListWidget ponderer$textList;
+
     protected PonderUIMixin() {
-        super(CommonComponents.EMPTY);
+        super();
     }
 
     @Inject(method = "init", at = @At("TAIL"))
     private void ponderer$addEditButton(CallbackInfo ci) {
         PonderUI self = (PonderUI) (Object) this;
-        addRenderableWidget(new PonderTextListWidget(self));
+        ponderer$zoomSlider = addRenderableWidget(new PonderZoomSlider(self));
+        addRenderableWidget(ponderer$getFreePreview().createButton(ponderer$zoomSlider));
+        PonderTextListWidget textList = new PonderTextListWidget(self);
+        if (ponderer$textList != null) {
+            textList.setPanelVisible(ponderer$textList.isPanelVisible());
+        }
+        ponderer$textList = textList;
+        addRenderableWidget(textList);
 
         // Hijack the Create "comfy reading" button (slowMode): repurpose it as
         // the text-progress panel toggle.
         PonderUIAccessor accessor = (PonderUIAccessor) this;
         PonderButton slowMode = accessor.ponderer$getSlowMode();
         if (slowMode != null) {
-            slowMode.withCallback(() -> PonderTextListWidget.VISIBLE = !PonderTextListWidget.VISIBLE);
+            slowMode.withCallback(textList::togglePanel);
         }
 
         var match = ponderer$resolveDynamicScene(self);
@@ -90,7 +146,7 @@ public abstract class PonderUIMixin extends Screen {
 
         int bY = this.height - 20 - 31;
         PonderButton editButton = new PonderButton(this.width - 80 - 31, bY)
-                .showing(new ItemStack(Items.WRITABLE_BOOK))
+                .showing(PondererGuiIcons.EDIT_SCENE)
                 .enableFade(0, 5);
         editButton.withCallback(() -> {
             PonderUI current = (PonderUI) (Object) this;
@@ -129,13 +185,13 @@ public abstract class PonderUIMixin extends Screen {
                         PonderScreenNavigation.ReturnState returnState = PonderScreenNavigation.captureReturnState();
                         dialog.closeToSource();
                         PonderScreenNavigation.suppressNextPonderReturn();
-                        Minecraft.getInstance().setScreen(new PondererConfigScreen(source, returnState));
+                        Minecraft.getInstance().setScreen(new FunctionScreen(source, returnState));
                     }),
                 PondererDialogScreen.closeButton(Component.translatable("ponderer.ui.cancel"))))
             .open();
     }
 
-    @Inject(method = "renderWindow", at = @At("TAIL"), remap = false)
+    @Inject(method = "renderWindow", at = @At("TAIL"))
     private void ponderer$renderWidgetsOnTop(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER);
@@ -150,6 +206,32 @@ public abstract class PonderUIMixin extends Screen {
             }
         }
         graphics.pose().popPose();
+        ponderer$getFreePreview().renderButtonTooltip(graphics, mouseX, mouseY);
+    }
+
+    @Inject(method = "renderWindow", at = @At("HEAD"))
+    private void ponderer$updatePreviewHover(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks,
+            CallbackInfo ci) {
+        if (ponderer$getFreePreview().isActive()) {
+            ((PonderUIAccessor) this).ponderer$setIdentifyMode(true);
+            PonderUI self = (PonderUI) (Object) this;
+            self.updateIdentifiedItem(self.getActiveScene());
+        }
+    }
+
+    @Redirect(method = "mouseClicked", at = @At(value = "INVOKE",
+        target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z", remap = false))
+    private boolean ponderer$skipPreviewClipboard() {
+        return PonderIndex.editingModeActive() && !ponderer$getFreePreview().isActive();
+    }
+
+    @Redirect(method = "renderOverlay", at = @At(value = "FIELD",
+        target = "Lnet/createmod/ponder/foundation/ui/PonderUI;identifyMode:Z", ordinal = 0, remap = false))
+    private boolean ponderer$keepPreviewTextVisible(PonderUI ui) {
+        PonderFreePreview preview = ponderer$getFreePreview();
+        // Only bypass the overlay's early return; keep the paused interpolation below it.
+        return ((PonderUIAccessor) ui).ponderer$getIdentifyMode()
+            && (!preview.isActive() || !preview.isTextVisible());
     }
 
     /**
@@ -161,17 +243,40 @@ public abstract class PonderUIMixin extends Screen {
      * {@code renderHoverTooltips} land at NDC z below the scene's max NDC z and pass LEQUAL
      * regardless of whether depth-test is on or off at the time of buffer flush.
      */
-    @Inject(method = "renderWidgets", at = @At("HEAD"), remap = false)
+    @Inject(method = "renderWidgets", at = @At("HEAD"))
     private void ponderer$liftRenderWidgetsAboveScene(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTicks, CallbackInfo ci) {
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_TEXT_BASELINE_LAYER);
     }
 
-    @Inject(method = "renderWidgets", at = @At("RETURN"), remap = false)
+    @Inject(method = "renderWidgets", at = @At("RETURN"))
     private void ponderer$popRenderWidgetsLift(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTicks, CallbackInfo ci) {
         graphics.pose().popPose();
+    }
+
+    @Redirect(method = "seekToTime", at = @At(value = "INVOKE",
+        target = "Lnet/createmod/ponder/foundation/ui/PonderUI;replay()V", remap = false), remap = false)
+    private void ponderer$rewindPreviewForSeek(PonderUI ui) {
+        if (ponderer$getFreePreview().isActive()) {
+            // Rebuild the timeline without replay's preview and camera teardown.
+            PonderScene scene = ui.getActiveScene();
+            scene.begin();
+            ponderer$resetCustomView(scene);
+        } else {
+            replay();
+        }
+    }
+
+    @Inject(method = "seekToTime", at = @At("TAIL"), remap = false)
+    private void ponderer$freezePreviewAfterSeek(int time, CallbackInfo ci) {
+        ponderer$getFreePreview().refreshAfterSeek();
+    }
+
+    @Inject(method = "replay", at = @At("HEAD"), remap = false)
+    private void ponderer$stopPreviewOnReplay(CallbackInfo ci) {
+        ponderer$getFreePreview().stop();
     }
 
     @Inject(method = "replay", at = @At("TAIL"), remap = false)
@@ -185,6 +290,7 @@ public abstract class PonderUIMixin extends Screen {
         if (!cir.getReturnValue()) {
             return;
         }
+        ponderer$getFreePreview().stop();
         PonderUI self = (PonderUI) (Object) this;
         ponderer$resetCustomView(self.getActiveScene());
         var match = ponderer$resolveDynamicScene(self);
@@ -201,34 +307,45 @@ public abstract class PonderUIMixin extends Screen {
      * is hovering it so users can page through the list.
      */
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
-    private void ponderer$routeScrollToTextList(double mouseX, double mouseY, double delta,
+    private void ponderer$routeScrollToTextList(double mouseX, double mouseY, double scrollY,
             CallbackInfoReturnable<Boolean> cir) {
         for (GuiEventListener child : this.children()) {
             if (child instanceof PonderTextListWidget panel && panel.isMouseOver(mouseX, mouseY)) {
-                if (panel.mouseScrolled(mouseX, mouseY, delta)) {
+                if (panel.mouseScrolled(mouseX, mouseY, scrollY)) {
                     cir.setReturnValue(true);
                 }
                 return;
             }
         }
+        if (ponderer$getFreePreview().mouseScrolled(mouseX, mouseY, scrollY)) {
+            cir.setReturnValue(true);
+        }
     }
 
     /**
-     * Append our edit button's label to PonderUI's shared bottom-button hover
-     * tooltip strip (the same row PonderUI uses for slowMode/userMode/etc.).
+     * Add the default-toggle hint between the Comfy Reading button and its
+     * label, and append our edit button's label to the shared tooltip strip.
      */
-    @Inject(method = "renderHoverTooltips", at = @At("TAIL"), remap = false)
+    @Inject(method = "renderHoverTooltips", at = @At("TAIL"))
     private void ponderer$renderEditButtonTooltip(GuiGraphics graphics, int tooltipColor, CallbackInfo ci) {
-        if (ponderer$editButton == null || !ponderer$editButton.isHoveredOrFocused()) {
-            return;
-        }
         int tooltipY = this.height - 16;
-        graphics.drawCenteredString(Minecraft.getInstance().font,
-            Component.translatable("ponderer.ui.tooltip.edit_scene"),
-            ponderer$editButton.getX() + 10, tooltipY, tooltipColor);
+        PonderButton slowMode = ((PonderUIAccessor) this).ponderer$getSlowMode();
+        if (slowMode != null && slowMode.isVisible() && slowMode.isHoveredOrFocused()) {
+            Component hint = Component.translatable(Config.DEFAULT_TEXT_PROGRESS.get()
+                ? "ponderer.ui.text_progress.default_off_hint"
+                : "ponderer.ui.text_progress.default_on_hint");
+            // Catnip's outer border extends four pixels below the widget bounds.
+            int buttonBottom = slowMode.getY() + slowMode.getHeight() + 4;
+            PonderSmallHint.render(graphics, hint, slowMode.getX() + 5, buttonBottom, tooltipY, tooltipColor);
+        }
+        if (ponderer$editButton != null && ponderer$editButton.isHoveredOrFocused()) {
+            graphics.drawCenteredString(Minecraft.getInstance().font,
+                Component.translatable("ponderer.ui.tooltip.edit_scene"),
+                ponderer$editButton.getX() + 10, tooltipY, tooltipColor);
+        }
     }
 
-    @Inject(method = "removed", at = @At("TAIL"), remap = false)
+    @Inject(method = "removed", at = @At("TAIL"))
     private void ponderer$clearSceneEditorUndoOnTrueExit(CallbackInfo ci) {
         PonderUI self = (PonderUI) (Object) this;
         var match = ponderer$resolveDynamicScene(self);
@@ -290,7 +407,7 @@ public abstract class PonderUIMixin extends Screen {
         at = @At(value = "INVOKE",
             target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
             remap = false),
-        remap = false, require = 0)
+        require = 0)
     private boolean ponderer$forceEditingActiveInInit() {
         return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
     }
@@ -299,7 +416,7 @@ public abstract class PonderUIMixin extends Screen {
         at = @At(value = "INVOKE",
             target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
             remap = false),
-        remap = false, require = 0)
+        require = 0)
     private boolean ponderer$forceEditingActiveInRenderScene() {
         return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
     }
@@ -308,7 +425,7 @@ public abstract class PonderUIMixin extends Screen {
         at = @At(value = "INVOKE",
             target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
             remap = false),
-        remap = false, require = 0)
+        require = 0)
     private boolean ponderer$forceEditingActiveInRenderWidgets() {
         return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
     }
@@ -317,7 +434,7 @@ public abstract class PonderUIMixin extends Screen {
         at = @At(value = "INVOKE",
             target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
             remap = false),
-        remap = false, require = 0)
+        require = 0)
     private boolean ponderer$forceEditingActiveInRenderHoverTooltips() {
         return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
     }
@@ -349,91 +466,7 @@ public abstract class PonderUIMixin extends Screen {
         return SceneRuntime.findBySceneId(active.getId(), occurrence);
     }
 
-    @Unique
-    private static boolean ponderer$shouldRenderFabricShowInterfaceNotice(PonderUI ui) {
-        if (!"fabric".equals(PondererServices.PLATFORM.getPlatformName())) {
-            return false;
-        }
-        if (PondererServices.PLATFORM.supportsEmbeddedInterfacePreview()) {
-            return false;
-        }
-        return ponderer$isShowInterfaceScene(ponderer$resolveDynamicScene(ui));
-    }
-
-    @Unique
-    private static boolean ponderer$isShowInterfaceScene(SceneRuntime.SceneMatch match) {
-        if (match == null) {
-            return false;
-        }
-
-        DslScene scene = match.scene();
-        int sceneIndex = match.sceneIndex();
-        if (scene == null || scene.scenes == null || sceneIndex < 0 || sceneIndex >= scene.scenes.size()) {
-            return false;
-        }
-
-        DslScene.SceneSegment segment = scene.scenes.get(sceneIndex);
-        if (segment == null || segment.steps == null) {
-            return false;
-        }
-
-        for (DslScene.DslStep step : segment.steps) {
-            if (step == null || step.type == null || step.type.isBlank()) {
-                continue;
-            }
-            return "show_interface".equalsIgnoreCase(step.type);
-        }
-        return false;
-    }
-
     // ---- Pick mode integration ----
-
-    @Inject(method = "renderWidgets", at = @At("TAIL"), remap = false)
-    private void ponderer$renderFabricShowInterfaceNotice(GuiGraphics graphics, int mouseX, int mouseY,
-            float partialTicks, CallbackInfo ci) {
-        PonderUI self = (PonderUI) (Object) this;
-        if (!ponderer$shouldRenderFabricShowInterfaceNotice(self)) {
-            return;
-        }
-
-        UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(Minecraft.getInstance());
-        if (!viewport.isValid()) {
-            return;
-        }
-
-        String notice = UIText.of("ponderer.ui.show_interface.fabric_preview_unavailable");
-        var font = Minecraft.getInstance().font;
-        int textWidth = font.width(notice);
-        float maxWidth = (float) Math.max(1.0, viewport.width() - 12.0);
-        float scale = textWidth > maxWidth ? Math.max(0.65f, maxWidth / textWidth) : 1.0f;
-
-        int centerX = (int) Math.round(viewport.left() + viewport.width() * 0.5);
-        int centerY = (int) Math.round(viewport.top() + viewport.height() * 0.5);
-        int boxHalfWidth = (int) Math.ceil(textWidth * scale * 0.5f) + 8;
-        int boxHalfHeight = (int) Math.ceil(font.lineHeight * scale * 0.5f) + 6;
-
-        graphics.flush();
-        graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, PonderRuntimeZLayers.EMBEDDED_GUI_BACKGROUND_LAYER);
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableDepthTest();
-
-        graphics.fill(centerX - boxHalfWidth - 1, centerY - boxHalfHeight - 1,
-            centerX + boxHalfWidth + 1, centerY + boxHalfHeight + 1, 0xC0_6A5320);
-        graphics.fill(centerX - boxHalfWidth, centerY - boxHalfHeight,
-            centerX + boxHalfWidth, centerY + boxHalfHeight, 0xE0_120E08);
-
-        graphics.pose().pushPose();
-        graphics.pose().translate(centerX, centerY - font.lineHeight * scale * 0.5f, 1);
-        graphics.pose().scale(scale, scale, 1.0f);
-        graphics.drawString(font, notice, Math.round(-textWidth * 0.5f), 0, 0xF8E5B0, false);
-        graphics.pose().popPose();
-
-        RenderSystem.enableDepthTest();
-        graphics.pose().popPose();
-        graphics.flush();
-    }
 
     /**
      * At the START of tick: reset identifyMode to false so the scene ticks
@@ -447,6 +480,7 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Inject(method = "tick", at = @At("HEAD"))
     private void ponderer$tickPickModeReset(CallbackInfo ci) {
+        ponderer$getFreePreview().tick();
         if (!PickState.isActive() && !NbtExpandedPickState.isActive())
             return;
         if (PickState.isUiPointPickActive())
@@ -480,8 +514,29 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void ponderer$onPickClick(double x, double y, int button, CallbackInfoReturnable<Boolean> cir) {
-        if (!PickState.isActive() && !NbtExpandedPickState.isActive())
+        if (ponderer$zoomSlider != null && ponderer$zoomSlider.mouseClicked(x, y, button)) {
+            setFocused(ponderer$zoomSlider);
+            setDragging(button == GLFW.GLFW_MOUSE_BUTTON_LEFT);
+            cir.setReturnValue(true);
             return;
+        }
+        if (ponderer$getFreePreview().mouseClicked(x, y, button)) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (!PickState.isActive() && !NbtExpandedPickState.isActive()) {
+            PonderButton slowMode = ((PonderUIAccessor) this).ponderer$getSlowMode();
+            if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && slowMode != null
+                && slowMode.active && slowMode.visible && slowMode.isVisible() && slowMode.isMouseOver(x, y)) {
+                boolean enabled = !Config.DEFAULT_TEXT_PROGRESS.get();
+                Config.DEFAULT_TEXT_PROGRESS.set(enabled);
+                Config.DEFAULT_TEXT_PROGRESS.save();
+                ponderer$textList.setPanelVisible(enabled);
+                slowMode.playDownSound(Minecraft.getInstance().getSoundManager());
+                cir.setReturnValue(true);
+            }
+            return;
+        }
 
         if (PickState.isUiPointPickActive()) {
             if (button == 0) {
@@ -528,6 +583,28 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_T
+            && (ponderer$getFreePreview().isActive() || ponderer$previewTextHeld)) {
+            if (!ponderer$previewTextHeld) {
+                ponderer$previewTextHeld = true;
+                ponderer$getFreePreview().toggleTextVisibility();
+            }
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_Q
+            && (ponderer$getFreePreview().isActive() || ponderer$previewResumeHeld)) {
+            ponderer$previewResumeHeld = true;
+            ponderer$getFreePreview().stop();
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_SPACE && !PickState.isActive()
+            && !NbtExpandedPickState.isActive() && !InterfaceSlotEditState.isActive()) {
+            if (!ponderer$previewSpaceHeld) {
+                ponderer$previewSpaceHeld = true;
+                ponderer$getFreePreview().toggle();
+            }
+            return true;
+        }
         if (InterfaceSlotEditState.isActive()) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 InterfaceSlotEditState.finishAndReopenEditor();
@@ -549,6 +626,29 @@ public abstract class PonderUIMixin extends Screen {
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_T && ponderer$previewTextHeld) {
+            ponderer$previewTextHeld = false;
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_Q && ponderer$previewResumeHeld) {
+            ponderer$previewResumeHeld = false;
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_SPACE) {
+            ponderer$previewSpaceHeld = false;
+            return true;
+        }
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        return ponderer$getFreePreview().mouseDragged(button, dragX, dragY)
+            || super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
     /**
      * Render a pick hint overlay to the right of the cursor showing both click
      * coordinates.
@@ -556,7 +656,7 @@ public abstract class PonderUIMixin extends Screen {
      * Rendered at the highest z-level to avoid being occluded by
      * structures/tooltips.
      */
-    @Inject(method = "renderWidgets", at = @At("TAIL"), remap = false)
+    @Inject(method = "renderWidgets", at = @At("TAIL"))
     private void ponderer$renderPickHint(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks,
             CallbackInfo ci) {
         if (!PickState.isActive() && !NbtExpandedPickState.isActive())
@@ -723,8 +823,7 @@ public abstract class PonderUIMixin extends Screen {
         at = @At(value = "INVOKE",
             target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(FFF)V",
             ordinal = 0,
-            remap = true),
-        remap = false)
+            remap = true))
     private void ponderer$liftSceneOutOfBackgroundDepth(PoseStack ps, float x, float y, float z) {
         ps.translate(x, y, 5000.0f);
     }
@@ -734,6 +833,10 @@ public abstract class PonderUIMixin extends Screen {
      */
     @Inject(method = "removed", at = @At("TAIL"))
     private void ponderer$onRemoved(CallbackInfo ci) {
+        ponderer$previewSpaceHeld = false;
+        ponderer$previewResumeHeld = false;
+        ponderer$previewTextHeld = false;
+        ponderer$getFreePreview().stop();
         if (PickState.isActive()) {
             PickState.reset();
         }
@@ -749,8 +852,17 @@ public abstract class PonderUIMixin extends Screen {
         // Return to PonderItemGridScreen if it was set as the return target
         if (com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen != null) {
             var ret = com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen;
-            com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen = null;
-            Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(ret));
+            // removed() runs inside setScreen(). Defer the return so the outer
+            // transition has selected its destination before deciding to leave Ponder.
+            Minecraft.getInstance().tell(() -> {
+                Minecraft mc = Minecraft.getInstance();
+                if (mc.screen instanceof AbstractPonderScreen
+                    || com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen != ret) {
+                    return;
+                }
+                com.nododiiiii.ponderer.ui.PonderItemGridScreen.returnScreen = null;
+                mc.setScreen(ret);
+            });
         }
     }
 

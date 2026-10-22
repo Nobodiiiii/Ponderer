@@ -1,9 +1,13 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ui.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -11,7 +15,18 @@ import java.util.List;
 
 public record RemoteCatalogResponsePayload(List<Entry> scenes, List<Entry> structures, List<Entry> packs,
                                            boolean canPull, boolean canUpload, boolean canManage,
-                                           String message, boolean error) {
+                                           String message, boolean error) implements CustomPacketPayload {
+
+    public static final Type<RemoteCatalogResponsePayload> TYPE =
+        new Type<>(new ResourceLocation(Ponderer.MODID, "remote_catalog_response"));
+    public static final StreamCodec<FriendlyByteBuf, RemoteCatalogResponsePayload> CODEC =
+        StreamCodec.of((buf, payload) -> payload.encode(buf), RemoteCatalogResponsePayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
 
     public record Entry(String kind, String id, @Nullable String pack, String title, String summary,
                         String hash, int revision, long size, long updatedAt, String updatedBy,
@@ -56,7 +71,7 @@ public record RemoteCatalogResponsePayload(List<Entry> scenes, List<Entry> struc
 
     public static void handle(RemoteCatalogResponsePayload payload) {
         Minecraft client = Minecraft.getInstance();
-        if (client.screen instanceof RemoteBrowserScreen screen) {
+        if (com.nododiiiii.ponderer.feedback.ClientFeedback.responseScreen() instanceof RemoteBrowserScreen screen) {
             screen.receiveCatalog(payload);
         }
     }

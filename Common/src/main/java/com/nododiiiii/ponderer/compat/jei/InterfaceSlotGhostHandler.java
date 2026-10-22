@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.compat.jei;
 
+import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
@@ -27,15 +28,28 @@ public class InterfaceSlotGhostHandler<T extends AbstractContainerScreen<?>> imp
             return List.of();
         }
 
-        return createTargets(gui, descriptor);
+        return createTargets(gui, descriptor, ingredient);
     }
 
-    static <I> List<Target<I>> createTargets(AbstractContainerScreen<?> gui, JeiCompat.IngredientDescriptor descriptor) {
+    static <I> List<Target<I>> createTargets(AbstractContainerScreen<?> gui, JeiCompat.IngredientDescriptor descriptor,
+                                            ITypedIngredient<I> ingredient) {
+        var itemStack = ingredient.getItemStack();
+        DslScene.InterfaceSlotBinding binding = itemStack.map(InterfaceSlotEditState::bindingFromStack).orElse(null);
+        if (binding == null) {
+            if (itemStack.isPresent()) {
+                return List.of();
+            }
+            binding = new DslScene.InterfaceSlotBinding(0, descriptor.id(), descriptor.kind());
+        }
+        DslScene.InterfaceSlotBinding droppedBinding = binding;
         InterfaceSlotOverlayRenderer.ContainerBounds bounds = InterfaceSlotOverlayRenderer.readContainerBounds(gui);
         List<Target<I>> targets = new ArrayList<>();
         List<Slot> slots = gui.getMenu().slots;
         for (int slotIndex = 0; slotIndex < slots.size(); slotIndex++) {
             Slot slot = slots.get(slotIndex);
+            if (!slot.isActive()) {
+                continue;
+            }
             Rect2i area = new Rect2i(bounds.left() + slot.x, bounds.top() + slot.y, 16, 16);
             final int finalSlotIndex = slotIndex;
             targets.add(new Target<>() {
@@ -46,11 +60,16 @@ public class InterfaceSlotGhostHandler<T extends AbstractContainerScreen<?>> imp
 
                 @Override
                 public void accept(I ignored) {
-                    InterfaceSlotEditState.putBinding(finalSlotIndex, slot.x, slot.y, descriptor.id(), descriptor.kind());
+                    InterfaceSlotEditState.putBinding(finalSlotIndex, slot.x, slot.y, droppedBinding);
                 }
             });
         }
         return targets;
+    }
+
+    @Override
+    public boolean shouldHighlightTargets() {
+        return false;
     }
 
     @Override

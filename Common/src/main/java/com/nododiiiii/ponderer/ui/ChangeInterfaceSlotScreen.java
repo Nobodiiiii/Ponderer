@@ -30,7 +30,9 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
             "ponderer.ui.change_interface_slot.slots.tooltip",
             70,
             this::openSlotEditor,
-            () -> UIText.of("ponderer.ui.change_interface_slot.edit")));
+            () -> UIText.of("ponderer.ui.change_interface_slot.edit"),
+            () -> 0xFFFFFF,
+            UIText.of("ponderer.ui.change_interface_slot.slots.tooltip")));
         refreshInfoMessage();
     }
 
@@ -43,13 +45,7 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
                 if (binding == null || binding.slotIndex == null || binding.ingredientId == null || binding.ingredientId.isBlank()) {
                     continue;
                 }
-                slotBindings.put(binding.slotIndex,
-                    new DslScene.InterfaceSlotBinding(
-                        binding.slotIndex,
-                        binding.slotX,
-                        binding.slotY,
-                        binding.ingredientId,
-                        binding.ingredientKind));
+                slotBindings.put(binding.slotIndex, binding.copy());
             }
         }
         initialBindingsLoaded = true;
@@ -128,13 +124,7 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
                 if (binding == null || binding.slotIndex == null || binding.ingredientId == null || binding.ingredientId.isBlank()) {
                     continue;
                 }
-                slotBindings.put(binding.slotIndex,
-                    new DslScene.InterfaceSlotBinding(
-                        binding.slotIndex,
-                        binding.slotX,
-                        binding.slotY,
-                        binding.ingredientId,
-                        binding.ingredientKind));
+                slotBindings.put(binding.slotIndex, binding.copy());
             }
         } else {
             slotBindings.putAll(deriveInitialBindings());
@@ -173,13 +163,7 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
                 if (binding == null || binding.slotIndex == null || binding.ingredientId == null || binding.ingredientId.isBlank()) {
                     continue;
                 }
-                result.put(binding.slotIndex,
-                    new DslScene.InterfaceSlotBinding(
-                        binding.slotIndex,
-                        binding.slotX,
-                        binding.slotY,
-                        binding.ingredientId,
-                        binding.ingredientKind));
+                result.put(binding.slotIndex, binding.copy());
             }
         }
         return result;
@@ -187,7 +171,8 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
 
     private void refreshInfoMessage() {
         ensureInitialBindingsCountSafe();
-        setInfoMessage(UIText.of("ponderer.ui.change_interface_slot.info", slotBindings.size()));
+        long count = slotBindings.values().stream().filter(binding -> !InterfaceSlotEditState.isClearBinding(binding)).count();
+        setInfoMessage(UIText.of("ponderer.ui.change_interface_slot.info", count));
     }
 
     private void ensureInitialBindingsCountSafe() {

@@ -12,7 +12,6 @@ import java.util.Locale;
 
 public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScreen {
 
-    private static final int STEP_TYPE_BUTTON_W = 180;
 
     private static final String[][] PAGE_TYPES = {
         {"idle", "text", "show_controls", "rotate_camera_y", "zoom_scene"},
@@ -20,7 +19,7 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
         {"show_section_and_merge", "hide_section", "rotate_section", "move_section"},
         {"create_entity", "create_item_entity", "clear_entities", "clear_item_entities", "modify_entities_nbt",
             "modify_item_entities_nbt"},
-        {"highlight_section", "indicate_success", "indicate_redstone", "toggle_redstone_power", "play_sound"}
+        {"highlight_section", "spawn_particles", "toggle_redstone_power", "play_sound"}
     };
     private static final String[] PAGE_KEYS = {
         "ponderer.ui.step.page.story",
@@ -79,8 +78,7 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
             () -> pageIndex + 1 < pageTypes.length));
 
         for (String type : pageTypes[pageIndex]) {
-            entries.add(new FullButtonListEntry(UIText.of(stepTypeLabelKey(type)), null, () -> openEditorForType(type))
-                .setMaxButtonWidth(STEP_TYPE_BUTTON_W));
+            entries.add(new FullButtonListEntry(UIText.of(stepTypeLabelKey(type)), null, () -> openEditorForType(type)));
         }
     }
 
@@ -132,15 +130,6 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
     }
 
     private void openEditorForType(String type) {
-        if ("show_interface".equalsIgnoreCase(type)) {
-            ShowInterfaceExperimentalNoticeScreen.openIfNeeded(this, () -> openEditorDirectly(type));
-            return;
-        }
-
-        openEditorDirectly(type);
-    }
-
-    private void openEditorDirectly(String type) {
         AbstractStepEditorScreen editor = StepEditorFactory.createAddScreen(type, scene, sceneIndex, parent);
         if (editor != null) {
             editor.setReturnScreen(this);

@@ -22,7 +22,7 @@ public interface TextWindowElementAccessor {
     @Accessor(value = "y", remap = false)
     int ponderer$getY();
 
-    @Accessor(value = "vec", remap = false)
+    @Accessor("vec")
     @Nullable
     Vec3 ponderer$getVec();
 

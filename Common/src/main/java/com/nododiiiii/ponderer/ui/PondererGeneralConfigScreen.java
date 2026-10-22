@@ -6,7 +6,6 @@ import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeConfigListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ConfigEntries;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraftforge.fml.config.ModConfig;
 
 import java.util.List;
 
@@ -17,7 +16,7 @@ public class PondererGeneralConfigScreen extends AbstractDeclarativeConfigListSc
             Ponderer.MODID,
             "ponderer.ui.scope.config",
             "ponderer.ui.mod_config.general.title",
-            ModConfig.Type.CLIENT,
+            ConfigScope.CLIENT,
             Config.CLIENT_SPEC);
     }
 
@@ -32,6 +31,19 @@ public class PondererGeneralConfigScreen extends AbstractDeclarativeConfigListSc
             "ponderer.ui.mod_config.default_editable",
             "ponderer.ui.mod_config.default_editable.tooltip",
             Config.DEFAULT_EDITABLE));
+        entries.add(ConfigEntries.booleanEntry(
+            "ponderer.ui.mod_config.default_text_progress",
+            "ponderer.ui.mod_config.default_text_progress.tooltip",
+            Config.DEFAULT_TEXT_PROGRESS));
+        entries.add(ConfigEntries.choiceEntry(
+            "ponderer.ui.mod_config.auto_sync_server_ponders",
+            "ponderer.ui.mod_config.auto_sync_server_ponders.tooltip",
+            Config.AUTO_SYNC_SERVER_PONDERS,
+            100,
+            List.of("ponderer.ui.mod_config.auto_sync_server_ponders.auto",
+                "ponderer.ui.mod_config.auto_sync_server_ponders.on",
+                "ponderer.ui.mod_config.auto_sync_server_ponders.off"),
+            List.of("auto", "on", "off")));
         entries.add(ConfigEntries.booleanEntry(
             "ponderer.ui.mod_config.pack_orphan_prompt",
             "ponderer.ui.mod_config.pack_orphan_prompt.tooltip",

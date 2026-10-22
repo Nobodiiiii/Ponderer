@@ -252,7 +252,7 @@
           "type": "set_block",
           "block": "minecraft:redstone_lamp",
           "blockProperties": {
-            "facing": "east"
+            "lit": "false"
           },
           "blockPos": [
             4,

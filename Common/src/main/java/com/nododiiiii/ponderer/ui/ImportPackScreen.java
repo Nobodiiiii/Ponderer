@@ -165,14 +165,14 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
 
     private void importPack(PackEntryRow row) {
         if (row.sourcePath() == null) {
-            notifyUser(UIText.of("ponderer.ui.import.failed", "Missing source pack"));
+            setErrorMessage(UIText.of("ponderer.ui.import.failed", "Missing source pack"));
             return;
         }
 
         SceneStore.PackImportResult result = SceneStore.importPackFromResourcePack(row.sourcePath());
         if (!result.isSuccess()) {
             String key = result.uiMessageKey();
-            notifyUser(key == null || key.isBlank()
+            setErrorMessage(key == null || key.isBlank()
                 ? result.englishMessage()
                 : UIText.of(key, result.uiMessageArgs()));
             return;
@@ -181,13 +181,12 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
         SceneStore.autoLoadPonderPacks();
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
-        notifyUser(UIText.of(result.uiMessageKey(), result.uiMessageArgs()));
-        Minecraft.getInstance().setScreen(new ImportPackScreen());
+        ImportPackScreen next = new ImportPackScreen();
+        next.setInfoMessage(UIText.of(result.uiMessageKey(), result.uiMessageArgs()));
+        Minecraft.getInstance().setScreen(next);
     }
 
     private void notifyUser(String message) {
-        if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(Component.literal(message), false);
-        }
+        setInfoMessage(message);
     }
 }

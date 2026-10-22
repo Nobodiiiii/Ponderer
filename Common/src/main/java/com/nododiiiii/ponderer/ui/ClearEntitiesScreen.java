@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
@@ -50,8 +49,7 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 UIText.of("ponderer.ui." + stepType + ".id.hint"),
                 124,
                 FieldDecorators.jei(jeiMode),
-                FieldDecorators.heldItem(
-                    stack -> idField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString()))));
+                FieldDecorators.heldItem(idField, null)));
         } else {
             entries.add(FieldSpecs.text(
                 idField,
@@ -61,7 +59,8 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                 124,
                 FieldDecorators.jei(jeiMode)));
         }
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.typedText(
+            FieldType.ENTITY_LINK,
             linkIdField,
             "ponderer.ui.entity_link",
             "ponderer.ui." + stepType + ".link.tooltip",
@@ -163,9 +162,9 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
             String posZ = posField.z().trim();
             boolean hasPos1 = !posX.isEmpty() || !posY.isEmpty() || !posZ.isEmpty();
             if (hasPos1) {
-                px = parseInt(posX, "X");
-                py = parseInt(posY, "Y");
-                pz = parseInt(posZ, "Z");
+                px = parseBlockCoordinate(posX, "X");
+                py = parseBlockCoordinate(posY, "Y");
+                pz = parseBlockCoordinate(posZ, "Z");
                 if (px == null || py == null || pz == null) return null;
             } else if (linkId.isEmpty()) {
                 setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.target_required"));
@@ -181,9 +180,9 @@ public class ClearEntitiesScreen extends AbstractStepEditorScreen {
                     setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.partial_to"));
                     return null;
                 }
-                px2 = parseInt(pos2X, "X2");
-                py2 = parseInt(pos2Y, "Y2");
-                pz2 = parseInt(pos2Z, "Z2");
+                px2 = parseBlockCoordinate(pos2X, "X2");
+                py2 = parseBlockCoordinate(pos2Y, "Y2");
+                pz2 = parseBlockCoordinate(pos2Z, "Z2");
                 if (px2 == null || py2 == null || pz2 == null) return null;
             }
         }

@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 
 public class ButtonPairListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int GAP = 8;
+    private static final int GAP = 0;
 
     private record ButtonModel(BoxWidget widget, Supplier<String> labelGetter,
                                @Nullable Supplier<String> tooltipGetter, IntSupplier colorGetter,
@@ -73,20 +73,25 @@ public class ButtonPairListEntry extends ConfigScreenList.LabeledEntry implement
     @Override
     public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
-        int buttonHeight = Math.max(16, height - 16);
-        int buttonY = y + Math.max(4, (height - buttonHeight) / 2);
-        int buttonWidth = right == null ? width - 8 : (width - GAP - 8) / 2;
+        int buttonHeight = Math.max(24, height - 8);
+        int buttonY = y + Math.max(0, (height - buttonHeight) / 2);
+        int contentLeft = EntryTextSupport.contentLeft(x);
+        int contentRight = EntryTextSupport.contentRight(x, width);
+        int contentWidth = contentRight - contentLeft;
+        int buttonWidth = right == null ? contentWidth : (contentWidth - GAP) / 2;
 
-        renderButton(graphics, left, x + 4, buttonY, buttonWidth, buttonHeight, mouseX, mouseY, partialTicks);
+        renderButton(graphics, left, contentLeft, buttonY, buttonWidth, buttonHeight,
+            mouseX, mouseY, partialTicks);
         if (right != null) {
-            renderButton(graphics, right, x + 4 + buttonWidth + GAP, buttonY, buttonWidth, buttonHeight,
+            renderButton(graphics, right, contentRight - buttonWidth,
+                buttonY, buttonWidth, buttonHeight,
                 mouseX, mouseY, partialTicks);
         }
     }
 
     private static ButtonModel createButtonModel(String label, @Nullable String tooltip, Runnable action,
                                                  IntSupplier colorGetter, BooleanSupplier activeGetter) {
-        return new ButtonModel(new FormBoxWidget(0, 0, 120, 18).withCallback(action),
+        return new ButtonModel(new FormBoxWidget(0, 0, 128, 26).withCallback(action),
             () -> label,
             tooltip == null ? null : () -> tooltip,
             colorGetter,

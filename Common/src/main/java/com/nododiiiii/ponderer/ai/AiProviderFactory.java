@@ -7,11 +7,11 @@ public final class AiProviderFactory {
 
     public static LlmProvider create(AiRuntimeConfig config) {
         if (config.isAnthropic()) {
-            return new AnthropicProvider(config.maxTokens());
+            return new AnthropicProvider(config.maxTokens(), config.reasoningEffort(), config.requestTimeoutSeconds());
         }
         if (config.isResponsesApi()) {
-            return new OpenAiResponsesProvider(config.maxTokens());
+            return new OpenAiResponsesProvider(config.maxTokens(), config.reasoningEffort(), config.requestTimeoutSeconds());
         }
-        return new OpenAiCompatProvider(config.maxTokens());
+        return new OpenAiCompatProvider(config.maxTokens(), config.reasoningEffort(), config.requestTimeoutSeconds());
     }
 }

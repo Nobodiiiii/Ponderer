@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.ui.catnip.BoundedBoxWidget;
 import com.nododiiiii.ponderer.mixin.MultiLineEditBoxAccessor;
 import com.nododiiiii.ponderer.mixin.MultilineTextFieldAccessor;
 import com.nododiiiii.ponderer.nbt.NbtCoordinateDetector;
@@ -7,6 +8,8 @@ import com.nododiiiii.ponderer.nbt.NbtPrettyPrinter;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.MultiLineEditBox;
@@ -31,10 +34,10 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
     private static final int PREFERRED_LAYOUT_WIDTH = 620;
     private static final int HISTORY_LIMIT = 200;
     private static final int LABEL_WIDTH = 34;
-    private static final int GUTTER_WIDTH = 24;
-    private static final int GUTTER_GAP = 6;
-    private static final int BUTTON_WIDTH = 20;
-    private static final int BUTTON_HEIGHT = 12;
+    private static final int GUTTER_WIDTH = 28;
+    private static final int GUTTER_GAP = 2;
+    private static final int BUTTON_WIDTH = 28;
+    private static final int BUTTON_HEIGHT = 20;
 
     private final SnapshotReturnContext parentContext;
     private final Map<String, String> parentSnapshot;
@@ -54,12 +57,17 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
     private final Deque<EditorHistoryState> redoHistory = new ArrayDeque<>();
     private boolean captureScrollInSnapshot = false;
 
-    public NbtExpandedEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent,
+    public NbtExpandedEditorScreen(SnapshotReturnContext parentContext, Map<String, String> parentSnapshot,
+                                   String targetSnapshotKey) {
+        this(null, -1, null, parentContext, parentSnapshot, targetSnapshotKey);
+    }
+
+    public NbtExpandedEditorScreen(@Nullable DslScene scene, int sceneIndex, @Nullable SceneEditorScreen parent,
                                    SnapshotReturnContext parentContext,
                                    Map<String, String> parentSnapshot,
                                    String targetSnapshotKey) {
         super(scene, sceneIndex, parent, "ponderer.ui.scope.editor", "ponderer.ui.nbt_editor",
-            PREFERRED_LAYOUT_WIDTH, (screen, mode) -> {});
+            PREFERRED_LAYOUT_WIDTH);
         this.parentContext = parentContext;
         this.parentSnapshot = new HashMap<>(parentSnapshot);
         this.targetSnapshotKey = targetSnapshotKey;
@@ -253,30 +261,18 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
             return;
         }
 
-        int labelX = editor.getX() - LABEL_WIDTH - 8;
-        graphics.drawString(font, "NBT", labelX, editor.getY() + 6, UILayoutConstants.COLOR_LABEL);
+        int labelX = editor.getX() - UILayoutConstants.INPUT_HORIZONTAL_INSET - LABEL_WIDTH - 8;
+        graphics.drawString(font, "NBT", labelX, editor.getY() - UILayoutConstants.INPUT_OUTER_PADDING + 6,
+            UILayoutConstants.COLOR_LABEL);
 
         int gutterX = gutterX();
         graphics.fill(gutterX - 3, editor.getY(), gutterX - 2, editor.getY() + editor.getHeight(), 0x40_FFFFFF);
         positionRowButtons();
-        for (RowPickButton rowButton : rowButtons) {
-            BoxWidget button = rowButton.button();
-            if (!button.visible) {
-                continue;
-            }
-            graphics.drawCenteredString(font, "+",
-                button.getX() + button.getWidth() / 2,
-                button.getY() + (button.getHeight() - 8) / 2,
-                0x80FFFF);
-        }
     }
 
     @Override
     public void tick() {
         super.tick();
-        if (editor != null) {
-            editor.tick();
-        }
         positionRowButtons();
     }
 
@@ -362,12 +358,18 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
         }
         rowButtons.clear();
 
+        // Standalone forms can edit NBT before a scene exists for coordinate picking.
+        if (scene == null) {
+            return;
+        }
+
         for (NbtCoordinateDetector.Candidate candidate : candidates) {
             if (candidate.lineNumber() < 0) {
                 continue;
             }
-            BoxWidget button = new BoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT)
+            BoxWidget button = new BoundedBoxWidget(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .withCallback(() -> startCoordinatePick(candidate));
+            PondererGuiIcons.PICK_POSITION.attach(button);
             button.getToolTip().add(Component.literal(UIText.of("ponderer.ui.nbt_editor.pick.tooltip")));
             rowButtons.add(new RowPickButton(candidate, button));
             addRenderableWidget(button);
@@ -384,7 +386,7 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
         int x = gutterX();
         int scroll = (int) Math.round(editor.visibleScroll());
         for (RowPickButton rowButton : rowButtons) {
-            int y = top + rowButton.candidate().lineNumber() * font.lineHeight - scroll - 1;
+            int y = top + rowButton.candidate().lineNumber() * font.lineHeight - scroll - 5;
             BoxWidget button = rowButton.button();
             button.setX(x);
             button.setY(y);
@@ -401,7 +403,7 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
             return 0;
         }
 
-        int gutterX = editor.getX() + editor.getWidth() + GUTTER_GAP;
+        int gutterX = editor.getX() + editor.getWidth() + UILayoutConstants.INPUT_HORIZONTAL_INSET + GUTTER_GAP;
         if (confirmButton != null) {
             gutterX = Math.min(gutterX, confirmButton.getX() - BUTTON_WIDTH - GUTTER_GAP);
         }
@@ -520,7 +522,8 @@ public class NbtExpandedEditorScreen extends AbstractSceneEditorFormScreen {
 
         ScrollableNbtEditBox(net.minecraft.client.gui.Font font, int x, int y, int width, int height,
                              Component message, Component placeholder) {
-            super(font, x, y, width, height, message, placeholder);
+            super(font, EntryTextSupport.inputX(x), EntryTextSupport.inputY(y),
+                EntryTextSupport.inputWidth(width), EntryTextSupport.inputHeight(height), message, placeholder);
         }
 
         @Override

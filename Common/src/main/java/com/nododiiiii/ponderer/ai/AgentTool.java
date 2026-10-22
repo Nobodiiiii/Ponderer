@@ -18,6 +18,11 @@ public interface AgentTool {
         return false;
     }
 
+    /** Explicit opt-in: only immutable snapshots and synchronized read receipts may overlap. */
+    default boolean parallelSafe() { return false; }
+
+    default boolean exclusive() { return terminal(); }
+
     ToolExecution execute(AgentContext context, JsonObject arguments, AiCancellationScope cancellation);
 
     record ToolExecution(JsonObject result, List<LlmProvider.ContentBlock.Image> images,

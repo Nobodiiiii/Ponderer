@@ -55,18 +55,12 @@ public class ReplaceBlocksScreen extends AbstractStepEditorScreen {
             posField,
             "ponderer.ui.replace_blocks.pos_from",
             "ponderer.ui.replace_blocks.pos_from.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS1)));
+            PickState.TargetField.POS1));
         entries.add(FieldSpecs.xyz(
             pos2Field,
             "ponderer.ui.replace_blocks.pos_to",
             "ponderer.ui.replace_blocks.pos_to.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS2)));
+            PickState.TargetField.POS2));
         entries.add(FieldSpecs.toggle(
             spawnParticlesBinding,
             "ponderer.ui.replace_blocks.particles",

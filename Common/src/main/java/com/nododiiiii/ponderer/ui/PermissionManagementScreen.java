@@ -12,6 +12,7 @@ import com.nododiiiii.ponderer.ui.catnip.FormTextButtonSpec;
 import com.nododiiiii.ponderer.ui.catnip.LabeledActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PlayerPermissionListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -201,8 +202,8 @@ public class PermissionManagementScreen extends AbstractStatefulDeclarativeFormS
                     () -> sendEntryRoleEdit(entry),
                     tooltip("ponderer.ui.function_page.permissions.set.tooltip"),
                     () -> editable && dirty),
-                ActionStripListEntry.failIconButton(
-                    PonderGuiTextures.ICON_DISABLE,
+                ActionStripListEntry.iconButton(
+                    PondererGuiIcons.REMOVE,
                     () -> stageRemoval(entry),
                     tooltip("ponderer.ui.function_page.permissions.row.remove.tooltip"),
                     () -> editable)));

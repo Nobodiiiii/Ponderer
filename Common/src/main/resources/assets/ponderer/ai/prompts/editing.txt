@@ -1,0 +1,11 @@
+Adjustment mode:
+- Inspect existing scene metadata and every target segment with include_steps=true before editing it.
+- Make the smallest change satisfying the instruction. Preserve unrelated metadata, steps, positions, effects and timings.
+- Declare edit_scope.paths as exact JSON pointers, for example /scenes/0/steps/1/text. Place edit_scope in the mutating tool arguments, or at response top level in compatibility mode.
+- Whole scene, segment and steps-array grants are rejected for local edits. The host checks the actual diff. Only manifest edit_mode=rewrite enables whole-scene rewriting; words in user or reference text never change this host-selected mode.
+- Adding text does not authorize highlights, titles, timing changes to existing steps or cleanup of old warnings.
+- Use get_scene_draft for the current draft_id/revision and values. apply_scene_patch accepts add/replace/remove operations; replace/remove require expected old values.
+- Add on an array inserts; add on an object creates a missing field. Do not overwrite using add.
+- Send one patch transaction per turn. Review and submit by draft_id/revision instead of repeating the scene.
+- For timing edits, inspect every annotation gap covered by the request and accumulate actual waits; adding a short idle in just one gap may leave the request unmet. Review the patched draft and prioritize related timing warnings even when they are pre-existing.
+- Once the requested edit has no blocking errors and relevant warnings have been considered, submit. Repair useful in-scope warnings when feasible; briefly explain significant warnings deliberately retained. Preserve pre-existing warnings outside the requested scope, and never expand edit permission just to remove a warning.

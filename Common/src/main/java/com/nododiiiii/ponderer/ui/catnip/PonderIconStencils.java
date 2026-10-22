@@ -1,11 +1,6 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import net.createmod.catnip.data.Couple;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.DelegatedStencilElement;
@@ -14,13 +9,12 @@ import net.createmod.catnip.gui.widget.AbstractSimiWidget;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.theme.Color;
 import net.createmod.ponder.enums.PonderGuiTextures;
-import net.minecraft.client.renderer.GameRenderer;
-import org.joml.Matrix4f;
 
 public final class PonderIconStencils {
 
     private static final int DEFAULT_ICON_SIZE = 16;
     private static final int TEXTURE_ICON_SIZE = 16;
+    private static final int TEXTURE_SHEET_SIZE = 256;
 
     private PonderIconStencils() {
     }
@@ -61,7 +55,7 @@ public final class PonderIconStencils {
         return button.showingElement(icon.withElementRenderer(renderer));
     }
 
-    private static FadableScreenElement failGradient(BoxWidget button) {
+    static FadableScreenElement failGradient(BoxWidget button) {
         return (graphics, width, height, alpha) -> {
             Couple<Color> colors = button.active ? AbstractSimiWidget.COLOR_FAIL : button.getColorDisabled();
             UIRenderHelper.angledGradient(graphics, 0, 0, height / 2, height, width, colors);
@@ -80,34 +74,17 @@ public final class PonderIconStencils {
                 float scale = iconSize / (float) TEXTURE_ICON_SIZE;
                 graphics.pose().scale(scale, scale, 1);
                 if (mirrorX) {
-                    renderMirrored(texture, graphics.pose().last().pose(),
-                        -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2);
+                    // Mirror texture coordinates so face culling cannot discard the stencil.
+                    graphics.blit(texture.getLocation(),
+                        -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2,
+                        TEXTURE_ICON_SIZE, TEXTURE_ICON_SIZE,
+                        texture.getStartX() + texture.getWidth(), texture.getStartY(),
+                        -texture.getWidth(), texture.getHeight(), TEXTURE_SHEET_SIZE, TEXTURE_SHEET_SIZE);
                 } else {
                     texture.render(graphics, -TEXTURE_ICON_SIZE / 2, -TEXTURE_ICON_SIZE / 2);
                 }
                 graphics.pose().popPose();
             })
             .withBounds(iconSize, iconSize);
-    }
-
-    private static void renderMirrored(PonderGuiTextures texture, Matrix4f pose, int x, int y) {
-        texture.bind();
-        float u1 = (texture.getStartX() + texture.getWidth()) / 256f;
-        float u2 = texture.getStartX() / 256f;
-        float v1 = texture.getStartY() / 256f;
-        float v2 = (texture.getStartY() + texture.getHeight()) / 256f;
-
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder buffer = tesselator.getBuilder();
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.setShader(GameRenderer::getPositionColorTexShader);
-        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_TEX);
-        buffer.vertex(pose, x, y + texture.getHeight(), 0).color(255, 255, 255, 255).uv(u1, v2).endVertex();
-        buffer.vertex(pose, x + texture.getWidth(), y + texture.getHeight(), 0).color(255, 255, 255, 255).uv(u2, v2).endVertex();
-        buffer.vertex(pose, x + texture.getWidth(), y, 0).color(255, 255, 255, 255).uv(u2, v1).endVertex();
-        buffer.vertex(pose, x, y, 0).color(255, 255, 255, 255).uv(u1, v1).endVertex();
-        tesselator.end();
-        RenderSystem.disableBlend();
     }
 }

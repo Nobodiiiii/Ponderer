@@ -1,13 +1,10 @@
 package com.nododiiiii.ponderer.platform.services;
 
-import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
-
-import java.util.function.Function;
 
 /**
  * Platform abstraction for networking (packet send/receive).
- * Forge: SimpleChannel. Fabric: Fabric Networking API.
  */
 public interface NetworkHelper {
 
@@ -15,8 +12,11 @@ public interface NetworkHelper {
     void registerPackets();
 
     /** Send a packet from client to server. */
-    void sendToServer(Object packet);
+    void sendToServer(CustomPacketPayload packet);
+
+    /** Whether the connected server accepts this payload type. Client-side only. */
+    boolean canSendToServer(CustomPacketPayload.Type<?> type);
 
     /** Send a packet from server to a specific player. */
-    void sendToPlayer(ServerPlayer player, Object packet);
+    void sendToPlayer(ServerPlayer player, CustomPacketPayload packet);
 }

@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
-import com.nododiiiii.ponderer.mixin.AbstractContainerScreenAccessor;
+import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.minecraft.client.Minecraft;
@@ -40,23 +40,9 @@ public final class InterfaceSlotOverlayRenderer {
         return RUNTIME_BINDINGS.containsKey(slotIndex);
     }
 
-    public static void applyStep(DslScene.DslStep step) {
-        RUNTIME_BINDINGS.clear();
-        if (step == null || step.interfaceSlots == null) {
-            return;
-        }
-        for (DslScene.InterfaceSlotBinding binding : step.interfaceSlots) {
-            if (binding == null || binding.slotIndex == null || binding.ingredientId == null || binding.ingredientId.isBlank()) {
-                continue;
-            }
-            RUNTIME_BINDINGS.put(binding.slotIndex,
-                new DslScene.InterfaceSlotBinding(
-                    binding.slotIndex,
-                    binding.slotX,
-                    binding.slotY,
-                    binding.ingredientId,
-                    binding.ingredientKind));
-        }
+    /** Adds a display-only ingredient over slot {@code slotIndex} ({@code set_interface_slots.ghosts}). */
+    public static void putGhost(int slotIndex, String ingredientId, @Nullable String ingredientKind) {
+        RUNTIME_BINDINGS.put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, ingredientId, ingredientKind));
     }
 
     public static void render(GuiGraphics graphics, Screen screen) {
@@ -65,7 +51,7 @@ public final class InterfaceSlotOverlayRenderer {
         }
 
         Map<Integer, DslScene.InterfaceSlotBinding> bindings = InterfaceSlotEditState.isActive()
-            ? InterfaceSlotEditState.getBindingsForRender()
+            ? InterfaceSlotEditState.getGhostBindingsForRender()
             : RUNTIME_BINDINGS;
         if (bindings.isEmpty()) {
             return;
@@ -73,7 +59,7 @@ public final class InterfaceSlotOverlayRenderer {
 
         graphics.flush();
         graphics.pose().pushPose();
-        graphics.pose().translate(0, 0, PonderRuntimeZLayers.SLOT_ONLY_LAYER);
+        graphics.pose().translate(0, 0, PonderRuntimeZLayers.INTERFACE_OVERLAY_LAYER);
         RenderSystem.disableDepthTest();
 
         ContainerBounds bounds = readContainerBounds(container);
@@ -92,6 +78,27 @@ public final class InterfaceSlotOverlayRenderer {
 
         graphics.pose().popPose();
         graphics.flush();
+    }
+
+    public static void renderJeiVisibilityTooltip(GuiGraphics graphics, Screen screen, int mouseX, int mouseY) {
+        if (!InterfaceSlotEditState.isActive() || findSlotAt(screen, mouseX, mouseY) == null) {
+            return;
+        }
+        String hint = JeiCompat.getIngredientListVisibilityHint();
+        if (hint == null) {
+            return;
+        }
+        Minecraft mc = Minecraft.getInstance();
+        graphics.flush();
+        graphics.pose().pushPose();
+        try {
+            graphics.pose().translate(0, 0, PonderRuntimeZLayers.TOOLTIP_LAYER);
+            RenderSystem.disableDepthTest();
+            graphics.renderTooltip(mc.font, mc.font.split(Component.literal(hint), 240), mouseX, mouseY);
+        } finally {
+            graphics.pose().popPose();
+            graphics.flush();
+        }
     }
 
     public static void renderTooltip(GuiGraphics graphics, Screen screen, int mouseX, int mouseY) {
@@ -128,11 +135,10 @@ public final class InterfaceSlotOverlayRenderer {
         if (binding == null || binding.slotIndex == null || binding.slotIndex < 0 || binding.slotIndex >= slots.size()) {
             return null;
         }
-        if (binding.slotX == null || binding.slotY == null) {
-            return null;
-        }
         Slot slot = slots.get(binding.slotIndex);
-        if (!slot.isActive() || slot.x != binding.slotX || slot.y != binding.slotY) {
+        // Positions are an optional layout check; ghosts from set_interface_slots carry none.
+        boolean positioned = binding.slotX != null && binding.slotY != null;
+        if (!slot.isActive() || (positioned && (slot.x != binding.slotX || slot.y != binding.slotY))) {
             return null;
         }
         return slot;
@@ -146,7 +152,7 @@ public final class InterfaceSlotOverlayRenderer {
         }
 
         Map<Integer, DslScene.InterfaceSlotBinding> bindings = InterfaceSlotEditState.isActive()
-            ? InterfaceSlotEditState.getBindingsForRender()
+            ? InterfaceSlotEditState.getGhostBindingsForRender()
             : RUNTIME_BINDINGS;
 
         DslScene.InterfaceSlotBinding binding = bindings.get(slot.index);
@@ -182,26 +188,14 @@ public final class InterfaceSlotOverlayRenderer {
     }
 
     public static ContainerBounds readContainerBounds(AbstractContainerScreen<?> container) {
+        int[] rect = InterfacePlatform.get().containerRect(container);
+        if (rect != null && rect[2] > 1 && rect[3] > 1) {
+            return new ContainerBounds(rect[0], rect[1], rect[2], rect[3]);
+        }
         int imageWidth = 176;
         int imageHeight = 166;
-        int resolvedLeft;
-        int resolvedTop;
-
-        if (container instanceof AbstractContainerScreenAccessor accessor) {
-            imageWidth = Math.max(1, accessor.ponderer$getImageWidth());
-            imageHeight = Math.max(1, accessor.ponderer$getImageHeight());
-            resolvedLeft = accessor.ponderer$getLeftPos();
-            resolvedTop = accessor.ponderer$getTopPos();
-        } else {
-            resolvedLeft = Math.max(0, (container.width - imageWidth) / 2);
-            resolvedTop = Math.max(0, (container.height - imageHeight) / 2);
-        }
-
-        if (resolvedLeft == 0 && resolvedTop == 0 && (container.width > imageWidth || container.height > imageHeight)) {
-            resolvedLeft = Math.max(0, (container.width - imageWidth) / 2);
-            resolvedTop = Math.max(0, (container.height - imageHeight) / 2);
-        }
-        return new ContainerBounds(resolvedLeft, resolvedTop, imageWidth, imageHeight);
+        return new ContainerBounds(Math.max(0, (container.width - imageWidth) / 2),
+            Math.max(0, (container.height - imageHeight) / 2), imageWidth, imageHeight);
     }
 
     @Nullable

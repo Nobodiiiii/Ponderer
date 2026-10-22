@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.ui.FieldType;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
 import net.createmod.catnip.gui.widget.BoxWidget;
@@ -16,12 +17,18 @@ import java.util.function.Supplier;
 
 public class XyzListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int CONTROL_GAP = EntryTextSupport.rightControlGap();
+    private static final int CONTROL_GAP = EntryTextSupport.multiControlGap();
 
     private record TrailingButton(BoxWidget widget, int width, Supplier<String> labelGetter, IntSupplier colorGetter) {
+        int renderedWidth() {
+            return EntryTextSupport.buttonWidth(labelGetter.get(), width);
+        }
     }
 
-    private final String searchText;
+    private final String labelKey;
+    @Nullable
+    private final String contextTooltipKey;
+    private String searchText;
     private final ConfigTextField xField;
     private final ConfigTextField yField;
     private final ConfigTextField zField;
@@ -30,6 +37,8 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
     public XyzListEntry(String labelKey, @Nullable String tooltipKey,
                         @Nullable String xHint, @Nullable String yHint, @Nullable String zHint) {
         super(UIText.of(labelKey));
+        this.labelKey = labelKey;
+        this.contextTooltipKey = tooltipKey;
         this.searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey);
         EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
 
@@ -51,6 +60,18 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         return xField;
     }
 
+    public void setSharedField(FieldType type) {
+        String tooltipKey = type.tooltipKey();
+        EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        ((ClippedConfigTextField) xField).setNumericDrag(type);
+        ((ClippedConfigTextField) yField).setNumericDrag(type);
+        ((ClippedConfigTextField) zField).setNumericDrag(type);
+        EntryTextSupport.applyHint(xField, type.hintKey());
+        EntryTextSupport.applyHint(yField, type.hintKey());
+        EntryTextSupport.applyHint(zField, type.hintKey());
+        searchText = EntryTextSupport.createSearchText(labelKey, tooltipKey, contextTooltipKey);
+    }
+
     public ConfigTextField yField() {
         return yField;
     }
@@ -68,6 +89,11 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         trailingButtons.add(new TrailingButton(button, width, labelGetter, colorGetter));
         listeners.add(button);
         return button;
+    }
+
+    public BoxWidget addTrailingIcon(PondererGuiIcons icon, Runnable onClick, @Nullable String tooltipText) {
+        BoxWidget button = addTrailingButton(EntryTextSupport.squareSize(), onClick, () -> "", () -> 0xFFFFFF, tooltipText);
+        return icon.attach(button);
     }
 
     @Override
@@ -88,9 +114,6 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
     @Override
     public void tick() {
         super.tick();
-        xField.tick();
-        yField.tick();
-        zField.tick();
         for (TrailingButton trailingButton : trailingButtons) {
             trailingButton.widget().tick();
         }
@@ -102,59 +125,42 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
         super.render(graphics, index, y, x, width, height, mouseX, mouseY, hovered, partialTicks);
 
         int labelWidth = getLabelWidth(width);
-        int buttonsWidth = trailingButtons.isEmpty() ? 0 : CONTROL_GAP;
+        int buttonsWidth = trailingButtons.isEmpty() ? 0 : EntryTextSupport.inputControlGap();
         for (int i = 0; i < trailingButtons.size(); i++) {
-            buttonsWidth += trailingButtons.get(i).width();
+            buttonsWidth += trailingButtons.get(i).renderedWidth();
             if (i + 1 < trailingButtons.size()) {
                 buttonsWidth += CONTROL_GAP;
             }
         }
 
-        int minControlWidth = 34 * 3 + CONTROL_GAP * 2 + buttonsWidth;
+        int fieldGap = EntryTextSupport.inputGap();
+        int minControlWidth = 34 * 3 + fieldGap * 2 + buttonsWidth;
         int controlWidth = Math.max(minControlWidth, EntryTextSupport.controlAreaWidth(width, labelWidth));
-        int fieldsWidth = controlWidth - buttonsWidth - CONTROL_GAP * 2;
+        int fieldsWidth = controlWidth - buttonsWidth - fieldGap * 2;
         int baseFieldWidth = Math.max(34, fieldsWidth / 3);
         int remainder = Math.max(0, fieldsWidth - baseFieldWidth * 3);
         int xWidth = baseFieldWidth;
         int yWidth = baseFieldWidth;
         int zWidth = baseFieldWidth + remainder;
-        int fieldX = x + labelWidth + 4;
-        int fieldY = y + 8;
-
-        xField.setX(fieldX);
-        xField.setY(fieldY);
-        xField.setWidth(xWidth);
-        xField.setHeight(20);
+        int fieldX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
+        EntryTextSupport.setRowInputBounds(xField, fieldX, xWidth, y, height);
         xField.render(graphics, mouseX, mouseY, partialTicks);
 
-        yField.setX(fieldX + xWidth + CONTROL_GAP);
-        yField.setY(fieldY);
-        yField.setWidth(yWidth);
-        yField.setHeight(20);
+        EntryTextSupport.setRowInputBounds(yField, fieldX + xWidth + fieldGap, yWidth, y, height);
         yField.render(graphics, mouseX, mouseY, partialTicks);
 
-        zField.setX(fieldX + xWidth + CONTROL_GAP + yWidth + CONTROL_GAP);
-        zField.setY(fieldY);
-        zField.setWidth(zWidth);
-        zField.setHeight(20);
+        EntryTextSupport.setRowInputBounds(zField, fieldX + xWidth + fieldGap + yWidth + fieldGap, zWidth, y, height);
         zField.render(graphics, mouseX, mouseY, partialTicks);
 
-        int cursorX = x + width - 4;
-        int buttonY = y + 10;
-        int buttonHeight = Math.max(16, height - 20);
-        var font = Minecraft.getInstance().font;
+        int cursorX = EntryTextSupport.contentRight(x, width);
         for (int i = trailingButtons.size() - 1; i >= 0; i--) {
             TrailingButton trailingButton = trailingButtons.get(i);
             BoxWidget button = trailingButton.widget();
-            cursorX -= trailingButton.width();
-            button.setX(cursorX);
-            button.setY(buttonY);
-            button.setWidth(trailingButton.width());
-            button.setHeight(buttonHeight);
+            int buttonWidth = trailingButton.renderedWidth();
+            cursorX -= buttonWidth;
+            EntryTextSupport.setRowButtonBounds(button, cursorX, buttonWidth, y, height);
             button.render(graphics, mouseX, mouseY, partialTicks);
-            graphics.drawCenteredString(font, trailingButton.labelGetter().get(),
-                button.getX() + button.getWidth() / 2,
-                button.getY() + (button.getHeight() - 8) / 2,
+            EntryTextSupport.drawButtonLabel(graphics, button, trailingButton.labelGetter().get(),
                 trailingButton.colorGetter().getAsInt());
             cursorX -= CONTROL_GAP;
         }

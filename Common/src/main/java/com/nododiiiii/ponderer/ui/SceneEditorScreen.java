@@ -9,6 +9,7 @@ import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.ScreenTooltipBoxWidget;
 import com.nododiiiii.ponderer.ui.catnip.SceneStepListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
@@ -16,11 +17,12 @@ import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.widget.BoxWidget;
-import net.createmod.catnip.lang.FontHelper;
-import net.createmod.catnip.lang.FontHelper.Palette;
 import net.createmod.ponder.enums.PonderGuiTextures;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -28,6 +30,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,13 +42,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private static final Gson STEP_GSON = new GsonBuilder()
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
         .create();
-    private static final int SIDEBAR_BUTTON_SIZE = 20;
-    private static final int SIDEBAR_BUTTON_GAP = 10;
+    private static final int SIDEBAR_BUTTON_SIZE = 28;
+    private static final int SIDEBAR_BUTTON_GAP = 2;
     private static final int STEP_ACTION_ICON_SIZE = 12;
+    private static final int SCENE_LIST_WIDTH = 400;
     private static final HistorySession HISTORY_SESSION = new HistorySession();
 
-    @Nullable
-    private static DslScene.DslStep clipboard = null;
+    private static List<DslScene.DslStep> clipboard = List.of();
     @Nullable
     private static PonderScreenNavigation.ReturnState pendingPonderReturnState = null;
 
@@ -53,6 +56,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     @Nullable
     private final PonderScreenNavigation.ReturnState ponderReturnState;
     private int sceneIndex;
+    private final Map<DslScene.DslStep, DslScene.DslStep> copiedSteps = new IdentityHashMap<>();
+    private final SceneEditorPreview preview = new SceneEditorPreview();
+    private boolean syncingListFromPreview;
 
     @Nullable
     private BoxWidget undoButton;
@@ -65,7 +71,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private SceneEditorScreen(DslScene scene, int sceneIndex,
                               @Nullable PonderScreenNavigation.ReturnState ponderReturnState) {
-        super(null, "ponderer.ui.scope.editor", "ponderer.ui.scene_editor", 400);
+        super(null, "ponderer.ui.scope.editor", "ponderer.ui.scene_editor", SCENE_LIST_WIDTH);
         this.scene = scene;
         this.sceneIndex = sceneIndex;
         this.ponderReturnState = ponderReturnState;
@@ -80,12 +86,120 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         super.init();
         configureActionButtons();
         initHistoryButtons();
+        preview.load(scene, sceneIndex);
+        layoutPreview();
         restoreRememberedListScroll();
+    }
+
+    @Override
+    protected int listHorizontalOffset() {
+        return listLeftEdge() - (width / 2 - currentListWidthValue() / 2);
+    }
+
+    @Override
+    protected int availableListWidth() {
+        return Math.max(1, width - listLeftEdge() - 40);
+    }
+
+    private int listLeftEdge() {
+        return width * 2 / 5 + 8;
+    }
+
+    @Override
+    protected int listBottomPadding(int viewportHeight) {
+        // Let even the final step reach the top, including in lists shorter than the viewport.
+        return Math.max(0, viewportHeight - getEntryHeight());
+    }
+
+    @Override
+    protected void onListScrollChanged(int firstVisibleIndex) {
+        if (!syncingListFromPreview) preview.seekStep(firstVisibleIndex);
+    }
+
+    private void layoutPreview() {
+        preview.layoutOnLeft(width, height);
+    }
+
+    SceneEditorPreview.ViewState previewViewState() {
+        return preview.viewState();
+    }
+
+    void restorePreviewView(SceneEditorPreview.ViewState state) {
+        preview.restoreView(state);
+    }
+
+    @Override
+    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.renderWindow(graphics, mouseX, mouseY, partialTicks);
+        preview.render(graphics, mouseX, mouseY, partialTicks);
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.render(graphics, mouseX, mouseY, partialTicks);
+        preview.renderTooltip(graphics, mouseX, mouseY);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        return preview.keyReleased(keyCode) || super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    private void scrollListToPreview() {
+        if (list == null) return;
+        syncingListFromPreview = true;
+        try {
+            list.setScrollAmount(preview.stepAtCursor() * (double) getEntryHeight() + 7);
+        } finally {
+            syncingListFromPreview = false;
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (preview.mouseClicked(mouseX, mouseY, button)) {
+            setFocused(null);
+            setDragging(button == 0);
+            if (preview.isScrubbing()) scrollListToPreview();
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (preview.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) {
+            if (preview.isScrubbing()) scrollListToPreview();
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (preview.mouseReleased(mouseX, mouseY, button)) {
+            setDragging(false);
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        return preview.mouseScrolled(mouseX, mouseY, scrollY)
+            || super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    @Override
+    public void removed() {
+        preview.close();
+        super.removed();
     }
 
     @Override
     public void tick() {
         super.tick();
+        preview.tick();
         refreshHistoryButtonState();
     }
 
@@ -136,6 +250,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     @Override
     protected void collectEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries) {
         List<DslScene.DslStep> steps = getSteps();
+        copiedSteps.keySet().retainAll(steps);
         if (steps.isEmpty()) {
             entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.scene_editor.no_steps")));
             return;
@@ -144,7 +259,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         for (int i = 0; i < steps.size(); i++) {
             int stepIndex = i;
             entries.add(new SceneStepListEntry(
-                () -> (stepIndex + 1) + ". " + formatStep(steps.get(stepIndex)),
+                () -> (stepIndex + 1) + ". " + StepPreviewText.title(steps.get(stepIndex)),
+                () -> StepPreviewText.summary(steps.get(stepIndex)),
                 () -> openEditorForStep(stepIndex),
                 List.of(
                     SceneStepListEntry.iconButton(
@@ -159,29 +275,27 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                         () -> moveStepDown(stepIndex),
                         null,
                         () -> !isActionDisabled(1, stepIndex)),
-                    SceneStepListEntry.button(
-                        "+",
+                    SceneStepListEntry.iconButton(
+                        PondererGuiIcons.INSERT,
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.insert"))),
                         () -> openInsertAfter(stepIndex),
                         null,
-                        () -> 0xFF80FF80,
                         () -> !isActionDisabled(2, stepIndex)),
-                    SceneStepListEntry.button(
-                        "C",
+                    SceneStepListEntry.iconButton(
+                        PondererGuiIcons.COPY,
                         this::copyButtonTooltip,
                         () -> copyStep(stepIndex),
-                        null,
-                        () -> 0xFF80C0FF,
-                        () -> true),
-                    SceneStepListEntry.button(
-                        "P",
+                        () -> toggleStepCopy(stepIndex),
+                        () -> true,
+                        copiedSteps.containsKey(steps.get(stepIndex))),
+                    SceneStepListEntry.iconButton(
+                        PondererGuiIcons.PASTE,
                         this::pasteButtonTooltip,
                         () -> pasteAfter(stepIndex),
                         null,
-                        () -> 0xFFFFD080,
-                        () -> clipboard != null),
-                    SceneStepListEntry.dangerIconButton(
-                        PonderIconStencils.centered(PonderGuiTextures.ICON_DISABLE, STEP_ACTION_ICON_SIZE),
+                        () -> !clipboard.isEmpty()),
+                    SceneStepListEntry.iconButton(
+                        PondererGuiIcons.REMOVE,
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.delete"))),
                         () -> removeStepAndSave(stepIndex),
                         null,
@@ -241,7 +355,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                 return true;
             }
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        if (super.keyPressed(keyCode, scanCode, modifiers)) return true;
+        return !(getFocused() instanceof EditBox) && !hasControlDown() && !hasAltDown()
+            && preview.keyPressed(keyCode);
     }
 
     private void configureActionButtons() {
@@ -257,7 +373,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             goBack.withCallback(this::reloadAndExit);
             goBack.visible = true;
             goBack.active = true;
-            setActionButtonTooltip(goBack, "ponderer.ui.scene_editor.back");
+            setActionButtonTooltip(goBack, "ponderer.ui.back", "ponderer.ui.scene_editor.back.tooltip");
         }
         relayoutSidebarButtons();
     }
@@ -283,29 +399,20 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private int actionButtonX() {
-        return width / 2 + currentListWidthValue() / 2 + 10;
+        return width / 2 + currentListWidthValue() / 2 + listHorizontalOffset() + 6;
     }
 
     private BoxWidget createHistoryButton(int x, int y, Runnable callback,
                                           net.createmod.catnip.gui.element.DelegatedStencilElement icon,
                                           String tooltipTitleKey, String tooltipBodyKey) {
         BoxWidget button = new ScreenTooltipBoxWidget(x, y, SIDEBAR_BUTTON_SIZE, SIDEBAR_BUTTON_SIZE)
-            .withPadding(2, 2)
+            .withPadding(6, 6)
             .withCallback(callback);
         PonderIconStencils.attach(button, icon);
-        configureSidebarTooltip(
-            button,
-            Component.translatable(tooltipTitleKey),
-            Component.translatable(tooltipBodyKey));
+        setActionButtonTooltip(button, tooltipTitleKey, tooltipBodyKey);
         button.updateGradientFromState();
         addRenderableWidget(button);
         return button;
-    }
-
-    private void configureSidebarTooltip(BoxWidget button, Component title, Component detail) {
-        button.getToolTip().clear();
-        button.getToolTip().add(title);
-        button.getToolTip().addAll(FontHelper.cutTextComponent(detail, Palette.ALL_GRAY));
     }
 
     private void relayoutSidebarButtons() {
@@ -418,8 +525,11 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             newIndex = 0;
         }
         sceneIndex = newIndex;
+        copiedSteps.clear();
         clearStatusMessages();
         rebuildListAtTop();
+        preview.load(scene, sceneIndex);
+        preview.seekStep(0);
     }
 
     private void openSceneDescription() {
@@ -474,7 +584,10 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private List<net.minecraft.network.chat.Component> copyButtonTooltip() {
-        return List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.copy")));
+        return List.of(
+            Component.literal(UIText.of("ponderer.ui.scene_editor.btn.copy")),
+            Component.literal(UIText.of("ponderer.ui.scene_editor.btn.copy.multi_select"))
+                .withStyle(ChatFormatting.DARK_GRAY));
     }
 
     private List<net.minecraft.network.chat.Component> pasteButtonTooltip() {
@@ -484,9 +597,35 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private void copyStep(int index) {
         List<DslScene.DslStep> steps = getSteps();
         if (index >= 0 && index < steps.size()) {
-            clipboard = deepCopy(steps.get(index));
+            copiedSteps.clear();
+            DslScene.DslStep step = steps.get(index);
+            copiedSteps.put(step, deepCopy(step));
+            updateClipboardFromSelection();
             rebuildListPreservingScroll();
         }
+    }
+
+    private void toggleStepCopy(int index) {
+        List<DslScene.DslStep> steps = getSteps();
+        if (index < 0 || index >= steps.size()) {
+            return;
+        }
+        DslScene.DslStep step = steps.get(index);
+        if (copiedSteps.containsKey(step)) {
+            copiedSteps.remove(step);
+        } else {
+            copiedSteps.put(step, deepCopy(step));
+        }
+        updateClipboardFromSelection();
+        rebuildListPreservingScroll();
+    }
+
+    private void updateClipboardFromSelection() {
+        // The list order, rather than the order of right-clicks, determines paste order.
+        clipboard = getSteps().stream()
+            .filter(copiedSteps::containsKey)
+            .map(copiedSteps::get)
+            .toList();
     }
 
     private void openInsertAfter(int afterIndex) {
@@ -495,10 +634,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void pasteAfter(int afterIndex) {
-        if (clipboard == null) {
+        if (!copiedSteps.isEmpty()) {
+            updateClipboardFromSelection();
+        }
+        if (clipboard.isEmpty()) {
             return;
         }
-        insertStepAndSave(afterIndex, deepCopy(clipboard));
+        insertStepsAndSave(afterIndex, clipboard.stream().map(SceneEditorScreen::deepCopy).toList());
         rebuildListPreservingScroll();
     }
 
@@ -523,6 +665,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void setMutableSteps(List<DslScene.DslStep> newSteps) {
+        copiedSteps.clear();
         if (scene.scenes != null && !scene.scenes.isEmpty()
             && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
             scene.scenes.get(sceneIndex).steps = new ArrayList<>(newSteps);
@@ -591,115 +734,24 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         return scene.id != null ? scene.id : String.valueOf(sceneIndex + 1);
     }
 
-    private String formatStep(DslScene.DslStep step) {
-        if (step == null || step.type == null) {
-            return UIText.of("ponderer.ui.invalid");
-        }
-        return switch (step.type.toLowerCase(Locale.ROOT)) {
-            case "show_structure" ->
-                UIText.of("ponderer.ui.step.summary.show_structure", stepTypeName("show_structure"));
-            case "show_extra_structure" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("show_extra_structure"),
-                step.structure != null && !step.structure.isBlank() ? step.structure : "?");
-            case "idle" -> UIText.of("ponderer.ui.step.summary.idle", stepTypeName("idle"), step.durationOrDefault(20),
-                UIText.of("ponderer.ui.ticks"));
-            case "text" -> UIText.of("ponderer.ui.step.summary.text", stepTypeName("text"),
-                truncate(step.text != null ? step.text.resolve() : "", 20));
-            case "shared_text" -> UIText.of("ponderer.ui.step.summary.shared_text", stepTypeName("shared_text"),
-                step.key != null ? step.key : "?");
-            case "create_entity" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("create_entity"),
-                step.entity != null ? step.entity : "?");
-            case "create_item_entity" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("create_item_entity"), step.item != null ? step.item : "?");
-            case "rotate_camera_y" -> UIText.of("ponderer.ui.step.summary.rotate_camera",
-                stepTypeName("rotate_camera_y"), step.degrees != null ? step.degrees : 90);
-            case "zoom_scene" -> stepTypeName("zoom_scene");
-            case "highlight_section" -> stepTypeName("highlight_section");
-            case "show_controls" -> UIText.of(
-                "ponderer.ui.step.summary.show_controls_action_item",
-                stepTypeName("show_controls"),
-                controlActionName(step.action),
-                step.item != null && !step.item.isBlank() ? step.item : UIText.of("ponderer.ui.none"));
-            case "show_interface" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("show_interface"), step.block != null ? step.block : "?");
-            case "change_interface_slot" -> UIText.of("ponderer.ui.step.summary.slot_count",
-                stepTypeName("change_interface_slot"),
-                step.interfaceSlots != null ? step.interfaceSlots.size() : 0);
-            case "click_interface" -> stepTypeName("click_interface");
-            case "encapsulate_bounds" -> stepTypeName("encapsulate_bounds");
-            case "play_sound" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("play_sound"),
-                step.sound != null ? step.sound : "?");
-            case "set_block" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("set_block"),
-                step.block != null ? step.block : "?");
-            case "destroy_block" -> stepTypeName("destroy_block");
-            case "replace_blocks" -> UIText.of("ponderer.ui.step.summary.single_arg", stepTypeName("replace_blocks"),
-                step.block != null ? step.block : "?");
-            case "hide_section" -> stepTypeName("hide_section");
-            case "show_section_and_merge" -> stepTypeName("show_section_and_merge");
-            case "toggle_redstone_power" -> stepTypeName("toggle_redstone_power");
-            case "modify_block_entity_nbt" -> stepTypeName("modify_block_entity_nbt");
-            case "rotate_section" -> stepTypeName("rotate_section");
-            case "move_section" -> stepTypeName("move_section");
-            case "indicate_redstone" -> stepTypeName("indicate_redstone");
-            case "indicate_success" -> stepTypeName("indicate_success");
-            case "clear_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("clear_entities"), entityTargetSummary(step.entity, step.linkId));
-            case "clear_item_entities" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("clear_item_entities"), entityTargetSummary(step.item, step.linkId));
-            case "modify_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("modify_entities_nbt"), entityTargetSummary(step.entity, step.linkId));
-            case "modify_item_entities_nbt" -> UIText.of("ponderer.ui.step.summary.single_arg",
-                stepTypeName("modify_item_entities_nbt"), entityTargetSummary(step.item, step.linkId));
-            case "next_scene" -> UIText.of("ponderer.ui.step.summary.next_scene");
-            default -> step.type;
-        };
-    }
-
-    private String entityTargetSummary(@Nullable String id, @Nullable String linkId) {
-        String target = id != null && !id.isEmpty() ? id : "*";
-        if (linkId == null || linkId.isBlank()) {
-            return target;
-        }
-        return target + " #" + linkId;
-    }
-
-    private String stepTypeName(String type) {
-        return UIText.of("ponderer.ui.step.type." + type);
-    }
-
-    private String controlActionName(String action) {
-        if (action == null || action.isBlank()) {
-            return UIText.of("ponderer.ui.none");
-        }
-        String key = "ponderer.ui.show_controls.action." + action.toLowerCase(Locale.ROOT);
-        String translated = UIText.of(key);
-        return key.equals(translated) ? action : translated;
-    }
-
-    private String truncate(String text, int max) {
-        if (text == null) {
-            return "";
-        }
-        return text.length() > max ? text.substring(0, max) + "..." : text;
-    }
-
     public void addStepAndSave(DslScene.DslStep newStep) {
         insertStepAndSave(-1, newStep);
     }
 
     public void insertStepAndSave(int afterIndex, DslScene.DslStep newStep) {
+        insertStepsAndSave(afterIndex, List.of(newStep));
+    }
+
+    private void insertStepsAndSave(int afterIndex, List<DslScene.DslStep> newSteps) {
         undoManager().saveState(getSteps());
         List<DslScene.DslStep> steps = getMutableSteps();
-        int insertedIndex;
-        if (afterIndex >= 0 && afterIndex < steps.size()) {
-            steps.add(afterIndex + 1, newStep);
-            insertedIndex = afterIndex + 1;
-        } else {
-            steps.add(newStep);
-            insertedIndex = steps.size() - 1;
-        }
-        if (isShowInterfaceStep(newStep)) {
-            pruneFollowingInterfaceSlotSteps(steps, insertedIndex);
+        int insertedIndex = afterIndex >= 0 && afterIndex < steps.size() ? afterIndex + 1 : steps.size();
+        for (DslScene.DslStep newStep : newSteps) {
+            steps.add(insertedIndex, newStep);
+            if (isShowInterfaceStep(newStep)) {
+                pruneFollowingInterfaceSlotSteps(steps, insertedIndex);
+            }
+            insertedIndex++;
         }
         saveToFile();
     }
@@ -797,8 +849,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         undoManager().saveState(getSteps());
         int newSceneIndex = -1;
 
-        if (scene.scenes != null && !scene.scenes.isEmpty()
-            && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
+        boolean firstSegment = scene.scenes == null || scene.scenes.isEmpty();
+        if (firstSegment || (sceneIndex >= 0 && sceneIndex < scene.scenes.size())) {
             DslScene.SceneSegment newScene = new DslScene.SceneSegment();
             newScene.steps = new ArrayList<>();
             DslScene.DslStep startStep = new DslScene.DslStep();
@@ -808,12 +860,12 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             idleStep.type = "idle";
             idleStep.duration = 20;
             newScene.steps.add(idleStep);
-            newScene.id = generateUniqueSegmentId(scene);
+            newScene.id = firstSegment ? "scene_1" : generateUniqueSegmentId(scene);
             if (!(scene.scenes instanceof ArrayList)) {
-                scene.scenes = new ArrayList<>(scene.scenes);
+                scene.scenes = scene.scenes == null ? new ArrayList<>() : new ArrayList<>(scene.scenes);
             }
-            scene.scenes.add(sceneIndex + 1, newScene);
-            newSceneIndex = sceneIndex + 1;
+            newSceneIndex = firstSegment ? 0 : sceneIndex + 1;
+            scene.scenes.add(newSceneIndex, newScene);
         } else {
             DslScene.DslStep ns = new DslScene.DslStep();
             ns.type = "next_scene";
@@ -832,7 +884,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             sceneIndex = newSceneIndex;
             rememberListScroll(0);
             clearCurrentPonderHistory();
-            ScreenOpener.open(new SceneDescEditorScreen(scene, sceneIndex, this));
+            ScreenOpener.open(new SceneDescEditorScreen(scene, sceneIndex, this, true));
             return;
         }
 
@@ -860,6 +912,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         com.nododiiiii.ponderer.ponder.SceneStore.LocalSaveResult result = com.nododiiiii.ponderer.ponder.SceneStore.saveSceneToLocalDetailed(scene);
         if (result.isSuccess()) {
             clearStatusMessages();
+            preview.load(scene, sceneIndex);
             com.nododiiiii.ponderer.ponder.SceneStore.reloadFromDisk();
             Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
             return true;
@@ -943,13 +996,10 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         PonderScreenNavigation.restoreReturnState(ponderReturnState);
         mc.setScreen(null);
 
-        net.minecraft.resources.ResourceLocation itemId = null;
-        if (scene.items != null && !scene.items.isEmpty()) {
-            itemId = net.minecraft.resources.ResourceLocation.tryParse(scene.items.get(0));
-        }
-        final net.minecraft.resources.ResourceLocation reopenId = itemId;
+        final net.minecraft.resources.ResourceLocation reopenId =
+            com.nododiiiii.ponderer.ponder.SceneItemBindings.firstItem(scene);
         final String targetSceneId = computeCurrentSceneId();
-        final String nbtFilter = scene.nbtFilter;
+        final String nbtFilter = com.nododiiiii.ponderer.ponder.SceneItemBindings.firstNbtFilter(scene);
 
         if (reloadFromDisk) {
             com.nododiiiii.ponderer.ponder.SceneStore.reloadFromDisk();
@@ -976,21 +1026,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private static net.minecraft.world.item.ItemStack buildFilteredStack(net.minecraft.resources.ResourceLocation itemId,
                                                                          String nbtFilter) {
-        net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(itemId);
-        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item);
-        try {
-            net.minecraft.nbt.CompoundTag filterTag = net.minecraft.nbt.TagParser.parseTag(nbtFilter);
-            net.minecraft.nbt.CompoundTag fullTag = new net.minecraft.nbt.CompoundTag();
-            fullTag.putString("id", itemId.toString());
-            fullTag.putByte("Count", (byte) 1);
-            fullTag.put("tag", filterTag);
-            net.minecraft.world.item.ItemStack parsed = net.minecraft.world.item.ItemStack.of(fullTag);
-            if (!parsed.isEmpty()) {
-                stack = parsed;
-            }
-        } catch (Exception ignored) {
-        }
-        return stack;
+        return com.nododiiiii.ponderer.ponder.NbtSceneFilter.createStack(itemId, nbtFilter);
     }
 
     @Nullable

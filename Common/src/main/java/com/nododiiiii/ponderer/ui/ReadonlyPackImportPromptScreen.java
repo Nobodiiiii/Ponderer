@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PonderPackInfo;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
@@ -65,14 +66,15 @@ public class ReadonlyPackImportPromptScreen {
         Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
 
         DslScene importedScene = SceneRuntime.findByKey(sceneKey);
-        notifyUser(Component.literal(UIText.of(result.uiMessageKey(), result.uiMessageArgs())));
         if (importedScene == null) {
             dialog.closeToSource();
             return;
         }
 
         SceneEditorScreen.markUiToEditorTransition(importedScene);
-        Minecraft.getInstance().setScreen(new SceneEditorScreen(importedScene, sceneIndex));
+        SceneEditorScreen editor = new SceneEditorScreen(importedScene, sceneIndex);
+        editor.acceptFeedback(Component.translatable(result.uiMessageKey(), result.uiMessageArgs()), FeedbackLevel.SUCCESS);
+        Minecraft.getInstance().setScreen(editor);
     }
 
     @Nullable
@@ -86,8 +88,7 @@ public class ReadonlyPackImportPromptScreen {
     }
 
     private void notifyUser(Component message) {
-        if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(message, false);
-        }
+        new PondererDialogScreen(source, List.of(Component.translatable("ponderer.ui.readonly_import_prompt.title")),
+            List.of(message), List.of(PondererDialogScreen.closeButton(Component.translatable("ponderer.ui.confirm")))).open();
     }
 }

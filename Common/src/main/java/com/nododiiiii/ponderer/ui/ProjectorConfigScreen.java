@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.feedback.FeedbackTarget;
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
 import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
@@ -19,6 +21,7 @@ import com.nododiiiii.ponderer.projector.client.ProjectorSceneBundle;
 import com.nododiiiii.ponderer.projector.client.ProjectorSceneCompiler;
 import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
 import com.nododiiiii.ponderer.registry.ModBlocks;
+import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
 import dev.engine_room.flywheel.lib.transform.TransformStack;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
@@ -38,7 +41,6 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
@@ -53,12 +55,16 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu> {
+public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu> implements FeedbackTarget {
 
     private static final ResourceLocation BACKGROUND =
         new ResourceLocation("ponderer", "textures/gui/projector.png");
     private static final ResourceLocation PLAYER_INVENTORY =
         new ResourceLocation("ponderer", "textures/gui/player_inventory.png");
+    private static final ResourceLocation MENU_BACKGROUND =
+        new ResourceLocation("ponderer", "textures/gui/menu_background.png");
+    private static final ResourceLocation INWORLD_MENU_BACKGROUND =
+        new ResourceLocation("ponderer", "textures/gui/inworld_menu_background.png");
     private static final int TEXT = 0x000000;
     private static final int INPUT_TEXT = 0xFFFFFF;
     private static final int LABEL_TEXT = 0xF2F4FF;
@@ -73,7 +79,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final int PLAYER_INVENTORY_HEIGHT = 108;
     private static final int PLAYER_INVENTORY_TEXTURE_SIZE = 256;
     private static final int PLAYER_INVENTORY_X = ProjectorMenu.INVENTORY_PANEL_X;
-    private static final int SCREEN_WIDTH = ProjectorMenu.SCREEN_WIDTH;
+    private static final int MAIN_PANEL_TEXTURE_WIDTH = 288;
     private static final int MINIATURE_PLAYER_INVENTORY_Y = 195;
     private static final int LIFE_SIZE_PLAYER_INVENTORY_Y = 214;
     private static final int MINIATURE_MAIN_PANEL_HEIGHT = 195;
@@ -164,7 +170,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     private static final float MODEL_RENDER_SCALE = 40.0F;
     private static final float MODEL_RENDER_X_ROT = -22.0F;
     private static final float MODEL_RENDER_Y_ROT = 243.0F;
-    private static boolean projectorModelPreviewAvailable = true;
 
     private Button redstoneModeButton;
     private Button loopModeButton;
@@ -218,7 +223,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
 
     public ProjectorConfigScreen(ProjectorMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        imageWidth = SCREEN_WIDTH;
+        imageWidth = MAIN_PANEL_TEXTURE_WIDTH;
         imageHeight = playerInventoryY() + PLAYER_INVENTORY_HEIGHT;
         inventoryLabelX = INVENTORY_LABEL_X;
         inventoryLabelY = playerInventoryY() + 6;
@@ -438,10 +443,18 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
+    // 1.20.1 lacks Screen's 1.21 background overload and blur pipeline; retain its tiled overlay.
+    private void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+        graphics.blit(minecraft.level == null ? MENU_BACKGROUND : INWORLD_MENU_BACKGROUND,
+            0, 0, 0, 0.0F, 0.0F, width, height, 32, 32);
+        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+    }
+
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         syncLiveSceneSelection();
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         super.render(graphics, mouseX, mouseY, partialTick);
         renderTooltip(graphics, mouseX, mouseY);
     }
@@ -453,7 +466,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         int panelTextureY = menu.projectorKind().requiresAnchor()
             ? LIFE_SIZE_PANEL_TEXTURE_Y
             : MINIATURE_PANEL_TEXTURE_Y;
-        graphics.blit(BACKGROUND, x, y, 0, panelTextureY, MAIN_PANEL_WIDTH, mainPanelHeight(),
+        graphics.blit(BACKGROUND, x, y, 0, panelTextureY, MAIN_PANEL_TEXTURE_WIDTH, mainPanelHeight(),
             PROJECTOR_TEXTURE_WIDTH, PROJECTOR_TEXTURE_HEIGHT);
         graphics.blit(PLAYER_INVENTORY, x + PLAYER_INVENTORY_X, y + playerInventoryY(),
             0, 0, PLAYER_INVENTORY_WIDTH, PLAYER_INVENTORY_HEIGHT,
@@ -601,9 +614,6 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void tickBox(@Nullable EditBox box) {
-        if (box != null) {
-            box.tick();
-        }
     }
 
     private void refreshResolvedScenes() {
@@ -1648,7 +1658,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         if (stack.isEmpty()) {
             return "";
         }
-        return stack.save(new CompoundTag()).toString();
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.level == null
+            ? stack.toString()
+            : stack.save(new net.minecraft.nbt.CompoundTag()).toString();
     }
 
     private void pullRemoteScenesForSource() {
@@ -1679,33 +1692,9 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     public void receiveRemoteAction(RemoteActionResponsePayload payload) {
-        if (payload.message() != null && !payload.message().isBlank()) {
-            status(localizedRemotePullMessage(payload.message()), payload.success() ? TITLE_READY_TEXT : TITLE_ERROR_TEXT);
-        }
         if (payload.success()) {
             refreshResolvedScenes();
         }
-    }
-
-    private Component localizedRemotePullMessage(String message) {
-        String noRemotePrefix = "No remote scenes found for item ";
-        if (message.startsWith(noRemotePrefix)) {
-            return Component.translatable("ponderer.ui.projector.remote_pull.none",
-                message.substring(noRemotePrefix.length()));
-        }
-
-        String pulledPrefix = "Pulled ";
-        String pulledSuffix = " remote scene(s) for item ";
-        if (message.startsWith(pulledPrefix)) {
-            int suffixStart = message.indexOf(pulledSuffix, pulledPrefix.length());
-            if (suffixStart > pulledPrefix.length()) {
-                String count = message.substring(pulledPrefix.length(), suffixStart);
-                String itemId = message.substring(suffixStart + pulledSuffix.length());
-                return Component.translatable("ponderer.ui.projector.remote_pull.done", count, itemId);
-            }
-        }
-
-        return Component.literal(message);
     }
 
     private void renderBottomStatus(GuiGraphics graphics) {
@@ -1714,6 +1703,11 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         }
         Component message = trimToWidth(statusMessage, BOTTOM_STATUS_WIDTH);
         graphics.drawString(font, message, BOTTOM_STATUS_X, bottomActionY() + 5, statusColor, false);
+    }
+
+    @Override
+    public void acceptFeedback(Component message, FeedbackLevel level) {
+        status(message, level == FeedbackLevel.ERROR ? TITLE_ERROR_TEXT : TITLE_READY_TEXT);
     }
 
     private void status(Component message, int color) {
@@ -1747,54 +1741,31 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
     }
 
     private void renderProjectorModel(GuiGraphics graphics, int x, int y) {
-        if (!projectorModelPreviewAvailable) {
-            renderProjectorItemFallback(graphics, x, y);
-            return;
-        }
-
-        boolean renderFallback = false;
-        var transform = TransformStack.of(graphics.pose());
-        transform.pushPose();
-        try {
-            transform.translate(x + MODEL_RENDER_X, y + modelRenderY(), 100)
-                .scale(MODEL_RENDER_SCALE)
-                .rotateXDegrees(MODEL_RENDER_X_ROT)
-                .rotateYDegrees(MODEL_RENDER_Y_ROT);
-            GuiGameElement.of(projectorDisplayState())
-                .render(graphics);
-        } catch (RuntimeException e) {
-            projectorModelPreviewAvailable = false;
-            renderFallback = true;
-        } finally {
-            transform.popPose();
-        }
-
-        if (renderFallback) {
-            renderProjectorItemFallback(graphics, x, y);
-        }
-    }
-
-    private void renderProjectorItemFallback(GuiGraphics graphics, int x, int y) {
-        ItemStack stack = new ItemStack(isLifeSizeProjector()
-            ? ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get()
-            : ModBlocks.MINIATURE_PROJECTOR_ITEM.get());
-        int iconX = x + MODEL_AREA_X + (MODEL_AREA_WIDTH - 16) / 2;
-        int iconY = y + modelAreaY() + (MODEL_AREA_HEIGHT - 16) / 2;
-        graphics.renderItem(stack, iconX, iconY);
+        PoseStack pose = graphics.pose();
+        pose.pushPose();
+        TransformStack.of(pose)
+            .pushPose()
+            .translate(x + MODEL_RENDER_X, y + modelRenderY(), 100)
+            .scale(MODEL_RENDER_SCALE)
+            .rotateXDegrees(MODEL_RENDER_X_ROT)
+            .rotateYDegrees(MODEL_RENDER_Y_ROT);
+        GuiGameElement.of(projectorDisplayState())
+            .render(graphics);
+        pose.popPose();
     }
 
     private net.minecraft.world.level.block.state.BlockState projectorDisplayState() {
         ProjectorBlockEntity projector = menu.projector();
+        // Use a fixed preview facing while preserving the projector's other visual state.
         if (projector != null) {
-            return projector.getBlockState();
+            return projector.getBlockState().setValue(ProjectorBlock.FACING, Direction.EAST);
         }
 
-        Direction facing = projectorFacing();
         return (menu.projectorKind().requiresAnchor()
             ? ModBlocks.LIFE_SIZE_PROJECTOR.get()
             : ModBlocks.MINIATURE_PROJECTOR.get())
             .defaultBlockState()
-            .setValue(ProjectorBlock.FACING, facing);
+            .setValue(ProjectorBlock.FACING, Direction.EAST);
     }
 
     private static void renderControlOverlay(GuiGraphics graphics, int x, int y, int width, int height,
@@ -1961,10 +1932,10 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
         private final int backgroundHeight;
 
         private ProjectorEditBox(Font font, int x, int y, int width, int height, Component narration) {
-            super(font, x + 4, y + 5, Math.max(1, width - 8), 8, narration);
-            this.backgroundX = x;
+            super(font, EntryTextSupport.inputX(x + 4), y + 5, EntryTextSupport.inputWidth(width - 8), 8, narration);
+            this.backgroundX = EntryTextSupport.inputX(x);
             this.backgroundY = y;
-            this.backgroundWidth = width;
+            this.backgroundWidth = EntryTextSupport.inputWidth(width);
             this.backgroundHeight = height;
             setBordered(false);
         }

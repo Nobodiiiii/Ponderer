@@ -1,6 +1,14 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.compat.jei.JeiOverlayController;
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import com.mojang.serialization.JsonOps;
+import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
+import com.nododiiiii.ponderer.interfaces.sandbox.SandboxSession;
+import com.nododiiiii.ponderer.interfaces.sandbox.SessionOps;
 import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
@@ -8,7 +16,12 @@ import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -28,6 +41,9 @@ public final class InterfaceSlotEditState {
     private static StepEditorContext context;
     @Nullable
     private static UiAnchorViewport.Rect jeiViewport;
+    @Nullable
+    private static SandboxSession previewSession;
+    private static boolean previewDirty = true;
 
     private InterfaceSlotEditState() {
     }
@@ -45,6 +61,8 @@ public final class InterfaceSlotEditState {
         InterfaceSlotEditState.slotBindings = copyBindings(initialBindings);
         InterfaceSlotEditState.context = new StepEditorContext(stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent);
         InterfaceSlotEditState.jeiViewport = null;
+        InterfaceSlotEditState.previewSession = null;
+        InterfaceSlotEditState.previewDirty = true;
     }
 
     public static void openPonderUIForEdit() {
@@ -71,7 +89,6 @@ public final class InterfaceSlotEditState {
             }
         }
 
-        JeiOverlayController.pushEnabled();
         Minecraft.getInstance().setScreen(ponderUI);
     }
 
@@ -98,37 +115,109 @@ public final class InterfaceSlotEditState {
     }
 
     public static int bindingCount() {
-        return slotBindings.size();
+        return (int) slotBindings.values().stream().filter(binding -> !isClearBinding(binding)).count();
     }
 
     public static void putBinding(int slotIndex, @Nullable Integer slotX, @Nullable Integer slotY,
                                   String ingredientId, @Nullable String ingredientKind) {
-        if (!active || ingredientId == null || ingredientId.isBlank()) {
-            return;
-        }
-        slotBindings.put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, slotX, slotY, ingredientId, ingredientKind));
+        putBinding(slotIndex, slotX, slotY, new DslScene.InterfaceSlotBinding(slotIndex, ingredientId, ingredientKind));
     }
 
-    public static LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> getBindingsForRender() {
-        return copyBindings(slotBindings);
+    public static void putBinding(int slotIndex, @Nullable Integer slotX, @Nullable Integer slotY,
+                                  DslScene.InterfaceSlotBinding ingredient) {
+        if (!active || slotIndex < 0 || ingredient.ingredientId == null || ingredient.ingredientId.isBlank()) {
+            return;
+        }
+        DslScene.InterfaceSlotBinding binding = ingredient.copy();
+        binding.slotIndex = slotIndex;
+        binding.slotX = slotX;
+        binding.slotY = slotY;
+        slotBindings.put(slotIndex, binding);
+        previewDirty = true;
+        SandboxSession session = InterfaceHost.sessionFor(Minecraft.getInstance().screen);
+        if (session != null) {
+            applyPreview(session);
+        }
+    }
+
+    /** Items are rendered by the menu itself; only non-item ingredients need an overlay. */
+    public static LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> getGhostBindingsForRender() {
+        LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> ghosts = copyBindings(slotBindings);
+        ghosts.values().removeIf(InterfaceSlotEditState::isItemBinding);
+        return ghosts;
+    }
+
+    /** Reuses playback's item decoding, layout checks and crafting updates for the editor. */
+    public static void applyPreview(SandboxSession session) {
+        if (!active || session.isDestroyed() || session.menu() == null
+            || !(session.currentScreen() instanceof AbstractContainerScreen<?> container)
+            || container.getMenu() != session.menu()) {
+            return;
+        }
+        if (previewSession != session) {
+            previewSession = session;
+            previewDirty = true;
+        }
+        if (!previewDirty) {
+            return;
+        }
+        previewDirty = false;
+        InterfaceStepSpecs.Slots spec = InterfaceStepSpecs.fromLegacyChangeSlot(new ArrayList<>(slotBindings.values()));
+        for (InterfaceStepSpecs.SlotWrite write : spec.slots()) {
+            SessionOps.writeSlot(session, write);
+        }
+    }
+
+    /** Timeline writes may run after the preview was attached to a newly opened interface. */
+    public static void invalidatePreview() {
+        previewDirty = true;
     }
 
     @Nullable
     public static DslScene.InterfaceSlotBinding getBinding(int slotIndex) {
         DslScene.InterfaceSlotBinding binding = slotBindings.get(slotIndex);
-        if (binding == null) {
+        if (binding == null || isClearBinding(binding)) {
             return null;
         }
-        return new DslScene.InterfaceSlotBinding(
-            binding.slotIndex,
-            binding.slotX,
-            binding.slotY,
-            binding.ingredientId,
-            binding.ingredientKind);
+        return binding.copy();
     }
 
-    public static boolean removeBinding(int slotIndex) {
-        return slotBindings.remove(slotIndex) != null;
+    @Nullable
+    public static DslScene.InterfaceSlotBinding getBindingForSlot(Slot slot) {
+        DslScene.InterfaceSlotBinding binding = getBinding(slot.index);
+        if (binding != null && !isItemBinding(binding) && (binding.slotX == null || binding.slotY == null
+            || (binding.slotX == slot.x && binding.slotY == slot.y))) {
+            return binding;
+        }
+        return bindingFromStack(slot.getItem());
+    }
+
+    /** Captures the same id/count/components representation used by interface capture and playback. */
+    @Nullable
+    public static DslScene.InterfaceSlotBinding bindingFromStack(ItemStack stack) {
+        Minecraft mc = Minecraft.getInstance();
+        if (stack.isEmpty() || mc.level == null) {
+            return null;
+        }
+        DslScene.InterfaceSlotBinding binding = new DslScene.InterfaceSlotBinding(0,
+            BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), "item");
+        binding.itemCount = stack.getCount();
+        binding.itemNbt = stack.hasTag() ? stack.getTag().toString() : null;
+        return binding;
+    }
+
+    /** Air is a persisted empty-slot write in the existing legacy binding format. */
+    public static void clearBinding(Slot slot) {
+        putBinding(slot.index, slot.x, slot.y, "minecraft:air", "item");
+    }
+
+    private static boolean isItemBinding(DslScene.InterfaceSlotBinding binding) {
+        return binding.ingredientKind == null || binding.ingredientKind.isBlank()
+            || "item".equalsIgnoreCase(binding.ingredientKind.trim());
+    }
+
+    public static boolean isClearBinding(DslScene.InterfaceSlotBinding binding) {
+        return isItemBinding(binding) && "minecraft:air".equals(binding.ingredientId);
     }
 
     public static void finishAndReopenEditor() {
@@ -136,6 +225,7 @@ public final class InterfaceSlotEditState {
             return;
         }
 
+        InterfaceHost.cancelSlotDrag();
         writeBindingsToSnapshot(formSnapshot, slotBindings);
         StepEditorContext reopenContext = context;
 
@@ -185,6 +275,13 @@ public final class InterfaceSlotEditState {
             if (binding.ingredientKind != null && !binding.ingredientKind.isBlank()) {
                 snapshot.put("slot_" + i + "_kind", binding.ingredientKind);
             }
+            if (binding.itemCount != null) {
+                snapshot.put("slot_" + i + "_count", String.valueOf(binding.itemCount));
+            }
+            if (binding.itemNbt != null) snapshot.put("slot_" + i + "_nbt", binding.itemNbt);
+            if (binding.itemComponents != null) {
+                snapshot.put("slot_" + i + "_components", binding.itemComponents.toString());
+            }
             i++;
         }
         snapshot.put("slot_count", String.valueOf(i));
@@ -214,8 +311,18 @@ public final class InterfaceSlotEditState {
                 Integer slotX = parseOptionalInt(snapshot.get("slot_" + i + "_x"));
                 Integer slotY = parseOptionalInt(snapshot.get("slot_" + i + "_y"));
                 String kind = snapshot.get("slot_" + i + "_kind");
-                result.put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, slotX, slotY, id, kind));
-            } catch (NumberFormatException ignored) {
+                DslScene.InterfaceSlotBinding binding = new DslScene.InterfaceSlotBinding(slotIndex, slotX, slotY, id, kind);
+                binding.itemCount = parseOptionalInt(snapshot.get("slot_" + i + "_count"));
+                binding.itemNbt = snapshot.get("slot_" + i + "_nbt");
+                String components = snapshot.get("slot_" + i + "_components");
+                if (components != null) {
+                    JsonElement parsed = JsonParser.parseString(components);
+                    if (parsed.isJsonObject()) {
+                        binding.itemComponents = parsed.getAsJsonObject();
+                    }
+                }
+                result.put(slotIndex, binding);
+            } catch (NumberFormatException | JsonParseException ignored) {
             }
         }
         return result;
@@ -226,13 +333,14 @@ public final class InterfaceSlotEditState {
         slotBindings.clear();
         jeiViewport = null;
         context = null;
-        JeiOverlayController.popEnabled();
+        previewSession = null;
+        previewDirty = true;
     }
 
     @Nullable
     private static ResourceLocation getItemId() {
         if (context == null || context.scene().items == null || context.scene().items.isEmpty()) return null;
-        return ResourceLocation.tryParse(context.scene().items.get(0));
+        return SceneItemBindings.firstItem(context.scene());
     }
 
     private static LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> copyBindings(
@@ -243,13 +351,7 @@ public final class InterfaceSlotEditState {
             if (binding == null || binding.slotIndex == null || binding.ingredientId == null || binding.ingredientId.isBlank()) {
                 continue;
             }
-            copy.put(binding.slotIndex,
-                new DslScene.InterfaceSlotBinding(
-                    binding.slotIndex,
-                    binding.slotX,
-                    binding.slotY,
-                    binding.ingredientId,
-                    binding.ingredientKind));
+            copy.put(binding.slotIndex, binding.copy());
         }
         return copy;
     }

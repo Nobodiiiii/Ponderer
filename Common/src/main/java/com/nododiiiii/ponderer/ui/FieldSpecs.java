@@ -7,6 +7,7 @@ import com.nododiiiii.ponderer.ui.catnip.DualTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PlainTextListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.XyzListEntry;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 
@@ -103,6 +104,19 @@ public final class FieldSpecs {
         };
     }
 
+    public static FieldSpec nbt(FieldBinding<String> binding, String labelKey, @Nullable String tooltipKey,
+                                int fieldWidth, String snapshotKey, FieldDecorator... decorators) {
+        return text(binding, labelKey, tooltipKey, FieldType.NBT.hintKey(), fieldWidth,
+            prepend(FieldDecorators.nbtEditor(snapshotKey), decorators));
+    }
+
+    public static FieldSpec typedText(FieldType type, FieldBinding<String> binding, String labelKey,
+                                      @Nullable String tooltipKey, @Nullable String hintKey, int fieldWidth,
+                                      FieldDecorator... decorators) {
+        return text(binding, labelKey, tooltipKey, hintKey, fieldWidth,
+            prepend(FieldDecorators.type(type), decorators));
+    }
+
     public static FieldSpec localizedText(FieldBinding<String> binding, String labelKey, @Nullable String tooltipKey,
                                           @Nullable String hintKey, int fieldWidth,
                                           Supplier<String> langGetter, Runnable onToggle) {
@@ -111,18 +125,21 @@ public final class FieldSpecs {
     }
 
     public static FieldSpec number(FieldBinding<String> binding, String labelKey, @Nullable String tooltipKey,
-                                   String hintKey, int fieldWidth, @Nullable String unitKey) {
+                                   String hintKey, int fieldWidth, @Nullable String unitKey,
+                                   FieldDecorator... decorators) {
         return text(binding, labelKey, tooltipKey, hintKey, fieldWidth, entry -> {
+            entry.setDefaultHint(hintKey);
             entry.setHalfWidthControl(Math.max(HALF_WIDTH_CONTROL_MIN, fieldWidth));
             if (unitKey != null) {
                 entry.setTrailingText(() -> UIText.of(unitKey));
             }
-        });
+        }, decorators);
     }
 
     public static FieldSpec ticksNumber(FieldBinding<String> binding, String labelKey, @Nullable String tooltipKey,
                                         String hintKey, int fieldWidth) {
-        return number(binding, labelKey, tooltipKey, hintKey, fieldWidth, "ponderer.ui.ticks");
+        return number(binding, labelKey, tooltipKey, hintKey, fieldWidth, "ponderer.ui.ticks",
+            FieldDecorators.type(FieldType.TICKS));
     }
 
     public static FieldSpec toggle(FieldBinding<Boolean> binding, String labelKey, @Nullable String tooltipKey) {
@@ -260,6 +277,7 @@ public final class FieldSpecs {
             @Override
             public void build(AbstractDeclarativeFormScreen screen) {
                 XyzListEntry entry = new XyzListEntry(labelKey, tooltipKey, xHint, yHint, zHint);
+                entry.setSharedField(FieldType.XYZ);
                 attachWidget(handle.xHandle(), (HintableTextFieldWidget) entry.xField());
                 attachWidget(handle.yHandle(), (HintableTextFieldWidget) entry.yField());
                 attachWidget(handle.zHandle(), (HintableTextFieldWidget) entry.zField());
@@ -294,6 +312,12 @@ public final class FieldSpecs {
 
     public static FieldSpec xyz(StepXyzFieldHandle handle, String labelKey, @Nullable String tooltipKey) {
         return xyz(handle, labelKey, tooltipKey, "X", "Y", "Z");
+    }
+
+    public static FieldSpec xyz(StepXyzFieldHandle handle, String labelKey, @Nullable String tooltipKey,
+                                FieldType type, FieldDecorator... decorators) {
+        return xyz(handle, labelKey, tooltipKey, "X", "Y", "Z",
+            prepend(FieldDecorators.type(type), decorators));
     }
 
     public static FieldSpec dualText(FieldBinding<String> firstBinding, FieldBinding<String> secondBinding,
@@ -363,9 +387,10 @@ public final class FieldSpecs {
                             stepScreen.rebuildFormPreservingState();
                         }
                     },
-                    () -> "+",
-                    () -> 0x80FF80,
-                    UIText.of("ponderer.ui.block_properties"));
+                    () -> "",
+                    () -> 0xFFFFFF,
+                    UIText.of("ponderer.ui.block_properties.add.tooltip"))
+                    .withIcon(PondererGuiIcons.ADD);
                 screen.appendBuiltEntry(addEntry);
             }
 
@@ -388,6 +413,13 @@ public final class FieldSpecs {
                 decorator.applyText(screen, entry);
             }
         }
+    }
+
+    private static FieldDecorator[] prepend(FieldDecorator first, FieldDecorator[] decorators) {
+        FieldDecorator[] result = new FieldDecorator[decorators.length + 1];
+        result[0] = first;
+        System.arraycopy(decorators, 0, result, 1, decorators.length);
+        return result;
     }
 
     private static void applyLocalizedDecorators(AbstractDeclarativeFormScreen screen, LocalizedTextListEntry entry,

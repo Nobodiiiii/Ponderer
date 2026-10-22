@@ -1,23 +1,37 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.RaycastHelper;
-import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.Nullable;
 
-public record CaptureBlockEntityNbtRequestPayload(BlockPos pos) {
+public record CaptureBlockEntityNbtRequestPayload(BlockPos pos) implements CustomPacketPayload {
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeBlockPos(pos());
+    public static final Type<CaptureBlockEntityNbtRequestPayload> TYPE =
+            new Type<>(new ResourceLocation(Ponderer.MODID, "capture_block_entity_nbt_request"));
+    public static final StreamCodec<FriendlyByteBuf, CaptureBlockEntityNbtRequestPayload> CODEC =
+            StreamCodec.of(CaptureBlockEntityNbtRequestPayload::encode, CaptureBlockEntityNbtRequestPayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
-    public static CaptureBlockEntityNbtRequestPayload decode(FriendlyByteBuf buf) {
+    private static void encode(FriendlyByteBuf buf, CaptureBlockEntityNbtRequestPayload payload) {
+        buf.writeBlockPos(payload.pos());
+    }
+
+    private static CaptureBlockEntityNbtRequestPayload decode(FriendlyByteBuf buf) {
         return new CaptureBlockEntityNbtRequestPayload(buf.readBlockPos());
     }
 

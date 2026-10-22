@@ -61,7 +61,7 @@ public class PlayerPermissionListEntry extends ConfigScreenList.LabeledEntry imp
         int labelWidth = getLabelWidth(width);
         int controlWidth = EntryTextSupport.controlAreaWidth(width, labelWidth);
         int controlX = EntryTextSupport.rightAlignedControlX(x, width, controlWidth);
-        ActionStripListEntry.renderButtonCluster(graphics, buttons, controlX, controlWidth, y, height,
+        ActionStripListEntry.renderMultiControlCluster(graphics, buttons, controlX, controlWidth, y, height,
             mouseX, mouseY, partialTicks);
     }
 

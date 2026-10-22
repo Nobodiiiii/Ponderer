@@ -1,29 +1,39 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.ui.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * Server -> Client response after an upload (push) attempt.
- * Status format:
- *   "ok:<newHash>"   - success, client should update SyncMeta
- *   "conflict"       - server file was modified, push rejected
- *   "error"          - write failed
- */
-public record UploadResponsePayload(String sceneId, @Nullable String pack, String status) {
+public record UploadResponsePayload(String sceneId, @Nullable String pack, String status) implements CustomPacketPayload {
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(sceneId());
-        writeOptionalUtf(buf, pack());
-        buf.writeUtf(status());
+    public static final Type<UploadResponsePayload> TYPE =
+            new Type<>(new ResourceLocation(Ponderer.MODID, "upload_response"));
+    public static final StreamCodec<FriendlyByteBuf, UploadResponsePayload> CODEC =
+            StreamCodec.of(UploadResponsePayload::encode, UploadResponsePayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
-    public static UploadResponsePayload decode(FriendlyByteBuf buf) {
+    private static void encode(FriendlyByteBuf buf, UploadResponsePayload payload) {
+        buf.writeUtf(payload.sceneId());
+        writeOptionalUtf(buf, payload.pack());
+        buf.writeUtf(payload.status());
+    }
+
+    private static UploadResponsePayload decode(FriendlyByteBuf buf) {
         return new UploadResponsePayload(buf.readUtf(), readOptionalUtf(buf), buf.readUtf());
     }
 
@@ -31,8 +41,9 @@ public record UploadResponsePayload(String sceneId, @Nullable String pack, Strin
         if (payload.status() != null && payload.status().startsWith("ok:")) {
             String newHash = payload.status().substring(3);
             String metaKey = SyncMeta.metaKey("scripts", payload.sceneId(), payload.pack());
+            PendingRemoteUpdates.resolved(metaKey);
 
-            java.nio.file.Path localFile = resolveLocalScenePath(payload.sceneId(), payload.pack());
+            java.nio.file.Path localFile = SceneStore.findLocalSceneFile(payload.sceneId(), payload.pack());
             if (localFile != null && java.nio.file.Files.exists(localFile)) {
                 try {
                     byte[] bytes = java.nio.file.Files.readAllBytes(localFile);
@@ -43,31 +54,18 @@ public record UploadResponsePayload(String sceneId, @Nullable String pack, Strin
                     SyncMeta.save(meta);
                 }
             }
-            if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
-                screen.receiveUploadResult(true,
-                    "Uploaded " + SceneStore.displaySceneKey(payload.sceneId(), payload.pack()));
-            }
-        } else if ("conflict".equals(payload.status())) {
-            String display = SceneStore.displaySceneKey(payload.sceneId(), payload.pack());
-            if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
-                screen.receiveUploadResult(false, "Remote conflict: " + display);
-            } else {
-                notifyClient(Component.translatable("ponderer.cmd.push.conflict", display));
-            }
-        } else if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
-            screen.receiveUploadResult(false,
-                "Upload failed: " + SceneStore.displaySceneKey(payload.sceneId(), payload.pack()));
         }
-    }
-
-    private static java.nio.file.Path resolveLocalScenePath(String sceneId, @Nullable String pack) {
-        return SceneStore.findLocalSceneFile(sceneId, pack);
-    }
-
-    private static void notifyClient(Component message) {
-        if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(message, false);
-        }
+        String display = SceneStore.displaySceneKey(payload.sceneId(), payload.pack());
+        boolean success = payload.status() != null && payload.status().startsWith("ok:");
+        String key = success ? "ponderer.cmd.push.upload_ok" : switch (payload.status() == null ? "" : payload.status()) {
+            case "conflict" -> "ponderer.cmd.push.conflict";
+            case "denied" -> "ponderer.cmd.push.no_permission";
+            default -> "ponderer.cmd.push.upload_failed";
+        };
+        ClientFeedback.result(Component.translatable(key, display),
+            success ? FeedbackLevel.SUCCESS : FeedbackLevel.ERROR);
+        if (ClientFeedback.responseScreen() instanceof RemoteBrowserScreen screen
+            && Minecraft.getInstance().screen == screen) screen.refreshAfterUpload(success);
     }
 
     private static void writeOptionalUtf(FriendlyByteBuf buf, @Nullable String value) {

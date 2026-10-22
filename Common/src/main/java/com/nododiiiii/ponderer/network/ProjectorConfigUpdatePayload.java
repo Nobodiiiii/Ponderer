@@ -1,10 +1,14 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorProjectionMode;
 import com.nododiiiii.ponderer.projector.ProjectorTriggerMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
@@ -13,7 +17,18 @@ public record ProjectorConfigUpdatePayload(BlockPos projectorPos,
                                            int intermissionTicks,
                                            boolean showBlueTint, boolean overlayAntiOcclusion,
                                            boolean compatibilityMode, ProjectorProjectionMode projectionMode,
-                                           float miniatureScale, float textScale) {
+                                           float miniatureScale, float textScale) implements CustomPacketPayload {
+
+    public static final Type<ProjectorConfigUpdatePayload> TYPE =
+        new Type<>(new ResourceLocation(Ponderer.MODID, "projector_config_update"));
+    public static final StreamCodec<FriendlyByteBuf, ProjectorConfigUpdatePayload> CODEC =
+        StreamCodec.of((buf, payload) -> payload.encode(buf), ProjectorConfigUpdatePayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
 
     private static final int MAX_TRIGGER_MODE_LENGTH = 64;
     private static final int MAX_PROJECTION_MODE_LENGTH = 64;

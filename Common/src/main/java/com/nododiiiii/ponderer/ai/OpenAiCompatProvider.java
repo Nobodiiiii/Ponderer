@@ -1,148 +1,36 @@
 package com.nododiiiii.ponderer.ai;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
-import com.nododiiiii.ponderer.Config;
-
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * LLM provider for OpenAI-compatible Chat Completions API.
- * Covers: OpenAI, DeepSeek, Groq, Together, Ollama, LM Studio, etc.
- * Endpoint: {base}/v1/chat/completions
- * Auth: Authorization Bearer header
- * Response: choices[0].message.content
- */
+/** Adapter for chat; both public APIs share one wire implementation. */
 public class OpenAiCompatProvider implements LlmProvider {
-
     private final int maxTokens;
+    private final String reasoningEffort;
+    private final int requestTimeout;
 
     public OpenAiCompatProvider() {
-        this(Config.AI_MAX_TOKENS.get());
+        this(com.nododiiiii.ponderer.Config.AI_MAX_TOKENS.get(), com.nododiiiii.ponderer.Config.AI_REASONING_EFFORT.get(), com.nododiiiii.ponderer.Config.AI_REQUEST_TIMEOUT_SECONDS.get());
     }
 
-    public OpenAiCompatProvider(int maxTokens) {
-        this.maxTokens = maxTokens;
+    public OpenAiCompatProvider(int maxTokens) { this(maxTokens, ""); }
+    public OpenAiCompatProvider(int maxTokens, String effort) { this(maxTokens, effort, AiDefaults.REQUEST_TIMEOUT_SECONDS); }
+    public OpenAiCompatProvider(int maxTokens, String effort, int timeout) {
+        this.maxTokens = maxTokens; this.reasoningEffort = effort; this.requestTimeout = timeout;
     }
 
-    @Override
-    public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
-                                               String baseUrl, String apiKey, String model) {
-        return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, null);
+    @Override public boolean supportsNativeTools(AiRuntimeConfig config) { return AiApiSupport.isOfficialOpenAi(config.baseUrl()); }
+    @Override public CompletableFuture<Reply> exchange(Exchange request, AiCancellationScope cancellation) {
+        return AiWireTransport.exchange("chat", request, cancellation);
     }
 
-    @Override
-    public CompletableFuture<String> generate(String systemPrompt, List<ContentBlock> userContent,
-                                               String baseUrl, String apiKey, String model,
-                                               AiCancellationScope cancellation) {
-        return generateInternal(systemPrompt, userContent, baseUrl, apiKey, model, cancellation);
+    @Override public CompletableFuture<String> generate(String system, List<ContentBlock> content, String url, String key, String model) {
+        return generate(system, content, url, key, model, new AiCancellationScope());
     }
 
-    private CompletableFuture<String> generateInternal(String systemPrompt, List<ContentBlock> userContent,
-                                                       String baseUrl, String apiKey, String model,
-                                                       AiCancellationScope cancellation) {
-        if (cancellation != null) {
-            cancellation.throwIfCancelled();
-        }
-        JsonObject body = new JsonObject();
-        body.addProperty("model", model);
-        body.addProperty("max_tokens", maxTokens);
-
-        JsonArray messages = new JsonArray();
-
-        // System message
-        JsonObject sysMsg = new JsonObject();
-        sysMsg.addProperty("role", "system");
-        sysMsg.addProperty("content", systemPrompt);
-        messages.add(sysMsg);
-
-        // User message
-        JsonObject userMsg = new JsonObject();
-        userMsg.addProperty("role", "user");
-
-        // Check if we have images - if so, use content array format
-        boolean hasImages = userContent.stream().anyMatch(b -> b instanceof ContentBlock.Image);
-
-        if (hasImages) {
-            JsonArray content = new JsonArray();
-            for (ContentBlock block : userContent) {
-                if (block instanceof ContentBlock.Text t) {
-                    JsonObject textPart = new JsonObject();
-                    textPart.addProperty("type", "text");
-                    textPart.addProperty("text", t.text());
-                    content.add(textPart);
-                } else if (block instanceof ContentBlock.Image img) {
-                    JsonObject imagePart = new JsonObject();
-                    imagePart.addProperty("type", "image_url");
-                    JsonObject imageUrl = new JsonObject();
-                    imageUrl.addProperty("url", "data:" + img.mediaType() + ";base64," + img.base64Data());
-                    imagePart.add("image_url", imageUrl);
-                    content.add(imagePart);
-                }
-            }
-            userMsg.add("content", content);
-        } else {
-            // Text-only: use simple string content
-            StringBuilder sb = new StringBuilder();
-            for (ContentBlock block : userContent) {
-                if (block instanceof ContentBlock.Text t) {
-                    if (!sb.isEmpty()) sb.append("\n\n");
-                    sb.append(t.text());
-                }
-            }
-            userMsg.addProperty("content", sb.toString());
-        }
-
-        messages.add(userMsg);
-        body.add("messages", messages);
-
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(baseUrl + "/v1/chat/completions"))
-            .header("Content-Type", "application/json")
-            .header("Authorization", "Bearer " + apiKey)
-            .timeout(Duration.ofSeconds(120))
-            .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
-            .build();
-
-        CompletableFuture<HttpResponse<String>> requestFuture =
-            HttpClientFactory.get().sendAsync(request, HttpResponse.BodyHandlers.ofString());
-        if (cancellation != null) {
-            cancellation.track(requestFuture);
-        }
-        CompletableFuture<String> result = requestFuture
-            .thenApply(response -> {
-                if (response.statusCode() != 200) {
-                    throw new RuntimeException("OpenAI API error " + response.statusCode() + ": " + response.body());
-                }
-                try {
-                    JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-                    JsonArray choices = json.getAsJsonArray("choices");
-                    if (choices == null || choices.isEmpty()) {
-                        throw new RuntimeException("API returned no choices. Response: "
-                            + response.body().substring(0, Math.min(500, response.body().length())));
-                    }
-                    JsonObject message = choices.get(0).getAsJsonObject().getAsJsonObject("message");
-                    if (message == null || !message.has("content") || message.get("content").isJsonNull()) {
-                        // content can be null when the model refuses or hits a content filter
-                        String finishReason = choices.get(0).getAsJsonObject().has("finish_reason")
-                            ? choices.get(0).getAsJsonObject().get("finish_reason").getAsString() : "unknown";
-                        throw new RuntimeException("API returned empty content (finish_reason: " + finishReason + ")");
-                    }
-                    return message.get("content").getAsString();
-                } catch (RuntimeException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse API response: " + e.getMessage()
-                        + "\nResponse: " + response.body().substring(0, Math.min(500, response.body().length())), e);
-                }
-            });
-        return cancellation == null ? result : cancellation.track(result);
+    @Override public CompletableFuture<String> generate(String system, List<ContentBlock> content, String url, String key, String model, AiCancellationScope cancellation) {
+        AiRuntimeConfig config = new AiRuntimeConfig("openai", "chat", url, key, model, maxTokens, "direct", reasoningEffort, requestTimeout);
+        return exchange(new Exchange(system, List.of(new Message("user", content, List.of(), "", "", null)), List.of(), config, false, maxTokens), cancellation)
+            .thenApply(Reply::completeText);
     }
 }

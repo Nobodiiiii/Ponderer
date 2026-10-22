@@ -1,22 +1,36 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ui.NbtPickState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
-public record CaptureBlockEntityNbtResponsePayload(BlockPos pos, @Nullable CompoundTag nbt) {
+public record CaptureBlockEntityNbtResponsePayload(BlockPos pos, @Nullable CompoundTag nbt) implements CustomPacketPayload {
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeBlockPos(pos());
-        buf.writeBoolean(nbt() != null);
-        if (nbt() != null) {
-            buf.writeNbt(nbt());
+    public static final Type<CaptureBlockEntityNbtResponsePayload> TYPE =
+            new Type<>(new ResourceLocation(Ponderer.MODID, "capture_block_entity_nbt_response"));
+    public static final StreamCodec<FriendlyByteBuf, CaptureBlockEntityNbtResponsePayload> CODEC =
+            StreamCodec.of(CaptureBlockEntityNbtResponsePayload::encode, CaptureBlockEntityNbtResponsePayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
+    private static void encode(FriendlyByteBuf buf, CaptureBlockEntityNbtResponsePayload payload) {
+        buf.writeBlockPos(payload.pos());
+        buf.writeBoolean(payload.nbt() != null);
+        if (payload.nbt() != null) {
+            buf.writeNbt(payload.nbt());
         }
     }
 
-    public static CaptureBlockEntityNbtResponsePayload decode(FriendlyByteBuf buf) {
+    private static CaptureBlockEntityNbtResponsePayload decode(FriendlyByteBuf buf) {
         BlockPos pos = buf.readBlockPos();
         CompoundTag nbt = buf.readBoolean() ? buf.readNbt() : null;
         return new CaptureBlockEntityNbtResponsePayload(pos, nbt);

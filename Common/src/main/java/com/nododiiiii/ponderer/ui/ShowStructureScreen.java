@@ -1,8 +1,10 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -10,7 +12,6 @@ import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Map;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,32 +41,31 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.typedText(
+            FieldType.STRUCTURE,
             structureField,
             "ponderer.ui.show_structure.structure",
             "ponderer.ui.show_structure.structure.tooltip",
             UIText.of("ponderer.ui.show_structure.structure.hint"),
             105,
-            FieldDecorators.textAction(
-                20,
-                this::openFilePicker,
-                () -> "S",
-                () -> 0xFFFFFF,
-                UIText.of("ponderer.ui.show_structure.browse.tooltip"))));
+            FieldDecorators.iconAction(PondererGuiIcons.STRUCTURE,
+                UIText.of("ponderer.ui.show_structure.browse.tooltip"), this::openFilePicker)));
         entries.add(FieldSpecs.number(
             scaleField,
             "ponderer.ui.show_structure.scale",
             "ponderer.ui.show_structure.scale.tooltip",
             "1.0",
             60,
-            null));
+            null,
+            FieldDecorators.type(FieldType.SCALE)));
         entries.add(FieldSpecs.number(
             rotationField,
             "ponderer.ui.show_structure.rotation",
             "ponderer.ui.show_structure.rotation.tooltip",
             "0",
             60,
-            null));
+            null,
+            FieldDecorators.type(FieldType.ANGLE)));
         entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui.show_structure.pos_from",
@@ -147,9 +147,9 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
                 setErrorMessage(UIText.of("ponderer.ui.show_structure.error.partial_to"));
                 return null;
             }
-            px2 = parseInt(pos2X, "To X");
-            py2 = parseInt(pos2Y, "To Y");
-            pz2 = parseInt(pos2Z, "To Z");
+            px2 = parseBlockCoordinate(pos2X, "To X");
+            py2 = parseBlockCoordinate(pos2Y, "To Y");
+            pz2 = parseBlockCoordinate(pos2Z, "To Z");
             if (px2 == null || py2 == null || pz2 == null) return null;
         }
         if (hasPos2 && !hasPos1) {
@@ -212,11 +212,12 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
     private Integer parseOptionalInt(String raw, String label) {
         String trimmed = raw == null ? "" : raw.trim();
         if (trimmed.isEmpty()) return null;
-        return parseInt(trimmed, label);
+        return parseBlockCoordinate(trimmed, label);
     }
 
     public static void onDownloadResult(String sourceId, String targetId, boolean success, String message) {
-        if (!(Minecraft.getInstance().screen instanceof ShowStructureScreen screen)) {
+        if (!(ClientFeedback.responseScreen() instanceof ShowStructureScreen screen)
+            || Minecraft.getInstance().screen != screen) {
             return;
         }
         screen.handleDownloadResult(sourceId, success, message);
@@ -258,6 +259,7 @@ public class ShowStructureScreen extends AbstractStepEditorScreen {
         } else {
             parent.addStepAndSave(stepToSave);
         }
+        ClientFeedback.continueOn(parent);
         Minecraft.getInstance().setScreen(parent);
     }
 

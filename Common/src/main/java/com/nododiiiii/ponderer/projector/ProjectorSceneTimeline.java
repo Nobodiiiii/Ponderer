@@ -187,6 +187,9 @@ public final class ProjectorSceneTimeline {
 
         return switch (step.type.toLowerCase(Locale.ROOT)) {
             case "idle" -> step.durationOrDefault(20);
+            // Blocking; mirrors InterfaceStepSpecs#action defaults.
+            case "interface_action" -> step.duration != null ? Math.max(1, step.duration)
+                : "drag".equalsIgnoreCase(step.action) ? 20 : 10;
             case "text", "shared_text", "show_controls", "show_interface",
                  "highlight_section" -> step.durationOrDefault(60);
             case "rotate_camera_y", "zoom_scene", "create_entity", "create_item_entity",

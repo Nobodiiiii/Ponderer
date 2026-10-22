@@ -1,11 +1,13 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.google.gson.JsonObject;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
 public class DslScene {
     public String id;
+    /** Carrier item IDs or item tags prefixed with #, e.g. #minecraft:logs. */
     public List<String> items = List.of();
     public LocalizedText title;
     /**
@@ -18,6 +20,8 @@ public class DslScene {
      */
     public List<String> structures = List.of();
     public List<String> tags = List.of();
+    /** Custom Ponder categories owned by this scene, keyed by ponderer:<name>. */
+    public Map<String, CustomTag> customTags = Map.of();
     /**
      * Whether normal users can edit this scene. Null means the client config's
      * default editable value should be used.
@@ -26,11 +30,15 @@ public class DslScene {
     public Boolean editable;
     public List<SceneSegment> scenes = List.of();
     /**
-     * Optional SNBT filter string. When set, scenes for this DslScene
-     * are only shown if the hovered item's NBT contains these tags.
+     * Optional default SNBT filter for bindings without an itemNbtFilters entry.
+     * A filtered binding matches only if the hovered item's NBT contains these tags.
      * Example: "{CustomModelData:1}" or "{display:{Name:'\"Special\"'}}"
      */
     public String nbtFilter;
+
+    /** Per-binding SNBT filters, aligned with items. Empty entries mean no filter; absent entries use nbtFilter. */
+    @Nullable
+    public List<String> itemNbtFilters;
 
     /**
      * Pack name this scene belongs to. Null or absent for local scenes.
@@ -148,6 +156,12 @@ public class DslScene {
         return editable == null ? defaultEditable : editable;
     }
 
+    public static class CustomTag {
+        public LocalizedText title = LocalizedText.of("");
+        public LocalizedText description = LocalizedText.of("");
+        public String icon = "minecraft:book";
+    }
+
     public static class SceneSegment {
         public String id;
         public LocalizedText title;
@@ -179,6 +193,12 @@ public class DslScene {
         public String action;
         public String item;
         public String sound;
+        /** spawn_particles: particle command ID, optionally followed by SNBT options. */
+        public String particle;
+        /** spawn_particles: point, box (uniform), or sphere (uniform ellipsoid). */
+        public String distribution;
+        /** spawn_particles: half extents / radii around pos; count is particles per tick. */
+        public List<Double> spread;
         public Float soundVolume;
         public String source;
         public String color;
@@ -226,6 +246,32 @@ public class DslScene {
          * e.g. "minecraft:crafting" or "tetra:workbench".
          */
         public String uiId;
+        /**
+         * show_interface only: schema 2 interface descriptor. When present it takes precedence
+         * over the legacy interface fields above.
+         */
+        @com.google.gson.annotations.SerializedName("interface")
+        public com.google.gson.JsonObject interfaceSpec;
+
+        // ---- Interface timeline steps (set_interface_slots, set_interface_data,
+        // set_interface_context, interface_action, await_interface). Kept as raw JSON and
+        // parsed by InterfaceStepSpecs.
+        public com.google.gson.JsonArray slots;
+        public com.google.gson.JsonArray ghosts;
+        public com.google.gson.JsonArray data;
+        public com.google.gson.JsonObject player;
+        public com.google.gson.JsonObject target;
+        public com.google.gson.JsonObject from;
+        public com.google.gson.JsonObject to;
+        public com.google.gson.JsonObject goal;
+        public String button;
+        /** interface_action type_text / press_button: text to type or button label to match. */
+        public String chars;
+        public Boolean cursor;
+        /** set_interface_slots: clear earlier scripted slot writes and ghosts first. */
+        public Boolean replace;
+        public Integer timeout;
+        public LocalizedText hint;
 
         public int durationOrDefault(int fallback) {
             return duration == null ? fallback : Math.max(duration, 0);
@@ -241,6 +287,13 @@ public class DslScene {
         public String ingredientId;
         @Nullable
         public String ingredientKind;
+        /** Optional item stack data; older bindings default to one item with no components. */
+        @Nullable
+        public Integer itemCount;
+        @Nullable
+        public JsonObject itemComponents;
+        @Nullable
+        public String itemNbt;
 
         public InterfaceSlotBinding() {
         }
@@ -256,6 +309,19 @@ public class DslScene {
             this.slotY = slotY;
             this.ingredientId = ingredientId;
             this.ingredientKind = ingredientKind;
+        }
+
+        public InterfaceSlotBinding copy() {
+            InterfaceSlotBinding copy = new InterfaceSlotBinding();
+            copy.slotIndex = slotIndex;
+            copy.slotX = slotX;
+            copy.slotY = slotY;
+            copy.ingredientId = ingredientId;
+            copy.ingredientKind = ingredientKind;
+            copy.itemCount = itemCount;
+            copy.itemNbt = itemNbt;
+            copy.itemComponents = itemComponents == null ? null : itemComponents.deepCopy();
+            return copy;
         }
     }
 }

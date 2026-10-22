@@ -1,18 +1,12 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.gui.GuiGraphics;
 
 /**
- * Screen-level BoxWidget whose tooltip draw resets the render state first.
- *
- * <p>Some sidebar/action buttons render textured stencils immediately before their tooltip. When a
- * downstream renderer leaves depth or shader state in a surprising configuration, the vanilla
- * tooltip background can still appear while the font layer vanishes. Resetting the common state
- * here makes tooltip text rendering deterministic without re-enabling any list scissor.
+ * Screen-level BoxWidget whose tooltip rendering resets the render state first.
  */
-public class ScreenTooltipBoxWidget extends BoxWidget {
+public class ScreenTooltipBoxWidget extends BoundedBoxWidget {
 
     public ScreenTooltipBoxWidget(int x, int y, int width, int height) {
         super(x, y, width, height);

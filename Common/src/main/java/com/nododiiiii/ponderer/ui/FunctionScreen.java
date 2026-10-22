@@ -7,13 +7,10 @@ import com.nododiiiii.ponderer.ui.catnip.ButtonPairListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.TagParser;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,9 +23,16 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
     }
 
     private final List<Section> sections = new ArrayList<>();
+    @Nullable
+    private final PonderScreenNavigation.ReturnState ponderReturnState;
 
     public FunctionScreen() {
-        super(null, "ponderer.ui.scope.editor", "ponderer.ui.function_page.title", UILayoutConstants.EDITOR_LIST_W);
+        this(null, null);
+    }
+
+    public FunctionScreen(@Nullable Screen parent, @Nullable PonderScreenNavigation.ReturnState ponderReturnState) {
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.function_page.title", UILayoutConstants.EDITOR_LIST_W);
+        this.ponderReturnState = ponderReturnState;
 
         sections.add(new Section("ponderer.ui.function_page.scene_management", List.of(
             new ButtonDef("ponderer.ui.function_page.new_scene",
@@ -60,7 +64,10 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 "ponderer.ui.function_page.pull.tooltip"),
             new ButtonDef("ponderer.ui.function_page.remote_browser",
                 () -> Minecraft.getInstance().setScreen(new RemoteBrowserScreen(this)),
-                "ponderer.ui.function_page.remote_browser.tooltip")
+                "ponderer.ui.function_page.remote_browser.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.permissions",
+                () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
+                "ponderer.ui.function_page.permissions.tooltip")
         )));
 
         sections.add(new Section("ponderer.ui.function_page.import_export", List.of(
@@ -87,12 +94,21 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
         sections.add(new Section(
             "ponderer.ui.function_page.settings",
             List.of(
-                new ButtonDef("ponderer.ui.function_page.permissions",
-                    () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
-                    "ponderer.ui.function_page.permissions.tooltip"),
-                new ButtonDef("ponderer.ui.function_page.mod_config",
-                    () -> Minecraft.getInstance().setScreen(new PondererConfigScreen(this)),
-                    "ponderer.ui.function_page.mod_config.tooltip"))));
+                new ButtonDef("ponderer.ui.mod_config.category.general",
+                    () -> Minecraft.getInstance().setScreen(new PondererGeneralConfigScreen(this)),
+                    "ponderer.ui.mod_config.category.general.tooltip"),
+                new ButtonDef("ponderer.ui.function_page.ai_config",
+                    () -> Minecraft.getInstance().setScreen(new AiConfigScreen(this)),
+                    "ponderer.ui.function_page.ai_config.tooltip"),
+                new ButtonDef("ponderer.ui.mod_config.category.blueprint",
+                    () -> Minecraft.getInstance().setScreen(new BlueprintItemConfigScreen(this)),
+                    "ponderer.ui.mod_config.category.blueprint.tooltip"),
+                new ButtonDef("ponderer.ui.mod_config.category.projector",
+                    () -> Minecraft.getInstance().setScreen(new ProjectorFeatureConfigScreen(this)),
+                    "ponderer.ui.mod_config.category.projector.tooltip"),
+                new ButtonDef("ponderer.ui.function_page.keybindings",
+                    () -> Minecraft.getInstance().setScreen(new PondererKeyBindingsScreen(this)),
+                    "ponderer.ui.function_page.keybindings.tooltip"))));
     }
 
     @Override
@@ -118,27 +134,23 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
         return UILayoutConstants.COMPACT_LIST_ENTRY_H;
     }
 
-    /**
-     * Run a direct-action command (reload / convert) and report its result on this page's
-     * status line instead of closing back to the game and printing to chat.
-     */
+    @Override
+    protected void attemptBackToParent() {
+        if (ponderReturnState == null) {
+            super.attemptBackToParent();
+            return;
+        }
+
+        PonderScreenNavigation.restoreReturnState(ponderReturnState);
+        Minecraft.getInstance().setScreen(parent);
+    }
+
     private void runOnPageStatus(Runnable command) {
         PondererClientCommands.runReportingTo(this::setInfoMessage, this::setErrorMessage, command);
     }
 
     private static SectionHeaderListEntry compactSectionHeader(String title) {
-        return new SectionHeaderListEntry(title) {
-            @Override
-            public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
-                               int mouseX, int mouseY, boolean hovered, float partialTicks) {
-                var font = Minecraft.getInstance().font;
-                int color = annotations.containsKey("highlight") ? 0xFFF3D46B : 0xFFCCCC77;
-                int titleY = y + 8;
-                int lineY = y + height - 3;
-                graphics.drawString(font, title, x + 4, titleY, color);
-                graphics.fill(x + 4, lineY, x + width - 4, lineY + 1, 0x40FFFFFF);
-            }
-        };
+        return new SectionHeaderListEntry(title);
     }
 
     private static CommandParamScreen buildPushPage() {
@@ -152,9 +164,12 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
                 "ponderer.ui.function_page.param.pack_id.hint", false)
             .onExecute(values -> {
                 String mode = values.get("mode");
-                String packId = values.get("pack_id");
-                if (packId != null && !packId.isEmpty()) {
-                    PondererClientCommands.pushSourcePack(packId, mode);
+                String packIds = values.get("pack_id");
+                if (packIds != null && !packIds.isBlank()) {
+                    for (String packId : packIds.lines().map(String::trim)
+                        .filter(pack -> !pack.isEmpty()).distinct().toList()) {
+                        PondererClientCommands.pushSourcePack(packId, mode);
+                    }
                     return;
                 }
                 String sceneId = values.get("scene_id");
@@ -186,89 +201,17 @@ public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
 
     private static CommandParamScreen buildNewScenePage() {
         CommandParamScreen screen = CommandParamScreen.builder("ponderer.ui.function_page.new_scene.title")
-            .toggleField("use_held", "ponderer.ui.function_page.new.use_held", true)
-            .toggleField("use_held_nbt", "ponderer.ui.function_page.new.use_held_nbt", false)
-            .itemField("item_id", "ponderer.ui.function_page.param.item_id",
-                "ponderer.ui.function_page.param.item_id.hint", false)
-            .textField("nbt", "ponderer.ui.function_page.param.nbt",
+            .itemField("item_id", "ponderer.ui.scene_desc.item_id",
+                "ponderer.ui.scene_desc.hint.item_id", true)
+            .nbtField("nbt", "ponderer.ui.function_page.param.nbt",
                 "ponderer.ui.function_page.param.nbt.hint", false)
-            .onExecute(values -> {
-                boolean useHeld = "true".equals(values.get("use_held"));
-                boolean useHeldNbt = "true".equals(values.get("use_held_nbt"));
-
-                ResourceLocation itemId;
-                CompoundTag nbt = null;
-
-                if (useHeld) {
-                    var player = Minecraft.getInstance().player;
-                    if (player == null) {
-                        return;
-                    }
-                    ItemStack held = player.getMainHandItem();
-                    if (held.isEmpty()) {
-                        PondererClientCommands.newSceneFromHand(null);
-                        return;
-                    }
-                    itemId = BuiltInRegistries.ITEM.getKey(held.getItem());
-                    if (useHeldNbt && held.getTag() != null) {
-                        nbt = held.getTag();
-                    }
-                } else {
-                    itemId = ResourceLocation.tryParse(values.get("item_id"));
-                    if (itemId == null) {
-                        return;
-                    }
-                }
-
-                if (!useHeldNbt) {
-                    String nbtStr = values.get("nbt");
-                    if (nbtStr != null && !nbtStr.isEmpty()) {
-                        try {
-                            nbt = TagParser.parseTag(nbtStr);
-                        } catch (Exception ignored) {
-                        }
-                    }
-                }
-
-                PondererClientCommands.newSceneForItem(itemId, nbt);
-            })
+            .toggleField("capture_nbt", "ponderer.ui.function_page.new.capture_nbt", false)
+            .onExecute(values -> PondererClientCommands.newSceneForBindingSnbt(
+                values.get("item_id"), values.get("nbt")))
             .build();
 
-        screen.addToggleDependency("use_held_nbt", "use_held");
-        screen.addFieldDisablesToggle("item_id", "use_held");
-        screen.addFieldDisablesToggle("nbt", "use_held_nbt");
-
-        screen.addToggleAutoFill("use_held", "item_id", () -> {
-            var player = Minecraft.getInstance().player;
-            if (player == null) {
-                return "";
-            }
-            ItemStack held = player.getMainHandItem();
-            if (held.isEmpty()) {
-                return "";
-            }
-            return BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
-        });
-
-        screen.addToggleAutoFill("use_held_nbt", "nbt", () -> {
-            var player = Minecraft.getInstance().player;
-            if (player == null) {
-                return "";
-            }
-            ItemStack held = player.getMainHandItem();
-            if (held.isEmpty() || held.getTag() == null) {
-                return "";
-            }
-            return held.getTag().toString();
-        });
-
-        var player = Minecraft.getInstance().player;
-        if (player != null) {
-            ItemStack held = player.getMainHandItem();
-            if (!held.isEmpty()) {
-                screen.setDefaultValue("item_id", BuiltInRegistries.ITEM.getKey(held.getItem()).toString());
-            }
-        }
+        screen.enableItemTagDropdown("item_id");
+        screen.enableInventoryItemPicker("item_id", "nbt", "capture_nbt");
 
         return screen;
     }

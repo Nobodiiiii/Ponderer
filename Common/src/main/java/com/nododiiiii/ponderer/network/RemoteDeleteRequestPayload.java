@@ -1,12 +1,27 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
-public record RemoteDeleteRequestPayload(String kind, String id, @Nullable String pack) {
+public record RemoteDeleteRequestPayload(String kind, String id, @Nullable String pack) implements CustomPacketPayload {
+
+    public static final Type<RemoteDeleteRequestPayload> TYPE =
+        new Type<>(new ResourceLocation(Ponderer.MODID, "remote_delete_request"));
+    public static final StreamCodec<FriendlyByteBuf, RemoteDeleteRequestPayload> CODEC =
+        StreamCodec.of((buf, payload) -> payload.encode(buf), RemoteDeleteRequestPayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
     public void encode(FriendlyByteBuf buf) {
         buf.writeUtf(kind());
         buf.writeUtf(id());

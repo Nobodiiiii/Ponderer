@@ -35,10 +35,7 @@ public class ClickInterfaceScreen extends AbstractStepEditorScreen {
             pointField,
             "ponderer.ui.click_interface.point",
             "ponderer.ui.click_interface.point.tooltip",
-            UIText.of("ponderer.ui.click_interface.point.hint_x"),
-            UIText.of("ponderer.ui.click_interface.point.hint_y"),
-            UIText.of("ponderer.ui.click_interface.point.hint_z"),
-            FieldDecorators.pointPick(PickState.TargetField.POINT, false)));
+            PickState.TargetField.POINT));
         entries.add(FieldSpecs.choice(
             "ponderer.ui.click_interface.action",
             "ponderer.ui.click_interface.action.tooltip",

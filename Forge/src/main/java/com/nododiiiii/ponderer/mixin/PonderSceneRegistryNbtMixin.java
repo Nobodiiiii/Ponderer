@@ -23,7 +23,6 @@ public class PonderSceneRegistryNbtMixin {
         method = "compile(Lnet/minecraft/resources/ResourceLocation;)Ljava/util/List;",
         at = @At("RETURN"),
         cancellable = true,
-        remap = false,
         require = 0
     )
     private void ponderer$filterByNbtMoj(ResourceLocation id, CallbackInfoReturnable<List<PonderScene>> cir) {

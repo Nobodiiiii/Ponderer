@@ -1,12 +1,13 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -14,10 +15,12 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class CommandParamScreen extends AbstractJeiAwareFormScreen {
+public class CommandParamScreen extends AbstractInventoryPickerFormScreen implements NbtExpandButtonHost {
 
     private static final int CHOICE_BUTTON_WIDTH = 100;
 
@@ -27,7 +30,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     public record TextFieldDef(String id, String labelKey, @Nullable String hintKey, boolean required,
                                @Nullable IdFieldMode jeiMode,
                                boolean sceneSelector, boolean sceneMultiSelect,
-                               boolean packSelector) implements FieldDef {
+                               boolean packSelector, boolean nbtEditor) implements FieldDef {
     }
 
     public record ChoiceFieldDef(String id, String labelKey, List<String> optionLabelKeys,
@@ -53,19 +56,26 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     private final Map<String, String> fieldDisablesToggle = new HashMap<>();
     private final Map<String, Map<String, Supplier<String>>> toggleAutoFill = new HashMap<>();
     private final Map<String, VisibilityRule> fieldVisibility = new HashMap<>();
+    private final Set<String> itemTagFields = new HashSet<>();
+    private final Map<String, FieldDecorator> inventoryItemPickers = new HashMap<>();
 
     private boolean suppressFieldResponder = false;
     private boolean collectingEntries = false;
 
     private CommandParamScreen(String titleKey, List<FieldDef> fieldDefs, Consumer<Map<String, String>> onExecute) {
-        super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, UILayoutConstants.EDITOR_LIST_W,
-            JeiCompat::setActiveScreen);
+        super(new FunctionScreen(), "ponderer.ui.scope.editor", titleKey, UILayoutConstants.EDITOR_LIST_W);
         this.fieldDefs = fieldDefs;
         this.onExecute = onExecute;
     }
 
     public static Builder builder(String titleKey) {
         return new Builder(titleKey);
+    }
+
+    @Override
+    protected void init() {
+        super.init();
+        useConfirmationActionIcons();
     }
 
     public void setDefaultValue(String fieldId, String value) {
@@ -86,6 +96,29 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
 
     public void showFieldWhenValue(String fieldId, String controllerFieldId, String expectedValue) {
         fieldVisibility.put(fieldId, new VisibilityRule(controllerFieldId, expectedValue));
+    }
+
+    public void enableItemTagDropdown(String fieldId) {
+        itemTagFields.add(fieldId);
+    }
+
+    public void enableInventoryItemPicker(String itemFieldId, String nbtFieldId, String captureNbtToggleId) {
+        inventoryItemPickers.put(itemFieldId, FieldDecorators.heldItem(stack -> {
+            setTextValue(itemFieldId, BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+            if (Boolean.parseBoolean(currentFieldValue(captureNbtToggleId))) {
+                CompoundTag nbt = PondererClientCommands.extractStackNbtFilter(stack);
+                setTextValue(nbtFieldId, nbt == null || nbt.isEmpty() ? "" : nbt.toString());
+            }
+        }));
+    }
+
+    @Override
+    public void startNbtExpandFromButton(String nbtSnapshotKey) {
+        clearStatusMessages();
+        Minecraft.getInstance().setScreen(new NbtExpandedEditorScreen(snapshot -> {
+            restoreSnapshot(snapshot);
+            Minecraft.getInstance().setScreen(this);
+        }, snapshotState(), nbtSnapshotKey));
     }
 
     @Override
@@ -125,7 +158,7 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
                             value -> handleTextChanged(textDef.id, value)),
                         textDef.labelKey,
                         null,
-                        textDef.hintKey,
+                        textDef.nbtEditor ? FieldType.NBT.hintKey() : textDef.hintKey,
                         -1,
                         entry -> {
                             entry.field().setMaxLength(32500);
@@ -185,12 +218,10 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
             values.put(toggleDef.id, String.valueOf(toggleStates.getOrDefault(toggleDef.id, toggleDef.defaultValue)));
         }
 
-        deactivateJei();
-        // Keep the screen open and report the command's result inline at the bottom status line,
-        // instead of closing back to the game and printing to chat.
         PondererClientCommands.runReportingTo(
-            this::setInfoMessage, this::setErrorMessage, () -> onExecute.accept(values));
-        // Re-baseline so a subsequent "back" doesn't prompt about unsaved changes (which would re-run).
+            this::setInfoMessage,
+            this::setErrorMessage,
+            () -> onExecute.accept(values));
         markStateSaved();
         return true;
     }
@@ -198,11 +229,6 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     @Override
     protected void prepareSnapshotForBuild(Map<String, String> snapshot) {
         restoreSnapshot(snapshot);
-    }
-
-    @Override
-    protected boolean rebuildOnJeiStateChange() {
-        return true;
     }
 
     @Override
@@ -265,7 +291,14 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
                 toggleStates.put(dependency.getKey(), false);
             }
         }
-        rebuildListPreservingScroll();
+        // Toggles read their state each frame. Keep the text widget (and its open dropdown)
+        // attached while editing unless a visibility rule actually needs a new form layout.
+        boolean affectsVisibility = fieldVisibility.values().stream().anyMatch(rule ->
+            rule.controllerFieldId().equals(toggleToDisable)
+                || toggleToDisable.equals(toggleDependencies.get(rule.controllerFieldId())));
+        if (affectsVisibility) {
+            rebuildListPreservingScroll();
+        }
     }
 
     private void handleToggle(String id) {
@@ -324,10 +357,9 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     private void openPackSelector(String targetFieldId) {
         Minecraft.getInstance().setScreen(new PonderPackSelectScreen(
             this,
-            packId -> {
-                setTextValue(targetFieldId, packId);
-                Minecraft.getInstance().setScreen(this);
-            },
+            currentSelectedPacks(targetFieldId),
+            // Portable pack names cannot contain newlines, so names with commas remain intact.
+            packIds -> setTextValue(targetFieldId, String.join("\n", packIds)),
             () -> Minecraft.getInstance().setScreen(this)));
     }
 
@@ -367,11 +399,16 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     }
 
     private String currentPackSelectionButtonLabel(TextFieldDef textDef) {
-        String pack = currentTextValue(textDef.id).trim();
-        if (pack.isEmpty()) {
+        List<String> packs = currentSelectedPacks(textDef.id);
+        if (packs.isEmpty()) {
             return UIText.of("ponderer.ui.function_page.select_pack");
         }
-        return UIText.of("ponderer.ui.function_page.selected_pack", pack);
+        return UIText.of("ponderer.ui.function_page.selected_packs", packs.size());
+    }
+
+    private List<String> currentSelectedPacks(String fieldId) {
+        return currentTextValue(fieldId).lines().map(String::trim)
+            .filter(pack -> !pack.isEmpty()).distinct().toList();
     }
 
     private int selectedSceneCount(String rawValue) {
@@ -405,9 +442,10 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
     @Nullable
     private Supplier<String> packSelectorTooltipGetter(TextFieldDef textDef) {
         return () -> {
-            String pack = currentTextValue(textDef.id).trim();
-            if (!pack.isEmpty()) {
-                return UIText.of("ponderer.ui.function_page.selected_pack", pack);
+            List<String> packs = currentSelectedPacks(textDef.id);
+            if (!packs.isEmpty()) {
+                return UIText.of("ponderer.ui.function_page.selected_packs", packs.size()) + "\n"
+                    + String.join("\n", packs);
             }
             if (textDef.hintKey == null || textDef.hintKey.isBlank()) {
                 return "";
@@ -421,8 +459,18 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         if (textDef.jeiMode != null) {
             specs.add(FieldDecorators.jei(textDef.jeiMode));
         }
+        if (itemTagFields.contains(textDef.id)) {
+            specs.add(FieldDecorators.itemTagDropdown(textDef.id));
+        }
+        FieldDecorator inventoryPicker = inventoryItemPickers.get(textDef.id);
+        if (inventoryPicker != null) {
+            specs.add(inventoryPicker);
+        }
         if (textDef.sceneSelector) {
             specs.add(FieldDecorators.sceneSelector(() -> openSceneSelector(textDef.id, textDef.sceneMultiSelect)));
+        }
+        if (textDef.nbtEditor) {
+            specs.add(FieldDecorators.nbtEditor(textDef.id));
         }
         return specs.toArray(FieldDecorator[]::new);
     }
@@ -491,28 +539,33 @@ public class CommandParamScreen extends AbstractJeiAwareFormScreen {
         }
 
         public Builder textField(String id, String labelKey, String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, false, false));
+            return this;
+        }
+
+        public Builder nbtField(String id, String labelKey, String hintKey, boolean required) {
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, false, true));
             return this;
         }
 
         public Builder itemField(String id, String labelKey, String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, IdFieldMode.ITEM, false, false, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, IdFieldMode.ITEM, false, false, false, false));
             return this;
         }
 
         public Builder sceneIdField(String id, String labelKey, @Nullable String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, false, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, false, false, false));
             return this;
         }
 
         public Builder sceneIdField(String id, String labelKey, @Nullable String hintKey, boolean required,
                                     boolean multiSelect) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, multiSelect, false));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, true, multiSelect, false, false));
             return this;
         }
 
         public Builder packIdField(String id, String labelKey, @Nullable String hintKey, boolean required) {
-            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, true));
+            fields.add(new TextFieldDef(id, labelKey, hintKey, required, null, false, false, true, false));
             return this;
         }
 

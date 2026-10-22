@@ -1,0 +1,52 @@
+# Stable third-party members with mapped Minecraft descriptors; consumed by the Mixin AP.
+# Minecraft inherited methods retain ForgeGradle mappings.
+net/createmod/catnip/animation/AnimationTickHolder net/createmod/catnip/animation/AnimationTickHolder
+	getTicks (Lnet/minecraft/world/level/LevelAccessor;)I getTicks
+	getPartialTicks (Lnet/minecraft/world/level/LevelAccessor;)F getPartialTicks
+	getRenderTime (Lnet/minecraft/world/level/LevelAccessor;)F getRenderTime
+net/minecraft/world/inventory/MenuType net/minecraft/world/inventory/MenuType
+	create (ILnet/minecraft/world/entity/player/Inventory;Lnet/minecraft/network/FriendlyByteBuf;)Lnet/minecraft/world/inventory/AbstractContainerMenu; create
+	create (ILnet/minecraft/world/entity/player/Inventory;Lnet/minecraft/network/FriendlyByteBuf;)Ljava/lang/Object; create
+net/createmod/ponder/foundation/registration/PonderSceneRegistry net/createmod/ponder/foundation/registration/PonderSceneRegistry
+	loadSchematic (Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate; loadSchematic
+	compile (Lnet/minecraft/resources/ResourceLocation;)Ljava/util/List; compile
+	loadSchematic (Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate; loadSchematic
+	loadSchematic (Ljava/io/InputStream;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate; loadSchematic
+net/createmod/ponder/foundation/PonderTooltipHandler net/createmod/ponder/foundation/PonderTooltipHandler
+	updateHovered (Lnet/minecraft/world/item/ItemStack;)V updateHovered
+net/createmod/ponder/foundation/registration/PonderLocalization net/createmod/ponder/foundation/registration/PonderLocalization
+	getShared (Lnet/minecraft/resources/ResourceLocation;)Ljava/lang/String; getShared
+	getShared (Lnet/minecraft/resources/ResourceLocation;[Ljava/lang/Object;)Ljava/lang/String; getShared
+	getSpecific (Lnet/minecraft/resources/ResourceLocation;Ljava/lang/String;)Ljava/lang/String; getSpecific
+	getSpecific (Lnet/minecraft/resources/ResourceLocation;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String; getSpecific
+net/createmod/ponder/foundation/ui/PonderUI net/createmod/ponder/foundation/ui/PonderUI
+	hoveredBlockPos hoveredBlockPos
+	of (Lnet/minecraft/resources/ResourceLocation;)Lnet/createmod/ponder/foundation/ui/PonderUI; of
+	of (Lnet/minecraft/world/item/ItemStack;)Lnet/createmod/ponder/foundation/ui/PonderUI; of
+	of (Lnet/minecraft/world/item/ItemStack;Lnet/createmod/ponder/foundation/PonderTag;)Lnet/createmod/ponder/foundation/ui/PonderUI; of
+	renderWindow (Lnet/minecraft/client/gui/GuiGraphics;IIF)V renderWindow
+	renderScene (Lnet/minecraft/client/gui/GuiGraphics;IIIF)V renderScene
+	renderWidgets (Lnet/minecraft/client/gui/GuiGraphics;IIF)V renderWidgets
+	renderHoverTooltips (Lnet/minecraft/client/gui/GuiGraphics;I)V renderHoverTooltips
+	renderNextUp (Lnet/minecraft/client/gui/GuiGraphics;FLnet/createmod/ponder/foundation/PonderScene;)V renderNextUp
+	renderOverlay (Lnet/minecraft/client/gui/GuiGraphics;IF)V renderOverlay
+	renderSpeechBox (Lnet/minecraft/client/gui/GuiGraphics;IIIIZLnet/createmod/catnip/math/Pointing;Z)V renderSpeechBox
+net/createmod/ponder/foundation/ui/PonderProgressBar net/createmod/ponder/foundation/ui/PonderProgressBar
+	doRender (Lnet/minecraft/client/gui/GuiGraphics;IIF)V doRender
+net/createmod/ponder/foundation/PonderScene$SceneTransform net/createmod/ponder/foundation/PonderScene$SceneTransform
+	apply (Lcom/mojang/blaze3d/vertex/PoseStack;)Lcom/mojang/blaze3d/vertex/PoseStack; apply
+	apply (Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack; apply
+	screenToScene (DDIF)Lnet/minecraft/world/phys/Vec3; screenToScene
+net/createmod/ponder/foundation/element/WorldSectionElementImpl net/createmod/ponder/foundation/element/WorldSectionElementImpl
+	setAnimatedRotation (Lnet/minecraft/world/phys/Vec3;Z)V setAnimatedRotation
+	setAnimatedOffset (Lnet/minecraft/world/phys/Vec3;Z)V setAnimatedOffset
+	reverseTransformVec (Lnet/minecraft/world/phys/Vec3;)Lnet/minecraft/world/phys/Vec3; reverseTransformVec
+	renderLayer (Lnet/createmod/ponder/api/level/PonderLevel;Lnet/minecraft/client/renderer/MultiBufferSource;Lnet/minecraft/client/renderer/RenderType;Lnet/minecraft/client/gui/GuiGraphics;FF)V renderLayer
+net/createmod/ponder/foundation/element/InputWindowElement net/createmod/ponder/foundation/element/InputWindowElement
+	sceneSpace sceneSpace
+	key key
+	item item
+net/createmod/ponder/enums/PonderKeybinds net/createmod/ponder/enums/PonderKeybinds
+	mapping mapping
+net/createmod/ponder/foundation/element/TextWindowElement net/createmod/ponder/foundation/element/TextWindowElement
+	vec vec

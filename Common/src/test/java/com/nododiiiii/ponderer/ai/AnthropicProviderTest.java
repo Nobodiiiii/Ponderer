@@ -40,7 +40,7 @@ class AnthropicProviderTest {
         server.start();
 
         try {
-            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/v1";
             String result = new AnthropicProvider(64)
                 .generate(
                     "Reply briefly.",

@@ -17,7 +17,7 @@ import java.util.List;
 @Mixin(PonderUI.class)
 public interface PonderUIAccessor {
 
-    @Accessor(value = "hoveredBlockPos", remap = false)
+    @Accessor("hoveredBlockPos")
     @Nullable
     BlockPos ponderer$getHoveredBlockPos();
 

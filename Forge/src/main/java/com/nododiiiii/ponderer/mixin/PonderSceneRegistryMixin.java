@@ -28,7 +28,6 @@ public class PonderSceneRegistryMixin {
         method = "loadSchematic(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate;",
         at = @At("HEAD"),
         cancellable = true,
-        remap = false,
         require = 0
     )
     private static void ponderer$loadLocalSchematicMoj(ResourceLocation location,
@@ -40,7 +39,6 @@ public class PonderSceneRegistryMixin {
         method = "loadSchematic(Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate;",
         at = @At("HEAD"),
         cancellable = true,
-        remap = false,
         require = 0
     )
     private static void ponderer$loadLocalSchematicManager(ResourceManager resourceManager,

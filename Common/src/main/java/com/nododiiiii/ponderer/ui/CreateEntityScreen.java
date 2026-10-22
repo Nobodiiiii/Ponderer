@@ -78,14 +78,12 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
                 PickState.TargetField.LOOK_AT,
                 true));
         }
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.nbt(
             nbtField,
             "ponderer.ui.create_entity.nbt",
             "ponderer.ui.create_entity.nbt.tooltip",
-            "{NoAI:1b}",
             124,
-            FieldDecorators.nbtPick("nbt"),
-            FieldDecorators.nbtExpand("nbt")));
+            "nbt"));
         entries.add(FieldSpecs.toggle(
             "ponderer.ui.create_entity.entrance",
             "ponderer.ui.create_entity.entrance.tooltip",
@@ -104,7 +102,8 @@ public class CreateEntityScreen extends AbstractStepEditorScreen {
                     "ponderer.ui.show_controls.direction",
                     SelectionAnimationOptions.DIRECTIONS[entranceDirectionIndex])));
         }
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.typedText(
+            FieldType.ENTITY_LINK,
             linkIdField,
             "ponderer.ui.entity_link",
             "ponderer.ui.create_entity.link.tooltip",

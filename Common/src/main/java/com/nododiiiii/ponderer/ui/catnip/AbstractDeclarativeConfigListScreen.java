@@ -2,27 +2,28 @@ package com.nododiiiii.ponderer.ui.catnip;
 
 import net.createmod.catnip.config.ui.ConfigHelper;
 import net.createmod.catnip.config.ui.ConfigScreen;
-import net.createmod.catnip.config.ui.ConfigScreenList;
-import net.createmod.catnip.net.ServerboundConfigPacket;
-import net.createmod.catnip.platform.CatnipServices;
 import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.config.ModConfig;
 
 import javax.annotation.Nullable;
 import java.util.List;
 
 public abstract class AbstractDeclarativeConfigListScreen extends AbstractDeclarativeFormScreen {
 
+    public enum ConfigScope {
+        CLIENT,
+        SERVER
+    }
+
     private final String modId;
-    protected final ModConfig.Type type;
+    protected final ConfigScope scope;
     protected final ForgeConfigSpec spec;
 
     protected AbstractDeclarativeConfigListScreen(@Nullable net.minecraft.client.gui.screens.Screen parent,
                                                   String modId, String scopeKey, String titleKey,
-                                                  ModConfig.Type type, ForgeConfigSpec spec) {
+                                                  ConfigScope scope, ForgeConfigSpec spec) {
         super(parent, scopeKey, titleKey);
         this.modId = modId;
-        this.type = type;
+        this.scope = scope;
         this.spec = spec;
         ConfigScreen.modID = modId;
         ConfigHelper.changes.clear();
@@ -51,11 +52,9 @@ public abstract class AbstractDeclarativeConfigListScreen extends AbstractDeclar
             ForgeConfigSpec.ConfigValue<Object> configValue = values.get(path);
             Object newValue = ConfigHelper.getValue(path, configValue);
             configValue.set(newValue);
-
-            if (type == ModConfig.Type.SERVER) {
-                CatnipServices.NETWORK.sendToServer(new ServerboundConfigPacket<>(ConfigScreen.modID, path, newValue));
-            }
+            configValue.save();
         });
+        spec.save();
         ConfigHelper.changes.clear();
         rebuildListPreservingScroll();
         return true;
@@ -98,7 +97,7 @@ public abstract class AbstractDeclarativeConfigListScreen extends AbstractDeclar
     }
 
     protected final void addChoiceConfigEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
-                                               ForgeConfigSpec.ConfigValue<String> value,
+                                              ForgeConfigSpec.ConfigValue<String> value,
                                                List<String> optionLabelKeys, List<String> optionValues,
                                                @Nullable Runnable onChanged) {
         appendEntry(new LocalizedChoiceConfigEntry(

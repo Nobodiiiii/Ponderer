@@ -74,7 +74,7 @@ class AiSceneAgentPipelineTest {
             llm, 4, new ArrayList<>(), new AiCancellationScope());
 
         assertEquals(3, result.turnCount());
-        assertTrue(result.trace().get(0).protocolError().contains("parse"));
+        assertTrue(result.trace().get(0).protocolError().contains("Invalid tool protocol"));
         assertTrue(llm.calls.get(1).userText().contains("protocol_error"));
     }
 
@@ -95,12 +95,12 @@ class AiSceneAgentPipelineTest {
 
         assertEquals(2, result.turnCount());
         assertEquals(3, result.toolCallCount());
-        assertTrue(llm.calls.get(1).userText().contains("\"id\": \"structure\""));
-        assertTrue(llm.calls.get(1).userText().contains("\"id\": \"schemas\""));
+        assertTrue(llm.calls.get(1).userText().contains("[tool query_structure structure]"));
+        assertTrue(llm.calls.get(1).userText().contains("[tool get_step_schema schemas]"));
     }
 
     @Test
-    void duplicateCallIdAcrossTurnsIsARecoverableProtocolError() {
+    void callIdsCanBeReusedAcrossTurns() {
         FakeLlm llm = new FakeLlm(List.of(
             """
                 {"tool_calls":[{"id":"same","name":"query_structure","arguments":{"mode":"summary"}}]}
@@ -115,8 +115,8 @@ class AiSceneAgentPipelineTest {
             llm, 4, new ArrayList<>(), new AiCancellationScope());
 
         assertEquals(3, result.turnCount());
-        assertTrue(result.trace().get(1).protocolError().contains("across turns"));
-        assertTrue(llm.calls.get(2).userText().contains("Duplicate tool call id"));
+        assertEquals(null, result.trace().get(1).protocolError());
+        assertTrue(llm.calls.get(2).userText().contains("[tool get_step_schema same]"));
     }
 
     @Test
@@ -138,13 +138,13 @@ class AiSceneAgentPipelineTest {
             llm, 4, new ArrayList<>(), new AiCancellationScope());
 
         assertEquals(3, result.turnCount());
-        assertTrue(result.trace().get(0).protocolError().contains("only tool call"));
+        assertTrue(result.trace().get(0).protocolError().contains("only call"));
     }
 
     @Test
-    void toolCallBudgetStopsBeforeAnUnboundedLoop() {
+    void noProgressBudgetStopsBeforeAnUnboundedLoop() {
         List<String> responses = new ArrayList<>();
-        for (int turn = 0; turn < 4; turn++) {
+        for (int turn = 0; turn < 6; turn++) {
             responses.add(fourStructureQueries(turn));
         }
         FakeLlm llm = new FakeLlm(responses);
@@ -152,8 +152,8 @@ class AiSceneAgentPipelineTest {
         RuntimeException error = assertThrows(RuntimeException.class,
             () -> run(llm, 6, new ArrayList<>(), new AiCancellationScope()));
 
-        assertTrue(error.getMessage().contains("16-call tool budget"));
-        assertTrue(error.getMessage().contains("tool calls executed: 16"));
+        assertTrue(error instanceof AiRunStoppedException);
+        assertTrue(error.getMessage().contains("without new evidence"));
     }
 
     @Test
@@ -246,7 +246,7 @@ class AiSceneAgentPipelineTest {
 
         assertEquals("anthropic", config.provider());
         assertEquals("anthropic", config.wireApi());
-        assertEquals("https://claude.example.test", config.baseUrl());
+        assertEquals("https://claude.example.test/v1", config.baseUrl());
         assertEquals("claude-test", config.model());
         assertEquals(2048, config.maxTokens());
         assertTrue(config.hasApiKey());

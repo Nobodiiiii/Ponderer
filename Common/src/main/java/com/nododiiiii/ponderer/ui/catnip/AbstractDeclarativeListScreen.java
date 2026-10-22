@@ -1,15 +1,17 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.UIText;
-import net.createmod.catnip.config.ui.ConfigScreenList;
+import com.nododiiiii.ponderer.ui.catnip.CompatConfigScreenList;
 import net.createmod.catnip.config.ui.ConfigTextField;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.lang.FontHelper;
 import net.createmod.catnip.lang.FontHelper.Palette;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -36,13 +38,16 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     @Nullable
     protected ConfigTextField search;
     @Nullable
-    protected ConfigScreenList list;
+    protected CompatConfigScreenList list;
     @Nullable
-    protected ConfigScreenList headerList;
+    protected CompatConfigScreenList headerList;
+    @Nullable
+    private CompatConfigScreenList focusedList;
 
     private final int preferredListWidth;
-    private final List<ConfigScreenList.Entry> headerEntries = new java.util.ArrayList<>();
+    private final List<CompatConfigScreenList.Entry> headerEntries = new java.util.ArrayList<>();
     private final ListScrollPreserver scrollPreserver = new ListScrollPreserver();
+    private final NumericFieldDrag numericFieldDrag = new NumericFieldDrag();
     private String searchQuery = "";
     private int listWidth;
 
@@ -57,50 +62,46 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
 
     @Override
     protected void init() {
+        numericFieldDrag.cancel();
         super.init();
         headerList = null;
 
-        listWidth = Math.min(width - 80, preferredListWidth);
+        listWidth = Math.min(availableListWidth(), preferredListWidth);
 
         int yCenter = height / 2;
         int listLeft = width / 2 - listWidth / 2 + listHorizontalOffset();
-        int actionLeft = listLeft + listWidth + 10;
+        int actionLeft = listLeft + listWidth + 6;
 
-        saveChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter - 25, 20, 20)
-            .withPadding(2, 2)
+        saveChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter - 29, 28, 28)
+            .withPadding(6, 6)
             .withCallback(this::saveEdits);
         saveChanges.showingElement(PonderGuiTextures.ICON_CONFIG_SAVE.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
-        setActionButtonTooltip(saveChanges, "catnip.ui.save_changes_button", "catnip.ui.save_changes_button_tooltip");
+        setActionButtonTooltip(saveChanges, "ponderer.ui.save");
         addRenderableWidget(saveChanges);
 
-        discardChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter + 5, 20, 20)
-            .withPadding(2, 2)
+        discardChanges = new ScreenTooltipBoxWidget(actionLeft, yCenter + 1, 28, 28)
+            .withPadding(6, 6)
             .withCallback(this::confirmDiscardChanges);
         discardChanges.showingElement(PonderGuiTextures.ICON_CONFIG_DISCARD.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(discardChanges)));
-        setActionButtonTooltip(discardChanges, "catnip.ui.discard_changes_button", "catnip.ui.discard_changes_button_tooltip");
+        setActionButtonTooltip(discardChanges, "ponderer.ui.cancel");
         addRenderableWidget(discardChanges);
 
-        goBack = new ScreenTooltipBoxWidget(actionLeft, yCenter + 65, 20, 20)
-            .withPadding(2, 2)
+        goBack = new ScreenTooltipBoxWidget(actionLeft, yCenter + 61, 28, 28)
+            .withPadding(6, 6)
             .withCallback(this::attemptBackToParent);
         goBack.showingElement(PonderGuiTextures.ICON_CONFIG_BACK.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(goBack)));
-        setActionButtonTooltip(goBack, "catnip.ui.go_back_button");
+        setActionButtonTooltip(goBack, "ponderer.ui.back", "ponderer.ui.sidebar.back.tooltip");
         addRenderableWidget(goBack);
 
-        list = new ConfigScreenList(
-            minecraft,
-            listWidth,
-            contentAreaHeight(),
-            contentAreaTop(),
-            contentAreaTop() + contentAreaHeight(),
-            getEntryHeight());
-        list.setLeftPos(width / 2 - list.getWidth() / 2 + listHorizontalOffset());
+        list = createCenteredList(contentAreaHeight(), contentAreaTop(), getEntryHeight());
+        list.setX(width / 2 - list.getWidth() / 2 + listHorizontalOffset());
         addRenderableWidget(list);
 
         search = new ClippedConfigTextField(font, width / 2 - listWidth / 2 + listHorizontalOffset(), height - 35, listWidth, 20);
+        EntryTextSupport.setInputBounds(search, search.getX(), height - 36, listWidth, EntryTextSupport.inputOuterHeight());
         search.setResponder(this::updateFilter);
         search.setHint(Component.translatable("catnip.ui.search_hint"));
         search.moveCursorToStart();
@@ -121,6 +122,36 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     }
 
     @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        // Navigatable screens may render a previous screen behind the current one.
+        boolean currentScreen = minecraft != null && minecraft.screen == this;
+        if (currentScreen) numericFieldDrag.beginFrame();
+        super.render(graphics, mouseX, mouseY, partialTicks);
+        if (currentScreen) numericFieldDrag.finishFrame(mouseY);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        return numericFieldDrag.drag(mouseX, mouseY, button, deltaX, deltaY)
+            || super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (numericFieldDrag.release(mouseX, mouseY, button)) {
+            setDragging(false);
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public void removed() {
+        numericFieldDrag.close();
+        super.removed();
+    }
+
+    @Override
     public void resize(Minecraft client, int width, int height) {
         double scroll = scrollPreserver.capture(list);
         init(client, width, height);
@@ -135,15 +166,26 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
     @Nullable
     @Override
     public GuiEventListener getFocused() {
-        if (ConfigScreenList.currentText != null) {
-            return ConfigScreenList.currentText;
+        // Catnip clears list focus when no row is focused, including scrollbar clicks.
+        // Preserve the clicked list for dragging while keeping text input routing.
+        if (focusedList != null && (isDragging() || CompatConfigScreenList.currentText == null)) {
+            return focusedList;
+        }
+        if (CompatConfigScreenList.currentText != null) {
+            return CompatConfigScreenList.currentText;
         }
         return super.getFocused();
     }
 
     @Override
+    public void setFocused(@Nullable GuiEventListener listener) {
+        super.setFocused(listener);
+        focusedList = listener instanceof CompatConfigScreenList configList ? configList : null;
+    }
+
+    @Override
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        renderBreadcrumb(graphics, width / 2, 15);
+        renderBreadcrumb(graphics, breadcrumbCenterX(), 15);
         renderStatusMessage(graphics, width / 2 - listWidth / 2 + listHorizontalOffset(), height - 48, listWidth);
     }
 
@@ -170,6 +212,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             return;
         }
 
+        numericFieldDrag.cancel();
         rebuildHeaderEntries();
         list.children().clear();
         collectEntries(list.children());
@@ -231,6 +274,10 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         return com.nododiiiii.ponderer.ui.UILayoutConstants.LIST_ENTRY_H;
     }
 
+    protected int getHeaderEntryHeight() {
+        return getEntryHeight();
+    }
+
     protected final int currentListWidthValue() {
         return listWidth;
     }
@@ -242,6 +289,41 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
      */
     protected int listHorizontalOffset() {
         return 0;
+    }
+
+    @Override
+    protected float backgroundCogCenterX() {
+        return super.backgroundCogCenterX() + listHorizontalOffset();
+    }
+
+    protected int breadcrumbCenterX() {
+        return width / 2;
+    }
+
+    protected final List<Rect2i> occupiedWidgetAreas() {
+        List<Rect2i> areas = new java.util.ArrayList<>();
+        for (GuiEventListener child : children()) {
+            if (child instanceof AbstractWidget widget && widget.visible) {
+                areas.add(new Rect2i(widget.getX() - 4, widget.getY() - 4,
+                    widget.getWidth() + 8, widget.getHeight() + 8));
+            }
+        }
+        String breadcrumb = UIText.of("ponderer.ui.mod_name") + " > " + getBreadcrumbScopeText()
+            + " > " + getBreadcrumbTitleText();
+        int titleWidth = font.width(breadcrumb);
+        areas.add(new Rect2i(breadcrumbCenterX() - titleWidth / 2 - 2, 13, titleWidth + 4, font.lineHeight + 4));
+        return areas;
+    }
+
+    protected int availableListWidth() {
+        return width - 80;
+    }
+
+    protected int listBottomPadding(int viewportHeight) {
+        return 0;
+    }
+
+    protected void onListScrollChanged(int firstVisibleIndex) {
     }
 
     protected final int contentAreaTop() {
@@ -275,7 +357,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         return -1;
     }
 
-    protected void collectHeaderEntries(List<ConfigScreenList.Entry> entries) {
+    protected void collectHeaderEntries(List<CompatConfigScreenList.Entry> entries) {
     }
 
     protected int headerListGap() {
@@ -286,7 +368,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         return true;
     }
 
-    protected abstract void collectEntries(List<ConfigScreenList.Entry> entries);
+    protected abstract void collectEntries(List<CompatConfigScreenList.Entry> entries);
 
     protected abstract boolean hasUnsavedChanges();
 
@@ -306,21 +388,14 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             return;
         }
 
-        int dirtyFields = getUnsavedChangeCount();
-        new ConfirmationScreen()
-            .centered()
-            .withText(Component.translatable(
-                "catnip.ui.discarding_changes_message",
-                dirtyFields,
-                Component.translatable(dirtyFields != 1
-                    ? "catnip.ui.value_changes_plural"
-                    : "catnip.ui.value_changes_singular")))
-            .withAction(success -> {
-                if (success) {
-                    discardEdits();
-                }
-            })
-            .open(this);
+        new PondererDialogScreen(
+            this,
+            List.of(Component.translatable("ponderer.ui.discard_changes.title")),
+            List.of(Component.translatable("ponderer.ui.discard_changes.message", getUnsavedChangeCount())),
+            List.of(
+                promptButton("ponderer.ui.discard_changes.confirm", this::discardEdits),
+                PondererDialogScreen.closeButton(Component.translatable("ponderer.ui.unsaved_changes.keep_editing"))))
+            .open();
     }
 
     private void refreshActionButtons() {
@@ -336,24 +411,36 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         return hasUnsavedChanges();
     }
 
-    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey) {
-        setActionButtonTooltip(button, titleKey, null);
+    protected final void useConfirmationActionIcons() {
+        if (saveChanges != null) {
+            saveChanges.showingElement(PonderGuiTextures.ICON_CONFIRM.asStencil()
+                .withElementRenderer(BoxWidget.gradientFactory.apply(saveChanges)));
+            setActionButtonTooltip(saveChanges, "ponderer.ui.confirm");
+        }
+        if (discardChanges != null) {
+            discardChanges.showingElement(PonderGuiTextures.ICON_DISABLE.asStencil()
+                .withElementRenderer(BoxWidget.gradientFactory.apply(discardChanges)));
+            setActionButtonTooltip(discardChanges, "ponderer.ui.cancel");
+        }
     }
 
-    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey,
-                                                @Nullable String detailKey) {
+    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey) {
         if (button == null) {
             return;
         }
 
         button.getToolTip().clear();
-        button.getToolTip().addAll(FontHelper.cutStringTextComponent(
-            UIText.of(titleKey),
-            FontHelper.styleFromColor(net.minecraft.ChatFormatting.WHITE),
-            FontHelper.styleFromColor(net.minecraft.ChatFormatting.WHITE)));
-        if (detailKey != null && !detailKey.isBlank()) {
-            button.getToolTip().addAll(FontHelper.cutStringTextComponent(UIText.of(detailKey), Palette.ALL_GRAY));
+        button.getToolTip().add(Component.literal(UIText.of(titleKey)));
+    }
+
+    protected final void setActionButtonTooltip(@Nullable BoxWidget button, String titleKey,
+                                                String detailKey) {
+        if (button == null) {
+            return;
         }
+
+        setActionButtonTooltip(button, titleKey);
+        button.getToolTip().addAll(FontHelper.cutTextComponent(Component.literal(UIText.of(detailKey)), Palette.ALL_GRAY));
     }
 
     private void relayoutListViewport() {
@@ -366,8 +453,8 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             int headerHeight = currentHeaderHeight();
             int headerTop = contentAreaTop();
             if (headerList != null) {
-                headerList.updateSize(listWidth, headerHeight, headerTop, headerTop + headerHeight);
-                headerList.setLeftPos(left);
+                headerList.updateSizeAndPosition(listWidth, headerHeight, headerTop);
+                headerList.setX(left);
             }
 
             int bodyTop = bodyContentTop();
@@ -375,15 +462,15 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
             int bodyHeight = fillRemainingBodyWhenHeaderPresent()
                 ? availableBodyHeight
                 : desiredListViewportHeight(availableBodyHeight);
-            list.updateSize(listWidth, bodyHeight, bodyTop, bodyTop + bodyHeight);
-            list.setLeftPos(left);
+            list.updateSizeAndPosition(listWidth, bodyHeight, bodyTop);
+            list.setX(left);
             return;
         }
 
         int viewportHeight = desiredListViewportHeight(contentAreaHeight());
         int top = centeredContentTop(viewportHeight);
-        list.updateSize(listWidth, viewportHeight, top, top + viewportHeight);
-        list.setLeftPos(left);
+        list.updateSizeAndPosition(listWidth, viewportHeight, top);
+        list.setX(left);
     }
 
     private void rebuildHeaderEntries() {
@@ -399,20 +486,74 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         }
 
         if (headerList == null) {
-            headerList = new ConfigScreenList(
-                minecraft,
-                listWidth,
-                currentHeaderHeight(),
-                contentAreaTop(),
-                contentAreaTop() + currentHeaderHeight(),
-                getEntryHeight());
-            headerList.setLeftPos(width / 2 - headerList.getWidth() / 2 + listHorizontalOffset());
+            headerList = createCenteredList(currentHeaderHeight(), contentAreaTop(), getHeaderEntryHeight());
+            headerList.setX(width / 2 - headerList.getWidth() / 2 + listHorizontalOffset());
             addRenderableWidget(headerList);
         }
 
         headerList.children().clear();
         headerList.children().addAll(headerEntries);
         headerList.setScrollAmount(0);
+    }
+
+    private CompatConfigScreenList createCenteredList(int height, int top, int entryHeight) {
+        return new CompatConfigScreenList(minecraft, listWidth, height, top, entryHeight) {
+            @Override
+            public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+                super.renderWidget(graphics, mouseX, mouseY, partialTicks);
+                if (isMouseOver(mouseX, mouseY)) {
+                    numericFieldDrag.hover(NumericFieldDrag.fieldAt(getEntryAtPosition(mouseX, mouseY), mouseX, mouseY));
+                }
+            }
+
+            @Override
+            public boolean mouseClicked(double mouseX, double mouseY, int button) {
+                if (button == 1 && isMouseOver(mouseX, mouseY)) {
+                    CompatConfigScreenList.Entry entry = getEntryAtPosition(mouseX, mouseY);
+                    if (entry instanceof SceneStepListEntry && entry.mouseClicked(mouseX, mouseY, button)) {
+                        return true;
+                    }
+                }
+                boolean handled = super.mouseClicked(mouseX, mouseY, button);
+                if (handled && button == GLFW.GLFW_MOUSE_BUTTON_LEFT && isMouseOver(mouseX, mouseY)) {
+                    numericFieldDrag.press(NumericFieldDrag.fieldAt(getEntryAtPosition(mouseX, mouseY), mouseX, mouseY),
+                        mouseX, mouseY);
+                }
+                return handled;
+            }
+
+            @Override
+            public int getMaxPosition() {
+                return super.getMaxPosition() + (this == list ? listBottomPadding(getHeight()) : 0);
+            }
+
+            @Override
+            public void setScrollAmount(double amount) {
+                super.setScrollAmount(amount);
+                if (this == list && !children().isEmpty()) {
+                    int first = Math.max(0, Math.min(children().size() - 1,
+                        Math.floorDiv(getY() - getRowTop(0) + 4, getEntryHeight())));
+                    onListScrollChanged(first);
+                }
+            }
+
+            @Override
+            public int getRowWidth() {
+                return getWidth() - 2 * com.nododiiiii.ponderer.ui.UILayoutConstants.LIST_ROW_MARGIN;
+            }
+
+            @Override
+            public int getRowLeft() {
+                // Vanilla adds two pixels here, shifting equal row padding off-center.
+                return getX() + (getWidth() - getRowWidth()) / 2;
+            }
+
+            @Override
+            protected void renderSelection(GuiGraphics graphics, int top, int width, int height,
+                                           int outerColor, int innerColor) {
+                // Keep selection and focus behavior without drawing the vanilla row outline.
+            }
+        };
     }
 
     private int desiredListViewportHeight(int availableHeight) {
@@ -439,7 +580,7 @@ public abstract class AbstractDeclarativeListScreen extends AbstractDeclarativeS
         if (!hasHeaderEntries()) {
             return 0;
         }
-        return headerEntries.size() * getEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
+        return headerEntries.size() * getHeaderEntryHeight() + LIST_HEADER_HEIGHT + LIST_VERTICAL_PADDING;
     }
 
     protected final void updateButtonState(@Nullable BoxWidget button, boolean active) {

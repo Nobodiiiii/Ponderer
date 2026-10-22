@@ -6,6 +6,7 @@ import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
@@ -111,10 +112,9 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
      *  parallaxes against the flat box; squashing it emulates the orthographic inventory look (1 = full 3D, 0 = flat).
      *  Only geometry is squashed; {@link #drawPanelItem} repairs the normal matrix afterward so diffuse lighting
      *  still matches a real inventory item (a 0 z-scale would make the normal matrix singular and render it dark).
-     *  Set to a small NEGATIVE value to give multi-layer block entities (chests) enough depth separation for correct
-     *  layer ordering without visible parallax, and flip the z-axis so Minecraft's back-to-front model geometry
-     *  renders front-to-back on screen (chest lid on top). */
-    private static final float PANEL_ITEM_FLATTEN = -0.05F;
+     *  With the projector billboard now using the same handedness as native world-space labels, this must stay
+     *  POSITIVE so multi-layer block entities keep their GUI front-to-back depth order instead of being mirrored. */
+    private static final float PANEL_ITEM_FLATTEN = 0.05F;
     /** Far edge of the compressed depth-range window the panel item renders into. The item's geometry is
      *  remapped into [0, this] at the front of the depth buffer so it always wins the depth test against the
      *  projected ponder scene (never occluded), while its own layers still sort among each other inside the
@@ -203,21 +203,41 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         if (!antiOcclusion && !combinedOverlays.isEmpty()) {
             captureWorldDepthIfNeeded();
         }
-        enqueueProjectionGlow(blockEntity, layout, poseStack, partialTick);
         if (projectionMode.rendersScene()) {
-            renderProjectedScene(prepared.activeScene(), layout, poseStack,
-                prepared.localTick(), prepared.renderPartialTick());
+            ProjectorWorldOverlayQueue.enqueueScene(this, new DeferredProjectedScene(
+                PoseSnapshot.capture(poseStack),
+                prepared.activeScene(),
+                layout,
+                prepared.localTick(),
+                prepared.renderPartialTick()));
         }
+        enqueueProjectionGlow(blockEntity, layout, poseStack, partialTick);
 
         if (!combinedOverlays.isEmpty()) {
             ProjectorWorldOverlayQueue.enqueue(this, combinedOverlays);
         }
     }
 
+    void renderDeferredProjectedScene(DeferredProjectedScene projectedScene) {
+        if (projectedScene == null) {
+            return;
+        }
+        renderProjectedScene(
+            projectedScene.scene(),
+            projectedScene.layout(),
+            projectedScene.poseSnapshot().createPoseStack(),
+            projectedScene.localTick(),
+            projectedScene.partialTick());
+    }
+
     private void renderProjectedScene(PonderScene scene, RenderLayout layout, PoseStack poseStack,
                                       int localTick, float partialTick) {
         RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
         RenderSystem.enableDepthTest();
+        // The scene is replayed in a late world stage so clouds/weather no longer cover it; explicitly
+        // re-enable depth writes here because those later stages may leave the depth mask disabled.
+        RenderSystem.depthMask(true);
         RenderSystem.setShaderColor(layout.redTint(), layout.greenTint(), layout.blueTint(), 1.0F);
 
         poseStack.pushPose();
@@ -240,6 +260,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         sceneBuffer.draw();
 
         poseStack.popPose();
+        RenderSystem.depthMask(true);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
@@ -621,6 +642,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         boolean antiOcclusion = batch.antiOcclusion();
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
+        // Native Ponder disables face culling before its 2D overlay pass. The projector replays those
+        // overlays into billboard space during world rendering, so we need the same state here or flat
+        // panel quads/glyph layers can be culled away, leaving only the separately rendered 3D item visible.
+        RenderSystem.disableCull();
         if (antiOcclusion) {
             RenderSystem.disableDepthTest();
             RenderSystem.depthMask(false);
@@ -642,6 +667,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         } finally {
             RenderSystem.depthMask(true);
             RenderSystem.enableDepthTest();
+            RenderSystem.enableCull();
         }
     }
 
@@ -674,9 +700,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         float leader = withLeader ? OVERLAY_LEADER_LENGTH : 0.0F;
 
         poseStack.pushPose();
-        poseStack.translate(localPos.x, localPos.y, localPos.z);
-        poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
-        poseStack.scale(-textScale, -textScale, textScale);
+        orientOverlayBillboard(poseStack, localPos, textScale);
         // billboard 局部空间：+x = 屏幕右侧。文本框/文本从 leader 处开始向右，垂直居中。
         poseStack.translate(0.0F, -(totalHeight + 2) / 2.0F, 0.0F);
 
@@ -760,14 +784,13 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         }
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
 
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder buffer = tesselator.getBuilder();
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
         buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
         colorVertex(buffer, matrix, left, bottom, leftColor);
         colorVertex(buffer, matrix, right, bottom, rightColor);
         colorVertex(buffer, matrix, right, top, rightColor);
         colorVertex(buffer, matrix, left, top, leftColor);
-        tesselator.end();
+        Tesselator.getInstance().end();
         if (antiOcclusion) {
             RenderSystem.disableDepthTest();
             RenderSystem.depthMask(false);
@@ -779,14 +802,12 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
 
     private static void colorVertex(BufferBuilder buffer, Matrix4f matrix, float x, float y, int color) {
         buffer.vertex(matrix, x, y, 0.0F)
-            .color((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, (color >> 24) & 0xFF)
-            .endVertex();
+            .color((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, (color >> 24) & 0xFF).endVertex();
     }
 
     private static void colorVertex(BufferBuilder buffer, Matrix4f matrix, float x, float y, float z, int color) {
         buffer.vertex(matrix, x, y, z)
-            .color((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, (color >> 24) & 0xFF)
-            .endVertex();
+            .color((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, (color >> 24) & 0xFF).endVertex();
     }
 
     private void renderBeamTriangle(Matrix4f matrix,
@@ -794,15 +815,14 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                                     float baseLeftX, float baseY, float baseLeftZ,
                                     float baseRightX, float baseRightY, float baseRightZ,
                                     int apexColor, int baseColor) {
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder buffer = tesselator.getBuilder();
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
         buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
         colorVertex(buffer, matrix, apexX, apexY, apexZ, apexColor);
         colorVertex(buffer, matrix, baseRightX, baseRightY, baseRightZ, baseColor);
         colorVertex(buffer, matrix, baseRightX, baseRightY, baseRightZ, baseColor);
         colorVertex(buffer, matrix, baseLeftX, baseY, baseLeftZ, baseColor);
 
-        tesselator.end();
+        Tesselator.getInstance().end();
     }
 
     private void renderBeamTrapezoid(Matrix4f matrix,
@@ -811,15 +831,14 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
                                      float topRightX, float topY, float topRightZ,
                                      float topLeftX, float topLeftY, float topLeftZ,
                                      int bottomColor, int topColor) {
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder buffer = tesselator.getBuilder();
+        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
         buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
         colorVertex(buffer, matrix, bottomLeftX, bottomY, bottomLeftZ, bottomColor);
         colorVertex(buffer, matrix, bottomRightX, bottomRightY, bottomRightZ, bottomColor);
         colorVertex(buffer, matrix, topRightX, topY, topRightZ, topColor);
         colorVertex(buffer, matrix, topLeftX, topLeftY, topLeftZ, topColor);
 
-        tesselator.end();
+        Tesselator.getInstance().end();
     }
 
     private void renderBeamFace(Matrix4f matrix, Vec3 source, Vec3 baseLeft, Vec3 baseRight,
@@ -951,9 +970,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         float leader = withLeader ? OVERLAY_LEADER_LENGTH : 0.0F;
         float uiScale = uiScaleFor(localPos, layout);
         poseStack.pushPose();
-        poseStack.translate(localPos.x, localPos.y, localPos.z);
-        poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
-        poseStack.scale(-uiScale, -uiScale, uiScale);
+        orientOverlayBillboard(poseStack, localPos, uiScale);
         // billboard 局部空间：+x = 屏幕右侧。文本框从 leader 处开始向右，垂直居中。
         poseStack.translate(0.0F, -(boxHeight + 6.0F) / 2.0F, 0.0F);
 
@@ -1044,9 +1061,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         float scale = uiScaleFor(localPos, layout);
 
         poseStack.pushPose();
-        poseStack.translate(localPos.x, localPos.y, localPos.z);
-        poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
-        poseStack.scale(-scale, -scale, scale);
+        orientOverlayBillboard(poseStack, localPos, scale);
         poseStack.translate(xFade, yFade, 0.0F);
 
         GuiGraphics graphics = ProjectorGuiGraphicsBridge.create(poseStack, panelBuffer);
@@ -1156,16 +1171,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
         poseStack.translate(x, 0.0F, LOCAL_OVERLAY_FOREGROUND_Z);
         // Squash the item's depth toward the camera so it sits on the box's plane (no parallax) yet keeps
         // its inventory-style 3D silhouette. Applied first so it compresses the whole model along view-z.
-        // A 0 z-scale makes the normal matrix singular and the item renders dark, so repair normals after
-        // squashing: block-lit models keep the billboard normal basis, while generated flat items need the
-        // identity GUI normal basis that Lighting.setupForFlatItems() is built around.
-        Matrix3f litNormal = new Matrix3f(poseStack.last().normal());
+        // Lighting, however, should stay in plain GUI space rather than inherit the billboard's camera-facing
+        // normal basis, or highlights/shadows rotate with the world-space panel instead of matching inventory items.
         poseStack.scale(1.0F, 1.0F, PANEL_ITEM_FLATTEN);
-        if (flatLighting) {
-            poseStack.last().normal().identity();
-        } else {
-            poseStack.last().normal().set(litNormal);
-        }
+        poseStack.last().normal().identity();
         poseStack.scale(1.5F, 1.5F, 1.5F);
         UIRenderHelper.flipForGuiRender(poseStack);
         poseStack.translate(8.0F, -8.0F, 0.0F);
@@ -1244,6 +1253,14 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             RenderSystem.enableDepthTest();
             RenderSystem.depthMask(false);
         }
+    }
+
+    private static void orientOverlayBillboard(PoseStack poseStack, Vec3 localPos, float scale) {
+        poseStack.translate(localPos.x, localPos.y, localPos.z);
+        poseStack.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
+        // Match native world-space labels: +x stays screen-right, -y keeps GUI top-down coordinates,
+        // and the resulting winding keeps the overlay front face pointed at the camera.
+        poseStack.scale(scale, -scale, scale);
     }
 
     private static void renderSpeechBoxLocal(GuiGraphics graphics, int x, int y, int w, int h, boolean highlighted,
@@ -1369,6 +1386,10 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     private static double distanceToRenderBoundsSqr(ProjectorBlockEntity blockEntity) {
         Vec3 cameraPos = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
         return ProjectorRenderBounds.distanceToRenderBoundsSqr(blockEntity, cameraPos);
+    }
+
+    record DeferredProjectedScene(PoseSnapshot poseSnapshot, PonderScene scene, RenderLayout layout,
+                                  int localTick, float partialTick) {
     }
 
     record DeferredProjectionGlow(PoseSnapshot poseSnapshot, RenderLayout layout, Direction facing,

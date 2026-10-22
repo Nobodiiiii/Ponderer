@@ -1,14 +1,15 @@
 package com.nododiiiii.ponderer.network;
 
-import com.nododiiiii.ponderer.platform.PondererServices;
-
 import com.nododiiiii.ponderer.Ponderer;
+import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.AutoRemoteSyncService;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -16,13 +17,24 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-public record DownloadStructurePayload(String sourceId) {
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(sourceId());
+public record DownloadStructurePayload(String sourceId) implements CustomPacketPayload {
+
+    public static final Type<DownloadStructurePayload> TYPE =
+            new Type<>(new ResourceLocation(Ponderer.MODID, "download_structure"));
+    public static final StreamCodec<FriendlyByteBuf, DownloadStructurePayload> CODEC =
+            StreamCodec.of(DownloadStructurePayload::encode, DownloadStructurePayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
-    public static DownloadStructurePayload decode(FriendlyByteBuf buf) {
+    private static void encode(FriendlyByteBuf buf, DownloadStructurePayload payload) {
+        buf.writeUtf(payload.sourceId());
+    }
+
+    private static DownloadStructurePayload decode(FriendlyByteBuf buf) {
         return new DownloadStructurePayload(buf.readUtf());
     }
 
@@ -31,26 +43,26 @@ public record DownloadStructurePayload(String sourceId) {
             return;
         }
         if (!UploadPermissions.canUpload(player)) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.download.no_permission"));
+
             PondererServices.NETWORK.sendToPlayer(player,
-                    new DownloadStructureResultPayload(payload.sourceId(), "", false, "No permission"));
+                    new DownloadStructureResultPayload(payload.sourceId(), "", false, "ponderer.cmd.download.no_permission"));
             return;
         }
 
         ResourceLocation source = ResourceLocation.tryParse(payload.sourceId());
         if (source == null) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.download.invalid_id", payload.sourceId()));
+
             PondererServices.NETWORK.sendToPlayer(player, new DownloadStructureResultPayload(payload.sourceId(), "", false,
-                    "Invalid structure id"));
+                    "ponderer.cmd.download.invalid_id"));
             return;
         }
 
         Path sourcePath = resolveSourcePath(player, source);
 
         if (sourcePath == null || !Files.exists(sourcePath)) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.download.not_found", source.toString()));
+
             PondererServices.NETWORK.sendToPlayer(player, new DownloadStructureResultPayload(source.toString(), "", false,
-                    "Structure not found"));
+                    "ponderer.cmd.download.not_found"));
             return;
         }
 
@@ -61,9 +73,9 @@ public record DownloadStructurePayload(String sourceId) {
             byte[] bytes = Files.readAllBytes(sourcePath);
             boolean ok = SceneStore.saveStructureToServer(player.server, target.toString(), null, bytes);
             if (!ok) {
-                player.sendSystemMessage(Component.translatable("ponderer.cmd.download.import_failed", source.toString()));
+
                 PondererServices.NETWORK.sendToPlayer(player, new DownloadStructureResultPayload(source.toString(), target.toString(), false,
-                        "Import failed"));
+                        "ponderer.cmd.download.import_failed"));
                 return;
             }
 
@@ -71,13 +83,12 @@ public record DownloadStructurePayload(String sourceId) {
             AutoRemoteSyncService.onRemoteWorkspaceChanged(player.server);
 
             PondererServices.NETWORK.sendToPlayer(player, new DownloadStructureResultPayload(source.toString(), target.toString(), true,
-                    "OK"));
+                    "ponderer.cmd.download.done"));
 
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.download.done", source.toString(), target.toString()));
         } catch (Exception e) {
-            player.sendSystemMessage(Component.translatable("ponderer.cmd.download.read_failed", source.toString()));
+
             PondererServices.NETWORK.sendToPlayer(player, new DownloadStructureResultPayload(source.toString(), target.toString(), false,
-                    "Read failed"));
+                    "ponderer.cmd.download.read_failed"));
         }
     }
 

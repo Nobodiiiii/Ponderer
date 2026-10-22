@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.projector.client;
 
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.ponder.PonderRenderCache;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
 import net.createmod.ponder.foundation.PonderScene;
@@ -34,20 +35,24 @@ public final class ProjectorPlaybackState {
     static ProjectorPlaybackState forBlock(ProjectorBlockEntity blockEntity) {
         Level level = Minecraft.getInstance().level;
         if (level != cachedLevel) {
-            STATES.clear();
+            clearAll();
             cachedLevel = level;
         }
         return STATES.computeIfAbsent(blockEntity.getBlockPos().immutable(), ignored -> new ProjectorPlaybackState());
     }
 
     static void clearAll() {
+        STATES.values().forEach(ProjectorPlaybackState::clearPlaybackSession);
         STATES.clear();
         cachedLevel = null;
     }
 
     public static void clear(BlockPos pos) {
         if (pos != null) {
-            STATES.remove(pos.immutable());
+            ProjectorPlaybackState removed = STATES.remove(pos.immutable());
+            if (removed != null) {
+                removed.clearPlaybackSession();
+            }
         }
     }
 
@@ -197,6 +202,7 @@ public final class ProjectorPlaybackState {
     ProjectorSceneBundle playbackBundleFor(ProjectorBlockEntity blockEntity) {
         int revision = blockEntity.getPlaybackRevision();
         if (playbackBundleRevision != revision) {
+            clearPlaybackSession();
             List<String> desiredSceneKeys = ProjectorClientSceneResolver.sceneKeysFor(blockEntity.getSourceItem());
             playbackBundle = desiredSceneKeys.isEmpty() ? null : ProjectorSceneBundle.compile(desiredSceneKeys);
             playbackBundleRevision = revision;
@@ -208,6 +214,9 @@ public final class ProjectorPlaybackState {
     }
 
     private void clearPlaybackSession() {
+        if (playbackBundle != null) {
+            playbackBundle.segments().forEach(segment -> PonderRenderCache.releaseDiscardedScene(segment.scene()));
+        }
         playbackBundle = null;
         playbackBundleRevision = Integer.MIN_VALUE;
         lastRevision = Integer.MIN_VALUE;

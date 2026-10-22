@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
-import com.nododiiiii.ponderer.ui.UILayoutConstants;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.minecraft.client.Minecraft;
@@ -21,7 +20,6 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
     private final Supplier<String> tooltipGetter;
     private final IntSupplier colorGetter;
     private final BooleanSupplier activeGetter;
-    private int maxButtonWidth = -1;
 
     public FullButtonListEntry(String label, @Nullable String tooltipText, Runnable onClick) {
         this(() -> label, tooltipText == null ? null : () -> tooltipText, onClick, () -> 0xFFFFFF, () -> true);
@@ -34,18 +32,13 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
         this.tooltipGetter = tooltipGetter;
         this.colorGetter = colorGetter;
         this.activeGetter = activeGetter;
-        this.button = new FormBoxWidget(0, 0, 200, 18).withCallback(onClick);
+        this.button = new FormBoxWidget(0, 0, 200, 26).withCallback(onClick);
         listeners.add(button);
         refreshTooltip();
     }
 
     public BoxWidget button() {
         return button;
-    }
-
-    public FullButtonListEntry setMaxButtonWidth(int maxButtonWidth) {
-        this.maxButtonWidth = maxButtonWidth <= 0 ? -1 : maxButtonWidth;
-        return this;
     }
 
     @Override
@@ -70,15 +63,12 @@ public class FullButtonListEntry extends ConfigScreenList.LabeledEntry implement
                        int mouseX, int mouseY, boolean hovered, float partialTicks) {
         refreshTooltip();
 
-        boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
-        int buttonY = compact ? y + 4 : y + 10;
-        int availableWidth = Math.max(40, width - 8);
-        int buttonWidth = maxButtonWidth > 0 ? Math.min(availableWidth, maxButtonWidth) : availableWidth;
-        int buttonX = x + (width - buttonWidth) / 2;
-        int buttonHeight = compact ? 16 : Math.max(16, height - 20);
-        button.setX(buttonX);
+        int buttonY = EntryTextSupport.fullButtonY(y, height);
+        int buttonWidth = Math.max(40, EntryTextSupport.contentWidth(width));
+        int buttonX = EntryTextSupport.contentLeft(x);
+        int buttonHeight = EntryTextSupport.fullButtonHeight(height);
+        EntryTextSupport.setBoxHorizontalBounds(button, buttonX, buttonWidth);
         button.setY(buttonY);
-        button.setWidth(buttonWidth);
         button.setHeight(buttonHeight);
         button.active = activeGetter.getAsBoolean();
         button.render(graphics, mouseX, mouseY, partialTicks);

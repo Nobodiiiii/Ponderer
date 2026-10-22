@@ -1,9 +1,11 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -59,7 +61,7 @@ public final class PonderScreenNavigation {
             return false;
         }
 
-        PonderUI ponderUI = PonderUI.of(itemId);
+        PonderUI ponderUI = PonderUI.of(NbtSceneFilter.createStack(itemId, SceneItemBindings.firstNbtFilter(scene)));
         PonderUIAccessor accessor = (PonderUIAccessor) ponderUI;
 
         List<PonderScene> ponderScenes = accessor.ponderer$getScenes();
@@ -117,7 +119,7 @@ public final class PonderScreenNavigation {
         if (scene == null || scene.items == null || scene.items.isEmpty()) {
             return null;
         }
-        return ResourceLocation.tryParse(scene.items.get(0));
+        return SceneItemBindings.firstItem(scene);
     }
 
     public record ReturnState(List<Screen> screenHistory, @Nullable PonderItemGridScreen returnScreen) {

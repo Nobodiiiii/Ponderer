@@ -1,13 +1,28 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import net.minecraft.network.FriendlyByteBuf;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 
-public record RemoteCatalogRequestPayload() {
+public record RemoteCatalogRequestPayload() implements CustomPacketPayload {
+
+    public static final Type<RemoteCatalogRequestPayload> TYPE =
+        new Type<>(new ResourceLocation(Ponderer.MODID, "remote_catalog_request"));
+    public static final StreamCodec<FriendlyByteBuf, RemoteCatalogRequestPayload> CODEC =
+        StreamCodec.of((buf, payload) -> payload.encode(buf), RemoteCatalogRequestPayload::decode);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
     public void encode(FriendlyByteBuf buf) {
     }
 

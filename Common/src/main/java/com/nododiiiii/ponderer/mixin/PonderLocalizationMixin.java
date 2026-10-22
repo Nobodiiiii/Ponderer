@@ -41,7 +41,7 @@ public class PonderLocalizationMixin {
      * because dynamic scene text rarely contains format specifiers.
      */
     @Inject(method = "getShared",
-            at = @At("HEAD"), cancellable = true, remap = false)
+            at = @At("HEAD"), cancellable = true)
     private void ponderer$getShared(ResourceLocation key, CallbackInfoReturnable<String> cir) {
         if (PonderIndex.editingModeActive()) return;
         if (!Ponderer.MODID.equals(key.getNamespace())) return;
@@ -56,7 +56,7 @@ public class PonderLocalizationMixin {
      * Same rationale as above – only common parameters are captured.
      */
     @Inject(method = "getSpecific",
-            at = @At("HEAD"), cancellable = true, remap = false)
+            at = @At("HEAD"), cancellable = true)
     private void ponderer$getSpecific(ResourceLocation sceneId, String k, CallbackInfoReturnable<String> cir) {
         if (PonderIndex.editingModeActive()) return;
         if (!Ponderer.MODID.equals(sceneId.getNamespace())) return;

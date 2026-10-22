@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
@@ -7,6 +8,7 @@ import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
+import com.nododiiiii.ponderer.ui.catnip.SectionHeaderRenderer;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.data.Couple;
@@ -21,8 +23,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
@@ -56,7 +56,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
     private static final int CELL_SIZE = 20;
     private static final int GRID_PAD_X = 12;
     private static final int GRID_PAD_Y = 8;
-    private static final int SECTION_HEADER_H = 16;
+    private static final int SECTION_HEADER_H = CELL_SIZE;
     private static final int SCROLL_SPEED = UILayoutConstants.SCROLL_SPEED;
 
     record ItemEntry(ItemStack stack, @Nullable String nbtFilter, List<String> sceneKeys) {
@@ -270,11 +270,11 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (gridPanel != null && gridPanel.mouseScrolled(mouseX, mouseY, delta)) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY) {
+        if (gridPanel != null && gridPanel.mouseScrolled(mouseX, mouseY, deltaY)) {
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX, mouseY, deltaX, deltaY);
     }
 
     @Override
@@ -394,12 +394,14 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
     }
 
     private void configureActionButtons() {
+        if (mode == Mode.MULTI_SELECT) {
+            useConfirmationActionIcons();
+        }
         if (saveChanges != null) {
             if (mode == Mode.MULTI_SELECT) {
                 saveChanges.visible = true;
                 saveChanges.active = true;
                 saveChanges.withCallback(this::confirmSelection);
-                setActionButtonTooltip(saveChanges, "ponderer.ui.confirm");
             } else {
                 saveChanges.visible = false;
                 saveChanges.active = false;
@@ -411,7 +413,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 discardChanges.visible = true;
                 discardChanges.active = true;
                 discardChanges.withCallback(this::cancelSelection);
-                setActionButtonTooltip(discardChanges, "ponderer.ui.cancel");
             } else {
                 discardChanges.visible = false;
                 discardChanges.active = false;
@@ -556,8 +557,9 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             String packKey = packPrefix != null ? packPrefix : "";
             String sceneKey = scene.sceneKey();
 
-            for (String itemId : scene.items) {
-                String nf = scene.nbtFilter;
+            for (SceneItemBindings.ResolvedBinding binding : SceneItemBindings.resolveWithNbt(scene)) {
+                String itemId = binding.itemId().toString();
+                String nf = binding.nbtFilter();
                 String entryKey = normalizedEntryKey(itemId, nf);
 
                 packGroups.computeIfAbsent(packKey, ignored -> new LinkedHashMap<>())
@@ -618,8 +620,9 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             }
             String sceneKey = scene.sceneKey();
 
-            for (String itemId : scene.items) {
-                String nf = scene.nbtFilter;
+            for (SceneItemBindings.ResolvedBinding binding : SceneItemBindings.resolveWithNbt(scene)) {
+                String itemId = binding.itemId().toString();
+                String nf = binding.nbtFilter();
                 String key = normalizedEntryKey(itemId, nf);
 
                 entryMap.computeIfAbsent(key, ignored -> new ArrayList<>());
@@ -663,21 +666,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
 
             Set<String> seenNormalizedKeys = new HashSet<>();
             for (String nf : itemEntry.getValue()) {
-                ItemStack stack = new ItemStack(item);
-                if (nf != null) {
-                    try {
-                        CompoundTag filterTag = TagParser.parseTag(nf);
-                        CompoundTag fullTag = new CompoundTag();
-                        fullTag.putString("id", rl.toString());
-                        fullTag.putByte("Count", (byte) 1);
-                        fullTag.put("tag", filterTag);
-                        ItemStack parsed = ItemStack.of(fullTag);
-                        if (!parsed.isEmpty()) {
-                            stack = parsed;
-                        }
-                    } catch (Exception ignored) {
-                    }
-                }
+                ItemStack stack = NbtSceneFilter.createStack(rl, nf);
 
                 String key = normalizedEntryKey(itemId, nf);
                 if (!seenNormalizedKeys.add(key)) {
@@ -844,11 +833,12 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         }
 
         @Override
-        public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        public boolean mouseScrolled(double mouseX, double mouseY, double deltaY) {
+            double deltaX = 0;
             if (!isMouseOver(mouseX, mouseY)) {
                 return false;
             }
-            setScroll(scrollY - delta * SCROLL_SPEED);
+            setScroll(scrollY - deltaY * SCROLL_SPEED);
             return true;
         }
 
@@ -999,10 +989,8 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             for (PackSection section : visibleSections) {
                 int headerY = contentY;
                 if (headerY + SECTION_HEADER_H > getY() && headerY < getY() + getHeight()) {
-                    graphics.drawString(font, section.displayName, gridLeft() + 2, headerY + 3,
-                        UIRenderHelper.COLOR_TEXT_STRONG_ACCENT.getFirst().getRGB());
-                    graphics.fill(gridLeft(), headerY + SECTION_HEADER_H - 1, gridRight(),
-                        headerY + SECTION_HEADER_H, 0x20_FFFFFF);
+                    SectionHeaderRenderer.render(graphics, font, section.displayName,
+                        gridLeft(), gridRight(), headerY, SECTION_HEADER_H, false);
                 }
                 contentY += SECTION_HEADER_H;
 
@@ -1030,7 +1018,6 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             Color background = null;
             int iconX = x + 2;
             int iconY = y + 2;
-            int iconSize = 16;
 
             if (selectionState == 2) {
                 border = AbstractSimiWidget.COLOR_SUCCESS;
@@ -1047,8 +1034,9 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 new BoxElement()
                     .withBackground(background)
                     .gradientBorder(border.getFirst(), border.getSecond())
-                    .at(iconX + 1, iconY + 1, 0)
-                    .withBounds(iconSize - 2, iconSize - 2)
+                    .withBorderOffset(-2)
+                    .at(x - 1, y - 1, 0)
+                    .withBounds(CELL_SIZE + 2, CELL_SIZE + 2)
                     .render(graphics);
             }
 
@@ -1110,6 +1098,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
             }
 
             ItemEntry entry = hit.entry;
+            var level = Minecraft.getInstance().level;
             List<Component> tooltip = new ArrayList<>(
                 entry.stack.getTooltipLines(Minecraft.getInstance().player, TooltipFlag.NORMAL));
             tooltip.add(Component.literal(""));

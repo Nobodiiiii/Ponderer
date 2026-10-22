@@ -1,6 +1,9 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
+import com.nododiiiii.ponderer.feedback.FeedbackTarget;
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.nododiiiii.ponderer.platform.PondererServices;
+import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.PondererUiScaling;
 import com.nododiiiii.ponderer.ui.UIText;
 import net.createmod.catnip.config.ui.ConfigScreen;
@@ -18,7 +21,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.function.Consumer;
 
-public abstract class AbstractDeclarativeScreen extends ConfigScreen implements PondererUiScaling.ScaledScreen {
+public abstract class AbstractDeclarativeScreen extends ConfigScreen implements PondererUiScaling.ScaledScreen, FeedbackTarget {
 
     protected final String scopeKey;
     protected final String titleKey;
@@ -27,11 +30,21 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
     private String errorMessage;
     @Nullable
     private String infoMessage;
+    @Nullable private Component feedbackMessage;
+    private FeedbackLevel feedbackLevel;
 
     protected AbstractDeclarativeScreen(@Nullable Screen parent, String scopeKey, String titleKey) {
         super(parent);
         this.scopeKey = scopeKey;
         this.titleKey = titleKey;
+    }
+
+    @Override
+    public boolean mouseScrolled(double x, double y, double delta) {
+        return mouseScrolled(x, y, 0, delta);
+    }
+    public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+        return super.mouseScrolled(x, y, vertical);
     }
 
     @Override
@@ -49,31 +62,37 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
 
     @Override
     protected void renderWindowBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
-        if (!shouldUseSafeFabricBackground()) {
-            super.renderWindowBackground(graphics, mouseX, mouseY, partialTicks);
-            return;
-        }
-
         if (minecraft != null && minecraft.level != null) {
-            graphics.fill(0, 0, width, height, 0xb0_282c34);
-            return;
+            graphics.fill(0, 0, width, height, 0xb0282c34);
+        } else {
+            renderMenuBackground(graphics, partialTicks);
         }
 
-        renderMenuBackground(graphics, partialTicks);
+        if (!shouldUseSafeFabricBackground()) {
+            shadowElement.at(backgroundCogCenterX(), height * 0.5f, 0).render(graphics);
+        }
     }
 
-    private boolean shouldUseSafeFabricBackground() {
-        return "fabric".equals(PondererServices.PLATFORM.getPlatformName())
-            && PondererServices.PLATFORM.isModLoaded("sodium")
-            && !PondererServices.PLATFORM.isModLoaded("indium");
+    protected float backgroundCogCenterX() {
+        return width * 0.5f;
+    }
+
+    @Override
+    public final void acceptFeedback(Component message, FeedbackLevel level) {
+        if (level == FeedbackLevel.ERROR) setErrorMessage(message.getString());
+        else setInfoMessage(message.getString());
+        feedbackMessage = message;
+        feedbackLevel = level;
     }
 
     protected final void clearStatusMessages() {
+        feedbackMessage = null;
         errorMessage = null;
         infoMessage = null;
     }
 
     protected final void setErrorMessage(@Nullable String message) {
+        feedbackMessage = null;
         errorMessage = message;
         if (message != null && !message.isBlank()) {
             infoMessage = null;
@@ -81,6 +100,7 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
     }
 
     protected final void setInfoMessage(@Nullable String message) {
+        feedbackMessage = null;
         infoMessage = message;
         if (message != null && !message.isBlank()) {
             errorMessage = null;
@@ -110,12 +130,14 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
         int color = errorMessage != null && !errorMessage.isBlank()
             ? AbstractSimiWidget.COLOR_FAIL.getFirst().getRGB()
             : AbstractSimiWidget.COLOR_SUCCESS.getFirst().getRGB();
-
-        // Wrap long messages across multiple lines instead of truncating to a single line.
-        // The given y is the bottom anchor (just above the screen's bottom controls), so extra
-        // lines stack upward into the empty space above rather than overlapping the controls.
+        if (feedbackMessage != null) color = switch (feedbackLevel) {
+            case INFO -> 0xD0D0D0;
+            case SUCCESS -> AbstractSimiWidget.COLOR_SUCCESS.getFirst().getRGB();
+            case WARNING -> 0xFFCC55;
+            case ERROR -> AbstractSimiWidget.COLOR_FAIL.getFirst().getRGB();
+        };
         int lineHeight = minecraft.font.lineHeight;
-        List<FormattedCharSequence> lines = minecraft.font.split(Component.literal(message), Math.max(1, maxWidth));
+        List<FormattedCharSequence> lines = minecraft.font.split(feedbackMessage != null ? feedbackMessage : Component.literal(message), Math.max(1, maxWidth));
         int topY = y - Math.max(0, lines.size() - 1) * lineHeight;
         for (int i = 0; i < lines.size(); i++) {
             graphics.drawString(minecraft.font, lines.get(i), x, topY + i * lineHeight, color);
@@ -152,17 +174,36 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
     }
 
     protected void showLeavingPrompt(Consumer<ConfirmationScreen.Response> action) {
-        int dirtyFields = getUnsavedChangeCount();
-        new ConfirmationScreen()
-            .centered()
-            .withThreeActions(action)
-            .addText(Component.translatable(
-                "catnip.ui.leaving_with_changes_message",
-                dirtyFields,
-                Component.translatable(dirtyFields != 1
-                    ? "catnip.ui.value_changes_plural"
-                    : "catnip.ui.value_changes_singular")))
-            .open(this);
+        showLeavingPrompt(action, "ponderer.ui.unsaved_changes.message",
+            "ponderer.ui.unsaved_changes.save_and_back", "ponderer.ui.unsaved_changes.discard_and_back");
+    }
+
+    protected void showLeavingPrompt(Consumer<ConfirmationScreen.Response> action, String messageKey,
+                                     String saveLabelKey, String discardLabelKey) {
+        new PondererDialogScreen(
+            this,
+            List.of(Component.translatable("ponderer.ui.unsaved_changes.title")),
+            List.of(Component.translatable(messageKey, getUnsavedChangeCount())),
+            List.of(
+                promptButton(saveLabelKey,
+                    () -> action.accept(ConfirmationScreen.Response.Confirm)),
+                promptButton(discardLabelKey,
+                    () -> action.accept(ConfirmationScreen.Response.ConfirmDontSave)),
+                promptButton("ponderer.ui.unsaved_changes.keep_editing",
+                    () -> action.accept(ConfirmationScreen.Response.Cancel)))) {
+            @Override
+            public void onClose() {
+                super.onClose();
+                action.accept(ConfirmationScreen.Response.Cancel);
+            }
+        }.open();
+    }
+
+    protected final PondererDialogScreen.DialogButton promptButton(String labelKey, Runnable action) {
+        return PondererDialogScreen.button(Component.translatable(labelKey), dialog -> {
+            dialog.closeToSource();
+            action.run();
+        });
     }
 
     @Override
@@ -177,4 +218,10 @@ public abstract class AbstractDeclarativeScreen extends ConfigScreen implements 
     protected abstract boolean saveEdits();
 
     protected abstract void discardEdits();
+
+    private boolean shouldUseSafeFabricBackground() {
+        return "fabric".equals(PondererServices.PLATFORM.getPlatformName())
+            && PondererServices.PLATFORM.isModLoaded("sodium")
+            && !PondererServices.PLATFORM.isModLoaded("indium");
+    }
 }

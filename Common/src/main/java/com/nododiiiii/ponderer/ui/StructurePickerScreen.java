@@ -8,7 +8,6 @@ import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.catnip.config.ui.ConfigScreenList;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -93,17 +92,16 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
     protected void init() {
         rescanEntries();
         super.init();
+        useConfirmationActionIcons();
         if (saveChanges != null) {
             saveChanges.withCallback(this::confirmSelection);
-            setActionButtonTooltip(saveChanges, "ponderer.ui.confirm");
         }
         if (discardChanges != null) {
             discardChanges.withCallback(this::clearSelection);
-            setActionButtonTooltip(discardChanges, "ponderer.ui.structure_picker.clear_selection");
         }
         layoutPreviewPanel();
         if (selectedPath != null && !selectedExternal && previewVisible) {
-            preview.load(selectedPath);
+            preview.load(selectedPath, this);
         }
     }
 
@@ -306,27 +304,7 @@ public class StructurePickerScreen extends AbstractDeclarativeListScreen {
 
     private void triggerPreviewLoad(Path file) {
         if (!previewVisible) return;
-        int count = StructurePreviewWidget.countBlocks(file);
-        if (count <= 0) {
-            preview.setStatus("ponderer.ui.structure_picker.preview.empty");
-            return;
-        }
-        if (count > StructurePreviewWidget.DEFAULT_LARGE_THRESHOLD) {
-            preview.setStatus("ponderer.ui.structure_picker.preview.confirm_pending");
-            new ConfirmationScreen()
-                .centered()
-                .withText(Component.translatable("ponderer.ui.structure_picker.preview.large", count))
-                .withAction(success -> {
-                    if (Boolean.TRUE.equals(success)) {
-                        preview.load(file);
-                    } else {
-                        preview.setStatus("ponderer.ui.structure_picker.preview.skipped");
-                    }
-                })
-                .open(this);
-            return;
-        }
-        preview.load(file);
+        preview.load(file, this);
     }
 
     private boolean confirmSelection() {

@@ -801,7 +801,7 @@ public final class SceneStore {
         return resolveLocalScenePath(temp);
     }
 
-    public static LocalSaveResult saveSceneToLocalDetailed(DslScene scene) {
+    public static synchronized LocalSaveResult saveSceneToLocalDetailed(DslScene scene) {
         LocalSaveResult validationFailure = validateLocalSceneSave(scene);
         if (validationFailure != null) {
             LOGGER.warn(validationFailure.englishMessage());
@@ -820,9 +820,13 @@ public final class SceneStore {
 
         try {
             Files.createDirectories(filePath.getParent());
-            sanitizeScene(scene);
-            String json = GSON_PRETTY.toJson(scene);
-            Files.writeString(filePath, json, StandardCharsets.UTF_8);
+            String json = serializeLocalScene(scene);
+            Path temporary = Files.createTempFile(filePath.getParent(), ".scene-", ".tmp");
+            try {
+                Files.writeString(temporary, json, StandardCharsets.UTF_8);
+                try { Files.move(temporary, filePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
+                catch (java.nio.file.AtomicMoveNotSupportedException ignored) { Files.move(temporary, filePath, StandardCopyOption.REPLACE_EXISTING); }
+            } finally { Files.deleteIfExists(temporary); }
             if (scene.pack != null && !scene.pack.isBlank()) {
                 deleteDirectoryRecursive(getReadonlyCachePackSceneDir(scene.pack));
                 deleteDirectoryRecursive(getReadonlyCachePackStructureDir(scene.pack));
@@ -838,6 +842,12 @@ public final class SceneStore {
 
     public static boolean saveSceneToLocal(DslScene scene) {
         return saveSceneToLocalDetailed(scene).isSuccess();
+    }
+
+    /** The exact persisted representation, also used for AI rollback records before a save. */
+    public static String serializeLocalScene(DslScene scene) {
+        sanitizeScene(scene);
+        return GSON_PRETTY.toJson(scene);
     }
 
     /**
@@ -891,6 +901,7 @@ public final class SceneStore {
         }
         try {
             Files.deleteIfExists(existing);
+            SyncMeta.recordLocalSceneDeletion(sceneId, existing);
             LOGGER.info("Deleted scene file: {}", existing);
             return true;
         } catch (IOException e) {
@@ -967,6 +978,9 @@ public final class SceneStore {
         }
         try {
             Files.deleteIfExists(existing);
+            String packPrefix = DslScene.extractPackPrefix(sceneKey);
+            String sceneId = packPrefix == null ? sceneKey : sceneKey.substring(packPrefix.length()).trim();
+            SyncMeta.recordLocalSceneDeletion(sceneId, existing);
             LOGGER.info("Deleted scene file: {}", existing);
             return true;
         } catch (IOException e) {
@@ -2140,7 +2154,7 @@ public final class SceneStore {
         }
     }
 
-    static void collectStructureReferences(@javax.annotation.Nullable DslScene scene, Set<String> structures) {
+    public static void collectStructureReferences(@javax.annotation.Nullable DslScene scene, Set<String> structures) {
         if (scene == null || structures == null) {
             return;
         }

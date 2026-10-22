@@ -1,11 +1,8 @@
 package com.nododiiiii.ponderer.ui.catnip;
 
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ui.FieldDecorator;
 import com.nododiiiii.ponderer.ui.FieldDecorators;
 import com.nododiiiii.ponderer.ui.IdFieldMode;
-import com.nododiiiii.ponderer.ui.JeiTextButtonHost;
-import com.nododiiiii.ponderer.ui.UIText;
 
 import javax.annotation.Nullable;
 import java.util.function.IntSupplier;

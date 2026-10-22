@@ -40,13 +40,7 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
             UIText.of("ponderer.ui.create_item_entity.hint"),
             124,
             FieldDecorators.jei(IdFieldMode.ITEM),
-            FieldDecorators.heldItem(
-            stack -> {
-                itemField.setValue(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
-                if (stack.getTag() != null && !stack.getTag().isEmpty()) {
-                    nbtField.setValue(stack.getTag().toString());
-                }
-            })));
+            FieldDecorators.heldItem(itemField, nbtField, countField)));
         entries.add(FieldSpecs.number(
             countField,
             "ponderer.ui.create_item_entity.count",
@@ -63,16 +57,16 @@ public class CreateItemEntityScreen extends AbstractStepEditorScreen {
         entries.add(FieldSpecs.xyz(
             motionField,
             "ponderer.ui.create_item_entity.motion",
-            "ponderer.ui.create_item_entity.motion.tooltip"));
-        entries.add(FieldSpecs.text(
+            "ponderer.ui.create_item_entity.motion.tooltip",
+            FieldType.VECTOR));
+        entries.add(FieldSpecs.nbt(
             nbtField,
             "ponderer.ui.create_item_entity.nbt",
             "ponderer.ui.create_item_entity.nbt.tooltip",
-            "{PickupDelay:40s}",
             124,
-            FieldDecorators.nbtPick("nbt"),
-            FieldDecorators.nbtExpand("nbt")));
-        entries.add(FieldSpecs.text(
+            "nbt"));
+        entries.add(FieldSpecs.typedText(
+            FieldType.ENTITY_LINK,
             linkIdField,
             "ponderer.ui.entity_link",
             "ponderer.ui.create_item_entity.link.tooltip",

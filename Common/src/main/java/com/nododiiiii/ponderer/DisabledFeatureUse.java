@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer;
 
-import net.minecraft.ChatFormatting;
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -16,8 +16,10 @@ public final class DisabledFeatureUse {
         if (!stack.isEmpty()) {
             stack.shrink(1);
         }
-        if (player != null) {
-            player.displayClientMessage(Component.translatable(messageKey).withStyle(ChatFormatting.RED), true);
+        if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+            com.nododiiiii.ponderer.platform.PondererServices.NETWORK.sendToPlayer(serverPlayer,
+                new com.nododiiiii.ponderer.network.FeedbackMessagePayload(Component.translatable(messageKey),
+                    FeedbackLevel.ERROR, true));
         }
     }
 }

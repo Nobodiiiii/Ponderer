@@ -9,6 +9,7 @@ import com.nododiiiii.ponderer.projector.client.ProjectorRenderDistances;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -398,7 +399,6 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
         BlockState chestState = Blocks.CHEST.defaultBlockState().setValue(ChestBlock.FACING, facing);
         level.setBlock(worldPosition, chestState, Block.UPDATE_ALL);
         if (level.getBlockEntity(worldPosition) instanceof ChestBlockEntity chest) {
-            chest.setCustomName(Component.translatable(kind.translationKey()));
             if (!recoveredSourceItem.isEmpty()) {
                 chest.setItem(13, recoveredSourceItem);
             }
@@ -541,7 +541,7 @@ public class ProjectorBlockEntity extends BlockEntity implements Container, Menu
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
         if (!sourceItem.isEmpty()) {
-            tag.put(TAG_SOURCE_ITEM, sourceItem.save(new CompoundTag()));
+            tag.put(TAG_SOURCE_ITEM, sourceItem.save(new net.minecraft.nbt.CompoundTag()));
         }
         tag.putString(TAG_TRIGGER_MODE, triggerMode.serializedName());
         if (projectionOffset != null) {

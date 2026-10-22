@@ -1,5 +1,8 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.feedback.FeedbackLevel;
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
+import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
 import com.nododiiiii.ponderer.ui.PermissionManagementScreen;
@@ -7,6 +10,9 @@ import com.nododiiiii.ponderer.ui.UIText;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import com.nododiiiii.ponderer.network.compat.StreamCodec;
+import com.nododiiiii.ponderer.network.compat.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
@@ -14,27 +20,37 @@ import java.util.List;
 
 public record PermissionListResponsePayload(List<Entry> entries, String viewerRole, boolean serverOperator,
                                             boolean canManage, String messageKey, String messageSubject,
-                                            boolean error) {
+                                            boolean error) implements CustomPacketPayload {
+
+    public static final Type<PermissionListResponsePayload> TYPE =
+            new Type<>(new ResourceLocation(Ponderer.MODID, "permission_list_response"));
+    public static final StreamCodec<FriendlyByteBuf, PermissionListResponsePayload> CODEC =
+            StreamCodec.of(PermissionListResponsePayload::encode, PermissionListResponsePayload::decode);
 
     public record Entry(String subject, String role, boolean locked) {
     }
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeVarInt(entries().size());
-        for (Entry entry : entries()) {
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
+    private static void encode(FriendlyByteBuf buf, PermissionListResponsePayload payload) {
+        buf.writeVarInt(payload.entries().size());
+        for (Entry entry : payload.entries()) {
             buf.writeUtf(entry.subject());
             buf.writeUtf(entry.role());
             buf.writeBoolean(entry.locked());
         }
-        buf.writeUtf(viewerRole() == null ? "" : viewerRole());
-        buf.writeBoolean(serverOperator());
-        buf.writeBoolean(canManage());
-        buf.writeUtf(messageKey() == null ? "" : messageKey());
-        buf.writeUtf(messageSubject() == null ? "" : messageSubject());
-        buf.writeBoolean(error());
+        buf.writeUtf(payload.viewerRole() == null ? "" : payload.viewerRole());
+        buf.writeBoolean(payload.serverOperator());
+        buf.writeBoolean(payload.canManage());
+        buf.writeUtf(payload.messageKey() == null ? "" : payload.messageKey());
+        buf.writeUtf(payload.messageSubject() == null ? "" : payload.messageSubject());
+        buf.writeBoolean(payload.error());
     }
 
-    public static PermissionListResponsePayload decode(FriendlyByteBuf buf) {
+    private static PermissionListResponsePayload decode(FriendlyByteBuf buf) {
         int size = buf.readVarInt();
         List<Entry> entries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -69,7 +85,7 @@ public record PermissionListResponsePayload(List<Entry> entries, String viewerRo
 
     public static void handle(PermissionListResponsePayload payload) {
         Minecraft client = Minecraft.getInstance();
-        if (client.screen instanceof PermissionManagementScreen screen) {
+        if (ClientFeedback.responseScreen() instanceof PermissionManagementScreen screen) {
             screen.receiveSnapshot(payload);
             return;
         }
@@ -78,7 +94,8 @@ public record PermissionListResponsePayload(List<Entry> entries, String viewerRo
             String text = payload.messageSubject() == null || payload.messageSubject().isBlank()
                 ? UIText.of(payload.messageKey())
                 : UIText.of(payload.messageKey(), payload.messageSubject());
-            client.player.displayClientMessage(Component.literal(text), false);
+            ClientFeedback.result(Component.literal(text),
+                payload.error() ? FeedbackLevel.ERROR : FeedbackLevel.SUCCESS);
         }
     }
 }

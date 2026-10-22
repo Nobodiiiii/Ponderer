@@ -13,14 +13,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Ponder's default tick loop iterates the live entity list directly.
- * Some Forge items replace their dropped ItemEntity during tick, which mutates
- * that list and crashes the scene with ConcurrentModificationException.
- *
- * Snapshot iteration keeps the world resilient for any modded entity that
- * spawns or swaps entities mid-tick, without special-casing a specific mod.
- */
 @Mixin(PonderLevel.class)
 public class PonderLevelMixin {
 

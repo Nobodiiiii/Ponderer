@@ -1,8 +1,10 @@
 package com.nododiiiii.ponderer.ui;
 
+import com.nododiiiii.ponderer.feedback.ClientFeedback;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -95,27 +97,21 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
 
     @Override
     protected void collectStepEntries(List<com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry> entries) {
-        entries.add(FieldSpecs.text(
+        entries.add(FieldSpecs.typedText(
+            FieldType.STRUCTURE,
             structureField,
             "ponderer.ui.show_extra_structure.structure",
             "ponderer.ui.show_extra_structure.structure.tooltip",
             UIText.of("ponderer.ui.show_extra_structure.structure.hint"),
             105,
-            FieldDecorators.textAction(
-                20,
-                this::openFilePicker,
-                () -> "S",
-                () -> 0xFFFFFF,
-                UIText.of("ponderer.ui.show_extra_structure.browse.tooltip"))));
+            FieldDecorators.iconAction(PondererGuiIcons.STRUCTURE,
+                UIText.of("ponderer.ui.show_extra_structure.browse.tooltip"), this::openFilePicker)));
 
         entries.add(FieldSpecs.xyz(
             posField,
             "ponderer.ui.show_extra_structure.pos",
             "ponderer.ui.show_extra_structure.pos.tooltip",
-            "X",
-            "Y",
-            "Z",
-            FieldDecorators.pointPick(PickState.TargetField.POS1)));
+            PickState.TargetField.POS1));
 
         entries.add(FieldSpecs.cycle(
             rotationBinding,
@@ -173,7 +169,8 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
                     "ponderer.ui.show_controls.direction",
                     SelectionAnimationOptions.DIRECTIONS[directionIndex]),
                 () -> 0xFFFFFF));
-            entries.add(FieldSpecs.text(
+            entries.add(FieldSpecs.typedText(
+                FieldType.SECTION_LINK,
                 linkIdField,
                 "ponderer.ui.show_section_and_merge.link",
                 "ponderer.ui.show_section_and_merge.link.tooltip",
@@ -275,11 +272,11 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
             return null;
         }
 
-        Integer px = parseInt(posField.x(), "X");
+        Integer px = parseBlockCoordinate(posField.x(), "X");
         if (px == null) return null;
-        Integer py = parseInt(posField.y(), "Y");
+        Integer py = parseBlockCoordinate(posField.y(), "Y");
         if (py == null) return null;
-        Integer pz = parseInt(posField.z(), "Z");
+        Integer pz = parseBlockCoordinate(posField.z(), "Z");
         if (pz == null) return null;
 
         DslScene.DslStep step = new DslScene.DslStep();
@@ -368,7 +365,8 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
     }
 
     public static void onDownloadResult(String sourceId, String targetId, boolean success, String message) {
-        if (!(Minecraft.getInstance().screen instanceof ShowExtraStructureScreen screen)) {
+        if (!(ClientFeedback.responseScreen() instanceof ShowExtraStructureScreen screen)
+            || Minecraft.getInstance().screen != screen) {
             return;
         }
         screen.handleDownloadResult(sourceId, success, message);
@@ -410,6 +408,7 @@ public class ShowExtraStructureScreen extends AbstractStepEditorScreen {
         } else {
             parent.addStepAndSave(stepToSave);
         }
+        ClientFeedback.continueOn(parent);
         Minecraft.getInstance().setScreen(parent);
     }
 }

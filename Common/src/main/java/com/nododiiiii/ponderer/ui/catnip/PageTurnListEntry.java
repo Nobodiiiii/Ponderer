@@ -15,9 +15,8 @@ import java.util.function.Supplier;
 
 public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements SearchableListEntry {
 
-    private static final int OUTER_GAP = 4;
-    private static final int INNER_GAP = 8;
-    private static final int BUTTON_WIDTH = 22;
+    private static final int INNER_GAP = 4;
+    private static final int BUTTON_WIDTH = 30;
 
     private final BoxWidget prevButton;
     private final BoxWidget nextButton;
@@ -41,8 +40,8 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         this.nextTooltipGetter = nextTooltipGetter;
         this.prevActiveGetter = prevActiveGetter;
         this.nextActiveGetter = nextActiveGetter;
-        this.prevButton = new FormBoxWidget(0, 0, BUTTON_WIDTH, 18).withCallback(onPrev);
-        this.nextButton = new FormBoxWidget(0, 0, BUTTON_WIDTH, 18).withCallback(onNext);
+        this.prevButton = new FormBoxWidget(0, 0, BUTTON_WIDTH, 26).withCallback(onPrev);
+        this.nextButton = new FormBoxWidget(0, 0, BUTTON_WIDTH, 26).withCallback(onNext);
         PonderIconStencils.attach(prevButton, PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_LEFT));
         PonderIconStencils.attach(nextButton, PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_RIGHT));
         listeners.add(prevButton);
@@ -84,10 +83,10 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         refreshTooltip(nextButton, nextTooltipGetter);
 
         boolean compact = height <= UILayoutConstants.COMPACT_LIST_ENTRY_H;
-        int buttonHeight = compact ? 16 : Math.max(16, height - 20);
-        int buttonY = compact ? y + 4 : y + 10;
+        int buttonHeight = compact ? 24 : Math.max(24, height - 12);
+        int buttonY = compact ? y : y + 6;
 
-        prevButton.setX(x + OUTER_GAP);
+        prevButton.setX(EntryTextSupport.contentLeft(x));
         prevButton.setY(buttonY);
         prevButton.setWidth(BUTTON_WIDTH);
         prevButton.setHeight(buttonHeight);
@@ -95,7 +94,7 @@ public class PageTurnListEntry extends ConfigScreenList.LabeledEntry implements 
         prevButton.updateGradientFromState();
         prevButton.render(graphics, mouseX, mouseY, partialTicks);
 
-        nextButton.setX(x + width - OUTER_GAP - BUTTON_WIDTH);
+        nextButton.setX(EntryTextSupport.contentRight(x, width) - BUTTON_WIDTH);
         nextButton.setY(buttonY);
         nextButton.setWidth(BUTTON_WIDTH);
         nextButton.setHeight(buttonHeight);

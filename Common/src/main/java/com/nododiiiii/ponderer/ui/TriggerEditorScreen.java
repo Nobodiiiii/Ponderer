@@ -2,13 +2,15 @@ package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
 import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.minecraft.client.Minecraft;
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.ui.catnip.ButtonListEntry;
+import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -18,6 +20,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -31,8 +34,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
     private static final String[] FREQ_VALUES = {null, "always", "first_time", "until_read"};
     private static final String[] FREQ_KEYS = {"off", "always", "first_time", "until_read"};
 
-    private final StepTextFieldHandle itemField = new StepTextFieldHandle("itemId");
-    private final StepTextFieldHandle itemNbtField = new StepTextFieldHandle("itemNbt");
+    private final KeyValueListState itemBindings = new KeyValueListState("itemBinding", 1);
     private final StepTextFieldHandle titleTextField = new StepTextFieldHandle("titleText");
     private final StepTextFieldHandle subtitleTextField = new StepTextFieldHandle("subtitleText");
     private final StepTextFieldHandle structureField = new StepTextFieldHandle("structure");
@@ -58,7 +60,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
     public TriggerEditorScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
         super(scene, sceneIndex, parent, "ponderer.ui.scope.editor", "ponderer.ui.step_editor",
-            UILayoutConstants.EDITOR_LIST_W, JeiCompat::setActiveScreen);
+            UILayoutConstants.EDITOR_LIST_W);
 
         if ("structure".equals(scene.triggerMode)) {
             triggerModeIndex = 1;
@@ -83,9 +85,14 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             }
         }
 
-        String currentItem = scene.items != null && !scene.items.isEmpty() ? scene.items.get(0) : "";
-        itemField.setValue(currentItem);
-        itemNbtField.setValue(scene.nbtFilter != null ? scene.nbtFilter : "");
+        if (scene.items != null && !scene.items.isEmpty()) {
+            List<KeyValueListState.KeyValue> bindings = new ArrayList<>();
+            for (int i = 0; i < scene.items.size(); i++) {
+                String nbt = SceneItemBindings.nbtFilter(scene, i);
+                bindings.add(new KeyValueListState.KeyValue(scene.items.get(i), nbt != null ? nbt : ""));
+            }
+            itemBindings.replaceAll(bindings);
+        }
         titleTextField.setValue(scene.hintTitleText != null ? scene.hintTitleText : "");
         subtitleTextField.setValue(scene.hintSubtitleText != null ? scene.hintSubtitleText : "");
         structureField.setValue(scene.triggerStructure != null ? scene.triggerStructure : "");
@@ -128,8 +135,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         participants.add(autoFreqBinding);
         participants.add(titleFreqBinding);
         participants.add(subtitleFreqBinding);
-        participants.add(itemField);
-        participants.add(itemNbtField);
+        participants.add(itemBindings);
         participants.add(titleTextField);
         participants.add(subtitleTextField);
         participants.add(structureField);
@@ -156,22 +162,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             pendingStructureSelection = null;
         }
 
-        entries.add(FieldSpecs.text(
-            itemField,
-            "ponderer.ui.scene_desc.item_id",
-            null,
-            UIText.of("ponderer.ui.scene_desc.hint.item_id"),
-            124,
-            FieldDecorators.jei(IdFieldMode.ITEM),
-            FieldDecorators.heldItem(this::applyHeldItem)));
-        entries.add(FieldSpecs.text(
-            itemNbtField,
-            "ponderer.ui.scene_desc.item_nbt",
-            null,
-            UIText.of("ponderer.ui.scene_desc.hint.item_nbt"),
-            124,
-            FieldDecorators.nbtPick("itemNbt"),
-            FieldDecorators.nbtExpand("itemNbt")));
+        collectItemBindingEntries(entries);
         entries.add(FieldSpecs.cycle(
             triggerModeBinding,
             "ponderer.ui.trigger_editor.trigger_mode",
@@ -235,60 +226,86 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
         String mode = TRIGGER_MODES[triggerModeIndex];
         if ("structure".equals(mode)) {
-            entries.add(FieldSpecs.text(
+            entries.add(FieldSpecs.typedText(
+                FieldType.STRUCTURE,
                 structureField,
                 "ponderer.ui.trigger_editor.trigger_structure",
                 null,
                 UIText.of("ponderer.ui.trigger_editor.hint.trigger_structure"),
                 124,
-                FieldDecorators.textAction(
-                    20,
-                    this::openStructureList,
-                    () -> "L",
-                    () -> 0xFFFFFF,
-                    UIText.of("ponderer.ui.scene_desc.structure_list_title"))));
+                FieldDecorators.iconAction(PondererGuiIcons.LIST,
+                    UIText.of("ponderer.ui.scene_desc.structure_list_title"), this::openStructureList)));
         } else if ("coordinate".equals(mode)) {
             entries.add(FieldSpecs.xyz(
                 coord1Field,
                 "ponderer.ui.trigger_editor.trigger_coord1",
                 null,
-                "X",
-                "Y",
-                "Z",
-                FieldDecorators.xyzAction(
-                    20,
-                    this::startCoordinatePick,
-                    () -> "+",
-                    () -> 0x80FFFF,
-                    UIText.of("ponderer.ui.pick.tooltip"))));
+                FieldType.WORLD_POSITION,
+                FieldDecorators.xyzIconAction(PondererGuiIcons.PICK_POSITION,
+                    UIText.of("ponderer.ui.world_pick.tooltip"), this::startCoordinatePick)));
             entries.add(FieldSpecs.xyz(
                 coord2Field,
                 "ponderer.ui.trigger_editor.trigger_coord2",
                 null,
-                "X",
-                "Y",
-                "Z",
-                FieldDecorators.xyzAction(
-                    20,
-                    this::startCoordinatePick,
-                    () -> "+",
-                    () -> 0x80FFFF,
-                    UIText.of("ponderer.ui.pick.tooltip"))));
+                FieldType.WORLD_POSITION,
+                FieldDecorators.xyzIconAction(PondererGuiIcons.PICK_POSITION,
+                    UIText.of("ponderer.ui.world_pick.tooltip"), this::startCoordinatePick)));
         }
     }
 
-    private void applyHeldItem(ItemStack stack) {
-        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        itemField.setValue(itemId);
-        if (stack.getTag() != null && !stack.getTag().isEmpty()) {
-            itemNbtField.setValue(stack.getTag().toString());
-        } else {
-            itemNbtField.setValue("");
+    private void collectItemBindingEntries(List<DeclarativeFormEntry> entries) {
+        for (int i = 0; i < itemBindings.size(); i++) {
+            int index = i;
+            String itemKey = "itemBinding_" + i + "_key";
+            String nbtKey = "itemBinding_" + i + "_val";
+            entries.add(FieldSpecs.text(
+                FieldBindings.string(itemKey,
+                    () -> index < itemBindings.size() ? itemBindings.get(index).key() : "",
+                    value -> itemBindings.updateKey(index, value)),
+                "ponderer.ui.scene_desc.item_id",
+                "ponderer.ui.scene_desc.item_id.tooltip",
+                UIText.of("ponderer.ui.scene_desc.hint.item_id"),
+                124,
+                FieldDecorators.jei(IdFieldMode.ITEM),
+                FieldDecorators.itemTagDropdown(itemKey),
+                FieldDecorators.heldItem(stack -> applyHeldItem(index, stack))));
+
+            List<FieldDecorator> nbtDecorators = new ArrayList<>();
+            if (itemBindings.size() > 1) {
+                nbtDecorators.add(FieldDecorators.iconAction(PondererGuiIcons.REMOVE,
+                    UIText.of("ponderer.ui.scene_desc.remove_item"), () -> {
+                        itemBindings.remove(index);
+                        rebuildFormPreservingState();
+                    }));
+            }
+            entries.add(FieldSpecs.nbt(
+                FieldBindings.string(nbtKey,
+                    () -> index < itemBindings.size() ? itemBindings.get(index).value() : "",
+                    value -> itemBindings.updateValue(index, value)),
+                "ponderer.ui.scene_desc.item_nbt",
+                "ponderer.ui.scene_desc.item_nbt.tooltip",
+                124,
+                nbtKey,
+                nbtDecorators.toArray(FieldDecorator[]::new)));
         }
+        entries.add(screen -> screen.appendBuiltEntry(new ButtonListEntry(
+            "", null, 40, () -> {
+                itemBindings.addEmpty();
+                rebuildFormPreservingState();
+            }, () -> "", () -> 0xFFFFFF, UIText.of("ponderer.ui.scene_desc.add_item"))
+            .withIcon(PondererGuiIcons.ADD)));
+    }
+
+    private void applyHeldItem(int index, ItemStack stack) {
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        itemBindings.updateKey(index, itemId);
+        itemBindings.updateValue(index, FieldDecorators.itemCustomData(stack));
+        rebuildFormPreservingState();
     }
 
     private void openStructureList() {
-        Minecraft.getInstance().setScreen(new StructureListScreen(this, selected -> pendingStructureSelection = selected));
+        Minecraft.getInstance().setScreen(new StructureListScreen(this,
+            selected -> pendingStructureSelection = selected, structureField.getValue()));
     }
 
     private void startCoordinatePick() {
@@ -332,29 +349,57 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
     private boolean doSave() {
         clearStatusMessages();
 
-        String newItemId = itemField.getValue().trim();
-        if (newItemId.isEmpty()) {
-            setErrorMessage(UIText.of("ponderer.ui.scene_desc.empty_item"));
-            return false;
-        }
-
-        String oldItemId = scene.items != null && !scene.items.isEmpty() ? scene.items.get(0) : "";
-        if (!newItemId.equals(oldItemId) && !pendingItemDuplicateConfirm) {
-            for (DslScene s : SceneRuntime.getScenes()) {
-                if (s != scene && s.items != null && s.items.contains(newItemId)) {
-                    new ConfirmationScreen()
-                        .centered()
-                        .withText(Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"))
-                        .addText(Component.translatable("ponderer.ui.scene_desc.error.item_exists", newItemId))
-                        .withAction(confirmed -> {
-                            if (confirmed) {
-                                pendingItemDuplicateConfirm = true;
-                                doConfirm();
-                            }
-                        })
-                        .open(this);
+        List<String> newItems = new ArrayList<>();
+        List<String> newFilters = new ArrayList<>();
+        for (KeyValueListState.KeyValue binding : itemBindings.items()) {
+            String item = binding.key().trim();
+            if (item.isEmpty()) {
+                setErrorMessage(UIText.of("ponderer.ui.scene_desc.empty_item"));
+                return false;
+            }
+            ResourceLocation bindingId = SceneItemBindings.id(item);
+            if (bindingId == null) {
+                setErrorMessage(UIText.of("ponderer.cmd.new.error.invalid_binding", item));
+                return false;
+            }
+            item = (SceneItemBindings.isTag(item) ? "#" : "") + bindingId;
+            if ((scene.items == null || !scene.items.contains(item))
+                && SceneItemBindings.resolve(List.of(item)).isEmpty()) {
+                setErrorMessage(UIText.of("ponderer.cmd.new.error.empty_binding", item));
+                return false;
+            }
+            String nbt = binding.value().trim();
+            if (!nbt.isEmpty()) {
+                NbtTextCodec.ParseResult parsed = NbtTextCodec.parse(nbt);
+                if (!parsed.success()) {
+                    setErrorMessage(UIText.of("ponderer.ui.nbt_editor.error.invalid"));
                     return false;
                 }
+                nbt = NbtTextCodec.compact(parsed.tag());
+            }
+            newItems.add(item);
+            newFilters.add(nbt);
+        }
+
+        if (!pendingItemDuplicateConfirm) {
+            List<String> duplicates = newItems.stream().distinct()
+                .filter(item -> scene.items == null || !scene.items.contains(item))
+                .filter(item -> SceneRuntime.getScenes().stream()
+                    .anyMatch(s -> s != scene && s.items != null && s.items.contains(item)))
+                .toList();
+            if (!duplicates.isEmpty()) {
+                new ConfirmationScreen()
+                    .centered()
+                    .withText(Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"))
+                    .addText(Component.translatable("ponderer.ui.scene_desc.error.item_exists", String.join(", ", duplicates)))
+                    .withAction(confirmed -> {
+                        if (confirmed) {
+                            pendingItemDuplicateConfirm = true;
+                            doConfirm();
+                        }
+                    })
+                    .open(this);
+                return false;
             }
         }
         pendingItemDuplicateConfirm = false;
@@ -365,17 +410,11 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             return false;
         }
 
-        candidate.items = List.of(newItemId);
-        String nbt = itemNbtField.getValue().trim();
-        if (!nbt.isEmpty()) {
-            NbtTextCodec.ParseResult parsed = NbtTextCodec.parse(nbt);
-            if (!parsed.success()) {
-                setErrorMessage(UIText.of("ponderer.ui.nbt_editor.error.invalid"));
-                return false;
-            }
-            nbt = NbtTextCodec.compact(parsed.tag());
-        }
-        candidate.nbtFilter = nbt.isEmpty() ? null : nbt;
+        candidate.items = List.copyOf(newItems);
+        String firstFilter = newFilters.get(0);
+        boolean sharedFilter = newFilters.stream().allMatch(firstFilter::equals);
+        candidate.nbtFilter = sharedFilter ? emptyToNull(firstFilter) : null;
+        candidate.itemNbtFilters = sharedFilter ? null : List.copyOf(newFilters);
 
         String triggerMode = TRIGGER_MODES[triggerModeIndex];
         if ("structure".equals(triggerMode)) {
@@ -403,14 +442,17 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             candidate.triggerCoord1 = null;
             candidate.triggerCoord2 = null;
         } else if ("coordinate".equals(triggerMode)) {
+            Integer x1 = parseBlockCoordinate(coord1Field.x().isBlank() ? "0" : coord1Field.x(), "X1");
+            Integer y1 = parseBlockCoordinate(coord1Field.y().isBlank() ? "0" : coord1Field.y(), "Y1");
+            Integer z1 = parseBlockCoordinate(coord1Field.z().isBlank() ? "0" : coord1Field.z(), "Z1");
+            Integer x2 = parseBlockCoordinate(coord2Field.x().isBlank() ? "0" : coord2Field.x(), "X2");
+            Integer y2 = parseBlockCoordinate(coord2Field.y().isBlank() ? "0" : coord2Field.y(), "Y2");
+            Integer z2 = parseBlockCoordinate(coord2Field.z().isBlank() ? "0" : coord2Field.z(), "Z2");
+            if (x1 == null || y1 == null || z1 == null || x2 == null || y2 == null || z2 == null) return false;
             candidate.triggerCoord1 = List.of(
-                parseIntOr(coord1Field.x(), 0),
-                parseIntOr(coord1Field.y(), 0),
-                parseIntOr(coord1Field.z(), 0));
+                x1, y1, z1);
             candidate.triggerCoord2 = List.of(
-                parseIntOr(coord2Field.x(), 0),
-                parseIntOr(coord2Field.y(), 0),
-                parseIntOr(coord2Field.z(), 0));
+                x2, y2, z2);
             candidate.triggerStructure = null;
             candidate.triggerStructureRange = null;
         } else {
@@ -428,6 +470,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
 
         scene.items = candidate.items;
         scene.nbtFilter = candidate.nbtFilter;
+        scene.itemNbtFilters = candidate.itemNbtFilters;
         scene.triggerMode = candidate.triggerMode;
         scene.hintAuto = candidate.hintAuto;
         scene.hintTitle = candidate.hintTitle;

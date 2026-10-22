@@ -4,16 +4,22 @@ import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.minecraft.client.gui.screens.Screen;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 public class SceneTypeSelectorScreen extends AbstractReadonlyDeclarativeListScreen {
 
-    private final SceneEditorScreen parent;
+    private final SceneEditorScreen sceneEditor;
 
-    public SceneTypeSelectorScreen(SceneEditorScreen parent) {
-        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.scene_selector.title", UILayoutConstants.EDITOR_LIST_W);
-        this.parent = parent;
+    public SceneTypeSelectorScreen(SceneEditorScreen sceneEditor) {
+        this(sceneEditor, sceneEditor);
+    }
+
+    public SceneTypeSelectorScreen(SceneEditorScreen sceneEditor, @Nullable Screen returnScreen) {
+        super(returnScreen, "ponderer.ui.scope.editor", "ponderer.ui.scene_selector", UILayoutConstants.EDITOR_LIST_W);
+        this.sceneEditor = sceneEditor;
     }
 
     @Override
@@ -22,11 +28,11 @@ public class SceneTypeSelectorScreen extends AbstractReadonlyDeclarativeListScre
         entries.add(new FullButtonListEntry(
             UIText.of("ponderer.ui.step.type.show_structure"),
             null,
-            () -> parent.insertSplitStep("show_structure")));
+            () -> sceneEditor.insertSplitStep("show_structure")));
         entries.add(new FullButtonListEntry(
             UIText.of("ponderer.ui.step.type.show_interface"),
             null,
-            () -> ShowInterfaceExperimentalNoticeScreen.openIfNeeded(this, () -> parent.insertSplitStep("show_interface"))));
+            () -> sceneEditor.insertSplitStep("show_interface")));
     }
 
     @Override
