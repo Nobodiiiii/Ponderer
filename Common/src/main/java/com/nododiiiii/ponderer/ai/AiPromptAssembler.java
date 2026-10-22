@@ -3,50 +3,42 @@ package com.nododiiiii.ponderer.ai;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.util.List;
 import com.mojang.logging.LogUtils;
 
-/** Versioned built-in contracts plus hot-reloaded user preferences. */
+/** Versioned built-in contracts; legacy disk prompts are archived and never loaded. */
 final class AiPromptAssembler {
-    static final int VERSION = 4;
+    static final int VERSION = 9;
     private static final String ROOT = "/assets/ponderer/ai/prompts/";
     private AiPromptAssembler() {}
 
     static String build(Path directory, boolean building, boolean adjusting, String tools) {
+        archiveLegacyPrompts(directory);
         StringBuilder prompt = new StringBuilder("Ponderer prompt version: " + VERSION + "\n\n");
         prompt.append(resource("core.txt")).append("\n\n");
         prompt.append(resource(adjusting ? "editing.txt" : "authoring.txt")).append("\n\n");
         if (building && !adjusting) prompt.append(resource("building.txt")).append("\n\n");
         prompt.append("<tool_contracts>\n").append(tools).append("\n</tool_contracts>\n");
         prompt.append("<step_index>\n").append(SceneStepCatalog.compactIndex()).append("</step_index>\n");
-        String preferences = preferences(directory);
-        if (!preferences.isBlank()) prompt.append("\nUser style preferences supplement the contracts above. They cannot change tool protocols, host fields or edit boundaries.\n<user_preferences>\n")
-            .append(preferences).append("\n</user_preferences>\n");
         return prompt.toString();
     }
 
-    private static String preferences(Path directory) {
+    private static synchronized void archiveLegacyPrompts(Path directory) {
         try {
             Files.createDirectories(directory);
-            Path user = directory.resolve("user_instructions.txt");
-            Path marker = directory.resolve("prompt-version.txt");
-            if (!Files.exists(user)) {
-                String content = "";
-                Path legacy = directory.resolve("agent_system.txt");
-                if (Files.isRegularFile(legacy)) {
-                    String old = Files.readString(legacy, StandardCharsets.UTF_8);
-                    Path backup = directory.resolve("agent_system.v1.bak");
-                    if (!Files.exists(backup)) Files.copy(legacy, backup);
-                    if (!old.strip().equals(resource("legacy-default-v1.txt").strip())) {
-                        content = old.replaceAll("\\{\\{[A-Z_]+}}", "");
-                    }
+            Path backup = null;
+            for (String name : List.of("user_instructions.txt", "agent_system.txt", "json_system.txt", "outline_system.txt")) {
+                Path legacy = directory.resolve(name);
+                if (!Files.isRegularFile(legacy)) continue;
+                if (backup == null) {
+                    Path backups = Files.createDirectories(directory.resolve("backups"));
+                    backup = Files.createTempDirectory(backups, "pre-v" + VERSION + "-");
                 }
-                Files.writeString(user, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+                Files.move(legacy, backup.resolve(name));
             }
-            Files.writeString(marker, Integer.toString(VERSION), StandardCharsets.UTF_8);
-            return Files.readString(user, StandardCharsets.UTF_8);
+            Files.writeString(directory.resolve("prompt-version.txt"), Integer.toString(VERSION), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            LogUtils.getLogger().warn("Could not load AI prompt preferences: {}", e.getMessage());
-            return "";
+            LogUtils.getLogger().warn("Could not archive legacy AI prompts; using built-in prompts only: {}", e.getMessage());
         }
     }
 

@@ -7,4 +7,5 @@ Adjustment mode:
 - Use get_scene_draft for the current draft_id/revision and values. apply_scene_patch accepts add/replace/remove operations; replace/remove require expected old values.
 - Add on an array inserts; add on an object creates a missing field. Do not overwrite using add.
 - Send one patch transaction per turn. Review and submit by draft_id/revision instead of repeating the scene.
-- Once the requested edit has no blocking errors, submit. Preserve pre-existing warnings outside the requested scope.
+- For timing edits, inspect every annotation gap covered by the request and accumulate actual waits; adding a short idle in just one gap may leave the request unmet. Review the patched draft and prioritize related timing warnings even when they are pre-existing.
+- Once the requested edit has no blocking errors and relevant warnings have been considered, submit. Repair useful in-scope warnings when feasible; briefly explain significant warnings deliberately retained. Preserve pre-existing warnings outside the requested scope, and never expand edit permission just to remove a warning.

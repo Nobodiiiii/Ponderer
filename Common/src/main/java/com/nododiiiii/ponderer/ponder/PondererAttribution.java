@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import dev.engine_room.flywheel.lib.model.baked.PartialModel;
 import net.createmod.catnip.animation.AnimationTickHolder;
 import net.createmod.catnip.gui.element.GuiGameElement;
@@ -9,7 +10,6 @@ import net.createmod.ponder.foundation.registration.PonderTagRegistry;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -68,7 +68,7 @@ public final class PondererAttribution {
             "en_us", ATTRIBUTION_TITLE_EN_US, "zh_cn", ATTRIBUTION_TITLE_ZH_CN));
         var description = LocalizedText.ofMap(Map.of(
             "en_us", ATTRIBUTION_DESCRIPTION_EN_US, "zh_cn", ATTRIBUTION_DESCRIPTION_ZH_CN));
-        return new PonderTag(ResourceLocation.parse(TAG_ID), null, ItemStack.EMPTY, Items.OBSERVER.getDefaultInstance()) {
+        return new PonderTag(ResourceLocation.parse(TAG_ID), null, ItemStack.EMPTY, ItemStack.EMPTY) {
             @Override
             public String getTitle() {
                 return title.resolve();
@@ -89,6 +89,8 @@ public final class PondererAttribution {
                     .scale(10)
                     .at(x + 3, y + 13, 100)
                     .render(graphics);
+                // Model batch cleanup disables depth testing; following native widgets expect it enabled.
+                RenderSystem.enableDepthTest();
             }
         };
     }

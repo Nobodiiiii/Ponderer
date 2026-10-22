@@ -129,14 +129,38 @@ final class AiEditGuard {
             item.addProperty("path", warning.path());
             item.addProperty("code", warning.code());
             item.addProperty("message", warning.message());
+            item.addProperty("priority", warning.priority());
+            item.addProperty("suggestion", warning.suggestion());
+            String source = identity(draft, warning.path());
             boolean existed = baseline.stream().anyMatch(old -> old.code().equals(warning.code())
-                && identity(context.existingScene().json(), old.path()).equals(identity(draft, warning.path())));
-            boolean changed = baseline.stream().anyMatch(old -> old.code().equals(warning.code()) && old.path().equals(warning.path()));
+                && old.message().equals(warning.message())
+                && identity(context.existingScene().json(), old.path()).equals(source));
+            boolean changed = baseline.stream().anyMatch(old -> old.code().equals(warning.code())
+                && (old.path().equals(warning.path()) || identity(context.existingScene().json(), old.path()).equals(source)));
             item.addProperty("origin", existed ? "pre_existing" : changed ? "changed" : "new");
             item.addProperty("blocking", false);
             result.add(item);
         }
         return result;
+    }
+
+    static JsonObject warningSummary(JsonArray warnings) {
+        int highPriority = 0, newOrChanged = 0;
+        for (JsonElement entry : warnings) {
+            JsonObject warning = entry.getAsJsonObject();
+            if ("high".equals(warning.get("priority").getAsString())) highPriority++;
+            if (!"pre_existing".equals(warning.get("origin").getAsString())) newOrChanged++;
+        }
+        JsonObject summary = new JsonObject();
+        summary.addProperty("total", warnings.size());
+        summary.addProperty("high_priority", highPriority);
+        summary.addProperty("new_or_changed", newOrChanged);
+        summary.addProperty("blocking", false);
+        summary.addProperty("recommended_action", warnings.isEmpty() ? "No quality warnings."
+            : "Consider high-priority, new/changed and task-related pre-existing warnings before submission."
+                + " Make useful in-scope repairs when feasible; briefly explain significant retained warnings."
+                + " Unrelated pre-existing warnings do not authorize extra edits. Warnings never prevent acceptance.");
+        return summary;
     }
 
     private static String identity(JsonObject scene, String path) {

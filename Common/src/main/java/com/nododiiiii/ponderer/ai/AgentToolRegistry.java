@@ -220,7 +220,7 @@ public final class AgentToolRegistry {
                 JsonArray schemas = new JsonArray();
                 JsonArray unknown = new JsonArray();
                 for (String type : types) {
-                    SceneStepCatalog.StepSchema stepSchema = SceneStepCatalog.get(type);
+                    SceneStepCatalog.StepSchema stepSchema = SceneStepCatalog.getForAuthoring(type);
                     if (stepSchema == null) {
                         unknown.add(type);
                     } else {
@@ -576,8 +576,8 @@ public final class AgentToolRegistry {
         return new SimpleTool(
             name,
             terminal
-                ? "Validate and submit the complete scene. This must be the only tool call in its turn."
-                : "Run deterministic validation and non-blocking quality review on a complete scene draft.",
+                ? "Validate and submit the complete scene. Prefer review_scene first to address relevant warnings; warnings never block acceptance. This must be the only tool call in its turn."
+                : "Review the complete scene draft before submission. Inspect warning_summary and warnings for priorities, timing shortfalls and repair suggestions. Warnings are actionable but never blocking; repair relevant issues within scope when feasible.",
             schema("""
                 {"type":"object","properties":{"scene":{"type":"object"},"draft_id":{"type":"string"},
                  "revision":{"type":"integer","minimum":0},"edit_scope":{"type":"object"}}}
@@ -604,6 +604,10 @@ public final class AgentToolRegistry {
                     draft.remove("items");
                     draft.remove("nbtFilter");
                     draft.remove("itemNbtFilters");
+                    if (!context.existingScene().available()) {
+                        draft.remove("tags");
+                        draft.remove("customTags");
+                    }
                     if (context.existingScene().available()) {
                         for (String field : List.of("id", "pack", "editable")) {
                             draft.remove(field);
@@ -645,10 +649,13 @@ public final class AgentToolRegistry {
                 result.addProperty("ok", errors.isEmpty());
                 result.add("draft", context.drafts().descriptor());
                 result.add("errors", GSON.toJsonTree(errors));
-                result.add("warnings", AiEditGuard.warnings(context, draft, warnings));
+                JsonArray qualityWarnings = AiEditGuard.warnings(context, draft, warnings);
+                result.add("warning_summary", AiEditGuard.warningSummary(qualityWarnings));
+                result.add("warnings", qualityWarnings);
                 result.add("changed_paths", GSON.toJsonTree(context.existingScene().available()
                     ? AiEditGuard.changedPaths(context.existingScene().json(), draft) : List.of("/")));
                 if (terminal && errors.isEmpty()) {
+                    AiSceneGenerator.placeTextNearTarget(scene);
                     if (!context.existingScene().available()) AiSceneGenerator.autoAddKeyFrames(scene);
                     result.addProperty("accepted", true);
                     return ToolExecution.submitted(result, scene);

@@ -4,7 +4,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.nododiiiii.ponderer.ai.AiRunFiles;
-import com.nododiiiii.ponderer.ai.AiSceneGenerator;
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
@@ -37,7 +36,7 @@ public final class AiRunHistoryScreen extends AbstractReadonlyDeclarativeListScr
     private List<AiRunFiles> runs = List.of();
     private int selected;
     private String clarificationText = "";
-    private boolean resumeAvailable, reviewAvailable, undoAvailable, diffAvailable;
+    private boolean resumeAvailable, undoAvailable, diffAvailable;
 
     public AiRunHistoryScreen(Screen parent, BiConsumer<AiRunFiles, String> resume) {
         super(parent, "ponderer.ui.scope.editor", "ponderer.ui.ai_runs.title", UILayoutConstants.EDITOR_LIST_W);
@@ -72,7 +71,6 @@ public final class AiRunHistoryScreen extends AbstractReadonlyDeclarativeListScr
     protected void collectHeaderEntries(List<ConfigScreenList.Entry> entries) {
         AiRunFiles run = current();
         resumeAvailable = run != null && run.canResume();
-        reviewAvailable = run != null && run.canReview();
         undoAvailable = run != null && run.canUndo();
         diffAvailable = false;
         try {
@@ -88,10 +86,7 @@ public final class AiRunHistoryScreen extends AbstractReadonlyDeclarativeListScr
             () -> runs.size() > 1, () -> runs.size() > 1));
         entries.add(new ActionStripListEntry(List.of(
             action("resume", this::resumeDraft, () -> resumeAvailable),
-            ActionStripListEntry.button(
-                () -> UIText.of(reviewAvailable ? "ponderer.ui.ai_review.open" : "ponderer.ui.ai_runs.open"),
-                () -> List.of(Component.translatable(reviewAvailable ? "ponderer.ui.ai_review.open" : "ponderer.ui.ai_runs.open")),
-                this::openScene, () -> 0xFFFFFF, () -> reviewAvailable || undoAvailable),
+            action("open", this::openScene, () -> undoAvailable),
             action("undo", this::undo, () -> undoAvailable))));
         entries.add(new ActionStripListEntry(List.of(
             action("copy_diff", this::copyDiff, () -> diffAvailable),
@@ -151,10 +146,6 @@ public final class AiRunHistoryScreen extends AbstractReadonlyDeclarativeListScr
     private void openScene() {
         if (current() == null) return;
         try {
-            if (current().canReview()) {
-                var review = new AiSceneGenerator.PendingReview(current(), current().read("checkpoint.json").get("draft").toString());
-                minecraft.setScreen(new AiSceneReviewScreen(this, review, resume, () -> { })); return;
-            }
             DslScene saved = new GsonBuilder().registerTypeAdapter(LocalizedText.class,
                 new LocalizedText.GsonAdapter()).create().fromJson(current().read("undo.json").get("scene"), DslScene.class);
             DslScene scene = SceneRuntime.findByKey(saved.sceneKey());

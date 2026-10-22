@@ -64,26 +64,19 @@ public class AiSceneGenerator {
 
     public static AiGenerationTask startRequest(AiSceneAgentPipeline.Request request, AiRunFiles recovery,
             Consumer<String> onSuccess, Consumer<String> onError, Runnable onCancelled, Consumer<String> onStatus) {
-        return startRequest(request, recovery, onSuccess, onError, onCancelled, onStatus, null);
-    }
-
-    public record PendingReview(AiRunFiles files, String json) {
-        public DslScene scene() {
-            return new com.google.gson.GsonBuilder().registerTypeAdapter(com.nododiiiii.ponderer.ponder.LocalizedText.class,
-                new com.nododiiiii.ponderer.ponder.LocalizedText.GsonAdapter()).create().fromJson(json, DslScene.class);
-        }
+        return startRequest(request, recovery, onSuccess, onError, onCancelled, onStatus, ignored -> {});
     }
 
     public static AiGenerationTask startRequest(AiSceneAgentPipeline.Request request, AiRunFiles recovery,
             Consumer<String> onSuccess, Consumer<String> onError, Runnable onCancelled, Consumer<String> onStatus,
-            Consumer<PendingReview> onReview) {
+            Consumer<AiOutputUpdate> onOutput) {
         String runId = UUID.randomUUID().toString();
         AiCancellationScope cancellation = new AiCancellationScope();
         AiRunControl control = new AiRunControl();
-        java.util.concurrent.atomic.AtomicReference<PendingReview> pending = new java.util.concurrent.atomic.AtomicReference<>();
         AiRunFiles files = new AiRunFiles(runId);
         CompletableFuture<String> worker = CompletableFuture.supplyAsync(() -> {
             try {
+                files.events().onOutput(update -> Minecraft.getInstance().execute(() -> onOutput.accept(update)));
                 files.status("started", recovery == null ? "Generation started" : "Resumed from " + recovery.id());
                 cancellation.throwIfCancelled();
                 AiRuntimeConfig config = AiRuntimeConfigResolver.resolve();
@@ -104,17 +97,6 @@ public class AiSceneGenerator {
                         if ("last_agent_trace.log".equals(name)) writeLog(name, content);
                     }, cancellation, control, files.events());
                 cancellation.throwIfCancelled();
-                if (onReview != null) {
-                    com.google.gson.JsonObject checkpoint = files.read("checkpoint.json");
-                    checkpoint.add("draft", com.google.gson.JsonParser.parseString(result.finalJson()));
-                    files.write("checkpoint.json", checkpoint.toString());
-                    files.write("diff.json", AiRunFiles.diff(baseline.get("content").isJsonNull() ? new com.google.gson.JsonObject()
-                        : com.google.gson.JsonParser.parseString(baseline.get("content").getAsString()).getAsJsonObject(),
-                        com.google.gson.JsonParser.parseString(result.finalJson()).getAsJsonObject()));
-                    files.status("awaiting_review", "Draft ready; preview and confirm before saving");
-                    pending.set(new PendingReview(files, result.finalJson()));
-                    return null;
-                }
                 return saveResult(files, result.scene());
             } catch (RuntimeException error) {
                 if (cancellation.isDeadlineExceeded()) throw new AiRunStoppedException("budget_exhausted", "AI time budget exhausted; the draft is retained for recovery.");
@@ -123,8 +105,6 @@ public class AiSceneGenerator {
         });
         CompletableFuture<Void> completion = worker.handleAsync((filePath, error) -> {
             if (error == null) {
-                if (cancellation.isCancellationRequested()) { recordStatus(files, "cancelled", "Draft retained"); onCancelled.run(); return null; }
-                if (pending.get() != null) { onReview.accept(pending.get()); return null; }
                 PondererClientCommands.reloadLocal(); onSuccess.accept(filePath); return null;
             }
             Throwable cause = unwrap(error);
@@ -138,21 +118,6 @@ public class AiSceneGenerator {
         }, Minecraft.getInstance());
         completion.whenComplete((ignored, error) -> control.close());
         return new AiGenerationTask(runId, cancellation, completion, control);
-    }
-
-    public static void saveReviewed(PendingReview review, Consumer<String> onSuccess, Consumer<String> onError) {
-        CompletableFuture.supplyAsync(() -> {
-            try { return saveResult(review.files(), review.scene()); }
-            catch (Exception error) { throw new java.util.concurrent.CompletionException(error); }
-        }).handleAsync((path, error) -> {
-            if (error == null) { PondererClientCommands.reloadLocal(); onSuccess.accept(path); }
-            else {
-                String detail = safeMessage(unwrap(error));
-                recordStatus(review.files(), "awaiting_review", detail);
-                onError.accept(detail);
-            }
-            return null;
-        }, Minecraft.getInstance());
     }
 
     private static String saveResult(AiRunFiles files, DslScene scene) throws Exception {
@@ -279,6 +244,19 @@ public class AiSceneGenerator {
         }
     }
 
+    /** Apply text placement to accepted AI output without changing the model's scoped draft. */
+    static void placeTextNearTarget(DslScene scene) {
+        if (scene.scenes == null) return;
+        for (DslScene.SceneSegment segment : scene.scenes) {
+            if (segment == null || segment.steps == null) continue;
+            for (DslScene.DslStep step : segment.steps) {
+                if (step == null || step.type == null) continue;
+                String type = step.type.trim().toLowerCase(java.util.Locale.ROOT);
+                if ("text".equals(type) || "shared_text".equals(type)) step.placeNearTarget = true;
+            }
+        }
+    }
+
     /**
      * Post-process: auto-add attachKeyFrame to the first non-text/idle step
      * in each consecutive run. Resets when a text or idle step is encountered.
@@ -308,7 +286,7 @@ public class AiSceneGenerator {
     }
 
     // -------------------------------------------------------------------------
-    // System prompts — hot-reloadable from config/ponderer/prompts/
+    // System prompts — built-in versioned resources; old config prompts are archived.
     // -------------------------------------------------------------------------
 
     static String buildAgentSystemPrompt(boolean building, boolean adjusting, String tools) {

@@ -32,7 +32,10 @@ public interface LlmProvider {
             this(system, messages, tools, config, nativeTools, maxOutputTokens, null);
         }
     }
-    record StreamUpdate(long receivedCharacters) {}
+    /** Only assistant text is exposed here; reasoning and tool arguments stay in the wire adapter. */
+    record StreamUpdate(long receivedCharacters, String assistantText) {
+        public StreamUpdate(long receivedCharacters) { this(receivedCharacters, ""); }
+    }
     record Reply(Message message, Usage usage, String finishReason) {
         public boolean outputLimited() { return List.of("max_output_tokens", "max_tokens", "length").contains(finishReason); }
         public String completeText() {

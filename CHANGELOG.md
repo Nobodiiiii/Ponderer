@@ -16,6 +16,9 @@
 - **自定义思索标签**：可创建、编辑、重命名和删除标签，设置中英文名称、说明与物品图标，ID 自动添加 `ponderer:` 前缀。
   Added custom-category creation, editing, renaming, and deletion with bilingual text, item icons, and an automatic `ponderer:` namespace.
 
+- **思索者来源标签**：所有思索自动附带不可移除的“思索者...”标签，Java 导出后也保留来源说明。
+  Added a mandatory The Ponderer category to all scenes, retaining attribution in Java exports.
+
 - **从世界捕获界面**：正常打开目标容器即可捕获来源、开屏数据、槽位和可见方块上下文，保存后可在思索中回放。
   Added world capture for container sources, opening data, slots, and visible block context for replay inside Ponder.
 
@@ -64,14 +67,23 @@
 - **步骤列表预览**：新增场景预览，滚动列表可定位到顶部步骤，拖动时间轴可同步滚动列表。
   Added a scene preview that seeks to the top visible step as the list scrolls and scrolls the list when scrubbing the timeline.
 
-- **步骤编辑预览**：步骤编辑页新增场景预览，进入时定位到当前步骤，并沿用列表页的预览视角。
-  Added scene previews to step editors, seeking to the current step and inheriting the list preview's camera view.
+- **步骤编辑预览**：步骤编辑页新增场景预览，进入时定位到当前步骤，往返列表页时保留视角与文本显隐状态。
+  Added scene previews to step editors, seeking to the current step and retaining camera and text visibility when returning to the list.
 
 - **编辑器预览视角**：支持左键旋转、右键平移、滚轮缩放及一键重置。
   Added left-drag rotation, right-drag panning, wheel zoom, and one-click camera reset to editor previews.
 
 - **预览文本开关**：暂停自由预览和编辑器预览可按 `T` 隐藏或显示思索文本。
   Added `T` to hide or show Ponder text in paused free previews and editor previews.
+
+- **步骤快速切换**：编辑页可用上下箭头切换步骤，存在未保存修改时可选择保存、放弃或取消切换。
+  Added previous/next step arrows with Save, Discard, and Cancel choices for unsaved edits.
+
+- **当前步骤试播**：可直接试播表单中的未保存步骤，播放时暂缓后续步骤，试播不会写入场景。
+  Added playback of unsaved form values with later steps paused, without writing the preview to the scene.
+
+- **预览内选点**：可在编辑预览中旋转视角并用中键取点，自动区分方块、相邻放置位置与面中心，按 `Esc` 取消。
+  Added middle-click picking inside editor previews for blocks, adjacent placement positions, and face centers, with camera controls and Esc cancellation.
 
 - **多步骤复制粘贴**：右键复制按钮可多选步骤，再按列表顺序一次粘贴到指定步骤后。
   Added multiple-step selection by right-clicking Copy, then pasting all selected steps in list order after a chosen step.
@@ -85,8 +97,8 @@
 - **世界生成结构预览**：结构列表可读取服务器可用结构，预览可用的起始模板，再确认选择或清空。
   Added server-backed world-generation structure selection with available starting-template previews and confirm/clear controls.
 
-- **AI 多轮生成**：改为多轮工具调用流程，可查询信息、检查草稿并修正后提交，最大轮次可设为 `2–12`。
-  Reworked AI generation into a tool-driven query, review, and revision loop with a configurable limit of `2–12` turns.
+- **AI 多轮生成**：改为多轮工具调用流程，可查询信息、检查草稿并修正后提交，默认 12 轮，上限可设为 `2–64`。
+  Reworked AI generation into a tool-driven query, review, and revision loop, defaulting to 12 turns with a configurable limit of `2–64`.
 
 - **AI 结构查询**：可按概览、层、坐标、区域或方块查询所选结构，并读取相关 NBT。
   Added AI queries for structure summaries, layers, positions, regions, blocks, and related NBT.
@@ -94,17 +106,75 @@
 - **AI 注册表查询**：可按名称查找物品等注册项，并读取方块属性、可用值及配料信息。
   Added AI registry lookup by name and inspection of block properties, valid values, and ingredient information.
 
-- **AI 步骤规则查询**：可按需读取步骤字段、约束和示例，辅助生成场景脚本。
-  Added on-demand AI access to step fields, constraints, and examples.
+- **AI 步骤规则查询**：可按需读取步骤字段、约束、时序和示例，并补齐界面步骤规则。
+  Added on-demand AI access to step fields, constraints, timing, and examples, including interface-step contracts.
 
 - **AI 参考资料检索**：可检索参考网页内容、读取相关图片，并按需检查已有场景的分段与步骤。
   Added AI searches over reference pages and images, plus targeted inspection of existing scene segments and steps.
 
+- **AI 参考分段读取**：可连续读取参考资料的指定片段，补齐搜索摘要之外的上下文。
+  Added consecutive reference-chunk reading to retrieve context beyond search excerpts.
+
 - **AI 场景质量检查**：新增长文本、缺少视觉引导、等待时长、掉落物清理和中英文本完整性等检查。
   Added checks for long text, missing visual guidance, wait durations, item cleanup, and bilingual text completeness.
 
-- **终止 AI 生成**：新增终止按钮，可取消模型请求、网页和图片读取，停止后不保存未完成场景。
-  Added cancellation for model requests, page and image fetching, without saving unfinished scenes.
+- **终止 AI 生成**：新增终止按钮，可取消模型请求、网页和图片读取，停止后保留可恢复草稿。
+  Added cancellation for model requests, page and image fetching, retaining a recoverable draft when stopped.
+
+- **AI 编辑已有思索**：可从列表选择已有思索并读取其结构，默认仅修改本次要求涉及的内容。
+  Added existing-scene selection with its structures, defaulting to changes within the requested scope.
+
+- **AI 整体重写**：编辑已有思索时可显式开启整体重写，允许重新组织全部场景内容。
+  Added an explicit whole-scene rewrite toggle when editing an existing Ponder.
+
+- **AI 草稿局部修改**：支持按字段增删替换草稿，版本或原值冲突时整批拒绝修改。
+  Added transactional field-level draft additions, replacements, and removals, rejecting the entire patch on revision or old-value conflicts.
+
+- **AI 补充指令**：生成过程中可追加要求，指令排队到下一轮处理，并随草稿保留。
+  Added instructions during generation, queued for the next turn and retained with the draft.
+
+- **AI 输出侧栏**：新增可滚动的输出面板，自动跟随最新消息，上翻查看后可一键回到最新内容。
+  Added a scrollable AI output panel with automatic following and a return-to-latest control after scrolling back.
+
+- **AI 流式响应**：支持流式接收并显示响应进度，服务不支持时可在配置中关闭。
+  Added streamed responses with reception progress and a configuration toggle for services without streaming support.
+
+- **AI 原生工具调用**：支持 Responses、Chat Completions 与 Anthropic 原生函数调用，也可选择 JSON 兼容模式。
+  Added native tools for Responses, Chat Completions, and Anthropic, with an optional JSON compatibility mode.
+
+- **AI 协议选择**：可自动识别官方地址或手动选择 API 协议，自定义地址保留填写的路径前缀。
+  Added automatic or explicit API protocol selection while preserving custom base-URL path prefixes.
+
+- **AI 推理强度**：可继承 Codex、Claude Code 配置中的推理强度，或在游戏内统一覆盖。
+  Added reasoning-effort inheritance from Codex and Claude Code configurations, with an in-game override.
+
+- **AI 请求超时**：可将单次请求超时设为 `30–1800` 秒，默认 300 秒，对所有配置来源生效。
+  Added a `30–1800` second request timeout, defaulting to 300 seconds across all configuration sources.
+
+- **AI 运行预算**：可设置整次运行的时间、累计 token 预算与上下文容量，到达限制后保留草稿并停止。
+  Added run-wide time, cumulative token, and context limits, retaining the draft when a limit stops generation.
+
+- **AI 无进展停机**：连续多轮没有新资料或草稿变化时自动停止，可配置判定轮数。
+  Added configurable automatic stopping after consecutive turns without new evidence or draft changes.
+
+- **AI 未完成任务**：遇到信息不足或无法完成的任务时，可保留部分草稿并说明停止原因。
+  Added partial-draft retention with a stop reason when information is missing or a task cannot be completed.
+
+- **AI 运行记录**：新增运行记录页，可查看最近 50 次运行的状态、轮次、工具次数、用量与耗时，并打开运行文件。
+  Added history for the latest 50 runs with status, turns, tool calls, usage, elapsed time, and access to run files.
+
+- **AI 修改差异**：运行记录可逐项查看修改前后的字段，并复制完整差异。
+  Added before/after field inspection and full-diff copying in AI run history.
+
+- **AI 草稿恢复**：中断或未完成的运行可补充说明后恢复，并开启新的运行预算。
+  Added recovery of interrupted or unfinished drafts with optional clarification and a fresh run budget.
+
+- **AI 保存撤销**：可从运行记录撤销一次保存，恢复原场景或删除该次新建场景，并保护后续修改。
+  Added undo for saved AI changes, restoring the original scene or removing a newly created one while protecting later edits.
+
+- **查看生成的思索**：可直接播放最近一次成功生成的全部分场景，返回后继续编辑该思索。
+  Added direct playback of all segments from the latest successful generation, returning to edit that scene afterward.
+
 
 - **远程待处理更新**：新增冲突列表，可逐项或一键忽略、覆盖，忽略记录跨重连保留并在远端出现新版本时重新提示。
   Added pending remote updates with individual/bulk ignore or overwrite, persistent ignores, and renewed notices for newer versions.
@@ -112,10 +182,19 @@
 - **自动同步客户端设置**：新增自动、始终开启和始终关闭三种模式，自动模式单人关闭、联机及局域网开启。
   Added Auto, Always On, and Always Off sync modes; Auto disables sync in singleplayer and enables it in multiplayer and LAN.
 
+- **源资源包多选**：可在同一列表勾选多个源资源包，查看图标与内容数量，确认后统一应用。
+  Added source-pack multi-selection with icons and content counts, applied together on confirmation.
+
 - **AE2 界面适配**：支持从 AE2 方块或线缆部件创建对应的本地演示菜单。
   Added local demo-menu opening for AE2 blocks and cable-bus parts.
 
 ### 改进 / Improvements
+
+- **标签选择列表**：改用带图标、名称与 ID 的整行选择，编辑和删除操作收拢为图标按钮。
+  Updated category selection to full rows with icons, names, IDs, and compact edit/delete buttons.
+
+- **来源标签图标**：“思索者...”标签改用持续旋转的专用侦测器模型，Java 导出同步附带模型与纹理。
+  Added a rotating custom observer icon to the attribution category, including its model and texture in Java exports.
 
 - **物品与标签候选**：悬停 ID 输入框可展开所属标签，支持点击或滚轮切换，标签图标会轮播成员物品。
   Added hover dropdowns and wheel selection for item IDs and their tags, with cycling tag-member icons.
@@ -243,11 +322,81 @@
 - **手动远程拉取**：拉取指定场景或结构时直接覆盖本地，场景依赖的结构也会同步覆盖。
   Pulling a specific remote scene or structure now overwrites its local copy, including a scene's dependent structures.
 
-- **AI 提交校验**：补充注册项、方块属性、结构引用和分场景 ID 校验，将错误反馈给模型修正。
-  Expanded AI validation for registry entries, block properties, structure references, and segment IDs, feeding errors back for revision.
+- **编辑器初始视角**：预览默认稍微放大，重置视角时恢复相同倍率。
+  Increased the default editor-preview zoom and used the same zoom when resetting the view.
 
-- **AI 生成反馈**：显示当前轮次与工具状态，保存工具调用记录，并支持自定义 `agent_system.txt` 提示词。
-  Added turn/tool progress, saved tool-call traces, and a customizable `agent_system.txt` prompt.
+- **操作结果提示**：界面操作结果显示在原页面，并用不同颜色区分普通信息、成功、警告和错误。
+  Moved UI action results to their originating screens, distinguishing information, success, warnings, and errors by color.
+
+- **世界内提示优先级**：统一协调工具状态、蓝图提示与思索触发提示，短时结果优先显示，退出工具后清理提示。
+  Coordinated world tool, blueprint, and Ponder-trigger hints, prioritizing transient results and clearing hints when tools end.
+
+- **蓝图操作提示**：按选角、调整和保存阶段显示操作说明，并同步显示选区尺寸。
+  Added stage-specific blueprint hints for corner selection, resizing, and saving, alongside selection dimensions.
+
+- **蓝图保存反馈**：保存成功后保留页面与结构 ID，并禁用重复保存。
+  Kept the blueprint page and saved structure ID visible after success, disabling duplicate saves.
+
+- **NBT 选取状态**：等待服务器返回方块实体数据时持续显示等待提示，切换世界后清理状态。
+  Added a persistent waiting hint while fetching block-entity NBT, clearing the state when changing worlds.
+
+- **世界选取提示**：坐标选取与界面捕获期间持续显示当前操作提示，完成后自动清除。
+  Kept coordinate-picking and interface-capture hints visible throughout the operation, clearing them on completion.
+
+- **蓝图教程说明**：内置教程先介绍蓝图用途，再演示选区和保存操作。
+  Added an introduction to blueprint usage before the built-in selection and saving demonstrations.
+
+- **功能入口说明**：移除 AI 与界面型思索的 Beta 标记，打开界面步骤时直接进入编辑。
+  Removed Beta labels from AI and interface Ponders, opening interface-step editors directly.
+
+- **AI 提交校验**：补充步骤类型、必填字段、枚举、坐标、注册项与界面数据校验，将错误反馈给模型修正。
+  Expanded AI validation for step types, required fields, enums, coordinates, registry entries, and interface data, returning errors for revision.
+
+- **AI 生成反馈**：显示当前轮次、请求与工具状态，记录各轮耗时，并明确标记估算用量。
+  Added turn, request, and tool progress with timing records and explicitly labeled estimated usage.
+
+- **AI 质量警告来源**：区分原有、新增和变化的警告，局部编辑时避免因历史问题扩大修改范围。
+  Distinguished pre-existing, new, and changed quality warnings to keep local edits within scope.
+
+- **AI 警告修正建议**：警告附带优先级、等待缺口与修正建议，指导模型处理相关问题，同时保持非阻断提交。
+  Added warning priorities, timing shortfalls, and repair suggestions while keeping warnings non-blocking.
+
+- **AI 内置提示词**：改用分场景组装的版本化内置提示词，旧提示词文件自动归档后停止加载。
+  Switched to versioned built-in prompts assembled for each task, automatically archiving and retiring legacy prompt files.
+
+- **AI 运行环境依据**：向模型提供当前 Minecraft、加载器与已加载模组信息，按实际环境生成内容。
+  Supplied Minecraft, loader, and loaded-mod information to ground generation in the current runtime.
+
+- **AI 资料读取校验**：编辑前要求读取目标分场景的实际步骤，参考搜索无结果时不再视为已阅读资料。
+  Required actual target-segment steps before edits and stopped treating empty reference searches as completed reading.
+
+- **AI 并行查询**：独立的结构、规则、资料与草稿查询可并行执行，最多同时进行 3 项。
+  Added up to three concurrent independent structure, schema, reference, and draft queries.
+
+- **AI 工具错误恢复**：参数或工具执行错误会返回错误代码供模型修正，独立查询可继续完成。
+  Returned parameter and tool failures as error codes for revision while allowing independent queries to complete.
+
+- **AI 上下文压缩**：按完整轮次压缩较早对话，保留当前草稿、修改范围、错误及补充要求。
+  Compacted older conversation turns while retaining the current draft, edit scope, errors, and added instructions.
+
+- **AI 任务记忆**：可保存带资料来源的事实笔记、决策和后续步骤，供压缩对话与恢复草稿时继续使用。
+  Added source-linked working notes, decisions, and next steps that survive conversation compaction and draft recovery.
+
+- **AI 临时失败重试**：网络错误、限流和服务端临时错误最多重试 2 次，并遵守服务要求的等待时间。
+  Added up to two retries for network errors, rate limits, and temporary server failures, respecting Retry-After delays.
+
+- **AI 配置迁移**：升级时备份旧配置并迁移协议、地址与默认限额，保留自定义模型和凭据。
+  Added backed-up migration of legacy protocols, base URLs, and default limits while preserving custom models and credentials.
+
+- **AI 单次输出上限**：默认提高到 65536 token，可设为 `1024–262144`，对导入配置同样生效。
+  Raised the default output limit to 65536 tokens, configurable from `1024–262144` across imported and custom configurations.
+
+- **AI 默认模型**：OpenAI 默认模型更新为 `gpt-6-astra`，Anthropic 更新为 `claude-sonnet-5-5`。
+  Updated default models to `gpt-6-astra` for OpenAI and `claude-sonnet-5-5` for Anthropic.
+
+- **AI 生成页面布局**：输出侧栏与表单整体居中，结构预览、翻页、增删和名称集中排列，补充指令紧邻提示词。
+  Centered the output panel and form together, grouped structure previews and controls, and placed added instructions beside the prompt.
+
 
 - **本地验证入口**：启动脚本与 Gradle 支持界面回放自检、指定物品打开思索及超时退出。
   Added interface-replay smoke checks and item-specific Ponder opening to the launcher and Gradle verification flow.
@@ -322,6 +471,54 @@
 
 - **参考网页图片**：修复相对图片路径解析，允许 AI 读取网页相对路径下的参考图片。
   Fixed relative image URL resolution when fetching AI reference pages.
+
+- **文本编辑草稿隔离**：取消文本编辑或试播未保存步骤时，不再改动原步骤的多语言文本。
+  Fixed cancelled text edits and unsaved previews mutating the original step's localized text.
+
+- **预览动画时长**：时间轴覆盖非阻塞动画的完整持续时间，避免末尾效果被截断。
+  Extended preview timelines through non-blocking effects so animations at the end can finish.
+
+- **试播后时间定位**：单步试播后拖动时间轴会恢复正常回放，包括定位到当前刻或结尾。
+  Fixed timeline seeking after single-step previews to restore normal playback, including the current tick and endpoint.
+
+- **新增方块重影**：显示结构时只接管当时已有的方块，后续放置方块不再被旧区段重复绘制。
+  Fixed structure reveals capturing future block placements and rendering them in multiple sections.
+
+- **智能入场判断**：按播放时的实际可见区段判断已显示方块，避免重叠结构重复入场或已显示部分消失。
+  Fixed smart entrances to use runtime section visibility, avoiding repeated reveals or disappearing overlaps.
+
+- **隐藏与销毁残留**：隐藏、替换和销毁方块时清理各区段的旧归属，避免动画合并后重新出现。
+  Fixed stale section ownership during hiding, replacement, and destruction, preventing blocks from reappearing after merges.
+
+- **Java 导出区段显示**：导出代码同步采用新的区段归属逻辑，修复放置、显隐与合并动画中的重影。
+  Updated exported Java section ownership to fix ghosting during placement, visibility changes, and merges.
+
+- **分场景切换返回**：切换思索分场景时不再被提前送回物品列表，退出播放后再返回原页面。
+  Fixed segment transitions returning to the item list prematurely, restoring the originating page only after leaving playback.
+
+- **标签图标渲染**：绘制来源标签图标后恢复深度测试，避免后续进度条和列表渲染异常。
+  Restored depth testing after attribution-icon rendering to prevent broken progress bars and lists.
+
+- **异步操作反馈归属**：服务器回复只更新发起操作的页面，避免延迟结果串入其他页面或聊天栏。
+  Routed server replies to the initiating screen so delayed results cannot leak into unrelated pages or chat.
+
+- **远程操作状态保留**：刷新远程目录时保留上传、删除等操作结果，避免状态立即被覆盖。
+  Preserved upload, deletion, and other action results when refreshing the remote catalog.
+
+- **AI 文本等待检测**：累计相邻文本之间的实际阻塞时长，识别缺少等待，并区分效果时长与时间线等待。
+  Fixed text pacing checks to total blocking time between annotations and distinguish effect lifetimes from timeline waits.
+
+- **AI 新建标签处理**：忽略模型自行生成的分类标签与定义，避免新思索引用未注册标签。
+  Ignored model-generated category tags and definitions in new scenes to prevent unregistered category references.
+
+- **AI 保存冲突保护**：保存前复查原文件，发生外部修改或新建 ID 重名时保留草稿并拒绝覆盖。
+  Rechecked original files before saving, retaining drafts and refusing to overwrite external edits or existing IDs.
+
+- **AI 中断记录恢复**：从完整日志事件恢复运行状态，忽略中断写入的末行，并兼容旧版记录。
+  Recovered run state from complete journal events, ignoring torn final writes and retaining legacy-record compatibility.
+
+- **JEI 配料提示**：使用 JEI 原生配料提示与渲染，保留模组附加信息，并兼容旧版 JEI。
+  Switched ingredient rendering and tooltips to JEI's native APIs, preserving mod-added details and older JEI compatibility.
 
 - **本地模组包更新**：启动脚本改为暂存后替换 JAR，文件被占用时明确报错，避免覆盖运行中的模组包。
   Local launchers now stage JAR replacements and report locked files instead of overwriting a running client's archive.

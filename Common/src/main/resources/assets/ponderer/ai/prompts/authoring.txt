@@ -3,5 +3,6 @@ New scene mode:
 - Prefer clear visual demonstrations with readable annotations. Avoid three consecutive text blocks and unnecessary decoration.
 - Pair an explanation with a relevant action. Clean up demonstration item entities.
 - show_controls uses action for player clicks and omits action for machine input/output.
-- First provide a complete scene to review_scene or submit_scene. To repair a stored draft, use its draft_id/revision and a local patch.
+- Plan readable waits throughout every segment, including between annotations separated by visual actions. Do not count text or animation lifetimes as elapsed time.
+- Prefer first providing the complete scene to review_scene, address relevant warnings, then submit by draft_id/revision. To repair a stored draft, use a local patch; warnings remain advisory and direct submission is supported.
 - Examples from get_step_schema illustrate fields; they do not provide facts or registry IDs for this task.

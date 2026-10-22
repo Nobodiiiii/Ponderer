@@ -224,12 +224,6 @@ public final class AiRunFiles {
         catch (RuntimeException unavailable) { return false; }
     }
 
-    public boolean canReview() {
-        try { return "awaiting_review".equals(read("status.json").get("status").getAsString())
-            && hasArtifact("checkpoint.json"); }
-        catch (RuntimeException unavailable) { return false; }
-    }
-
     public boolean canUndo() {
         try {
             String status = read("status.json").get("status").getAsString();

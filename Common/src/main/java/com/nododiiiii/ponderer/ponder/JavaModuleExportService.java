@@ -1196,6 +1196,7 @@ public final class JavaModuleExportService {
         return GENERATED_NOTICE_BLOCK + """
             package %s;
 
+            import com.mojang.blaze3d.systems.RenderSystem;
             import dev.engine_room.flywheel.lib.model.baked.PartialModel;
             import net.createmod.catnip.animation.AnimationTickHolder;
             import net.createmod.catnip.gui.element.GuiGameElement;
@@ -1206,7 +1207,6 @@ public final class JavaModuleExportService {
             import net.minecraft.client.gui.GuiGraphics;
             import net.minecraft.resources.ResourceLocation;
             import net.minecraft.world.item.ItemStack;
-            import net.minecraft.world.item.Items;
 
             public final class GeneratedPonderAttribution {
                 private static final int ICON_ROTATION_TICKS = 20 * 30;
@@ -1232,9 +1232,8 @@ public final class JavaModuleExportService {
                     helper.registerTag(TAG)
                         .title(%s)
                         .description(%s)
-                        .item(Items.OBSERVER)
                         .register();
-                    PonderTag tag = new PonderTag(TAG, null, ItemStack.EMPTY, Items.OBSERVER.getDefaultInstance()) {
+                    PonderTag tag = new PonderTag(TAG, null, ItemStack.EMPTY, ItemStack.EMPTY) {
                         @Override
                         public void render(GuiGraphics graphics, int x, int y) {
                             // UI time keeps the icon rotating while scene playback or the game is paused.
@@ -1245,6 +1244,8 @@ public final class JavaModuleExportService {
                                 .scale(10)
                                 .at(x + 3, y + 13, 100)
                                 .render(graphics);
+                            // Model batch cleanup disables depth testing; following native widgets expect it enabled.
+                            RenderSystem.enableDepthTest();
                         }
                     };
                     ((PonderTagRegistry) PonderIndex.getTagAccess()).registerTag(tag);

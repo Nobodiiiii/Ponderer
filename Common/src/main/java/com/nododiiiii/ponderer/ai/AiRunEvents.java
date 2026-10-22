@@ -9,6 +9,7 @@ final class AiRunEvents {
     private final String runId;
     private final Consumer<JsonObject> sink;
     private Consumer<String> onProgress = ignored -> {};
+    private Consumer<AiOutputUpdate> onOutput = ignored -> {};
     private long sequence;
 
     AiRunEvents(String runId, long sequence, Consumer<JsonObject> sink) {
@@ -18,6 +19,10 @@ final class AiRunEvents {
     }
 
     synchronized void onProgress(Consumer<String> listener) { onProgress = listener; }
+    synchronized void onOutput(Consumer<AiOutputUpdate> listener) { onOutput = listener; }
+    synchronized void output(int turn, int attempt, String text, boolean nativeTools) {
+        onOutput.accept(new AiOutputUpdate(turn, attempt, AiOutputUpdate.visibleText(text, nativeTools)));
+    }
 
     synchronized void emit(String type, int turn, JsonObject data) {
         JsonObject event = new JsonObject();

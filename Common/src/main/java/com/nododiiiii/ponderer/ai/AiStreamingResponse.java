@@ -44,7 +44,7 @@ final class AiStreamingResponse {
         }
         if (!data.isEmpty()) stream.event(data.toString());
         if (!stream.ended) throw new IOException("AI response stream ended before its completion event");
-        if (progress != null) progress.accept(new LlmProvider.StreamUpdate(stream.received));
+        stream.notifyProgress();
         return stream.finish();
     }
 
@@ -63,6 +63,7 @@ final class AiStreamingResponse {
                 "", source.toString());
         }
         if ("responses".equals(protocol)) {
+            if ("response.output_text.delta".equals(type)) text.append(string(event, "delta"));
             if ("response.completed".equals(type) || "response.incomplete".equals(type)) {
                 completed = event.getAsJsonObject("response"); ended = true;
             }
@@ -70,7 +71,7 @@ final class AiStreamingResponse {
         } else if ("anthropic".equals(protocol)) anthropic(event, type);
         else chat(event);
         if (progress != null && received > 0 && System.nanoTime() - lastUpdate > 250_000_000) {
-            lastUpdate = System.nanoTime(); progress.accept(new LlmProvider.StreamUpdate(received));
+            lastUpdate = System.nanoTime(); notifyProgress();
         }
     }
 
@@ -106,7 +107,11 @@ final class AiStreamingResponse {
                 JsonObject start = event.getAsJsonObject("message");
                 for (var field : start.entrySet()) result.add(field.getKey(), field.getValue().deepCopy());
             }
-            case "content_block_start" -> blocks.put(event.get("index").getAsInt(), event.getAsJsonObject("content_block").deepCopy());
+            case "content_block_start" -> {
+                JsonObject block = event.getAsJsonObject("content_block").deepCopy();
+                blocks.put(event.get("index").getAsInt(), block);
+                if ("text".equals(string(block, "type"))) text.append(string(block, "text"));
+            }
             case "content_block_delta" -> {
                 int index = event.get("index").getAsInt(); JsonObject block = blocks.get(index);
                 if (block == null) throw new IllegalStateException("AI stream delta has no content block");
@@ -116,6 +121,7 @@ final class AiStreamingResponse {
                     case "text_delta", "thinking_delta", "signature_delta" -> {
                         String field = switch (string(delta, "type")) { case "text_delta" -> "text"; case "thinking_delta" -> "thinking"; default -> "signature"; };
                         String value = string(delta, field); block.addProperty(field, string(block, field) + value); received += value.length();
+                        if ("text_delta".equals(string(delta, "type"))) text.append(value);
                     }
                     case "citations_delta" -> {
                         if (!block.has("citations")) block.add("citations", new JsonArray());
@@ -168,6 +174,9 @@ final class AiStreamingResponse {
 
     private void append(StringBuilder target, JsonObject source, String key) {
         String delta = string(source, key); target.append(delta); received += delta.length();
+    }
+    private void notifyProgress() {
+        if (progress != null) progress.accept(new LlmProvider.StreamUpdate(received, text.toString()));
     }
     private static String string(JsonObject object, String key) {
         JsonElement value = object.get(key); return value == null || value.isJsonNull() ? "" : value.getAsString();

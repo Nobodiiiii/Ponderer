@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.ai;
 
 import com.nododiiiii.ponderer.ponder.DslScene;
 import com.nododiiiii.ponderer.ponder.LocalizedText;
+import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -14,6 +15,25 @@ import java.util.Locale;
 public final class AiSceneQualityLinter {
 
     public record Warning(String path, String code, String message) {
+        public String priority() {
+            return switch (code) {
+                case "TEXT_OVERLAP_RISK", "TEXT_MISSING", "ITEM_ENTITY_LEAK" -> "high";
+                default -> "normal";
+            };
+        }
+
+        public String suggestion() {
+            return switch (code) {
+                case "TEXT_OVERLAP_RISK" -> "Accumulate enough idle or known blocking action time between annotations; non-blocking durations are not waits. Retain overlap only when deliberate or explained by runtime animation intervals.";
+                case "TEXT_WALL", "NAKED_TEXT", "LOW_VISUAL_DENSITY" -> "Pair explanations with relevant visual demonstrations within the authorized scope.";
+                case "TEXT_MISSING", "LOCALIZATION_INCOMPLETE" -> "Provide readable en_us and zh_cn text within the authorized scope.";
+                case "ITEM_ENTITY_NOT_CLEARED", "ITEM_ENTITY_LEAK" -> "Clear demonstrated item entities after allowing observation time.";
+                case "ITEM_MOTION_MISSING" -> "Provide an explicit item motion vector, including [0,0,0] for a stationary item.";
+                case "INGREDIENT_UNVERIFIED" -> "Verify the ingredient through available runtime evidence; do not invent an ID.";
+                case "INTERACTION_ACTION_MISSING" -> "Set the intended player click action; omit it only for machine input/output indicators.";
+                default -> "Review the warning and repair it when relevant and within scope.";
+            };
+        }
     }
 
     private AiSceneQualityLinter() {
@@ -45,6 +65,7 @@ public final class AiSceneQualityLinter {
         boolean visualSinceLastText = false;
         boolean outstandingItemEntity = false;
         int visualActions = 0;
+        lintTextTiming(warnings, path, steps);
 
         for (int i = 0; i < steps.size(); i++) {
             DslScene.DslStep step = steps.get(i);
@@ -68,18 +89,6 @@ public final class AiSceneQualityLinter {
                         "Text is not paired with a preceding visual action"));
                 }
                 checkLocalized(warnings, stepPath + ".text", step.text);
-                if (i + 1 < steps.size()) {
-                    DslScene.DslStep next = steps.get(i + 1);
-                    if (next != null && "idle".equals(lower(next.type))) {
-                        int textDuration = step.durationOrDefault(40);
-                        int idleDuration = next.durationOrDefault(20);
-                        if (idleDuration < textDuration) {
-                            warnings.add(new Warning(path + "[" + (i + 1) + "].duration",
-                                "TEXT_OVERLAP_RISK",
-                                "Idle duration is shorter than the preceding text duration"));
-                        }
-                    }
-                }
                 visualSinceLastText = false;
                 continue;
             }
@@ -129,6 +138,52 @@ public final class AiSceneQualityLinter {
             warnings.add(new Warning(path, "LOW_VISUAL_DENSITY",
                 "The segment contains almost no visual actions beyond its initial structure"));
         }
+    }
+
+    private static void lintTextTiming(List<Warning> warnings, String path, List<DslScene.DslStep> steps) {
+        int precedingDuration = 0;
+        long elapsed = 0;
+        for (int i = 0; i < steps.size(); i++) {
+            DslScene.DslStep step = steps.get(i);
+            if (step == null) continue;
+            String type = lower(step.type);
+            if ("text".equals(type) || "shared_text".equals(type)) {
+                if (elapsed < precedingDuration) {
+                    warnings.add(new Warning(path + "[" + i + "]", "TEXT_OVERLAP_RISK",
+                        "Only " + elapsed + " known blocking ticks separate this annotation from the preceding text,"
+                            + " which displays for " + precedingDuration + " ticks; shortfall "
+                            + (precedingDuration - elapsed) + " ticks. Add cumulative idle before this text or"
+                            + " confirm intentional overlap/runtime-dependent animation intervals. Text and effect"
+                            + " durations do not themselves advance the timeline."));
+                }
+                precedingDuration = Math.max(0, step.durationOrDefault(60));
+                elapsed = 0;
+            } else {
+                elapsed += blockingTicks(step, type);
+            }
+        }
+    }
+
+    /** Conservative pacing check, not a playback simulation. Entrance intervals depend on runtime visibility. */
+    private static int blockingTicks(DslScene.DslStep step, String type) {
+        return switch (type) {
+            case "idle", "rotate_camera_y" -> Math.max(0, step.durationOrDefault(20));
+            case "zoom_scene" -> step.scale != null && step.scale > 0
+                ? Math.max(1, step.durationOrDefault(20)) : 0;
+            case "show_interface" -> 1;
+            case "interface_action", "click_interface" -> {
+                try {
+                    InterfaceStepSpecs.Action action = "click_interface".equals(type)
+                        ? InterfaceStepSpecs.fromLegacyClick(step) : InterfaceStepSpecs.action(step);
+                    yield action == null ? 0 : Math.max(1, action.duration());
+                } catch (RuntimeException invalidAction) {
+                    // The validator reports malformed actions; quality review must still return its results.
+                    yield 0;
+                }
+            }
+            // await_interface may complete immediately or be skipped during projector playback.
+            default -> 0;
+        };
     }
 
     private static void checkLocalized(List<Warning> warnings, String path, @Nullable LocalizedText text) {

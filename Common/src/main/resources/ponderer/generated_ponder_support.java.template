@@ -67,6 +67,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.zip.GZIPInputStream;
 
@@ -76,9 +77,138 @@ public final class GeneratedPonderSupport {
     public static final class Context {
         final Map<String, ElementLink<WorldSectionElement>> sectionLinks = new HashMap<>();
         final Map<String, List<ElementLink<EntityElement>>> entityLinks = new HashMap<>();
-        final Set<Long> visibleBlockKeys = new HashSet<>();
-        final Set<Long> hiddenBlockKeys = new HashSet<>();
-        boolean allBlocksVisible;
+        final SceneSectionOwnership sections = new SceneSectionOwnership();
+    }
+
+    /** Coordinates ownership across the base section, linked sections and temporary fade sections. */
+    private static final class SceneSectionOwnership {
+        private final Map<Long, WorldSectionElement> owners = new HashMap<>();
+        private boolean initialized;
+
+        static final class Reveal {
+            private final Set<Long> pending = new HashSet<>();
+        }
+
+        private void initialize(SceneBuilder scene) {
+            if (!initialized) {
+                initialized = true;
+                // This instruction runs again on begin/rewind, before any ownership is acquired.
+                scene.addInstruction(ps -> owners.clear());
+            }
+        }
+
+        Reveal prepare(SceneBuilder scene, Selection requested, boolean smartDisplay) {
+            initialize(scene);
+            Selection selection = requested.copy();
+            Reveal reveal = new Reveal();
+            scene.addInstruction(ps -> {
+                reveal.pending.clear();
+                selection.forEach(pos -> {
+                    ps.getWorld().getBounds().encapsulate(pos);
+                    WorldSectionElement owner = owners.get(pos.asLong());
+                    if (!smartDisplay || owner == null || !owner.isVisible()
+                            || ps.getWorld().getBlockState(pos).isAir()) {
+                        reveal.pending.add(pos.asLong());
+                    }
+                });
+                release(ps, filter(ps, selection, pos -> reveal.pending.contains(pos.asLong())));
+            });
+            return reveal;
+        }
+
+        void place(SceneBuilder scene, Selection requested, boolean visible) {
+            initialize(scene);
+            Selection selection = requested.copy();
+            scene.addInstruction(ps -> {
+                selection.forEach(pos -> ps.getWorld().getBounds().encapsulate(pos));
+                release(ps, selection);
+                if (visible) {
+                    WorldSectionElement base = ps.getBaseWorldSection();
+                    if (base.isEmpty()) {
+                        base.set(selection);
+                    } else {
+                        base.add(selection);
+                    }
+                    base.setVisible(true);
+                    base.setFade(1);
+                    selection.forEach(pos -> owners.put(pos.asLong(), base));
+                }
+            });
+        }
+
+        ElementLink<WorldSectionElement> show(SceneBuilder scene, Selection requested, int duration,
+                                             Direction direction, Supplier<WorldSectionElement> mergeOnto,
+                                             Reveal reveal) {
+            initialize(scene);
+            Selection selection = requested.copy();
+            DisplayWorldSectionInstruction instruction = new DisplayWorldSectionInstruction(
+                    Math.max(0, duration), direction, selection, mergeOnto) {
+                private Selection shown;
+
+                @Override
+                protected void firstTick(PonderScene ps) {
+                    // Capture actual blocks now: an air coordinate must not recruit a later placement.
+                    shown = filter(ps, selection, pos -> reveal.pending.contains(pos.asLong())
+                            && !ps.getWorld().getBlockState(pos).isAir());
+                    release(ps, shown);
+                    super.firstTick(ps);
+                    element.set(shown);
+                    shown.forEach(pos -> owners.put(pos.asLong(), element));
+                }
+
+                @Override
+                public void tick(PonderScene ps) {
+                    super.tick(ps);
+                    if (remainingTicks == 0 && mergeOnto != null) {
+                        WorldSectionElement target = mergeOnto.get();
+                        // Native merge uses the element's CURRENT selection. Coordinates released by
+                        // a later operation stay erased and cannot return when this fade completes.
+                        shown.forEach(pos -> owners.computeIfPresent(pos.asLong(),
+                                (key, owner) -> owner == element ? target : owner));
+                    }
+                }
+            };
+            scene.addInstruction(instruction);
+            return instruction.createLink(scene.getScene());
+        }
+
+        void hide(SceneBuilder scene, Selection selection, int duration, Direction direction) {
+            Reveal reveal = prepare(scene, selection, false);
+            ElementLink<WorldSectionElement> link = show(scene, selection, 0, direction, null, reveal);
+            scene.addInstruction(ps -> {
+                WorldSectionElement element = ps.resolve(link);
+                owners.values().removeIf(owner -> owner == element);
+                if (duration <= 0 && element != null) {
+                    element.setVisible(false);
+                    element.setFade(0);
+                }
+            });
+            if (duration > 0) {
+                scene.addInstruction(new FadeOutOfSceneInstruction<>(duration, direction, link));
+            }
+        }
+
+        private void release(PonderScene scene, Selection selection) {
+            // Links do not enumerate transient show_structure/merge/fade-out elements. Visit the
+            // actual scene, including invisible elements which may still have a pending merge.
+            scene.forEach(WorldSectionElement.class, section -> {
+                if (!section.isEmpty()) {
+                    section.erase(selection);
+                }
+            });
+            selection.forEach(pos -> owners.remove(pos.asLong()));
+        }
+
+        private static Selection filter(PonderScene scene, Selection selection, Predicate<BlockPos> predicate) {
+            Selection origin = scene.getSceneBuildingUtil().select().position(BlockPos.ZERO);
+            Selection result = origin.substract(origin);
+            for (BlockPos pos : selection) {
+                if (predicate.test(pos)) {
+                    result = result.add(scene.getSceneBuildingUtil().select().position(pos));
+                }
+            }
+            return result;
+        }
     }
 
     private static final class EntityMoveTarget {
@@ -312,24 +442,15 @@ public final class GeneratedPonderSupport {
     public static void showStructure(SceneBuilder scene, Context context, BlockPos pos1, BlockPos pos2,
                                      Float scale, Float rotation) {
         Selection selection;
-        boolean everywhere;
         if (pos1 != null) {
             selection = pos2 == null
                 ? scene.getScene().getSceneBuildingUtil().select().position(pos1)
                 : scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
-            everywhere = false;
         } else {
             selection = scene.getScene().getSceneBuildingUtil().select().everywhere();
-            everywhere = true;
         }
-        scene.world().showSection(selection, Direction.UP);
-        if (everywhere) {
-            context.allBlocksVisible = true;
-            context.visibleBlockKeys.clear();
-            context.hiddenBlockKeys.clear();
-        } else {
-            updateVisibleRange(context, pos1, pos2, true);
-        }
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection, false);
+        context.sections.show(scene, selection, 15, Direction.UP, scene.getScene()::getBaseWorldSection, reveal);
         if (scale != null) {
             scene.scaleSceneView(scale);
         }
@@ -588,8 +709,8 @@ public final class GeneratedPonderSupport {
                 normalizedAnimation, entranceDuration, entranceInterval, smartDisplay, linkId, direction);
             return;
         }
-        ensureSceneCanShowRange(scene, pos1, targetPos2, immediate && !isAir);
-        updateVisibleRange(context, pos1, targetPos2, immediate && !isAir);
+        ensureSceneCanShowRange(scene, context, pos1, targetPos2, immediate && !isAir);
+
         if (!pos1.equals(targetPos2)) {
             Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
             scene.world().setBlocks(selection, state, particles);
@@ -605,6 +726,7 @@ public final class GeneratedPonderSupport {
             return;
         }
         BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
+        ensureSceneCanShowRange(scene, context, pos1, targetPos2, false);
         boolean particles = !Boolean.FALSE.equals(destroyParticles);
         if (pos1.equals(targetPos2)) {
             if (particles) {
@@ -622,7 +744,6 @@ public final class GeneratedPonderSupport {
                 }
             }
         }
-        updateVisibleRange(context, pos1, targetPos2, false);
     }
 
     /** Legacy 4-arg signature retained for code emitted before destroy_block grew a range. */
@@ -639,56 +760,18 @@ public final class GeneratedPonderSupport {
             return;
         }
         BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
-        ensureSceneCanShowRange(scene, pos1, targetPos2, true);
+        ensureSceneCanShowRange(scene, context, pos1, targetPos2, !block.defaultBlockState().isAir());
         Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
         scene.world().replaceBlocks(selection, applyBlockProperties(block.defaultBlockState(), blockProperties),
             !Boolean.FALSE.equals(spawnParticles));
-        updateVisibleRange(context, pos1, targetPos2, true);
     }
 
     public static void hideSection(SceneBuilder scene, Context context, BlockPos pos1, BlockPos pos2,
                                    int duration, String directionRaw) {
-        if (pos1 == null) {
-            return;
+        if (pos1 != null) {
+            Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2 == null ? pos1 : pos2);
+            context.sections.hide(scene, selection, duration, parseDirection(directionRaw));
         }
-        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
-        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
-        updateVisibleRange(context, pos1, targetPos2, false);
-        final Selection hiddenSelection = selection;
-        final List<ElementLink<WorldSectionElement>> existingSectionLinks =
-            new ArrayList<>(context.sectionLinks.values());
-        scene.addInstruction(ps -> {
-            if (ps.getBaseWorldSection().isEmpty()) {
-                Selection all = ps.getSceneBuildingUtil().select().everywhere();
-                ps.getBaseWorldSection().set(all);
-                ps.getBaseWorldSection().setVisible(true);
-                ps.getBaseWorldSection().setFade(1);
-                ps.getBaseWorldSection().queueRedraw();
-            }
-            for (ElementLink<WorldSectionElement> existing : existingSectionLinks) {
-                WorldSectionElement section = ps.resolve(existing);
-                if (section != null) {
-                    section.erase(hiddenSelection);
-                }
-            }
-        });
-        Direction direction = parseDirection(directionRaw);
-        ElementLink<WorldSectionElement> link = scene.world().makeSectionIndependent(selection);
-        if (duration <= 0) {
-            scene.addInstruction(ps -> {
-                WorldSectionElement element = ps.resolve(link);
-                if (element != null) {
-                    element.setVisible(false);
-                    element.setFade(0);
-                }
-            });
-            return;
-        }
-        if (duration == 15) {
-            scene.world().hideIndependentSection(link, direction);
-            return;
-        }
-        scene.addInstruction(new FadeOutOfSceneInstruction<>(duration, direction, link));
     }
 
     public static void showSectionAndMerge(SceneBuilder scene, Context context, BlockPos pos1, BlockPos pos2,
@@ -715,48 +798,14 @@ public final class GeneratedPonderSupport {
             int rowInterval = entranceInterval == null ? 1 : Math.max(0, entranceInterval);
             applyAnimatedShowSectionAndMerge(scene, context, key, existing, pos1, targetPos2,
                 normalizedAnimation, direction, rowDuration, rowInterval, !Boolean.FALSE.equals(smartDisplay));
-            updateVisibleRange(context, pos1, targetPos2, true);
             return;
         }
-        // Non-animated path: erase the reveal positions from any prior independent sections
-        // (other than the target) so the new section is the sole renderer of those positions.
-        eraseSelectionFromOtherSections(scene, context, existing, selection);
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection, false);
+        ElementLink<WorldSectionElement> created = context.sections.show(scene, selection, duration, direction,
+                existing == null ? null : () -> scene.getScene().resolve(existing), reveal);
         if (existing == null) {
-            ElementLink<WorldSectionElement> created;
-            if (duration <= 0) {
-                created = scene.world().showIndependentSectionImmediately(selection);
-            } else if (duration == 15) {
-                created = scene.world().showIndependentSection(selection, direction);
-            } else {
-                DisplayWorldSectionInstruction instruction =
-                    new DisplayWorldSectionInstruction(duration, direction, selection, null);
-                scene.addInstruction(instruction);
-                created = instruction.createLink(scene.getScene());
-            }
             context.sectionLinks.put(key, created);
-            updateVisibleRange(context, pos1, targetPos2, true);
-            return;
         }
-        if (duration <= 0) {
-            ElementLink<WorldSectionElement> target = existing;
-            scene.addInstruction(ps -> {
-                WorldSectionElement element = ps.resolve(target);
-                if (element != null) {
-                    element.add(selection);
-                    element.queueRedraw();
-                }
-            });
-            updateVisibleRange(context, pos1, targetPos2, true);
-            return;
-        }
-        if (duration == 15) {
-            scene.world().showSectionAndMerge(selection, direction, existing);
-            updateVisibleRange(context, pos1, targetPos2, true);
-            return;
-        }
-        scene.addInstruction(new DisplayWorldSectionInstruction(duration, direction, selection,
-            () -> scene.getScene().resolve(existing)));
-        updateVisibleRange(context, pos1, targetPos2, true);
     }
 
     public static void rotateSection(SceneBuilder scene, Context context, String linkId,
@@ -1274,21 +1323,19 @@ public final class GeneratedPonderSupport {
                                               String entranceAnimation, Integer entranceDuration,
                                               Integer entranceInterval, Boolean smartDisplay,
                                               String linkId, String direction) {
-        ensureSceneCanShowRange(scene, pos1, pos2, false);
         Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection, !Boolean.FALSE.equals(smartDisplay));
         scene.world().setBlocks(selection, state, false);
         applySetBlockNbtPatch(scene, nbt, selection);
         String key = linkId == null ? "" : linkId.trim();
         if (key.isEmpty()) {
             key = autoLinkId(context);
         }
-        Direction entryDirection = parseDirection(direction);
-        ElementLink<WorldSectionElement> existing = context.sectionLinks.get(key);
         int rowDuration = entranceDuration == null ? 20 : Math.max(0, entranceDuration);
         int rowInterval = entranceInterval == null ? 1 : Math.max(0, entranceInterval);
-        applyAnimatedShowSectionAndMerge(scene, context, key, existing, pos1, pos2,
-            entranceAnimation, entryDirection, rowDuration, rowInterval, !Boolean.FALSE.equals(smartDisplay));
-        updateVisibleRange(context, pos1, pos2, true);
+        showAnimatedGroups(scene, context, key, context.sectionLinks.get(key),
+                orderedLayerGroups(pos1, pos2, entranceAnimation), parseDirection(direction),
+                rowDuration, rowInterval, reveal);
     }
 
     private static void applySetBlockNbtPatch(SceneBuilder scene, String nbt, Selection selection) {
@@ -1302,37 +1349,10 @@ public final class GeneratedPonderSupport {
         }
     }
 
-    private static void ensureSceneCanShowRange(SceneBuilder scene, BlockPos pos1, BlockPos pos2,
-                                                boolean forceVisibleNow) {
+    private static void ensureSceneCanShowRange(SceneBuilder scene, Context context,
+                                                BlockPos pos1, BlockPos pos2, boolean forceVisibleNow) {
         Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
-        final BlockPos minPos = new BlockPos(
-            Math.min(pos1.getX(), pos2.getX()),
-            Math.min(pos1.getY(), pos2.getY()),
-            Math.min(pos1.getZ(), pos2.getZ()));
-        final BlockPos maxPos = new BlockPos(
-            Math.max(pos1.getX(), pos2.getX()),
-            Math.max(pos1.getY(), pos2.getY()),
-            Math.max(pos1.getZ(), pos2.getZ()));
-        scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(minPos);
-            ps.getWorld().getBounds().encapsulate(maxPos);
-            if (!forceVisibleNow) {
-                if (!ps.getBaseWorldSection().isEmpty()) {
-                    ps.getBaseWorldSection().erase(selection);
-                    ps.getBaseWorldSection().queueRedraw();
-                }
-                return;
-            }
-            if (ps.getBaseWorldSection().isEmpty()) {
-                Selection all = ps.getSceneBuildingUtil().select().everywhere();
-                ps.getBaseWorldSection().set(all);
-                ps.getBaseWorldSection().setVisible(true);
-                ps.getBaseWorldSection().setFade(1);
-            } else {
-                ps.getBaseWorldSection().add(selection);
-            }
-            ps.getBaseWorldSection().queueRedraw();
-        });
+        context.sections.place(scene, selection, forceVisibleNow);
     }
 
     private static ElementLink<WorldSectionElement> resolveSectionLink(SceneBuilder scene, Context context,
@@ -1349,112 +1369,45 @@ public final class GeneratedPonderSupport {
         }
         BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
         Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, targetPos2);
-        ElementLink<WorldSectionElement> created = scene.world().showIndependentSectionImmediately(selection);
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection, false);
+        ElementLink<WorldSectionElement> created = context.sections.show(scene, selection, 0, Direction.DOWN, null, reveal);
         String key = normalized.isEmpty() ? autoLinkId(context) : normalized;
         context.sectionLinks.put(key, created);
-        updateVisibleRange(context, pos1, targetPos2, true);
+
         return created;
     }
 
     private static void applyAnimatedShowSectionAndMerge(SceneBuilder scene, Context context, String linkId,
                                                          ElementLink<WorldSectionElement> existing,
-                                                         BlockPos pos1, BlockPos pos2,
-                                                         String entranceAnimation,
-                                                         Direction entryDirection,
-                                                         int rowDuration, int rowInterval,
+                                                         BlockPos pos1, BlockPos pos2, String entranceAnimation,
+                                                         Direction entryDirection, int rowDuration, int rowInterval,
                                                          boolean smartDisplay) {
-        List<List<BlockPos>> groups = orderedLayerGroups(pos1, pos2, entranceAnimation);
-        if (smartDisplay) {
-            groups = filterVisibleGroups(groups, context);
-        }
-        if (groups.isEmpty()) {
-            return;
-        }
-        List<ElementLink<WorldSectionElement>> otherSectionLinks = snapshotOtherSectionLinks(context, existing);
-        List<Selection> groupSelections = prepareAnimatedRevealSelections(scene, existing, groups, otherSectionLinks);
-        if (groupSelections.isEmpty()) {
-            return;
-        }
-        ElementLink<WorldSectionElement> working = existing;
-        for (Selection groupSelection : groupSelections) {
-            if (working == null) {
-                DisplayWorldSectionInstruction instruction =
-                    new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection, null);
-                scene.addInstruction(instruction);
-                working = instruction.createLink(scene.getScene());
-                context.sectionLinks.put(linkId, working);
-            } else {
-                ElementLink<WorldSectionElement> target = working;
-                scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, entryDirection, groupSelection,
-                    () -> scene.getScene().resolve(target)));
-            }
-            scene.idle(rowInterval);
-        }
+        Selection selection = scene.getScene().getSceneBuildingUtil().select().fromTo(pos1, pos2);
+        SceneSectionOwnership.Reveal reveal = context.sections.prepare(scene, selection, smartDisplay);
+        showAnimatedGroups(scene, context, linkId, existing, orderedLayerGroups(pos1, pos2, entranceAnimation),
+                entryDirection, rowDuration, rowInterval, reveal);
     }
 
-    private static List<Selection> prepareAnimatedRevealSelections(SceneBuilder scene,
-                                                                   ElementLink<WorldSectionElement> existing,
-                                                                   List<List<BlockPos>> groups,
-                                                                   List<ElementLink<WorldSectionElement>> otherSectionLinks) {
-        List<Selection> selections = new ArrayList<>();
-        int minX = Integer.MAX_VALUE;
-        int minY = Integer.MAX_VALUE;
-        int minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE;
-        int maxY = Integer.MIN_VALUE;
-        int maxZ = Integer.MIN_VALUE;
+    private static void showAnimatedGroups(SceneBuilder scene, Context context, String linkId,
+                                           ElementLink<WorldSectionElement> existing,
+                                           List<List<BlockPos>> groups, Direction direction,
+                                           int rowDuration, int rowInterval, SceneSectionOwnership.Reveal reveal) {
+        ElementLink<WorldSectionElement> working = existing;
         for (List<BlockPos> group : groups) {
             if (group.isEmpty()) {
                 continue;
             }
-            selections.add(selectionForGroup(scene, group));
-            for (BlockPos pos : group) {
-                minX = Math.min(minX, pos.getX());
-                minY = Math.min(minY, pos.getY());
-                minZ = Math.min(minZ, pos.getZ());
-                maxX = Math.max(maxX, pos.getX());
-                maxY = Math.max(maxY, pos.getY());
-                maxZ = Math.max(maxZ, pos.getZ());
+            ElementLink<WorldSectionElement> target = working;
+            ElementLink<WorldSectionElement> created = context.sections.show(scene, selectionForGroup(scene, group),
+                    rowDuration, direction, target == null ? null : () -> scene.getScene().resolve(target), reveal);
+            if (working == null) {
+                working = created;
+                context.sectionLinks.put(linkId, working);
+            }
+            if (rowInterval > 0) {
+                scene.idle(rowInterval);
             }
         }
-        if (selections.isEmpty()) {
-            return selections;
-        }
-        BlockPos minPos = new BlockPos(minX, minY, minZ);
-        BlockPos maxPos = new BlockPos(maxX, maxY, maxZ);
-        List<Selection> revealSelections = List.copyOf(selections);
-        ElementLink<WorldSectionElement> target = existing;
-        List<ElementLink<WorldSectionElement>> priorSections = List.copyOf(otherSectionLinks);
-        scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(minPos);
-            ps.getWorld().getBounds().encapsulate(maxPos);
-            if (!ps.getBaseWorldSection().isEmpty()) {
-                for (Selection revealSelection : revealSelections) {
-                    ps.getBaseWorldSection().erase(revealSelection);
-                }
-                ps.getBaseWorldSection().queueRedraw();
-            }
-            if (target != null) {
-                WorldSectionElement element = ps.resolve(target);
-                if (element != null) {
-                    for (Selection revealSelection : revealSelections) {
-                        element.erase(revealSelection);
-                    }
-                    element.queueRedraw();
-                }
-            }
-            for (ElementLink<WorldSectionElement> link : priorSections) {
-                WorldSectionElement element = ps.resolve(link);
-                if (element == null) {
-                    continue;
-                }
-                for (Selection revealSelection : revealSelections) {
-                    element.erase(revealSelection);
-                }
-                element.queueRedraw();
-            }
-        });
-        return selections;
     }
 
     private static Selection selectionForGroup(SceneBuilder scene, List<BlockPos> group) {
@@ -1520,97 +1473,8 @@ public final class GeneratedPonderSupport {
         return groups;
     }
 
-    private static List<List<BlockPos>> filterVisibleGroups(List<List<BlockPos>> groups, Context context) {
-        List<List<BlockPos>> filtered = new ArrayList<>();
-        for (List<BlockPos> group : groups) {
-            List<BlockPos> pending = new ArrayList<>();
-            for (BlockPos pos : group) {
-                if (!isBlockVisible(context, pos.asLong())) {
-                    pending.add(pos);
-                }
-            }
-            if (!pending.isEmpty()) {
-                filtered.add(pending);
-            }
-        }
-        return filtered;
-    }
-
-    private static void updateVisibleRange(Context context, BlockPos pos1, BlockPos pos2, boolean visible) {
-        if (pos1 == null) {
-            return;
-        }
-        BlockPos targetPos2 = pos2 == null ? pos1 : pos2;
-        int minX = Math.min(pos1.getX(), targetPos2.getX());
-        int minY = Math.min(pos1.getY(), targetPos2.getY());
-        int minZ = Math.min(pos1.getZ(), targetPos2.getZ());
-        int maxX = Math.max(pos1.getX(), targetPos2.getX());
-        int maxY = Math.max(pos1.getY(), targetPos2.getY());
-        int maxZ = Math.max(pos1.getZ(), targetPos2.getZ());
-        for (int y = minY; y <= maxY; y++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                for (int x = minX; x <= maxX; x++) {
-                    long key = BlockPos.asLong(x, y, z);
-                    if (context.allBlocksVisible) {
-                        if (visible) {
-                            context.hiddenBlockKeys.remove(key);
-                        } else {
-                            context.hiddenBlockKeys.add(key);
-                        }
-                    } else {
-                        if (visible) {
-                            context.visibleBlockKeys.add(key);
-                        } else {
-                            context.visibleBlockKeys.remove(key);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private static boolean isBlockVisible(Context context, long key) {
-        if (context.allBlocksVisible) {
-            return !context.hiddenBlockKeys.contains(key);
-        }
-        return context.visibleBlockKeys.contains(key);
-    }
-
     private static String autoLinkId(Context context) {
         return "section_" + (context.sectionLinks.size() + 1);
-    }
-
-    private static List<ElementLink<WorldSectionElement>> snapshotOtherSectionLinks(
-            Context context, ElementLink<WorldSectionElement> exclude) {
-        List<ElementLink<WorldSectionElement>> result = new ArrayList<>();
-        for (ElementLink<WorldSectionElement> link : context.sectionLinks.values()) {
-            if (link == exclude) {
-                continue;
-            }
-            result.add(link);
-        }
-        return result;
-    }
-
-    private static void eraseSelectionFromOtherSections(SceneBuilder scene, Context context,
-                                                       ElementLink<WorldSectionElement> exclude,
-                                                       Selection selection) {
-        List<ElementLink<WorldSectionElement>> others = snapshotOtherSectionLinks(context, exclude);
-        if (others.isEmpty()) {
-            return;
-        }
-        List<ElementLink<WorldSectionElement>> snap = List.copyOf(others);
-        Selection target = selection;
-        scene.addInstruction(ps -> {
-            for (ElementLink<WorldSectionElement> link : snap) {
-                WorldSectionElement element = ps.resolve(link);
-                if (element == null) {
-                    continue;
-                }
-                element.erase(target);
-                element.queueRedraw();
-            }
-        });
     }
 
     private static String normalizeEntranceAnimation(String raw) {
@@ -1837,20 +1701,6 @@ public final class GeneratedPonderSupport {
             return;
         }
 
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-        for (PlacedBlock b : placed) {
-            int x = b.pos.getX(), y = b.pos.getY(), z = b.pos.getZ();
-            if (x < minX) minX = x;
-            if (y < minY) minY = y;
-            if (z < minZ) minZ = z;
-            if (x > maxX) maxX = x;
-            if (y > maxY) maxY = y;
-            if (z > maxZ) maxZ = z;
-        }
-        BlockPos minCorner = new BlockPos(minX, minY, minZ);
-        BlockPos maxCorner = new BlockPos(maxX, maxY, maxZ);
-
         String anim = normalizeEntranceAnimation(entranceAnimation);
         boolean simultaneous = "simultaneous".equals(anim);
         boolean directional = anim != null && !"none".equals(anim) && !simultaneous;
@@ -1860,39 +1710,12 @@ public final class GeneratedPonderSupport {
 
         // Air-free strip decomposition shared by the non-animated path and the simultaneous
         // reveal path. Smart-display may later trim positions out of these groups.
-        List<List<BlockPos>> placedStrips = segmentExtraForAnimation(placed, "up");
-
-        List<List<BlockPos>> revealGroups = placedStrips;
-        int revealInterval = 0;
-        String linkId = null;
-        Direction direction = Direction.DOWN;
-        int rowDuration = 20;
+        Selection placement = selectionForGroup(scene, placed.stream().map(b -> b.pos).toList());
+        SceneSectionOwnership.Reveal reveal = null;
         if (animatedReveal) {
-            linkId = linkIdRaw == null ? "" : linkIdRaw.trim();
-            if (linkId.isEmpty()) {
-                linkId = autoLinkId(context);
-            }
-            direction = parseDirection(directionRaw);
-            rowDuration = entranceDuration == null ? 20 : Math.max(0, entranceDuration);
-            int rowInterval = entranceInterval == null ? 1 : Math.max(0, entranceInterval);
-            boolean smartDisplay = !Boolean.FALSE.equals(smartDisplayFlag);
-
-            if (simultaneous) {
-                revealGroups = placedStrips;
-                revealInterval = 0;
-            } else {
-                revealGroups = segmentExtraForAnimation(placed, anim);
-                revealInterval = rowInterval;
-            }
-            // Filter against prior visibility (e.g. blocks already shown by a previous
-            // show_extra_structure). Only the still-hidden positions should be removed from the
-            // base section; otherwise already-visible overlaps such as shared floor blocks vanish.
-            if (smartDisplay) {
-                revealGroups = filterVisibleGroups(revealGroups, context);
-            }
-            ensureSceneCanShowExtra(scene, minCorner, maxCorner, revealGroups, false);
+            reveal = context.sections.prepare(scene, placement, !Boolean.FALSE.equals(smartDisplayFlag));
         } else {
-            ensureSceneCanShowExtra(scene, minCorner, maxCorner, placedStrips, placeVisible);
+            context.sections.place(scene, placement, placeVisible);
         }
 
         for (PlacedBlock b : placed) {
@@ -1904,98 +1727,16 @@ public final class GeneratedPonderSupport {
             }
         }
 
-        if (!animatedReveal) {
-            applyExtraPlacedVisibility(context, placed, placeVisible);
-            return;
-        }
-
-        if (revealGroups.isEmpty()) {
-            applyExtraPlacedVisibility(context, placed, true);
-            return;
-        }
-        ElementLink<WorldSectionElement> working = context.sectionLinks.get(linkId);
-        for (List<BlockPos> group : revealGroups) {
-            if (group.isEmpty()) {
-                continue;
+        if (animatedReveal) {
+            String linkId = linkIdRaw == null ? "" : linkIdRaw.trim();
+            if (linkId.isEmpty()) {
+                linkId = autoLinkId(context);
             }
-            Selection groupSelection = selectionForGroup(scene, group);
-            if (working == null) {
-                DisplayWorldSectionInstruction inst =
-                    new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection, null);
-                scene.addInstruction(inst);
-                working = inst.createLink(scene.getScene());
-                context.sectionLinks.put(linkId, working);
-            } else {
-                ElementLink<WorldSectionElement> target = working;
-                scene.addInstruction(new DisplayWorldSectionInstruction(rowDuration, direction, groupSelection,
-                    () -> scene.getScene().resolve(target)));
-            }
-            if (revealInterval > 0) {
-                scene.idle(revealInterval);
-            }
-        }
-        applyExtraPlacedVisibility(context, placed, true);
-    }
-
-    private static void ensureSceneCanShowExtra(SceneBuilder scene, BlockPos minCorner, BlockPos maxCorner,
-                                                List<List<BlockPos>> placedGroups, boolean forceVisibleNow) {
-        List<Selection> groupSelections = new ArrayList<>(placedGroups.size());
-        for (List<BlockPos> group : placedGroups) {
-            if (group.isEmpty()) {
-                continue;
-            }
-            groupSelections.add(selectionForGroup(scene, group));
-        }
-        List<Selection> capturedSelections = List.copyOf(groupSelections);
-        BlockPos minCornerCaptured = minCorner;
-        BlockPos maxCornerCaptured = maxCorner;
-        scene.addInstruction(ps -> {
-            ps.getWorld().getBounds().encapsulate(minCornerCaptured);
-            ps.getWorld().getBounds().encapsulate(maxCornerCaptured);
-            if (!forceVisibleNow) {
-                if (!ps.getBaseWorldSection().isEmpty()) {
-                    for (Selection selection : capturedSelections) {
-                        ps.getBaseWorldSection().erase(selection);
-                    }
-                    ps.getBaseWorldSection().queueRedraw();
-                }
-                return;
-            }
-            if (ps.getBaseWorldSection().isEmpty()) {
-                Selection all = ps.getSceneBuildingUtil().select().everywhere();
-                ps.getBaseWorldSection().set(all);
-                ps.getBaseWorldSection().setVisible(true);
-                ps.getBaseWorldSection().setFade(1);
-            } else {
-                for (Selection selection : capturedSelections) {
-                    ps.getBaseWorldSection().add(selection);
-                }
-            }
-            ps.getBaseWorldSection().queueRedraw();
-        });
-    }
-
-    private static void applyExtraPlacedVisibility(Context context, List<PlacedBlock> placed, boolean visible) {
-        for (PlacedBlock b : placed) {
-            long key = b.pos.asLong();
-            // Air placements render nothing, so they must not count as visible — otherwise a
-            // subsequent step that places a real block at the same scene-coord would be filtered
-            // out by smart-display as "already visible". Matters when the source structure was
-            // planned with replaceAir=true.
-            boolean effective = visible && !b.state.isAir();
-            if (context.allBlocksVisible) {
-                if (effective) {
-                    context.hiddenBlockKeys.remove(key);
-                } else {
-                    context.hiddenBlockKeys.add(key);
-                }
-            } else {
-                if (effective) {
-                    context.visibleBlockKeys.add(key);
-                } else {
-                    context.visibleBlockKeys.remove(key);
-                }
-            }
+            List<List<BlockPos>> groups = segmentExtraForAnimation(placed, simultaneous ? "up" : anim);
+            int rowDuration = entranceDuration == null ? 20 : Math.max(0, entranceDuration);
+            int rowInterval = simultaneous ? 0 : entranceInterval == null ? 1 : Math.max(0, entranceInterval);
+            showAnimatedGroups(scene, context, linkId, context.sectionLinks.get(linkId), groups,
+                    parseDirection(directionRaw), rowDuration, rowInterval, reveal);
         }
     }
 

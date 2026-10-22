@@ -30,9 +30,16 @@ public final class SceneStepCatalog {
         return type == null ? null : SCHEMAS.get(type.trim().toLowerCase(java.util.Locale.ROOT));
     }
 
+    /** Authoring guidance omits shared text while existing scenes remain valid. */
+    public static StepSchema getForAuthoring(String type) {
+        StepSchema schema = get(type);
+        return schema != null && !"shared_text".equals(schema.type()) ? schema : null;
+    }
+
     public static String compactIndex() {
         StringBuilder out = new StringBuilder();
         for (StepSchema schema : SCHEMAS.values()) {
+            if (getForAuthoring(schema.type()) == null) continue;
             out.append("- ").append(schema.type()).append(": ").append(schema.purpose()).append("\n");
         }
         return out.toString();
@@ -49,13 +56,13 @@ public final class SceneStepCatalog {
             List.of("structure:string", "blockPos:int[3]"),
             List.of("rotation:float", "replaceAir:boolean", "attachKeyFrame:boolean"),
             List.of("rotation is 0/90/180/270"), "{\"type\":\"show_extra_structure\",\"structure\":\"ponderer:extra\",\"blockPos\":[0,1,0]}");
-        add(schemas, "idle", "Pause the scene", List.of(), List.of("duration:int"),
+        add(schemas, "idle", "Advance the timeline by waiting", List.of(), List.of("duration:int"),
             List.of("duration must be non-negative; 20 ticks = 1 second"), "{\"type\":\"idle\",\"duration\":60}");
-        add(schemas, "text", "Show localized annotation text", List.of("text:LocalizedText"),
+        add(schemas, "text", "Show localized annotation text without waiting", List.of("text:LocalizedText"),
             List.of("point:number[3]", "duration:int", "color:string", "placeNearTarget:boolean", "attachKeyFrame:boolean"),
             List.of("Use both en_us and zh_cn; point should target the described component"),
             "{\"type\":\"text\",\"text\":{\"en_us\":\"Input\",\"zh_cn\":\"输入\"},\"point\":[1.5,1.5,1.5],\"duration\":50,\"placeNearTarget\":true}");
-        add(schemas, "shared_text", "Show text from a shared localization key", List.of("key:string"),
+        add(schemas, "shared_text", "Show shared localized text without waiting", List.of("key:string"),
             List.of("point:number[3]", "duration:int", "color:string", "placeNearTarget:boolean"),
             List.of(), "{\"type\":\"shared_text\",\"key\":\"ponderer.shared.example\",\"duration\":50}");
         add(schemas, "show_controls", "Show an interaction or ingredient indicator",
@@ -165,9 +172,35 @@ public final class SceneStepCatalog {
     private static void add(Map<String, StepSchema> schemas, String type, String purpose,
                             List<String> required, List<String> optional, List<String> constraints,
                             String example) {
+        String timing = timingDescription(type);
+        List<String> documentedConstraints = new ArrayList<>(constraints);
+        documentedConstraints.add(timing);
+        JsonObject inputSchema = contract(required, optional);
+        inputSchema.getAsJsonObject("properties").getAsJsonObject("duration").addProperty("description", timing);
         schemas.put(type, new StepSchema(
-            type, purpose, required, optional, extractEnums(required, optional), constraints, example,
-            contract(required, optional)));
+            type, purpose, required, optional, extractEnums(required, optional), List.copyOf(documentedConstraints), example,
+            inputSchema));
+    }
+
+    private static String timingDescription(String type) {
+        return switch (type) {
+            case "idle" -> "Blocking wait: duration advances the timeline in ticks (default 20; 20 ticks = 1 second)";
+            case "text", "shared_text" -> "Non-blocking: duration is text display lifetime in ticks (default 60), not elapsed timeline time. Accumulate waits before the next independent annotation, normally at least this duration";
+            case "show_controls" -> "Non-blocking: duration is indicator lifetime in ticks (default 60); add idle for observation time";
+            case "highlight_section" -> "Non-blocking: duration is outline lifetime in ticks (default 40); add idle for observation time";
+            case "rotate_camera_y" -> "Blocking camera turn: duration waits this many ticks (default 20); duration=0 turns instantly";
+            case "zoom_scene" -> "Blocking camera adjustment: duration advances the timeline in ticks (default 20)";
+            case "interface_action" -> "Blocking action: duration advances the timeline (default 20 ticks for drag, 10 for other actions; minimum 1)";
+            case "click_interface" -> "Blocking legacy click: consumes 1 tick; duration is ignored";
+            case "show_interface" -> "Opening the interface consumes 1 blocking tick; duration is ignored. Add idle for reading or observation time";
+            case "await_interface" -> "Interactive goal wait may be skipped or satisfied immediately; duration is ignored and is not a guaranteed reading delay";
+            case "show_structure", "show_extra_structure", "set_block", "replace_blocks", "destroy_block",
+                 "clear_entities", "clear_item_entities", "modify_entities_nbt", "modify_item_entities_nbt",
+                 "modify_block_entity_nbt", "toggle_redstone_power", "set_interface_slots", "change_interface_slot",
+                 "set_interface_context", "play_sound", "encapsulate_bounds", "next_scene",
+                 "indicate_redstone", "indicate_success" -> "duration is not a general-purpose wait and is ignored by this step; add explicit idle for pacing. Configured entrance animations may schedule their own layer intervals";
+            default -> "Non-blocking effect or animation: duration does not wait for completion; add explicit idle for pacing. Configured entrance animations may schedule their own layer intervals";
+        };
     }
 
     /** The tool documentation and deterministic validator consume the same contract. */

@@ -86,5 +86,5 @@ Claude 的响应可能先包含思考块，再包含正文；正文用于工具�
 新增 `ai.maxRunSeconds=900`、`ai.maxRunTokens=524288`、`ai.contextTokens=131072`、
 `ai.noProgressTurns=4`，均可在 AI 配置界面修改。contextTokens 须与所用模型匹配。
 
-提示词偏好迁移、宿主草稿、事务补丁、证据读取、持久运行记录、恢复和撤销的详细行为见
+新版提示词与旧文件备份、宿主草稿、事务补丁、证据读取、持久运行记录、恢复和撤销的详细行为见
 [AI 场景 Agent](AI_HARNESS.md)。

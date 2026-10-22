@@ -33,7 +33,9 @@ final class AiConversation {
     List<LlmProvider.Message> request(int turn, int maxTurns, boolean nativeTools) {
         List<LlmProvider.Message> request = new ArrayList<>(messages);
         request.add(LlmProvider.Message.user("Turn " + turn + " of " + maxTurns + ". Remaining run tokens: " + budget.remaining()
-            + ". Batch independent reads; submit when errors are empty. Quality warnings are advisory. Use finish_task for a concrete blocker."
+            + ". Batch independent reads. Review relevant quality warnings and make useful in-scope repairs before submitting;"
+            + " prioritize high-priority, new/changed and task-related pre-existing warnings. Warnings never block submission;"
+            + " avoid unproductive polishing and explain significant retained warnings. Use finish_task for a concrete blocker."
             + (nativeTools ? " Use native function tools." : " Return one JSON object containing tool_calls.")));
         return request;
     }
@@ -73,7 +75,9 @@ final class AiConversation {
         JsonObject state = context.drafts().descriptor();
         state.add("edit_scope", context.runState().editScope());
         state.add("last_errors", GSON.toJsonTree(context.runState().lastErrors()));
-        state.add("warnings", AiEditGuard.warnings(context, context.drafts().scene(), context.runState().lastWarnings()));
+        JsonArray warnings = AiEditGuard.warnings(context, context.drafts().scene(), context.runState().lastWarnings());
+        state.add("warning_summary", AiEditGuard.warningSummary(warnings));
+        state.add("warnings", warnings);
         state.addProperty("structure_queried", context.runState().queriedStructure());
         state.addProperty("references_read", context.runState().searchedReferences());
         state.addProperty("existing_scene_inspected", context.runState().inspectedExistingScene());

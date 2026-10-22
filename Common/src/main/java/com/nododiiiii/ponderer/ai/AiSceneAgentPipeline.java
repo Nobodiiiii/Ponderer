@@ -286,10 +286,17 @@ public final class AiSceneAgentPipeline {
             JsonObject requestData = new JsonObject(); requestData.addProperty("attempt", attempt + 1);
             requestData.addProperty("estimated_input_tokens", estimate); requestData.addProperty("max_output_tokens", allowance);
             events.emit("request_started", turn, requestData);
+            int requestAttempt = attempt + 1;
             try {
                 var reply = cancellation.track(llm.exchange(new LlmProvider.Exchange(system, messages, tools,
                     config.withRequestTimeout(timeout), nativeTools, allowance,
-                    update -> events.progress("Receiving AI response " + update.receivedCharacters())), cancellation)).join();
+                    update -> {
+                        cancellation.throwIfCancelled();
+                        events.output(turn, requestAttempt, update.assistantText(), nativeTools);
+                    }), cancellation)).join();
+                String assistantText = reply.message().content().stream().filter(LlmProvider.ContentBlock.Text.class::isInstance)
+                    .map(block -> ((LlmProvider.ContentBlock.Text) block).text()).collect(Collectors.joining("\n"));
+                events.output(turn, requestAttempt, assistantText, nativeTools);
                 JsonObject timing = new JsonObject(); timing.addProperty("elapsed_ms", (System.nanoTime() - requestStarted) / 1_000_000);
                 timing.addProperty("attempt", attempt + 1); diagnostics.accept("turn_" + turn + "_request.json", timing.toString());
                 timing.add("usage", GSON.toJsonTree(reply.usage())); timing.addProperty("finish_reason", reply.finishReason());
