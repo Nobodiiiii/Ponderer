@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.editor.capture.network;
 
-import com.nododiiiii.ponderer.features.blueprint.RaycastHelper;
+import com.nododiiiii.ponderer.support.world.RaycastHelper;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.sync.server.UploadPermissions;
+import com.nododiiiii.ponderer.application.security.UploadPermissions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;

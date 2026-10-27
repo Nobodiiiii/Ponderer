@@ -9,8 +9,8 @@ import org.slf4j.LoggerFactory;
 import java.util.ServiceLoader;
 
 /**
- * Central service locator using Java SPI (ServiceLoader).
- * Each platform (Forge/Fabric) provides implementations via META-INF/services.
+ * Loader capabilities discovered through Java SPI; no product feature state lives here.
+ * Active platform implementations are declared in META-INF/services.
  */
 public final class PondererServices {
     private static final Logger LOGGER = LoggerFactory.getLogger("Ponderer");

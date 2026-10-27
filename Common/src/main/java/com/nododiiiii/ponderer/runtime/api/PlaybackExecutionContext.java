@@ -1,8 +1,7 @@
 package com.nododiiiii.ponderer.runtime.api;
 
 /**
- * Marks client-side Ponder playback that is being advanced only to render a
- * projector hologram. Instructions that would touch real client UI or play
+ * Marks Ponder playback advanced by a detached render host. Instructions that would touch real client UI or play
  * real-world side effects must no-op while this context is active.
  */
 public final class PlaybackExecutionContext {

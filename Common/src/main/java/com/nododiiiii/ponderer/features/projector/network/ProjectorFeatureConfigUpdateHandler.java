@@ -4,10 +4,9 @@ import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.Config;
-import com.nododiiiii.ponderer.sync.server.UploadPermissions;
+import com.nododiiiii.ponderer.application.security.UploadPermissions;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
-import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigResponseHandler;
 import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigUpdatePayload;
 import static com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigUpdatePayload.*;
 

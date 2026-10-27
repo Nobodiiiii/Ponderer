@@ -44,19 +44,19 @@ public class JeiIngredientScreenElement implements ScreenElement {
      */
     @Nullable
     public static JeiIngredientScreenElement of(ITypedIngredient<?> typedIngredient) {
-        if (PondererJeiPlugin.getRuntime() == null) return null;
+        if (JeiRuntimeAccess.getRuntime() == null) return null;
         return new JeiIngredientScreenElement(typedIngredient);
     }
 
     @Override
     public void render(GuiGraphics graphics, int x, int y) {
-        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        IJeiRuntime rt = JeiRuntimeAccess.getRuntime();
         if (rt == null) return;
         getIngredientView(rt).drawable().draw(graphics, x, y);
     }
 
     public boolean renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
-        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        IJeiRuntime rt = JeiRuntimeAccess.getRuntime();
         if (rt == null) return false;
         IRecipeSlotDrawable slot = getIngredientView(rt).slot();
         if (slot.getDisplayedIngredient().isEmpty()) return false;

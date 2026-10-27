@@ -1,10 +1,6 @@
 package com.nododiiiii.ponderer.editor.capture;
 
-import com.nododiiiii.ponderer.editor.screen.PonderScreenNavigation;
-import com.nododiiiii.ponderer.editor.screen.SceneEditorScreen;
-import com.nododiiiii.ponderer.editor.screen.StepEditorContext;
-import com.nododiiiii.ponderer.editor.screen.StepEditorFactory;
-import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.editor.api.SceneCaptureContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 
@@ -40,7 +36,7 @@ public final class PickState {
     private static TargetField targetField;
     private static Map<String, String> formSnapshot = new HashMap<>();
     @Nullable
-    private static StepEditorContext context;
+    private static SceneCaptureContext context;
     /** For non-block fields (entity pos, text point, etc.), add 0.5 to get block center. */
     private static boolean useHalfOffset = false;
 
@@ -71,13 +67,12 @@ public final class PickState {
      * @param halfOffset   whether to add +0.5 offset (entity/text fields use block center)
      */
     public static void startPick(TargetField target, Map<String, String> snapshot,
-                                  String stepType, int editIndex, int insertAfterIndex,
-                                  DslScene scene, int sceneIndex, SceneEditorScreen parent,
+                                  SceneCaptureContext returnContext,
                                   boolean halfOffset) {
         PickState.active = true;
         PickState.targetField = target;
         PickState.formSnapshot = new HashMap<>(snapshot);
-        PickState.context = new StepEditorContext(stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent);
+        PickState.context = returnContext;
         PickState.useHalfOffset = halfOffset;
         PickState.pickedPos = null;
     }
@@ -154,7 +149,7 @@ public final class PickState {
         }
 
         // Build the editor screen via StepEditorFactory
-        StepEditorContext reopenContext = context;
+        SceneCaptureContext reopenContext = context;
         active = false;
         pickedPos = null;
         pickedFace = null;
@@ -175,7 +170,7 @@ public final class PickState {
     public static void openPonderUIForPick() {
         if (!active || context == null) return;
 
-        if (!PonderScreenNavigation.openPonderUIForScene(context.scene(), context.sceneIndex())) {
+        if (!context.openPreview()) {
             cancelPick();
         }
     }

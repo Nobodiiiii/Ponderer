@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.sync.network;
 
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.sync.server.RemoteWorkspaceService;
-import com.nododiiiii.ponderer.sync.server.UploadPermissions;
+import com.nododiiiii.ponderer.application.security.UploadPermissions;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;

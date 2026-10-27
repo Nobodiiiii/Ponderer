@@ -2,7 +2,6 @@ package com.nododiiiii.ponderer.mixin;
 
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.createmod.ponder.foundation.registration.PonderSceneRegistry;
 import net.minecraft.client.Minecraft;
@@ -51,7 +50,7 @@ public class PonderSceneRegistryMixin {
                                                         CallbackInfoReturnable<StructureTemplate> cir) {
         if (Ponderer.MODID.equals(location.getNamespace())) {
             // Priority 1: user's config/ponderer/structures/ folder (flat + pack subdirectories)
-            Path path = SceneStore.resolveStructurePath(location.getPath(), null);
+            Path path = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveStructurePath(location.getPath(), null);
             if (path != null && Files.exists(path)) {
                 try (InputStream stream = Files.newInputStream(path)) {
                     cir.setReturnValue(PonderSceneRegistry.loadSchematic(stream));
@@ -62,8 +61,8 @@ public class PonderSceneRegistryMixin {
             }
 
             // Priority 2: auto-copy built-in structure to local folder, then load from local
-            if (SceneStore.ensureBuiltinStructure(location.getPath())) {
-                Path localPath = SceneStore.getStructurePath(location);
+            if (com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().ensureBuiltinStructure(location.getPath())) {
+                Path localPath = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().getStructurePath(location);
                 if (localPath != null && Files.exists(localPath)) {
                     try (InputStream stream = Files.newInputStream(localPath)) {
                         cir.setReturnValue(PonderSceneRegistry.loadSchematic(stream));
@@ -75,7 +74,7 @@ public class PonderSceneRegistryMixin {
             }
 
             // Priority 3: load directly from jar without copying
-            InputStream builtinStream = SceneStore.openBuiltinStructure(location.getPath());
+            InputStream builtinStream = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().openBuiltinStructure(location.getPath());
             if (builtinStream != null) {
                 try (builtinStream) {
                     cir.setReturnValue(PonderSceneRegistry.loadSchematic(builtinStream));

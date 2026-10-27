@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.workspace.local;
 
+import com.nododiiiii.ponderer.workspace.api.PackState;
 import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -24,7 +25,7 @@ import java.util.stream.Stream;
 /**
  * Stores readonly/import state for source packs and imported local copies.
  */
-public final class PackStateStore {
+public final class PackStateStore implements PackState {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -40,28 +41,6 @@ public final class PackStateStore {
         this.workspace = workspace;
         STATE_PATH = workspace.configDir.resolve("ponderer").resolve(STATE_FILE);
         LEGACY_REGISTRY_PATH = workspace.configDir.resolve("ponderer").resolve(LEGACY_REGISTRY_FILE);
-    }
-
-    public static final class ImportedPackState {
-        public String packId;
-        public String displayName;
-        public String sourceFile;
-        public String importedVersion;
-        public String currentSourceVersion;
-        public String lastNotifiedSourceVersion;
-        public String importedAt;
-
-        ImportedPackState copy() {
-            ImportedPackState copy = new ImportedPackState();
-            copy.packId = packId;
-            copy.displayName = displayName;
-            copy.sourceFile = sourceFile;
-            copy.importedVersion = importedVersion;
-            copy.currentSourceVersion = currentSourceVersion;
-            copy.lastNotifiedSourceVersion = lastNotifiedSourceVersion;
-            copy.importedAt = importedAt;
-            return copy;
-        }
     }
 
     public void load() {

@@ -1,10 +1,10 @@
 package com.nododiiiii.ponderer.workspace.local;
 
+import com.nododiiiii.ponderer.workspace.api.WorkspaceLayoutView;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.resources.ResourceLocation;
-import com.nododiiiii.ponderer.Ponderer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
@@ -19,7 +19,8 @@ import com.nododiiiii.ponderer.workspace.api.*;
 import com.nododiiiii.ponderer.workspace.api.WorkspaceResults.*;
 
 /** Internal file implementation. Construct through WorkspaceFiles. */
-public final class WorkspaceLayout {
+public final class WorkspaceLayout implements WorkspaceLayoutView {
+    static final String DEFAULT_NAMESPACE = "ponderer";
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final String BASE_DIR = "ponderer";
     private static final String SCRIPT_DIR = "scripts";
@@ -121,8 +122,8 @@ public final class WorkspaceLayout {
         return SafePaths.resolveRelativePath(getStructureDir(), path + ".nbt");
     }
 
-    public Path getStructurePath(String path) {
-        return SafePaths.resolveRelativePath(getStructureDir(), path + ".nbt");
+    public Path getStructurePath(ResourceLocation id) {
+        return resolveStructurePath(getStructureDir(), id);
     }
 
     public Path resolveStructurePath(String path, @javax.annotation.Nullable String packName) {
@@ -189,8 +190,8 @@ public final class WorkspaceLayout {
                             candidate = candidate.substring(0, candidate.length() - 4);
                         }
 
-                        String defaultNamespaceCandidate = candidate.startsWith(Ponderer.MODID + "/")
-                            ? candidate.substring((Ponderer.MODID + "/").length())
+                        String defaultNamespaceCandidate = candidate.startsWith(DEFAULT_NAMESPACE + "/")
+                            ? candidate.substring((DEFAULT_NAMESPACE + "/").length())
                             : candidate;
 
                         if (candidate.equals(path) || defaultNamespaceCandidate.equals(path)) {
@@ -214,11 +215,11 @@ public final class WorkspaceLayout {
     }
 
     Path resolveScenePath(Path root, ResourceLocation id) {
-        return SafePaths.resolveNamespacedPath(root, id, Ponderer.MODID, ".json");
+        return SafePaths.resolveNamespacedPath(root, id, DEFAULT_NAMESPACE, ".json");
     }
 
     Path resolveStructurePath(Path root, ResourceLocation id) {
-        return SafePaths.resolveNamespacedPath(root, id, Ponderer.MODID, ".nbt");
+        return SafePaths.resolveNamespacedPath(root, id, DEFAULT_NAMESPACE, ".nbt");
     }
 
     Path resolveServerNamespacedPath(Path root, ResourceLocation id, String extension) {
@@ -260,7 +261,7 @@ public final class WorkspaceLayout {
             if (packDir == null) {
                 return null;
             }
-            String relativePath = id.getNamespace().equals(Ponderer.MODID)
+            String relativePath = id.getNamespace().equals(DEFAULT_NAMESPACE)
                     ? id.getPath() + ".nbt"
                     : id.getNamespace() + "/" + id.getPath() + ".nbt";
             return resolvePackScopedPath(packDir, pack, relativePath);

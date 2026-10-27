@@ -657,8 +657,8 @@ public final class AgentToolRegistry {
                 result.add("changed_paths", GSON.toJsonTree(context.existingScene().available()
                     ? AiEditGuard.changedPaths(context.existingScene().json(), draft) : List.of("/")));
                 if (terminal && errors.isEmpty()) {
-                    AiSceneGenerator.placeTextNearTarget(scene);
-                    if (!context.existingScene().available()) AiSceneGenerator.autoAddKeyFrames(scene);
+                    AiDraftPostprocessor.placeTextNearTarget(scene);
+                    if (!context.existingScene().available()) AiDraftPostprocessor.autoAddKeyFrames(scene);
                     result.addProperty("accepted", true);
                     return ToolExecution.submitted(result, scene);
                 }

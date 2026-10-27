@@ -1,14 +1,13 @@
 package com.nododiiiii.ponderer.workspace.local;
 
 import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
-import com.nododiiiii.ponderer.workspace.local.PackStateStore;
-import com.nododiiiii.ponderer.workspace.local.PonderPackRegistry;
+import com.nododiiiii.ponderer.workspace.api.PackState;
+import com.nododiiiii.ponderer.workspace.api.PackRegistry;
 import com.nododiiiii.ponderer.scene.SceneCodec;
 import com.nododiiiii.ponderer.scene.StructureReferences;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.util.SafePaths;
-import com.nododiiiii.ponderer.Ponderer;
 import org.slf4j.Logger;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -434,7 +433,7 @@ public final class LocalPackService implements PackService {
             return failure;
         }
 
-        PackStateStore.ImportedPackState existing = workspace.packState.getImportedPack(info.name);
+        PackState.ImportedPackState existing = workspace.packState.getImportedPack(info.name);
         if (workspace.packState.isImported(info.name)) {
             if (existing != null && existing.importedVersion != null && existing.importedVersion.equals(info.version)) {
                 return PackImportResult.failure(
@@ -747,7 +746,7 @@ public final class LocalPackService implements PackService {
         String oldVersion = null;
         long loadedAtMillis = 0;
 
-        PonderPackRegistry.PackEntry existing = workspace.registry.getPack(displayName);
+        PackRegistry.PackEntry existing = workspace.registry.getPack(displayName);
         if (existing != null) {
             oldVersion = existing.version;
             // Parse loadedAt timestamp to epoch millis for file modification comparison
@@ -923,7 +922,7 @@ public final class LocalPackService implements PackService {
             workspace.packState.updateCurrentSource(info);
 
             if (workspace.packState.isImported(info.name)) {
-                PackStateStore.ImportedPackState imported = workspace.packState.getImportedPack(info.name);
+                PackState.ImportedPackState imported = workspace.packState.getImportedPack(info.name);
                 if (imported != null && workspace.packState.shouldNotifySourceUpdate(info.name, info.version)) {
                     updates.add(new PackUpdateInfo(info.name, imported.importedVersion, info.version, 0, 0));
                     workspace.packState.markNotified(info.name, info.version);

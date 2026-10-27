@@ -12,8 +12,6 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -33,31 +31,6 @@ public class PonderPackRegistry {
     PonderPackRegistry(WorkspaceFiles workspace) {
         this.workspace = workspace;
         registryPath = workspace.configDir.resolve("ponderer").resolve(REGISTRY_FILE);
-    }
-
-    public static class PackEntry {
-        public String name;
-        public String version;
-        public String author;
-        public String description;
-        public String sourceFile;      // relative to resourcepacks/
-        public String fileHash;         // SHA-256 of zip
-        public String loadedAt;         // ISO 8601 timestamp
-        public String packPrefix;       // [PackName]
-
-        public PackEntry() {
-        }
-
-        public PackEntry(PonderPackInfo info, String fileHash) {
-            this.name = info.name;
-            this.version = info.version;
-            this.author = info.author;
-            this.description = info.description;
-            this.sourceFile = info.sourcePath.getFileName().toString();
-            this.fileHash = fileHash;
-            this.loadedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME);
-            this.packPrefix = info.packPrefix;
-        }
     }
 
     /**

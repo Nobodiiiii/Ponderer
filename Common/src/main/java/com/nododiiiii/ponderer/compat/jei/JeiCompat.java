@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.compat.jei;
 
 import net.createmod.catnip.gui.element.ScreenElement;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.editor.screen.UIText;
+import com.nododiiiii.ponderer.support.ui.UIText;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -35,7 +35,7 @@ public final class JeiCompat {
     /** A hint about actual list visibility; no JEI toggle state is read or changed. */
     @Nullable
     public static String getIngredientListVisibilityHint() {
-        if (!isAvailable() || !PondererJeiPlugin.isIngredientListNotDisplayed()) {
+        if (!isAvailable() || !JeiRuntimeAccess.isIngredientListNotDisplayed()) {
             return null;
         }
         for (KeyMapping mapping : Minecraft.getInstance().options.keyMappings) {

@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.registry;
 
+import com.nododiiiii.ponderer.features.projector.registry.ModBlocks;
 import com.nododiiiii.ponderer.features.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.features.projector.ProjectorFeature;
@@ -17,7 +18,7 @@ public final class ModCreativeModeTabs {
         ModCreativeModeTabs::icon,
         (parameters, output) -> {
             if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
-                output.accept(new ItemStack(ModItems.BLUEPRINT.get()));
+                output.accept(new ItemStack(com.nododiiiii.ponderer.features.blueprint.BlueprintRegistration.BLUEPRINT.get()));
             }
             if (ProjectorFeature.shouldShowProjectorsInCreativeTab()) {
                 output.accept(new ItemStack(ModBlocks.MINIATURE_PROJECTOR_ITEM.get()));
@@ -36,7 +37,7 @@ public final class ModCreativeModeTabs {
             return new ItemStack(ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get());
         }
         if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
-            return new ItemStack(ModItems.BLUEPRINT.get());
+            return new ItemStack(com.nododiiiii.ponderer.features.blueprint.BlueprintRegistration.BLUEPRINT.get());
         }
         return new ItemStack(ModBlocks.LIFE_SIZE_PROJECTOR_ITEM.get());
     }

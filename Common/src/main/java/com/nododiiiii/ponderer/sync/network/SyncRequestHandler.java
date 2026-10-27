@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.sync.network;
 
 import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.nododiiiii.ponderer.feedback.ServerFeedback;
-import com.nododiiiii.ponderer.sync.server.UploadPermissions;
+import com.nododiiiii.ponderer.application.security.UploadPermissions;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;

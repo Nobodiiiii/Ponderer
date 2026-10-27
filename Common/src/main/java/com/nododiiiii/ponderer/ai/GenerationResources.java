@@ -5,6 +5,7 @@ import java.io.InputStream;
 
 public interface GenerationResources {
     Path structureRoot();
+    default Path promptDirectory() { return Path.of(System.getProperty("java.io.tmpdir"), "ponderer-test-config/ponderer/prompts"); }
     Path resolve(String relative, String pack);
     InputStream builtin(String path);
 

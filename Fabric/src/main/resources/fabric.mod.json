@@ -24,7 +24,7 @@
       "com.nododiiiii.ponderer.fabric.compat.PondererModMenuIntegration"
     ],
     "jei_mod_plugin": [
-      "com.nododiiiii.ponderer.compat.jei.PondererJeiPlugin"
+      "com.nododiiiii.ponderer.application.compat.jei.PondererJeiPlugin"
     ]
   },
   "depends": {

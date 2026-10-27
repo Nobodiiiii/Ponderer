@@ -53,7 +53,7 @@ public final class ProjectorClientSceneResolver {
             int occurrence = occurrences.getOrDefault(sceneId, 0);
             occurrences.put(sceneId, occurrence + 1);
 
-            if (com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findBySceneId(sceneId) != null) {
+            if (com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findBySceneId(sceneId) != null) {
                 continue;
             }
 

@@ -1,0 +1,275 @@
+package com.nododiiiii.ponderer.application.ui;
+
+import com.nododiiiii.ponderer.support.ui.UIText;
+import com.nododiiiii.ponderer.editor.capture.PickState;
+import com.nododiiiii.ponderer.scene.DslScene;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.network.chat.Component;
+
+import javax.annotation.Nullable;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Shared editor for modify_entities_nbt and modify_item_entities_nbt steps.
+ */
+public class ModifyEntitiesNbtScreen extends AbstractStepEditorScreen {
+
+    private final String stepType;
+    private final IdFieldMode jeiMode;
+
+    private final StepTextFieldHandle idField = new StepTextFieldHandle("id");
+    private final StepTextFieldHandle linkIdField = new StepTextFieldHandle("linkId");
+    private final StepXyzFieldHandle posField = new StepXyzFieldHandle("pos");
+    private final StepXyzFieldHandle pos2Field = new StepXyzFieldHandle("pos2");
+    private final StepTextFieldHandle nbtField = new StepTextFieldHandle("nbt");
+    private final StepXyzFieldHandle moveField = new StepXyzFieldHandle("move");
+    private final StepTextFieldHandle moveDurationField = new StepTextFieldHandle("moveDuration");
+    private boolean fullScene = false;
+    private boolean walkAnimation = false;
+
+    public ModifyEntitiesNbtScreen(String stepType, DslScene scene, int sceneIndex, SceneEditorScreen parent) {
+        super(Component.translatable("ponderer.ui." + stepType + ".add"), scene, sceneIndex, parent);
+        this.stepType = stepType;
+        this.jeiMode = "modify_item_entities_nbt".equals(stepType) ? IdFieldMode.ITEM : IdFieldMode.ENTITY;
+    }
+
+    public ModifyEntitiesNbtScreen(String stepType, DslScene scene, int sceneIndex, SceneEditorScreen parent,
+                                   int editIndex, DslScene.DslStep step) {
+        super(Component.translatable("ponderer.ui." + stepType + ".edit"), scene, sceneIndex, parent, editIndex, step);
+        this.stepType = stepType;
+        this.jeiMode = "modify_item_entities_nbt".equals(stepType) ? IdFieldMode.ITEM : IdFieldMode.ENTITY;
+    }
+
+    @Override
+    protected String getHeaderTitle() { return UIText.of("ponderer.ui." + stepType); }
+
+    @Override
+    protected void collectStepEntries(List<com.nododiiiii.ponderer.application.ui.widgets.DeclarativeFormEntry> entries) {
+        if (jeiMode == IdFieldMode.ITEM) {
+            entries.add(FieldSpecs.text(
+                idField,
+                "ponderer.ui." + stepType + ".id",
+                "ponderer.ui." + stepType + ".id.tooltip",
+                UIText.of("ponderer.ui." + stepType + ".id.hint"),
+                124,
+                FieldDecorators.jei(jeiMode),
+                FieldDecorators.heldItem(idField, nbtField)));
+        } else {
+            entries.add(FieldSpecs.text(
+                idField,
+                "ponderer.ui." + stepType + ".id",
+                "ponderer.ui." + stepType + ".id.tooltip",
+                UIText.of("ponderer.ui." + stepType + ".id.hint"),
+                124,
+                FieldDecorators.jei(jeiMode)));
+        }
+        entries.add(FieldSpecs.typedText(
+            FieldType.ENTITY_LINK,
+            linkIdField,
+            "ponderer.ui.entity_link",
+            "ponderer.ui." + stepType + ".link.tooltip",
+            "",
+            124));
+        entries.add(FieldSpecs.xyz(
+            posField,
+            "ponderer.ui." + stepType + ".pos_from",
+            "ponderer.ui." + stepType + ".pos_from.tooltip",
+            PickState.TargetField.POS1));
+        entries.add(FieldSpecs.xyz(
+            pos2Field,
+            "ponderer.ui." + stepType + ".pos_to",
+            "ponderer.ui." + stepType + ".pos_to.tooltip",
+            PickState.TargetField.POS2));
+        entries.add(FieldSpecs.nbt(
+            nbtField,
+            "ponderer.ui." + stepType + ".nbt",
+            "ponderer.ui." + stepType + ".nbt.tooltip",
+            124,
+            "nbt"));
+        if ("modify_entities_nbt".equals(stepType)) {
+            entries.add(FieldSpecs.xyz(
+                moveField,
+                "ponderer.ui.modify_entities_nbt.move",
+                "ponderer.ui.modify_entities_nbt.move.tooltip",
+                FieldType.VECTOR));
+            entries.add(FieldSpecs.ticksNumber(
+                moveDurationField,
+                "ponderer.ui.modify_entities_nbt.move_duration",
+                "ponderer.ui.modify_entities_nbt.move_duration.tooltip",
+                "20",
+                60));
+            entries.add(FieldSpecs.toggle(
+                "ponderer.ui.modify_entities_nbt.walk_animation",
+                "ponderer.ui.modify_entities_nbt.walk_animation.tooltip",
+                () -> walkAnimation,
+                () -> walkAnimation = !walkAnimation));
+        }
+        entries.add(FieldSpecs.toggle(
+            "ponderer.ui." + stepType + ".full_scene",
+            "ponderer.ui." + stepType + ".full_scene.tooltip",
+            () -> fullScene,
+            () -> fullScene = !fullScene));
+    }
+
+    @Override
+    protected void populateFromStep(DslScene.DslStep step) {
+        super.populateFromStep(step);
+        if (step.item != null) idField.setValue(step.item);
+        if (step.entity != null) idField.setValue(step.entity);
+        if (step.blockPos != null && step.blockPos.size() >= 3) {
+            posField.setValue(step.blockPos.get(0), step.blockPos.get(1), step.blockPos.get(2));
+        }
+        if (step.blockPos2 != null && step.blockPos2.size() >= 3) {
+            pos2Field.setValue(step.blockPos2.get(0), step.blockPos2.get(1), step.blockPos2.get(2));
+        }
+        if (step.nbt != null) nbtField.setValue(step.nbt);
+        if (step.linkId != null) linkIdField.setValue(step.linkId);
+        if (step.fullScene != null) fullScene = step.fullScene;
+        if ("modify_entities_nbt".equals(stepType) && step.offset != null && step.offset.size() >= 3) {
+            moveField.setValue(step.offset.get(0), step.offset.get(1), step.offset.get(2));
+            if (step.duration != null) {
+                moveDurationField.setValue(String.valueOf(step.duration));
+            }
+            if (step.walkAnimation != null) {
+                walkAnimation = step.walkAnimation;
+            }
+        }
+    }
+
+    @Override
+    protected String getStepType() { return stepType; }
+
+    @Override
+    protected void appendCustomSnapshot(Map<String, String> snapshot) {
+        snapshot.put("fullScene", String.valueOf(fullScene));
+        snapshot.put("walkAnimation", String.valueOf(walkAnimation));
+    }
+
+    @Override
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
+        if (snapshot.containsKey("fullScene")) {
+            fullScene = Boolean.parseBoolean(snapshot.get("fullScene"));
+        }
+        if (snapshot.containsKey("walkAnimation")) {
+            walkAnimation = Boolean.parseBoolean(snapshot.get("walkAnimation"));
+        }
+        restoreNbtPickNotice(snapshot);
+    }
+
+    @Nullable
+    @Override
+    protected DslScene.DslStep buildStep() {
+        clearStatusMessages();
+        String linkId = linkIdField.getValue().trim();
+        boolean entityMode = "modify_entities_nbt".equals(stepType);
+        String moveX = moveField.x().trim();
+        String moveY = moveField.y().trim();
+        String moveZ = moveField.z().trim();
+        boolean hasMove = entityMode && (!moveX.isEmpty() || !moveY.isEmpty() || !moveZ.isEmpty());
+
+        String nbt = nbtField.getValue().trim();
+        if (nbt.isEmpty()) {
+            if (!hasMove || !entityMode) {
+                setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.required"));
+                return null;
+            }
+        } else {
+            try {
+                TagParser.parseTag(nbt);
+            } catch (Exception e) {
+                setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.invalid"));
+                return null;
+            }
+        }
+
+        Integer px = null, py = null, pz = null;
+        Integer px2 = null, py2 = null, pz2 = null;
+
+        if (!fullScene) {
+            String posX = posField.x().trim();
+            String posY = posField.y().trim();
+            String posZ = posField.z().trim();
+            boolean hasPos1 = !posX.isEmpty() || !posY.isEmpty() || !posZ.isEmpty();
+            if (hasPos1) {
+                px = parseBlockCoordinate(posX, "X");
+                py = parseBlockCoordinate(posY, "Y");
+                pz = parseBlockCoordinate(posZ, "Z");
+                if (px == null || py == null || pz == null) return null;
+            } else if (linkId.isEmpty()) {
+                setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.target_required"));
+                return null;
+            }
+
+            String pos2X = pos2Field.x().trim();
+            String pos2Y = pos2Field.y().trim();
+            String pos2Z = pos2Field.z().trim();
+            boolean hasPos2 = !pos2X.isEmpty() || !pos2Y.isEmpty() || !pos2Z.isEmpty();
+            if (hasPos2) {
+                if (pos2X.isEmpty() || pos2Y.isEmpty() || pos2Z.isEmpty()) {
+                    setErrorMessage(UIText.of("ponderer.ui." + stepType + ".error.partial_to"));
+                    return null;
+                }
+                px2 = parseBlockCoordinate(pos2X, "X2");
+                py2 = parseBlockCoordinate(pos2Y, "Y2");
+                pz2 = parseBlockCoordinate(pos2Z, "Z2");
+                if (px2 == null || py2 == null || pz2 == null) return null;
+            }
+        }
+
+        DslScene.DslStep s = new DslScene.DslStep();
+        s.type = stepType;
+        if (!nbt.isEmpty()) {
+            s.nbt = nbt;
+        }
+
+        String id = idField.getValue().trim();
+        if (!id.isEmpty()) {
+            if ("modify_item_entities_nbt".equals(stepType)) {
+                s.item = id;
+            } else {
+                s.entity = id;
+            }
+        }
+        if (!linkId.isEmpty()) {
+            s.linkId = linkId;
+        }
+
+        if (fullScene) {
+            s.fullScene = true;
+        } else if (px != null) {
+            s.blockPos = List.of(px, py, pz);
+            if (px2 != null) s.blockPos2 = List.of(px2, py2, pz2);
+        }
+
+        if (entityMode) {
+            if (hasMove) {
+                if (moveX.isEmpty() || moveY.isEmpty() || moveZ.isEmpty()) {
+                    setErrorMessage(UIText.of("ponderer.ui.modify_entities_nbt.error.partial_move"));
+                    return null;
+                }
+                Double mx = parseDouble(moveX, UIText.of("ponderer.ui.modify_entities_nbt.move") + " X");
+                Double my = parseDouble(moveY, UIText.of("ponderer.ui.modify_entities_nbt.move") + " Y");
+                Double mz = parseDouble(moveZ, UIText.of("ponderer.ui.modify_entities_nbt.move") + " Z");
+                if (mx == null || my == null || mz == null) {
+                    return null;
+                }
+                boolean nonZeroMove = mx != 0.0 || my != 0.0 || mz != 0.0;
+                if (!nonZeroMove) {
+                    if (nbt.isEmpty()) {
+                        setErrorMessage(UIText.of("ponderer.ui.modify_entities_nbt.error.required"));
+                        return null;
+                    }
+                } else {
+                    s.offset = List.of(mx, my, mz);
+                    s.duration = Math.max(0, parseIntOr(moveDurationField.getValue(), 20));
+                    if (walkAnimation) {
+                        s.walkAnimation = true;
+                    }
+                }
+            }
+        }
+
+        return s;
+    }
+}

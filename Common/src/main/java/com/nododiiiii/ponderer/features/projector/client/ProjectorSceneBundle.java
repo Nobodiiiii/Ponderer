@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.features.projector.client;
 
 import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
-import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.features.projector.ProjectorSceneKey;
@@ -144,7 +144,7 @@ public final class ProjectorSceneBundle {
             return compileNativeRenderOnly(nativeKey);
         }
 
-        DslScene dsl = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
+        DslScene dsl = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findByKey(sceneKey);
         if (dsl == null || dsl.items == null || dsl.items.isEmpty()) {
             return null;
         }
@@ -166,7 +166,7 @@ public final class ProjectorSceneBundle {
             int occurrence = occurrenceById.getOrDefault(ponderSceneId, 0);
             occurrenceById.put(ponderSceneId, occurrence + 1);
 
-            SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findBySceneId(compiledScene.getId(), occurrence);
+            SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findBySceneId(compiledScene.getId(), occurrence);
             if (match == null || match.scene() == null || !sceneKey.equals(match.scene().sceneKey())) {
                 continue;
             }

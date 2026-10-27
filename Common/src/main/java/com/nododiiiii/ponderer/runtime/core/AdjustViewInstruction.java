@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.runtime.core;
 
+import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.runtime.api.PlaybackInputLocks;
 import net.createmod.catnip.animation.LerpedFloat;

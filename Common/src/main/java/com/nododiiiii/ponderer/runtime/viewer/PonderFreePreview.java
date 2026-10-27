@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.runtime.viewer;
 
-import com.nododiiiii.ponderer.runtime.viewer.PonderPreviewTooltip;
 import com.nododiiiii.ponderer.runtime.mixin.PonderUIAccessor;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderButton;
@@ -237,11 +236,11 @@ public final class PonderFreePreview {
         graphics.pose().popPose();
     }
 
-    static List<Component> controlsTooltip(boolean textVisible) {
+    public static List<Component> controlsTooltip(boolean textVisible) {
         return controlsTooltip("ponderer.ui.preview.shortcut", textVisible);
     }
 
-    static List<Component> controlsTooltip(String titleKey, boolean textVisible) {
+    public static List<Component> controlsTooltip(String titleKey, boolean textVisible) {
         return List.of(Component.translatable(titleKey).withStyle(ChatFormatting.WHITE),
             Component.translatable("ponderer.ui.preview.rotate").withStyle(ChatFormatting.GRAY),
             Component.translatable("ponderer.ui.preview.pan").withStyle(ChatFormatting.GRAY),

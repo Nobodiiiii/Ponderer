@@ -9,7 +9,7 @@ import com.mojang.serialization.JsonOps;
 import com.nododiiiii.ponderer.support.nbt.DataSanitizer;
 import com.nododiiiii.ponderer.support.nbt.IdentityRemapper;
 import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SandboxScope;
-import com.nododiiiii.ponderer.editor.screen.SnapshotReturnContext;
+import com.nododiiiii.ponderer.editor.api.SnapshotReturnContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -36,6 +36,8 @@ public final class InterfaceCapture {
     public static final String NOTICE_KEY = "_interface_capture_notice";
     public static final int MAX_EXTRA_BYTES = 1_048_576;
     private static Capture active;
+
+    public static void reset() { active = null; WorldFeedback.clear("capture"); }
 
     private static final class Capture {
         final Map<String, String> snapshot;

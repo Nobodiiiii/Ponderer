@@ -1,7 +1,5 @@
 package com.nododiiiii.ponderer.runtime.viewer;
 
-import com.nododiiiii.ponderer.runtime.viewer.PonderFreePreview;
-import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
 import net.createmod.catnip.platform.CatnipServices;
 import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.foundation.PonderScene;

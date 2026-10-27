@@ -1,9 +1,18 @@
 package com.nododiiiii.ponderer.neoforge;
+import com.nododiiiii.ponderer.application.network.BlueprintConfigResponseClientHandler;
+import com.nododiiiii.ponderer.application.network.ProjectorFeatureConfigResponseClientHandler;
+import com.nododiiiii.ponderer.application.network.UploadResponseClientHandler;
+import com.nododiiiii.ponderer.application.network.StructurePreviewResponseClientHandler;
+import com.nododiiiii.ponderer.application.network.RemoteHistoryResponseClientHandler;
+import com.nododiiiii.ponderer.application.network.RemoteCatalogResponseClientHandler;
+import com.nododiiiii.ponderer.application.network.RemoteActionResponseClientHandler;
+import com.nododiiiii.ponderer.application.network.PermissionListResponseClientHandler;
+import com.nododiiiii.ponderer.application.network.DownloadStructureResultClientHandler;
 
 import com.nododiiiii.ponderer.application.protocol.FeatureAvailabilityPayload;
-import com.nododiiiii.ponderer.application.protocol.FeedbackMessagePayload;
-import com.nododiiiii.ponderer.application.protocol.FeedbackRequestPayload;
-import com.nododiiiii.ponderer.application.protocol.FeedbackResponsePayload;
+import com.nododiiiii.ponderer.feedback.protocol.FeedbackMessagePayload;
+import com.nododiiiii.ponderer.feedback.protocol.FeedbackRequestPayload;
+import com.nododiiiii.ponderer.feedback.protocol.FeedbackResponsePayload;
 import com.nododiiiii.ponderer.editor.capture.protocol.CaptureBlockEntityNbtRequestPayload;
 import com.nododiiiii.ponderer.editor.capture.protocol.CaptureBlockEntityNbtResponsePayload;
 import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigRequestPayload;
@@ -35,36 +44,27 @@ import com.nododiiiii.ponderer.sync.protocol.SyncResponsePayload;
 import com.nododiiiii.ponderer.sync.protocol.UploadResponsePayload;
 import com.nododiiiii.ponderer.sync.protocol.UploadScenePayload;
 import com.nododiiiii.ponderer.sync.network.UploadSceneHandler;
-import com.nododiiiii.ponderer.sync.network.UploadResponseHandler;
 import com.nododiiiii.ponderer.sync.client.RemotePullClient;
 import com.nododiiiii.ponderer.sync.network.SyncRequestHandler;
-import com.nododiiiii.ponderer.sync.network.StructurePreviewResponseHandler;
 import com.nododiiiii.ponderer.sync.network.StructurePreviewRequestHandler;
 import com.nododiiiii.ponderer.sync.network.RemoteRollbackRequestHandler;
 import com.nododiiiii.ponderer.sync.network.RemotePullRequestHandler;
-import com.nododiiiii.ponderer.sync.network.RemoteHistoryResponseHandler;
 import com.nododiiiii.ponderer.sync.network.RemoteHistoryRequestHandler;
 import com.nododiiiii.ponderer.sync.network.RemoteDeleteRequestHandler;
-import com.nododiiiii.ponderer.sync.network.RemoteCatalogResponseHandler;
 import com.nododiiiii.ponderer.sync.network.RemoteCatalogRequestHandler;
-import com.nododiiiii.ponderer.sync.network.RemoteActionResponseHandler;
 import com.nododiiiii.ponderer.features.projector.network.ProjectorPlaybackStartHandler;
 import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigUpdateHandler;
-import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigResponseHandler;
 import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigRequestHandler;
 import com.nododiiiii.ponderer.features.projector.network.ProjectorConfigUpdateHandler;
 import com.nododiiiii.ponderer.sync.network.PermissionUpdateRequestHandler;
-import com.nododiiiii.ponderer.sync.network.PermissionListResponseHandler;
 import com.nododiiiii.ponderer.sync.network.PermissionListRequestHandler;
 import com.nododiiiii.ponderer.application.network.FeedbackRequestHandler;
 import com.nododiiiii.ponderer.application.network.FeedbackMessageHandler;
 import com.nododiiiii.ponderer.application.network.FeatureAvailabilityHandler;
-import com.nododiiiii.ponderer.sync.network.DownloadStructureResultHandler;
 import com.nododiiiii.ponderer.sync.network.DownloadStructureHandler;
 import com.nododiiiii.ponderer.editor.capture.network.CaptureBlockEntityNbtResponseHandler;
 import com.nododiiiii.ponderer.editor.capture.network.CaptureBlockEntityNbtRequestHandler;
 import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigUpdateHandler;
-import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigResponseHandler;
 import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigRequestHandler;
 import com.nododiiiii.ponderer.sync.network.AutoSyncPreferenceHandler;
 import com.nododiiiii.ponderer.feedback.ServerFeedback;
@@ -153,25 +153,25 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
             ctx.enqueueWork(() -> RemotePullClient.handle(payload));
         });
         registrar.playToClient(DownloadStructureResultPayload.TYPE, DownloadStructureResultPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> DownloadStructureResultHandler.handle(payload));
+            ctx.enqueueWork(() -> DownloadStructureResultClientHandler.handle(payload));
         });
         registrar.playToClient(StructurePreviewResponsePayload.TYPE, StructurePreviewResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> StructurePreviewResponseHandler.handle(payload));
+            ctx.enqueueWork(() -> StructurePreviewResponseClientHandler.handle(payload));
         });
         registrar.playToClient(UploadResponsePayload.TYPE, UploadResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> UploadResponseHandler.handle(payload));
+            ctx.enqueueWork(() -> UploadResponseClientHandler.handle(payload));
         });
         registrar.playToClient(CaptureBlockEntityNbtResponsePayload.TYPE, CaptureBlockEntityNbtResponsePayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> CaptureBlockEntityNbtResponseHandler.handle(payload));
         });
         registrar.playToClient(PermissionListResponsePayload.TYPE, PermissionListResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> PermissionListResponseHandler.handle(payload));
+            ctx.enqueueWork(() -> PermissionListResponseClientHandler.handle(payload));
         });
         registrar.playToClient(BlueprintConfigResponsePayload.TYPE, BlueprintConfigResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> BlueprintConfigResponseHandler.handle(payload));
+            ctx.enqueueWork(() -> BlueprintConfigResponseClientHandler.handle(payload));
         });
         registrar.playToClient(ProjectorFeatureConfigResponsePayload.TYPE, ProjectorFeatureConfigResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> ProjectorFeatureConfigResponseHandler.handle(payload));
+            ctx.enqueueWork(() -> ProjectorFeatureConfigResponseClientHandler.handle(payload));
         });
         registrar.playToClient(ProjectorPlaybackStartPayload.TYPE, ProjectorPlaybackStartPayload.CODEC, (payload, ctx) -> {
             ctx.enqueueWork(() -> ProjectorPlaybackStartHandler.handle(payload));
@@ -180,13 +180,13 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
             ctx.enqueueWork(() -> FeatureAvailabilityHandler.handle(payload));
         });
         registrar.playToClient(RemoteCatalogResponsePayload.TYPE, RemoteCatalogResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteCatalogResponseHandler.handle(payload));
+            ctx.enqueueWork(() -> RemoteCatalogResponseClientHandler.handle(payload));
         });
         registrar.playToClient(RemoteActionResponsePayload.TYPE, RemoteActionResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteActionResponseHandler.handle(payload));
+            ctx.enqueueWork(() -> RemoteActionResponseClientHandler.handle(payload));
         });
         registrar.playToClient(RemoteHistoryResponsePayload.TYPE, RemoteHistoryResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteHistoryResponseHandler.handle(payload));
+            ctx.enqueueWork(() -> RemoteHistoryResponseClientHandler.handle(payload));
         });
     }
 

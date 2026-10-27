@@ -1,8 +1,6 @@
 package com.nododiiiii.ponderer.sync.network;
 
 import com.nododiiiii.ponderer.sync.server.RemoteWorkspaceService;
-import com.nododiiiii.ponderer.editor.screen.RemoteBrowserScreen;
-import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.sync.protocol.RemoteCatalogResponsePayload;
 import static com.nododiiiii.ponderer.sync.protocol.RemoteCatalogResponsePayload.*;
 
@@ -21,13 +19,6 @@ public final class RemoteCatalogResponseHandler {
             snapshot.canManage(),
             message == null ? "" : message,
             error);
-    }
-
-    public static void handle(RemoteCatalogResponsePayload payload) {
-        Minecraft client = Minecraft.getInstance();
-        if (com.nododiiiii.ponderer.feedback.ClientFeedback.responseScreen() instanceof RemoteBrowserScreen screen) {
-            screen.receiveCatalog(payload);
-        }
     }
 
     private static Entry fromServiceEntry(RemoteWorkspaceService.CatalogEntry entry) {

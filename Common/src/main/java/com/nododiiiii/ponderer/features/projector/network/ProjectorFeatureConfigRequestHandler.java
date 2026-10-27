@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.features.projector.network;
 
-import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigResponseHandler;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigRequestPayload;

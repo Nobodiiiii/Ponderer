@@ -10,6 +10,7 @@ public final class ProjectorPlaybackStartHandler {
     private ProjectorPlaybackStartHandler() {}
 
     public static void handle(ProjectorPlaybackStartPayload payload) {
+        if (!com.nododiiiii.ponderer.features.projector.client.ProjectorClientModule.isActive()) return;
         if (Minecraft.getInstance().level == null) {
             return;
         }

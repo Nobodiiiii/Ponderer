@@ -1,0 +1,314 @@
+package com.nododiiiii.ponderer.application.ui;
+
+import com.nododiiiii.ponderer.editor.api.SnapshotReturnContext;
+import com.nododiiiii.ponderer.support.ui.UIText;
+import com.nododiiiii.ponderer.editor.capture.NbtPickState;
+import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.application.ui.widgets.DeclarativeFormEntry;
+import net.createmod.catnip.gui.ScreenOpener;
+import net.createmod.catnip.gui.widget.BoxWidget;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public abstract class AbstractSceneEditorFormScreen extends AbstractInventoryPickerFormScreen
+    implements NbtPickButtonHost, NbtExpandButtonHost {
+
+    @Nullable
+    protected final DslScene scene;
+    protected final int sceneIndex;
+    @Nullable
+    protected final SceneEditorScreen parent;
+    @Nullable
+    protected Screen returnScreen;
+
+    @Nullable
+    protected BoxWidget confirmButton;
+    @Nullable
+    protected BoxWidget cancelButton;
+
+    private final List<SnapshotParticipant> formStateParticipants = new ArrayList<>();
+    private boolean formStateParticipantsConfigured = false;
+    private boolean initialStatePrepared = false;
+    @Nullable
+    private Map<String, String> pendingFormRestore = null;
+    @Nullable
+    private Map<String, String> pendingBaselineRestore = null;
+
+    protected AbstractSceneEditorFormScreen(@Nullable DslScene scene, int sceneIndex, @Nullable SceneEditorScreen parent,
+                                            String scopeKey, String titleKey, int preferredListWidth) {
+        super(parent, scopeKey, titleKey, preferredListWidth);
+        this.scene = scene;
+        this.sceneIndex = sceneIndex;
+        this.parent = parent;
+    }
+
+    public AbstractSceneEditorFormScreen setReturnScreen(@Nullable Screen returnScreen) {
+        this.returnScreen = returnScreen;
+        return this;
+    }
+
+    public AbstractSceneEditorFormScreen setPendingFormRestore(@Nullable Map<String, String> snapshot) {
+        this.pendingBaselineRestore = null;
+        if (snapshot == null) {
+            this.pendingFormRestore = null;
+            return this;
+        }
+
+        this.pendingFormRestore = new HashMap<>(snapshot);
+        this.pendingBaselineRestore = extractBaselineSnapshotMetadata(this.pendingFormRestore);
+        if (pendingFormRestore != null) {
+            prepareSnapshotForBuild(pendingFormRestore);
+        }
+        return this;
+    }
+
+    @Override
+    protected boolean shouldAutoCaptureBaselineOnInit() {
+        return false;
+    }
+
+    @Override
+    protected void init() {
+        ensureFormStateParticipants();
+        if (!initialStatePrepared) {
+            prepareInitialState();
+            initialStatePrepared = true;
+        }
+        if (pendingFormRestore != null) {
+            prepareSnapshotForBuild(pendingFormRestore);
+        }
+
+        super.init();
+
+        confirmButton = saveChanges;
+        cancelButton = goBack;
+        configureActionButtons();
+
+        if (pendingFormRestore != null) {
+            restoreFromSnapshot(pendingFormRestore);
+            if (pendingBaselineRestore != null) {
+                restoreBaselineState(pendingBaselineRestore);
+            }
+            pendingFormRestore = null;
+            pendingBaselineRestore = null;
+        } else if (!isBaselineCaptured()) {
+            markStateSaved();
+        }
+    }
+
+    @Override
+    protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.renderWindow(graphics, mouseX, mouseY, partialTicks);
+        renderFormForeground(graphics, mouseX, mouseY, partialTicks);
+    }
+
+    @Override
+    protected void attemptBackToParent() {
+        if (!hasUnsavedChanges()) {
+            returnToParent();
+            return;
+        }
+
+        showLeavingPrompt(response -> {
+            if (response == net.createmod.catnip.gui.ConfirmationScreen.Response.Cancel) {
+                return;
+            }
+            if (response == net.createmod.catnip.gui.ConfirmationScreen.Response.Confirm) {
+                if (!saveEdits()) {
+                    return;
+                }
+            } else {
+                discardEdits();
+            }
+            returnToParent();
+        });
+    }
+
+    protected void prepareInitialState() {
+    }
+
+    protected void configureActionButtons() {
+    }
+
+    protected void renderFormForeground(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+    }
+
+    protected String getHeaderTitle() {
+        return UIText.of(titleKey);
+    }
+
+    @Override
+    protected String getBreadcrumbTitleText() {
+        return getHeaderTitle();
+    }
+
+    protected void returnToParent() {
+        ScreenOpener.open(returnScreen != null ? returnScreen : parent);
+    }
+
+    protected void addBaseFormStateParticipants(List<SnapshotParticipant> participants) {
+    }
+
+    protected void configureFormState(List<SnapshotParticipant> participants) {
+    }
+
+    @Override
+    protected final Map<String, String> snapshotState() {
+        Map<String, String> snapshot = new HashMap<>();
+        for (DeclarativeFormEntry entry : builtFormEntries()) {
+            entry.snapshot(snapshot);
+        }
+        FormState.snapshotOf(formStateParticipants).forEach(snapshot::put);
+        appendCustomSnapshot(snapshot);
+        return snapshot;
+    }
+
+    @Override
+    protected final void restoreSnapshot(Map<String, String> snapshot) {
+        FormState.restoreInto(snapshot, formStateParticipants);
+        for (DeclarativeFormEntry entry : builtFormEntries()) {
+            entry.restore(snapshot);
+        }
+        restoreCustomSnapshot(snapshot);
+    }
+
+    protected void appendCustomSnapshot(Map<String, String> snapshot) {
+    }
+
+    protected void restoreCustomSnapshot(Map<String, String> snapshot) {
+    }
+
+    protected final Map<String, String> snapshotForm() {
+        Map<String, String> snapshot = snapshotState();
+        appendBaselineSnapshotMetadata(snapshot);
+        return snapshot;
+    }
+
+    protected final void restoreFromSnapshot(Map<String, String> snapshot) {
+        restoreSnapshot(snapshot);
+    }
+
+    @Override
+    protected void prepareSnapshotForBuild(Map<String, String> snapshot) {
+        FormState.restoreInto(snapshot, formStateParticipants);
+        restoreCustomSnapshot(snapshot);
+    }
+
+    @Override
+    public final void startNbtPickFromButton(String nbtSnapshotKey, boolean captureBlockId) {
+        var mc = Minecraft.getInstance();
+        if (mc.player == null) {
+            return;
+        }
+        clearStatusMessages();
+        NbtPickState.startPick(snapshotForm(), nbtSnapshotKey, captureBlockId, createReturnContext());
+        mc.setScreen(null);
+    }
+
+    @Override
+    public final void startNbtExpandFromButton(String nbtSnapshotKey) {
+        clearStatusMessages();
+        Minecraft.getInstance().setScreen(new NbtExpandedEditorScreen(
+            scene,
+            sceneIndex,
+            parent,
+            createReturnContext(),
+            snapshotForm(),
+            nbtSnapshotKey));
+    }
+
+    protected void restoreNbtPickNotice(Map<String, String> snapshot) {
+        if (!snapshot.containsKey(NbtPickState.SNAPSHOT_NOTICE_KEY)) {
+            return;
+        }
+        String pickedName = snapshot.get(NbtPickState.SNAPSHOT_NOTICE_KEY);
+        String translated = UIText.of("ponderer.ui.nbt_pick.filled", pickedName);
+        setInfoMessage("ponderer.ui.nbt_pick.filled".equals(translated)
+            ? ("NBT <- " + pickedName)
+            : translated);
+    }
+
+    @Nullable
+    protected Double parseDouble(String value, String fieldName) {
+        if (value == null || value.trim().isEmpty()) {
+            setErrorMessage(UIText.of("ponderer.ui.error.required_field", fieldName));
+            return null;
+        }
+        try {
+            return Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            setErrorMessage(UIText.of("ponderer.ui.error.invalid_number", fieldName));
+            return null;
+        }
+    }
+
+    protected double parseDoubleOr(String value, double fallback) {
+        if (value == null || value.trim().isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    @Nullable
+    protected Float parseFloat(String value, String fieldName) {
+        Double d = parseDouble(value, fieldName);
+        return d == null ? null : d.floatValue();
+    }
+
+    @Nullable
+    protected Integer parseInt(String value, String fieldName) {
+        if (value == null || value.trim().isEmpty()) {
+            setErrorMessage(UIText.of("ponderer.ui.error.required_field", fieldName));
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            setErrorMessage(UIText.of("ponderer.ui.error.invalid_integer", fieldName));
+            return null;
+        }
+    }
+
+    protected int parseIntOr(String value, int fallback) {
+        if (value == null || value.trim().isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    @Nullable
+    protected Integer parseBlockCoordinate(String value, String fieldName) {
+        FormParsers.ParseResult<Integer> result = FormParsers.requiredBlockCoordinate(value, fieldName);
+        if (result.failed()) {
+            setErrorMessage(result.errorMessage());
+            return null;
+        }
+        return result.value();
+    }
+
+    protected abstract SnapshotReturnContext createReturnContext();
+
+    private void ensureFormStateParticipants() {
+        if (formStateParticipantsConfigured) {
+            return;
+        }
+        formStateParticipantsConfigured = true;
+        addBaseFormStateParticipants(formStateParticipants);
+        configureFormState(formStateParticipants);
+    }
+}

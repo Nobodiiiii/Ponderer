@@ -1,8 +1,6 @@
 package com.nododiiiii.ponderer.sync.network;
 
 import com.nododiiiii.ponderer.sync.server.RemoteWorkspaceService;
-import com.nododiiiii.ponderer.editor.screen.RemoteBrowserScreen;
-import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import com.nododiiiii.ponderer.sync.protocol.RemoteHistoryResponsePayload;
@@ -22,10 +20,5 @@ public final class RemoteHistoryResponseHandler {
             canManage);
     }
 
-    public static void handle(RemoteHistoryResponsePayload payload) {
-        Minecraft client = Minecraft.getInstance();
-        if (com.nododiiiii.ponderer.feedback.ClientFeedback.responseScreen() instanceof RemoteBrowserScreen screen) {
-            screen.receiveHistory(payload);
-        }
-    }
+
 }

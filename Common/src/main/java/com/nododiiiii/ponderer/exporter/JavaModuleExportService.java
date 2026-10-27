@@ -1,9 +1,9 @@
 package com.nododiiiii.ponderer.exporter;
 
-import com.nododiiiii.ponderer.ponder.CustomPonderTags;
-import com.nododiiiii.ponderer.ponder.PondererAttribution;
-import com.nododiiiii.ponderer.runtime.core.ParticleEffectSpec;
-import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
+import com.nododiiiii.ponderer.product.catalog.CustomPonderTags;
+import com.nododiiiii.ponderer.product.catalog.PondererAttribution;
+import com.nododiiiii.ponderer.scene.step.ParticleEffectSpec;
+import com.nododiiiii.ponderer.runtime.api.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.google.gson.Gson;
@@ -43,11 +43,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_TAG_PATH;
-import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_TITLE_EN_US;
-import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_TITLE_ZH_CN;
-import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_DESCRIPTION_EN_US;
-import static com.nododiiiii.ponderer.ponder.PondererAttribution.ATTRIBUTION_DESCRIPTION_ZH_CN;
+import static com.nododiiiii.ponderer.product.catalog.PondererAttribution.ATTRIBUTION_TAG_PATH;
+import static com.nododiiiii.ponderer.product.catalog.PondererAttribution.ATTRIBUTION_TITLE_EN_US;
+import static com.nododiiiii.ponderer.product.catalog.PondererAttribution.ATTRIBUTION_TITLE_ZH_CN;
+import static com.nododiiiii.ponderer.product.catalog.PondererAttribution.ATTRIBUTION_DESCRIPTION_EN_US;
+import static com.nododiiiii.ponderer.product.catalog.PondererAttribution.ATTRIBUTION_DESCRIPTION_ZH_CN;
 
 public final class JavaModuleExportService {
     private static final Gson GSON = new GsonBuilder()
@@ -131,14 +131,16 @@ public final class JavaModuleExportService {
             return result;
         }
 
-        List<DslScene> scenes = collectRequestedScenes(request, result.fatalFindings);
+        List<DslScene> sourceScenes = request.scenes().stream()
+            .map(com.nododiiiii.ponderer.scene.SceneSnapshot::document).toList();
+        List<DslScene> scenes = collectRequestedScenes(request, sourceScenes, result.fatalFindings);
         if (scenes.isEmpty()) {
             addFinding(result.fatalFindings, "fatal", null, null, null, null, "No exportable scenes were found.");
             return result;
         }
 
         for (DslScene scene : scenes) {
-            JavaModuleScanResult.ScenePlan plan = scanScene(targetProject, scene, result);
+            JavaModuleScanResult.ScenePlan plan = scanScene(targetProject, scene, sourceScenes, result);
             result.scenePlans.add(plan);
         }
 
@@ -390,8 +392,8 @@ public final class JavaModuleExportService {
     }
 
     private List<DslScene> collectRequestedScenes(JavaModuleExportRequest request,
+                                                         List<DslScene> runtimeScenes,
                                                          List<JavaModuleScanResult.Finding> fatals) {
-        List<DslScene> runtimeScenes = request.scenes().stream().map(com.nododiiiii.ponderer.scene.SceneSnapshot::document).toList();
         if (runtimeScenes.isEmpty()) {
             addFinding(fatals, "fatal", null, null, null, null, "No scenes are currently loaded.");
             return List.of();
@@ -405,6 +407,7 @@ public final class JavaModuleExportService {
 
     private JavaModuleScanResult.ScenePlan scanScene(JavaModuleScanResult.TargetProject target,
                                                             DslScene scene,
+                                                            List<DslScene> sourceScenes,
                                                             JavaModuleScanResult result) {
         JavaModuleScanResult.ScenePlan plan = new JavaModuleScanResult.ScenePlan();
         plan.sourceScene = scene;
@@ -434,7 +437,7 @@ public final class JavaModuleExportService {
                 plan.tags.add(tagLoc.toString());
             }
         }
-        plan.customTags = CustomPonderTags.copy(CustomPonderTags.forScene(scene));
+        plan.customTags = CustomPonderTags.copy(CustomPonderTags.forScene(scene, sourceScenes));
 
         collectSceneMetaWarnings(scene, result, plan);
 
@@ -1288,7 +1291,7 @@ public final class JavaModuleExportService {
             .append(resourceLocationArrayExpr(plan.tags.stream().map(id -> exportedTagId(target, plan, id)).toList(),
                 generatedAttributionTagId(target.modId))).append(";\n");
         sb.append("        var multi = helper.forComponents(java.util.List.of(")
-            .append(plan.componentItems.stream().map(JavaModuleExportService::resourceLocationExpr).collect(Collectors.joining(", ")))
+            .append(plan.componentItems.stream().map(this::resourceLocationExpr).collect(Collectors.joining(", ")))
             .append("));\n");
         for (JavaModuleScanResult.SegmentPlan segment : plan.segments) {
             if (segment.schematic == null) {
@@ -1938,7 +1941,7 @@ public final class JavaModuleExportService {
         String sanitized = storyboardBasePath(sceneId).replace('/', '_').replace('-', '_').replace('.', '_');
         sanitized = Arrays.stream(sanitized.split("_+"))
             .filter(part -> !part.isBlank())
-            .map(JavaModuleExportService::capitalize)
+            .map(this::capitalize)
             .collect(Collectors.joining());
         String digest = shortDigest(sceneId);
         return "Generated" + (sanitized.isBlank() ? "Scene" : sanitized) + "_" + digest;
@@ -2021,7 +2024,7 @@ public final class JavaModuleExportService {
         if (combined.isEmpty()) {
             return "new ResourceLocation[0]";
         }
-        return "new ResourceLocation[]{" + combined.stream().map(JavaModuleExportService::resourceLocationExpr).collect(Collectors.joining(", ")) + "}";
+        return "new ResourceLocation[]{" + combined.stream().map(this::resourceLocationExpr).collect(Collectors.joining(", ")) + "}";
     }
 
     String resourceLocationExpr(String id) {

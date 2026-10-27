@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.sync.server;
 
-import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.application.security.UploadPermissions;
 import com.nododiiiii.ponderer.sync.client.SyncMeta;
-import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.google.gson.Gson;
@@ -103,8 +103,8 @@ public final class RemoteWorkspaceService {
     }
 
     public static CatalogSnapshot catalog(MinecraftServer server, ServerPlayer viewer) {
-        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> sceneRefs = SceneStore.collectServerScriptRefs(server);
-        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> structureRefs = SceneStore.collectServerStructureRefs(server);
+        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> sceneRefs = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().collectServerScriptRefs(server);
+        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> structureRefs = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().collectServerStructureRefs(server);
         Map<String, Integer> structureRefCounts = countStructureReferences(server, sceneRefs);
         Map<String, Integer> packSceneCounts = new LinkedHashMap<>();
         Map<String, Integer> packStructureCounts = new LinkedHashMap<>();
@@ -161,12 +161,12 @@ public final class RemoteWorkspaceService {
         List<SyncResponsePayload.FileEntry> structures = new ArrayList<>();
 
         if (KIND_PACK.equals(kind)) {
-            for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : SceneStore.collectServerScriptRefs(server)) {
+            for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().collectServerScriptRefs(server)) {
                 if (samePack(packOrId(id, pack), ref.pack())) {
                     addScriptEntry(ref, scripts);
                 }
             }
-            for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : SceneStore.collectServerStructureRefs(server)) {
+            for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().collectServerStructureRefs(server)) {
                 if (samePack(packOrId(id, pack), ref.pack())) {
                     addStructureEntry(ref, structures);
                 }
@@ -177,7 +177,7 @@ public final class RemoteWorkspaceService {
         if (KIND_ITEM_SCENES.equals(kind)) {
             Set<String> structureKeys = new HashSet<>();
             int matchedScenes = 0;
-            for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef sceneRef : SceneStore.collectServerScriptRefs(server)) {
+            for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef sceneRef : com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().collectServerScriptRefs(server)) {
                 DslScene scene = readScene(sceneRef.path());
                 if (!sceneMatchesItem(scene, id)) {
                     continue;
@@ -229,7 +229,7 @@ public final class RemoteWorkspaceService {
         if (actor == null) {
             return OperationResult.fail(Component.translatable("ponderer.feedback.remote.no_player"));
         }
-        boolean ok = SceneStore.saveToServer(actor.server, payload.sceneId(), payload.pack(), payload.json());
+        boolean ok = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().saveToServer(actor.server, payload.sceneId(), payload.pack(), payload.json());
         if (ok) {
             snapshotCurrent(actor.server, KIND_SCENE, payload.sceneId(), payload.pack(), "upload", actorName(actor));
         }
@@ -239,7 +239,7 @@ public final class RemoteWorkspaceService {
                 if (entry == null || entry.id() == null || entry.id().isBlank() || entry.bytes() == null) {
                     continue;
                 }
-                ok = SceneStore.saveStructureToServer(actor.server, entry.id(), entry.pack(), entry.bytes()) && ok;
+                ok = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().saveStructureToServer(actor.server, entry.id(), entry.pack(), entry.bytes()) && ok;
                 if (ok) {
                     snapshotCurrent(actor.server, KIND_STRUCTURE, entry.id(), entry.pack(), "upload", actorName(actor));
                 }
@@ -275,7 +275,7 @@ public final class RemoteWorkspaceService {
         }
 
         if (KIND_STRUCTURE.equals(kind)) {
-            int refCount = countStructureReferences(server, SceneStore.collectServerScriptRefs(server))
+            int refCount = countStructureReferences(server, com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().collectServerScriptRefs(server))
                 .getOrDefault(refKey(id, pack), 0);
             if (refCount > 0) {
                 return OperationResult.fail(Component.translatable("ponderer.feedback.remote.referenced", displayKey(id, pack), refCount));
@@ -340,7 +340,7 @@ public final class RemoteWorkspaceService {
 
     @Nullable
     private static com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef findSceneRef(MinecraftServer server, String id, @Nullable String pack) {
-        for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : SceneStore.collectServerScriptRefs(server)) {
+        for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().collectServerScriptRefs(server)) {
             if (ref.id().equals(id) && samePack(ref.pack(), pack)) {
                 return ref;
             }
@@ -350,7 +350,7 @@ public final class RemoteWorkspaceService {
 
     @Nullable
     private static com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef findStructureRef(MinecraftServer server, String id, @Nullable String pack) {
-        for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : SceneStore.collectServerStructureRefs(server)) {
+        for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().collectServerStructureRefs(server)) {
             if (ref.id().equals(id) && samePack(ref.pack(), pack)) {
                 return ref;
             }
@@ -365,13 +365,13 @@ public final class RemoteWorkspaceService {
             return List.of();
         }
         Set<String> refs = new HashSet<>();
-        SceneStore.collectStructureReferences(scene, refs);
+        com.nododiiiii.ponderer.scene.StructureReferences.collect(scene, refs);
         if (refs.isEmpty()) {
             return List.of();
         }
 
         Map<String, com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> available = new HashMap<>();
-        for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : SceneStore.collectServerStructureRefs(server)) {
+        for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().collectServerStructureRefs(server)) {
             available.put(refKey(ref.id(), ref.pack()), ref);
         }
 
@@ -417,7 +417,7 @@ public final class RemoteWorkspaceService {
             List<String> items = scene.items == null ? List.of() : scene.items;
             summary = items.isEmpty() ? "No bound items" : String.join(", ", items);
             Set<String> structures = new HashSet<>();
-            SceneStore.collectStructureReferences(scene, structures);
+            com.nododiiiii.ponderer.scene.StructureReferences.collect(scene, structures);
             dependencyCount = structures.size();
         }
         return fileEntry(server, KIND_SCENE, ref.id(), ref.pack(), title, summary, ref.path(), dependencyCount, 0);
@@ -456,7 +456,7 @@ public final class RemoteWorkspaceService {
                 continue;
             }
             Set<String> refs = new HashSet<>();
-            SceneStore.collectStructureReferences(scene, refs);
+            com.nododiiiii.ponderer.scene.StructureReferences.collect(scene, refs);
             for (String ref : refs) {
                 ResourceLocation loc = parseStructureId(ref);
                 if (loc == null) {
@@ -614,10 +614,10 @@ public final class RemoteWorkspaceService {
             return null;
         }
         if (KIND_SCENE.equals(kind)) {
-            return SceneStore.resolveServerScenePath(server, loc, pack);
+            return com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveServerScenePath(server, loc, pack);
         }
         if (KIND_STRUCTURE.equals(kind)) {
-            return SceneStore.resolveServerStructurePath(server, loc, pack);
+            return com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveServerStructurePath(server, loc, pack);
         }
         return null;
     }
@@ -690,7 +690,7 @@ public final class RemoteWorkspaceService {
     }
 
     private static String displayKey(String id, @Nullable String pack) {
-        return SceneStore.displaySceneKey(id, pack);
+        return com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().displaySceneKey(id, pack);
     }
 
     private static boolean samePack(@Nullable String a, @Nullable String b) {

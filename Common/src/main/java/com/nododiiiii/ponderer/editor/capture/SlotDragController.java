@@ -1,10 +1,9 @@
 package com.nododiiiii.ponderer.editor.capture;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.nododiiiii.ponderer.compat.jei.JeiCompat;
+import com.nododiiiii.ponderer.editor.api.IngredientPresentation;
 import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SandboxSession;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.editor.capture.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.runtime.interfaces.InterfaceSlotOverlayRenderer;
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
 import net.minecraft.client.Minecraft;
@@ -17,9 +16,11 @@ import org.lwjgl.glfw.GLFW;
 import com.nododiiiii.ponderer.runtime.spi.InterfaceEditingExtension;
 
 public final class SlotDragController implements InterfaceEditingExtension {
-    private static DslScene.InterfaceSlotBinding draggedBinding;
-    private static Integer draggedBindingOrigin;
-    private static ItemStack draggedItemStack = ItemStack.EMPTY;
+    private final IngredientPresentation ingredients;
+    public SlotDragController(IngredientPresentation ingredients) { this.ingredients = java.util.Objects.requireNonNull(ingredients); }
+    private DslScene.InterfaceSlotBinding draggedBinding;
+    private Integer draggedBindingOrigin;
+    private ItemStack draggedItemStack = ItemStack.EMPTY;
     @Override public boolean isActive() { return InterfaceSlotEditState.isActive(); }
     @Override public void applyPreview(SandboxSession session) { InterfaceSlotEditState.applyPreview(session); }
     @Override public java.util.Map<Integer, DslScene.InterfaceSlotBinding> ghostBindings() { return InterfaceSlotEditState.getGhostBindingsForRender(); }
@@ -95,7 +96,7 @@ public final class SlotDragController implements InterfaceEditingExtension {
             return;
         }
         var element = draggedItemStack.isEmpty()
-            ? JeiCompat.resolveIngredientById(dragged.ingredientId, dragged.ingredientKind) : null;
+            ? ingredients.resolve(dragged.ingredientId, dragged.ingredientKind) : null;
         if (element == null && draggedItemStack.isEmpty()) {
             return;
         }
@@ -116,7 +117,7 @@ public final class SlotDragController implements InterfaceEditingExtension {
         if (!InterfaceSlotEditState.isActive() || InterfaceSlotOverlayRenderer.findSlotAt(screen, mouseX, mouseY) == null) {
             return;
         }
-        String hint = JeiCompat.getIngredientListVisibilityHint();
+        String hint = ingredients.visibilityHint();
         if (hint == null) {
             return;
         }

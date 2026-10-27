@@ -34,7 +34,7 @@ class SceneStoreTest {
         scene.scenes = List.of(segment);
 
         Set<String> refs = new LinkedHashSet<>();
-        SceneStore.collectStructureReferences(scene, refs);
+        com.nododiiiii.ponderer.scene.StructureReferences.collect(scene, refs);
 
         assertEquals(Set.of("ponderer:base", "ponderer:alt", "ponderer:override"), refs);
     }
@@ -46,7 +46,7 @@ class SceneStoreTest {
         Files.createDirectories(file.getParent());
         Files.write(file, new byte[]{1});
 
-        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref = SceneStore.toServerStructureRef(root, file, ".nbt", null);
+        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref = new com.nododiiiii.ponderer.workspace.local.WorkspaceFiles(tempDir, tempDir, () -> true).structures().toServerStructureRef(root, file, ".nbt", null);
 
         assertNotNull(ref);
         assertEquals("ponderer:machines/press", ref.id());
@@ -60,7 +60,7 @@ class SceneStoreTest {
         Files.createDirectories(file.getParent());
         Files.write(file, new byte[]{1});
 
-        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref = SceneStore.toServerStructureRef(root, file, ".nbt", null);
+        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref = new com.nododiiiii.ponderer.workspace.local.WorkspaceFiles(tempDir, tempDir, () -> true).structures().toServerStructureRef(root, file, ".nbt", null);
 
         assertNotNull(ref);
         assertEquals("ponderer:machines/press", ref.id());

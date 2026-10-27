@@ -6,7 +6,7 @@ import com.nododiiiii.ponderer.features.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.features.projector.client.ProjectorPlaybackState;
 import com.nododiiiii.ponderer.features.projector.client.ProjectorRenderBounds;
 import com.nododiiiii.ponderer.features.projector.client.ProjectorRenderDistances;
-import com.nododiiiii.ponderer.registry.ModBlockEntities;
+import com.nododiiiii.ponderer.features.projector.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;

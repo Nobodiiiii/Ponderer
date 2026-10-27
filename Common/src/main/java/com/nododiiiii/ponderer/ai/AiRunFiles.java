@@ -4,7 +4,6 @@ import com.google.gson.*;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.util.SafePaths;
 import java.io.IOException;
 import java.nio.file.*;
@@ -70,7 +69,7 @@ public final class AiRunFiles {
         return Files.isRegularFile(target);
     }
 
-    synchronized AiRunEvents events() {
+    public synchronized AiRunEvents events() {
         if (events == null) synchronized (AiRunFiles.class) {
             try { refreshProjections(); }
             catch (IOException error) { throw new IllegalStateException("Cannot read AI run events", error); }
@@ -246,15 +245,15 @@ public final class AiRunFiles {
         } catch (IOException error) { return List.of(); }
     }
 
-    void recordUndo(Path target, String before, DslScene scene) {
+    public void recordUndo(Path target, String before, DslScene scene) {
         JsonObject value = new JsonObject(); value.addProperty("path", target.toAbsolutePath().normalize().toString());
         value.addProperty("before", before); value.add("scene", GSON.toJsonTree(scene));
-        value.addProperty("after", SceneStore.serializeLocalScene(scene));
+        value.addProperty("after", com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().serializeLocalScene(scene));
         write("undo.json", GSON.toJson(value));
         status("saving", "Rollback data persisted; saving scene");
     }
 
-    void markSaved(Path target) throws IOException {
+    public void markSaved(Path target) throws IOException {
         JsonObject undo = read("undo.json"); undo.addProperty("after", Files.readString(target));
         write("undo.json", GSON.toJson(undo));
         JsonObject after = JsonParser.parseString(undo.get("after").getAsString()).getAsJsonObject();
@@ -269,11 +268,11 @@ public final class AiRunFiles {
     }
 
     public void undo() throws IOException {
-        synchronized (SceneStore.class) {
+        synchronized (com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes()) {
             if (!canUndo()) throw new IllegalStateException("This run has no saved change to undo");
             JsonObject saved = read("undo.json");
             DslScene scene = GSON.fromJson(saved.get("scene"), DslScene.class);
-            Path expected = SceneStore.resolveLocalScenePath(scene);
+            Path expected = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveLocalScenePath(scene);
             Path target = Path.of(saved.get("path").getAsString()).toAbsolutePath().normalize();
             if (expected == null || !target.equals(expected.toAbsolutePath().normalize())) throw new IllegalStateException("Undo scene path no longer matches the local scene");
             if (!saved.has("after") || !Files.isRegularFile(target) || !Files.readString(target).equals(saved.get("after").getAsString()))

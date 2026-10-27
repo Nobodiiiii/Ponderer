@@ -1,4 +1,5 @@
 {
+  "ponderer.ui.save_error.refresh_after_save": "已保存到磁盘，但场景目录刷新失败：%s",
   "ponderer.ui.field.item.hint": "minecraft:iron_ingot",
   "ponderer.ui.field.block.hint": "minecraft:stone",
   "ponderer.ui.field.entity.hint": "minecraft:zombie",

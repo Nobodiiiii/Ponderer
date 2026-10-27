@@ -2,8 +2,8 @@ package com.nododiiiii.ponderer.features.projector.client;
 
 import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor;
-import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
-import com.nododiiiii.ponderer.runtime.core.PonderRenderCache;
+import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.runtime.render.PonderRenderCache;
 import com.nododiiiii.ponderer.features.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.features.projector.ProjectorSceneTimeline;
 import net.createmod.ponder.foundation.PonderScene;
@@ -58,11 +58,13 @@ public final class ProjectorPlaybackState {
     }
 
     public static void prepareForTick(ProjectorBlockEntity blockEntity) {
+        if (!ProjectorClientModule.isActive()) return;
         forBlock(blockEntity).prepare(blockEntity, 0.0F, false);
     }
 
     @Nullable
     static PreparedFrame prepareForRender(ProjectorBlockEntity blockEntity, float partialTick) {
+        if (!ProjectorClientModule.isActive()) return null;
         return forBlock(blockEntity).prepare(blockEntity, partialTick, true);
     }
 
@@ -201,6 +203,7 @@ public final class ProjectorPlaybackState {
 
     @Nullable
     ProjectorSceneBundle playbackBundleFor(ProjectorBlockEntity blockEntity) {
+        if (!ProjectorClientModule.isActive()) return null;
         int revision = blockEntity.getPlaybackRevision();
         if (playbackBundleRevision != revision) {
             clearPlaybackSession();

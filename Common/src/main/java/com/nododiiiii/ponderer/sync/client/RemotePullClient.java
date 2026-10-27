@@ -4,11 +4,6 @@ import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.nododiiiii.ponderer.feedback.ClientFeedback;
-import com.nododiiiii.ponderer.sync.client.AutoRemoteSyncClient;
-import com.nododiiiii.ponderer.sync.client.PendingRemoteUpdates;
-import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.sync.client.SyncMeta;
-import com.nododiiiii.ponderer.editor.screen.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -34,9 +29,6 @@ public final class RemotePullClient {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-
-
-
     @Nullable
     private static PullSession automaticSession;
 
@@ -45,8 +37,6 @@ public final class RemotePullClient {
 
     @Nullable
     private static Object sessionConnection;
-
-
 
     private static final class PullSession {
         private final String pullMode;
@@ -68,11 +58,8 @@ public final class RemotePullClient {
         }
     }
 
-
-
-
-
     public static void handle(SyncResponsePayload payload) {
+        if (!SyncClientModule.isActive()) return;
         Object connection = Minecraft.getInstance().getConnection();
         if (sessionConnection != connection) {
             automaticSession = null;
@@ -163,12 +150,10 @@ public final class RemotePullClient {
         persistSessionMetadata(session);
 
         if (session.written > 0 || session.deleted > 0) {
-            SceneStore.reloadFromDisk();
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
             Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
         }
-        if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
-            screen.onSyncUpdatesChanged();
-        }
+        SyncClientEvents.updatesChanged();
 
         if (!session.automatic() || session.written > 0 || session.deleted > 0 || session.skipped > 0
             || session.conflicts > 0) {
@@ -299,13 +284,13 @@ public final class RemotePullClient {
     @Nullable
     private static Path resolveLocalPath(FileEntry entry, String ext) {
         if (".json".equals(ext)) {
-            return SceneStore.findLocalSceneFile(entry.id(), entry.pack());
+            return com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().findLocalSceneFile(entry.id(), entry.pack());
         }
         ResourceLocation loc = ResourceLocation.tryParse(entry.id());
         if (loc == null) {
             return null;
         }
-        return SceneStore.resolveLocalSyncStructurePath(loc, entry.pack());
+        return com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveLocalSyncStructurePath(loc, entry.pack());
     }
 
     private static boolean writeFile(Path path, byte[] bytes) {
@@ -318,10 +303,6 @@ public final class RemotePullClient {
             return false;
         }
     }
-
-
-
-
 
     private static void notifyClient(Component message) { notifyClient(message, FeedbackLevel.INFO); }
 

@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.sync.client;
 
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -45,6 +44,14 @@ public final class PendingRemoteUpdates {
         public boolean deletion() {
             return bytes == null;
         }
+    }
+
+    public static void resetConnection() {
+        connection = null;
+        PENDING.clear();
+        ignored = new HashMap<>();
+        ignoredPath = null;
+        revision++;
     }
 
     private PendingRemoteUpdates() {
@@ -131,7 +138,7 @@ public final class PendingRemoteUpdates {
         } else {
             return;
         }
-        ignoredPath = SceneStore.getSceneDir().getParent().resolve(".sync_ignored")
+        ignoredPath = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().getSceneDir().getParent().resolve(".sync_ignored")
             .resolve(SyncMeta.sha256(source.getBytes(StandardCharsets.UTF_8)) + ".json");
         if (!Files.exists(ignoredPath)) {
             return;

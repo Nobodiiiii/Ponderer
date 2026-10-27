@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.neoforge.interfaces;
 
 import com.nododiiiii.ponderer.bootstrap.InterfaceSmokeTest;
 import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
-import com.nododiiiii.ponderer.runtime.core.PonderRenderCache;
+import com.nododiiiii.ponderer.runtime.render.PonderRenderCache;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;

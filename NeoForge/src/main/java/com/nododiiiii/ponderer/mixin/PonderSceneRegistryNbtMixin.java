@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.runtime.core.NbtSceneFilter;
+import com.nododiiiii.ponderer.runtime.api.NbtSceneFilter;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.registration.PonderSceneRegistry;
 import net.minecraft.resources.ResourceLocation;

@@ -28,7 +28,7 @@ final class JeiIngredientHelper {
      */
     @Nullable
     static ScreenElement createScreenElement(Object ingredient) {
-        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        IJeiRuntime rt = JeiRuntimeAccess.getRuntime();
         if (rt == null) return null;
         IIngredientManager mgr = rt.getIngredientManager();
         Optional<? extends ITypedIngredient<?>> typed = createTyped(mgr, ingredient);
@@ -41,7 +41,7 @@ final class JeiIngredientHelper {
      */
     @Nullable
     static ScreenElement createFluidScreenElement(net.minecraft.world.level.material.Fluid fluid, int amount) {
-        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        IJeiRuntime rt = JeiRuntimeAccess.getRuntime();
         if (rt == null) return null;
         IIngredientManager mgr = rt.getIngredientManager();
         // Search JEI's registered fluid ingredient type for this fluid
@@ -64,7 +64,7 @@ final class JeiIngredientHelper {
      */
     @Nullable
     static ScreenElement resolveById(String id, @Nullable String preferredKind) {
-        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        IJeiRuntime rt = JeiRuntimeAccess.getRuntime();
         if (rt == null) return null;
         IIngredientManager mgr = rt.getIngredientManager();
         ResourceLocation target = ResourceLocation.tryParse(id);
@@ -95,7 +95,7 @@ final class JeiIngredientHelper {
     @SuppressWarnings("unchecked")
     static String resolveId(Object typedIngredientObj) {
         if (!(typedIngredientObj instanceof ITypedIngredient<?> typed)) return null;
-        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        IJeiRuntime rt = JeiRuntimeAccess.getRuntime();
         if (rt == null) return null;
         IIngredientManager mgr = rt.getIngredientManager();
         return resolveIdTyped(mgr, (ITypedIngredient<Object>) typed);
@@ -108,7 +108,7 @@ final class JeiIngredientHelper {
     @SuppressWarnings("unchecked")
     static JeiCompat.IngredientDescriptor resolveDescriptor(Object typedIngredientObj) {
         if (!(typedIngredientObj instanceof ITypedIngredient<?> typed)) return null;
-        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        IJeiRuntime rt = JeiRuntimeAccess.getRuntime();
         if (rt == null) return null;
         IIngredientManager mgr = rt.getIngredientManager();
         ITypedIngredient<Object> cast = (ITypedIngredient<Object>) typed;
@@ -152,7 +152,7 @@ final class JeiIngredientHelper {
      * Returns a list of {id, displayName, path, kind} string arrays.
      */
     static List<String[]> getAllExtraEntries() {
-        IJeiRuntime rt = PondererJeiPlugin.getRuntime();
+        IJeiRuntime rt = JeiRuntimeAccess.getRuntime();
         if (rt == null) return List.of();
         IIngredientManager mgr = rt.getIngredientManager();
         List<String[]> result = new ArrayList<>();

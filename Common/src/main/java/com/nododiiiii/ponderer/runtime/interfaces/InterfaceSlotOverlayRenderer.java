@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.runtime.interfaces;
 
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
-import com.nododiiiii.ponderer.runtime.interfaces.InterfaceExtensions;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.runtime.interfaces.platform.InterfacePlatform;
 import com.nododiiiii.ponderer.scene.DslScene;

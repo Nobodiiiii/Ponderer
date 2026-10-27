@@ -8,8 +8,8 @@ import java.util.List;
 import com.mojang.logging.LogUtils;
 
 /** Versioned built-in contracts; legacy disk prompts are archived and never loaded. */
-final class AiPromptAssembler {
-    static final int VERSION = 9;
+public final class AiPromptAssembler {
+    public static final int VERSION = 9;
     private static final String ROOT = "/assets/ponderer/ai/prompts/";
     private AiPromptAssembler() {}
 

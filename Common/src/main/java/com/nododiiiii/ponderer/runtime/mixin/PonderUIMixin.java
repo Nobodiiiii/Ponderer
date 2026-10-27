@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.runtime.mixin;
 import com.nododiiiii.ponderer.runtime.api.PlaybackPreferences;
 import com.nododiiiii.ponderer.runtime.api.PlaybackInputLocks;
 import com.nododiiiii.ponderer.runtime.api.PlaybackUiExtensions;
-import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.runtime.viewer.PonderSmallHint;
 import com.nododiiiii.ponderer.runtime.viewer.PonderTextListWidget;
@@ -22,7 +22,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
@@ -110,7 +109,7 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
 
     }
 
-    @Inject(method = "renderWindow", at = @At("TAIL"), remap = false)
+    @Inject(method = "renderWindow", at = @At("TAIL"))
     private void ponderer$renderWidgetsOnTop(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER);
@@ -162,14 +161,14 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
      * {@code renderHoverTooltips} land at NDC z below the scene's max NDC z and pass LEQUAL
      * regardless of whether depth-test is on or off at the time of buffer flush.
      */
-    @Inject(method = "renderWidgets", at = @At("HEAD"), remap = false)
+    @Inject(method = "renderWidgets", at = @At("HEAD"))
     private void ponderer$liftRenderWidgetsAboveScene(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTicks, CallbackInfo ci) {
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_TEXT_BASELINE_LAYER);
     }
 
-    @Inject(method = "renderWidgets", at = @At("RETURN"), remap = false)
+    @Inject(method = "renderWidgets", at = @At("RETURN"))
     private void ponderer$popRenderWidgetsLift(GuiGraphics graphics, int mouseX, int mouseY,
             float partialTicks, CallbackInfo ci) {
         graphics.pose().popPose();
@@ -423,8 +422,7 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
         at = @At(value = "INVOKE",
             target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(FFF)V",
             ordinal = 0,
-            remap = true),
-        remap = false)
+            remap = true))
     private void ponderer$liftSceneOutOfBackgroundDepth(PoseStack ps, float x, float y, float z) {
         ps.translate(x, y, 5000.0f);
     }

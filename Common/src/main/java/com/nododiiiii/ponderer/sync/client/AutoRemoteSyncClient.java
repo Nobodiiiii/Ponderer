@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.sync.client;
 
-import com.nododiiiii.ponderer.sync.client.RemotePullClient;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.sync.protocol.AutoSyncPreferencePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
@@ -13,6 +12,13 @@ public final class AutoRemoteSyncClient {
     private static Object connection;
     @Nullable
     private static Boolean sentEnabled;
+
+    public static void resetConnection() {
+        connection = null;
+        sentEnabled = null;
+        RemotePullClient.resetConnection();
+        PendingRemoteUpdates.resetConnection();
+    }
 
     private AutoRemoteSyncClient() {
     }
@@ -29,6 +35,7 @@ public final class AutoRemoteSyncClient {
     }
 
     public static void tick() {
+        if (!SyncClientModule.isActive()) return;
         Minecraft mc = Minecraft.getInstance();
         Object current = mc.getConnection();
         if (connection != current) {

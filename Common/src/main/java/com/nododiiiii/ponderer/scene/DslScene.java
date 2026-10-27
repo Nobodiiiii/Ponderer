@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.scene;
 
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.google.gson.JsonObject;
 import javax.annotation.Nullable;
 import java.util.List;
@@ -102,7 +101,7 @@ public class DslScene {
     @Nullable public String hintSubtitleText;
 
     /**
-     * Transient field set by SceneStore.reloadFromDisk().
+     * Transient workspace origin metadata, excluded from JSON.
      * Stores the source filename (e.g. "example.json" or "[my_pack] example.json").
      * Not serialized by GSON.
      */

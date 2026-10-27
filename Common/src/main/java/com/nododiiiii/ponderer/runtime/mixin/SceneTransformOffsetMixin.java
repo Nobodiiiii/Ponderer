@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.runtime.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.viewer.PonderUiZoomAccess;
 import com.nododiiiii.ponderer.runtime.viewer.PonderUiPreviewAccess;
 import com.nododiiiii.ponderer.runtime.viewer.PonderFreePreview;

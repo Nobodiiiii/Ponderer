@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.sync.client;
 
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -33,7 +32,7 @@ public final class SyncMeta {
     }
 
     private static Path getMetaPath() {
-        return SceneStore.getSceneDir().getParent().resolve(META_FILE);
+        return com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().getSceneDir().getParent().resolve(META_FILE);
     }
 
     public static Map<String, String> load() {
@@ -73,7 +72,7 @@ public final class SyncMeta {
 
     /** Preserve in-game deletions even when the scene has never been synced. */
     public static void recordLocalSceneDeletion(String sceneId, Path deletedFile) {
-        Path packsRoot = SceneStore.getPacksRoot().toAbsolutePath().normalize();
+        Path packsRoot = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().getPacksRoot().toAbsolutePath().normalize();
         Path file = deletedFile.toAbsolutePath().normalize();
         String pack = null;
         if (file.startsWith(packsRoot)) {

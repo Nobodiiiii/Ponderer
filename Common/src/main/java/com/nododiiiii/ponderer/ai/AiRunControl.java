@@ -27,5 +27,5 @@ public final class AiRunControl {
         closed = true;
         return true;
     }
-    synchronized void close() { closed = true; }
+    public synchronized void close() { closed = true; }
 }

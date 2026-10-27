@@ -3,9 +3,6 @@ package com.nododiiiii.ponderer.editor.capture;
 import com.nododiiiii.ponderer.runtime.spi.PlaybackUiExtension;
 import net.minecraft.client.gui.screens.Screen;
 import org.lwjgl.glfw.GLFW;
-import com.nododiiiii.ponderer.editor.capture.PickState;
-import com.nododiiiii.ponderer.editor.capture.NbtExpandedPickState;
-import com.nododiiiii.ponderer.editor.capture.InterfaceSlotEditState;
 
 public final class EditorInputExtension implements PlaybackUiExtension {
     @Override public boolean keyPressed(Screen screen, int keyCode, int scanCode, int modifiers) {

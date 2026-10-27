@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.fabric.interfaces;
 
 import com.nododiiiii.ponderer.bootstrap.InterfaceSmokeTest;
 import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
-import com.nododiiiii.ponderer.runtime.core.PonderRenderCache;
+import com.nododiiiii.ponderer.runtime.render.PonderRenderCache;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;

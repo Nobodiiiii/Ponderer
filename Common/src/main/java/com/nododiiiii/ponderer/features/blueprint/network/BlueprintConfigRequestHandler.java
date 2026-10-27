@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.features.blueprint.network;
 
-import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigResponseHandler;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigRequestPayload;

@@ -18,8 +18,6 @@ public record ProjectorFeatureConfigUpdatePayload(boolean enableProjector) imple
         return TYPE;
     }
 
-
-
     public void encode(RegistryFriendlyByteBuf buf) {
         buf.writeBoolean(enableProjector());
     }

@@ -1,21 +1,20 @@
 package com.nododiiiii.ponderer.neoforge;
 
-import com.nododiiiii.ponderer.feedback.PackFeedback;
+import com.nododiiiii.ponderer.application.feedback.PackFeedback;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.features.blueprint.BlueprintHandler;
-import com.nododiiiii.ponderer.ponder.PondererAttribution;
+import com.nododiiiii.ponderer.product.catalog.PondererAttribution;
 import com.nododiiiii.ponderer.sync.client.AutoRemoteSyncClient;
-import com.nododiiiii.ponderer.ponder.PondererClientCommands;
-import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.application.command.PondererClientCommands;
 import com.nododiiiii.ponderer.features.trigger.TriggerManager;
 import com.nododiiiii.ponderer.neoforge.interfaces.NeoForgeInterfaceEvents;
 import com.nododiiiii.ponderer.features.projector.client.ProjectorBlockEntityRenderer;
 import com.nododiiiii.ponderer.features.projector.client.ProjectorWorldOverlayQueue;
-import com.nododiiiii.ponderer.registry.ModBlockEntities;
-import com.nododiiiii.ponderer.registry.ModMenuTypes;
-import com.nododiiiii.ponderer.editor.screen.FunctionScreen;
+import com.nododiiiii.ponderer.features.projector.registry.ModBlockEntities;
+import com.nododiiiii.ponderer.features.projector.registry.ModMenuTypes;
+import com.nododiiiii.ponderer.application.ui.FunctionScreen;
 import com.nododiiiii.ponderer.editor.capture.NbtPickState;
-import com.nododiiiii.ponderer.editor.screen.ProjectorConfigScreen;
+import com.nododiiiii.ponderer.application.ui.ProjectorConfigScreen;
 import com.nododiiiii.ponderer.runtime.viewer.PonderPreviewTooltip;
 import com.nododiiiii.ponderer.runtime.viewer.PonderSceneTextLayer;
 import net.createmod.catnip.gui.ScreenOpener;
@@ -87,16 +86,16 @@ public class PondererNeoForgeClient {
 
     private static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
-            SceneStore.extractDefaultsIfNeeded();
-            com.nododiiiii.ponderer.workspace.api.WorkspaceResults.AutoLoadResult result = SceneStore.autoLoadPonderPacks();
+            com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().extractDefaultsIfNeeded();
+            com.nododiiiii.ponderer.workspace.api.WorkspaceResults.AutoLoadResult result = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().packs().autoLoadPonderPacks();
             if (!result.orphanedPacks.isEmpty()) {
                 PondererNeoForge.pendingOrphanedPacks.addAll(result.orphanedPacks);
             }
             if (!result.updatedPacks.isEmpty()) {
                 PondererNeoForge.pendingPackUpdates.addAll(result.updatedPacks);
             }
-            SceneStore.reloadFromDisk();
-            PonderIndex.addPlugin(com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().plugin());
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
+            PonderIndex.addPlugin(com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().plugin());
             // Do NOT call PonderIndex.reload() here.
             // The Ponder library's load-complete lifecycle will run registerAll()
             // for initial registration; calling reload() here causes duplicate scenes.

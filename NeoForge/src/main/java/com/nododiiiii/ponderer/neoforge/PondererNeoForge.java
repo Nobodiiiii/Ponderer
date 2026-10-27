@@ -36,6 +36,7 @@ public class PondererNeoForge {
     static List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo> pendingPackUpdates = new ArrayList<>();
 
     public PondererNeoForge(IEventBus modEventBus, ModContainer modContainer) {
+        com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.install(com.nododiiiii.ponderer.bootstrap.Workspaces::files);
         com.nododiiiii.ponderer.features.projector.ProjectorPlatforms.install((com.nododiiiii.ponderer.features.projector.spi.ProjectorPlatform) PondererServices.PLATFORM);
         // Force static init of ModItems
         ModItems.init();
@@ -71,7 +72,7 @@ public class PondererNeoForge {
     private void onBuildCreativeTab(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             if (BlueprintFeature.shouldShowBlueprintInCreativeTab()) {
-                event.accept(new ItemStack(ModItems.BLUEPRINT.get()));
+                event.accept(new ItemStack(com.nododiiiii.ponderer.features.blueprint.BlueprintRegistration.BLUEPRINT.get()));
             }
         }
     }

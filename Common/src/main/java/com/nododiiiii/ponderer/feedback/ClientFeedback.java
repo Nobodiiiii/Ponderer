@@ -1,9 +1,8 @@
 package com.nododiiiii.ponderer.feedback;
 
-import com.nododiiiii.ponderer.application.network.FeedbackPacketHandlers;
-import com.nododiiiii.ponderer.application.protocol.FeedbackRequestPayload;
-import com.nododiiiii.ponderer.application.protocol.FeedbackResponsePayload;
-import com.nododiiiii.ponderer.application.protocol.FeedbackPackets;
+import com.nododiiiii.ponderer.feedback.protocol.FeedbackRequestPayload;
+import com.nododiiiii.ponderer.feedback.protocol.FeedbackResponsePayload;
+import com.nododiiiii.ponderer.feedback.protocol.FeedbackPackets;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -27,6 +26,16 @@ public final class ClientFeedback {
     private static Object connection;
     private static Request receiving;
 
+    private static java.util.function.Consumer<CustomPacketPayload> responseHandler = ignored -> {};
+    public static AutoCloseable installResponseHandler(java.util.function.Consumer<CustomPacketPayload> handler) {
+        responseHandler = handler;
+        return () -> { if (responseHandler == handler) responseHandler = ignored -> {}; };
+    }
+    public static void resetConnection() {
+        requests.clear();
+        receiving = null;
+        connection = null;
+    }
     private ClientFeedback() {}
 
     public static CustomPacketPayload request(CustomPacketPayload packet) {
@@ -45,7 +54,7 @@ public final class ClientFeedback {
         Request previous = receiving;
         receiving = request;
         try {
-            if (response.payload() != null) FeedbackPacketHandlers.handleResponse(response.payload());
+            if (response.payload() != null) responseHandler.accept(response.payload());
             if (response.complete()) {
                 requests.remove(response.requestId());
                 if (!request.notices.isEmpty()) {

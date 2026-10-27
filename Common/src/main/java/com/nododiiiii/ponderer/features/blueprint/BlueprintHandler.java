@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.features.blueprint;
 
+import com.nododiiiii.ponderer.support.world.RaycastHelper;
 import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.createmod.catnip.math.VecHelper;
 import net.createmod.catnip.outliner.Outliner;
 import net.createmod.ponder.enums.PonderSpecialTextures;
@@ -33,6 +33,8 @@ import java.nio.file.Path;
  * until the user actually saves.
  */
 public class BlueprintHandler {
+    private static Runnable openPrompt = () -> {};
+    public static void installPrompt(Runnable action) { openPrompt = action; }
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /** Singleton instance, set by platform entry point. */
@@ -45,6 +47,15 @@ public class BlueprintHandler {
     private BlockPos selectedPos;
     private Direction selectedFace;
     private int range = 10;
+
+    public static void resetSession() {
+        if (INSTANCE == null) return;
+        INSTANCE.firstPos = null;
+        INSTANCE.secondPos = null;
+        INSTANCE.selectedPos = null;
+        INSTANCE.selectedFace = null;
+        WorldFeedback.clear("blueprint");
+    }
 
     // -- scroll -------------------------------------------------------------------
 
@@ -101,7 +112,7 @@ public class BlueprintHandler {
         }
 
         if (secondPos != null) {
-            Minecraft.getInstance().setScreen(new BlueprintPromptScreen());
+            openPrompt.run();
             return true;
         }
 
@@ -214,7 +225,7 @@ public class BlueprintHandler {
             return failure;
         }
 
-        Path dir = SceneStore.getStructureDir();
+        Path dir = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().getStructureDir();
         BlueprintExport.SaveResult result = BlueprintExport.saveBlueprint(
                 dir, name, true,
                 mc.level, firstPos, secondPos

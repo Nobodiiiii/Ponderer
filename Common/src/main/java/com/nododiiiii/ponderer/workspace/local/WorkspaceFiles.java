@@ -4,7 +4,7 @@ import java.nio.file.Path;
 import java.util.function.BooleanSupplier;
 
 /** A product workspace with explicit roots and normalization policy. */
-public final class WorkspaceFiles {
+public final class WorkspaceFiles implements com.nododiiiii.ponderer.workspace.api.Workspace {
     final Path configDir;
     final Path gameDir;
     final BooleanSupplier defaultEditable;

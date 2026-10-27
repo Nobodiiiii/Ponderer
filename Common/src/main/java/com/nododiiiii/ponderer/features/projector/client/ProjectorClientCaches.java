@@ -17,8 +17,6 @@ public final class ProjectorClientCaches {
         ProjectorRenderBounds.clear(pos);
     }
 
-
-
     /** Tags are populated after the initial Ponder registration and may change on /reload. */
 
 }

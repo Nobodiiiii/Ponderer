@@ -1,9 +1,8 @@
 package com.nododiiiii.ponderer.editor.capture;
 
-import com.nododiiiii.ponderer.editor.screen.SceneEditorScreen;
-import com.nododiiiii.ponderer.editor.screen.StepEditorContext;
+import com.nododiiiii.ponderer.editor.api.SceneCaptureContext;
 import com.nododiiiii.ponderer.runtime.viewer.UiAnchorViewport;
-import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.SceneItemBindings;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
@@ -41,7 +40,7 @@ public final class InterfaceSlotEditState {
     private static Map<String, String> formSnapshot = new LinkedHashMap<>();
     private static LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> slotBindings = new LinkedHashMap<>();
     @Nullable
-    private static StepEditorContext context;
+    private static SceneCaptureContext context;
     @Nullable
     private static UiAnchorViewport.Rect jeiViewport;
     @Nullable
@@ -53,16 +52,11 @@ public final class InterfaceSlotEditState {
 
     public static void startEdit(Map<String, String> snapshot,
                                  Map<Integer, DslScene.InterfaceSlotBinding> initialBindings,
-                                 String stepType,
-                                 int editIndex,
-                                 int insertAfterIndex,
-                                 DslScene scene,
-                                 int sceneIndex,
-                                 SceneEditorScreen parent) {
+                                 SceneCaptureContext returnContext) {
         InterfaceSlotEditState.active = true;
         InterfaceSlotEditState.formSnapshot = new LinkedHashMap<>(snapshot);
         InterfaceSlotEditState.slotBindings = copyBindings(initialBindings);
-        InterfaceSlotEditState.context = new StepEditorContext(stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent);
+        InterfaceSlotEditState.context = returnContext;
         InterfaceSlotEditState.jeiViewport = null;
         InterfaceSlotEditState.previewSession = null;
         InterfaceSlotEditState.previewDirty = true;
@@ -83,7 +77,7 @@ public final class InterfaceSlotEditState {
         PonderUIAccessor accessor = (PonderUIAccessor) ponderUI;
         List<PonderScene> ponderScenes = accessor.ponderer$getScenes();
         for (int i = 0; i < ponderScenes.size(); i++) {
-            SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findBySceneId(ponderScenes.get(i).getId());
+            SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findBySceneId(ponderScenes.get(i).getId());
             if (match != null && match.sceneIndex() == context.sceneIndex() && match.scene().id.equals(context.scene().id)) {
                 accessor.ponderer$setIndex(i);
                 accessor.ponderer$getLazyIndex().startWithValue(i);
@@ -238,7 +232,7 @@ public final class InterfaceSlotEditState {
 
         InterfaceHost.cancelSlotDrag();
         writeBindingsToSnapshot(formSnapshot, slotBindings);
-        StepEditorContext reopenContext = context;
+        SceneCaptureContext reopenContext = context;
 
         cleanupState();
 

@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.features.projector;
 
-import com.nododiiiii.ponderer.registry.ModMenuTypes;
+import com.nododiiiii.ponderer.features.projector.registry.ModMenuTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;

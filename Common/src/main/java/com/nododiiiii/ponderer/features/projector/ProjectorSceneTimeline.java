@@ -14,7 +14,7 @@ public final class ProjectorSceneTimeline {
     }
 
     public static int estimateTotalTicks(String sceneKey) {
-        DslScene scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
+        DslScene scene = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findByKey(sceneKey);
         if (scene == null || scene.scenes == null || scene.scenes.isEmpty()) {
             return 0;
         }
@@ -133,7 +133,7 @@ public final class ProjectorSceneTimeline {
     }
 
     public static int estimateSegmentCount(String sceneKey) {
-        DslScene scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
+        DslScene scene = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findByKey(sceneKey);
         if (scene == null || scene.scenes == null || scene.scenes.isEmpty()) {
             return 0;
         }

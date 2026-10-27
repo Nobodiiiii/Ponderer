@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.feedback;
 
-import com.nododiiiii.ponderer.runtime.mixin.GuiFeedbackAccessor;
+import com.nododiiiii.ponderer.feedback.mixin.GuiFeedbackAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -15,6 +15,11 @@ public final class WorldFeedback {
     private static int ticks;
     private static Component displayed;
 
+    public static void reset() {
+        hints.clear();
+        release(Minecraft.getInstance());
+        world = null;
+    }
     private WorldFeedback() {}
 
     public static void hint(String owner, Component message, int priority, int duration) {

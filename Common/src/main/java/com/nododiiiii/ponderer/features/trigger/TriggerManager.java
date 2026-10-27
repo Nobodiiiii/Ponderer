@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.features.trigger;
 
-import com.nododiiiii.ponderer.runtime.core.NbtSceneFilter;
-import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.NbtSceneFilter;
+import com.nododiiiii.ponderer.runtime.api.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.google.gson.Gson;
@@ -67,6 +67,14 @@ public final class TriggerManager {
     /** Whether the persisted state has been loaded from disk. */
     private static boolean stateLoaded = false;
 
+    public static void resetSession() {
+        activeScene = null;
+        wasInZone = false;
+        titleShownThisEntry = false;
+        titleShownTick = -1;
+        tickCounter = 0;
+        WorldFeedback.clear("trigger");
+    }
     private TriggerManager() {}
 
     /**
@@ -169,7 +177,7 @@ public final class TriggerManager {
         if (player == null) return null;
         BlockPos playerPos = player.blockPosition();
 
-        List<DslScene> scenes = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes();
+        List<DslScene> scenes = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().getScenes();
         if (!loggedOnce) {
             int triggerCount = 0;
             for (DslScene s : scenes) {

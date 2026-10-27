@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.runtime.core;
 
-import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.runtime.mixin.TickingInstructionAccessor;

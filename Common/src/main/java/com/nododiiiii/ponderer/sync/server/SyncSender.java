@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.sync.server;
 import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.nododiiiii.ponderer.feedback.ServerFeedback;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
@@ -30,8 +29,8 @@ public final class SyncSender {
             return;
         }
 
-        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> scripts = SceneStore.collectServerScriptRefs(player.server);
-        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> structures = SceneStore.collectServerStructureRefs(player.server);
+        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> scripts = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().collectServerScriptRefs(player.server);
+        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> structures = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().collectServerStructureRefs(player.server);
         List<FileEntry> scriptBatch = new ArrayList<>();
         List<FileEntry> structureBatch = new ArrayList<>();
         int currentBytes = 0;

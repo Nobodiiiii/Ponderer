@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.runtime.mixin;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.nododiiiii.ponderer.runtime.core.PonderInterpolationSnapshot;
+import com.nododiiiii.ponderer.runtime.render.PonderInterpolationSnapshot;
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.runtime.viewer.PonderSpeedButton;
 import com.nododiiiii.ponderer.runtime.viewer.PonderUiPreviewAccess;

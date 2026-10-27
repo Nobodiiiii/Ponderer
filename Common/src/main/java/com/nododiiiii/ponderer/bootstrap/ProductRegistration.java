@@ -14,15 +14,15 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import java.util.List;
-import com.nododiiiii.ponderer.ponder.PondererAttribution;
-import com.nododiiiii.ponderer.ponder.CustomPonderTags;
+import com.nododiiiii.ponderer.product.catalog.PondererAttribution;
+import com.nododiiiii.ponderer.product.catalog.CustomPonderTags;
 import com.nododiiiii.ponderer.runtime.spi.RegistrationContribution;
 
 /** Product-owned registration contributions; absent for standalone runtime hosts. */
 public final class ProductRegistration implements RegistrationContribution {
     @Override public void beforeTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
         PondererAttribution.register();
-        CustomPonderTags.register();
+        CustomPonderTags.register(com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().getScenes());
     }
     @Override public void afterTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
         Item carrierItem = BlueprintFeature.resolveCarrierItem();

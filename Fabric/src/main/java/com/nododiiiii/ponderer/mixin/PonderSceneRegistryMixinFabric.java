@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.util.SafePaths;
 import com.mojang.logging.LogUtils;
 import net.createmod.ponder.foundation.registration.PonderSceneRegistry;
@@ -50,7 +49,7 @@ public class PonderSceneRegistryMixinFabric {
     private static void ponderer$loadLocalSchematicImpl(ResourceLocation location,
                                                         CallbackInfoReturnable<StructureTemplate> cir) {
         if (Ponderer.MODID.equals(location.getNamespace())) {
-            Path path = SceneStore.resolveStructurePath(location.getPath(), null);
+            Path path = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveStructurePath(location.getPath(), null);
             if (path != null && Files.exists(path)) {
                 try (InputStream stream = Files.newInputStream(path)) {
                     cir.setReturnValue(PonderSceneRegistry.loadSchematic(stream));
@@ -60,8 +59,8 @@ public class PonderSceneRegistryMixinFabric {
                 return;
             }
 
-            if (SceneStore.ensureBuiltinStructure(location.getPath())) {
-                Path localPath = SceneStore.getStructurePath(location);
+            if (com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().ensureBuiltinStructure(location.getPath())) {
+                Path localPath = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().getStructurePath(location);
                 if (localPath != null && Files.exists(localPath)) {
                     try (InputStream stream = Files.newInputStream(localPath)) {
                         cir.setReturnValue(PonderSceneRegistry.loadSchematic(stream));
@@ -72,7 +71,7 @@ public class PonderSceneRegistryMixinFabric {
                 }
             }
 
-            InputStream builtinStream = SceneStore.openBuiltinStructure(location.getPath());
+            InputStream builtinStream = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().openBuiltinStructure(location.getPath());
             if (builtinStream != null) {
                 try (builtinStream) {
                     cir.setReturnValue(PonderSceneRegistry.loadSchematic(builtinStream));

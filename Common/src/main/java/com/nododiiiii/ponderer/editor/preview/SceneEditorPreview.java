@@ -13,10 +13,10 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.runtime.mixin.RenderSystemShaderLightsAccessor;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.runtime.core.PonderRenderCache;
-import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.runtime.render.PonderRenderCache;
+import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
-import com.nododiiiii.ponderer.editor.screen.widgets.ScreenTooltipBoxWidget;
+import com.nododiiiii.ponderer.support.ui.ScreenTooltipBoxWidget;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.outliner.AABBOutline;
@@ -94,6 +94,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     private final AABBOutline pointPickBorderOutline = new AABBOutline(new AABB(0, 0, 0, 1, 1, 1));
 
     public SceneEditorPreview() {
+        com.nododiiiii.ponderer.editor.api.EditorResources.track(this);
         pointPickOutline.getParams().lineWidth(1 / 48f).colored(0xFFFFFF).disableLineNormals();
         pointPickBorderOutline.getParams().lineWidth(1 / 24f).colored(0x000000).disableLineNormals();
         resetButton = new ScreenTooltipBoxWidget(0, 0, 24, 24);
@@ -143,8 +144,9 @@ public final class SceneEditorPreview implements AutoCloseable {
     public boolean load(DslScene definition, int segmentIndex) {
         PointPick pendingPick = pointPick;
         close();
+        com.nododiiiii.ponderer.editor.api.EditorResources.track(this);
         try {
-            var compiled = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().compile(
+            var compiled = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().compile(
                 new com.nododiiiii.ponderer.runtime.api.CompileRequest(com.nododiiiii.ponderer.scene.SceneSnapshot.of(definition), segmentIndex));
             if (compiled == null) return false;
             ponder = new PreviewPonderUI(compiled.scene(), compiled.playback());
@@ -728,6 +730,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     }
 
     @Override public void close() {
+        com.nododiiiii.ponderer.editor.api.EditorResources.release(this);
         cancelPointPick();
         if (ponder != null) {
             ponder.playback.close();

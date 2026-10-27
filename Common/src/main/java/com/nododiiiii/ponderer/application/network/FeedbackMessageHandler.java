@@ -2,8 +2,8 @@ package com.nododiiiii.ponderer.application.network;
 
 import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.nododiiiii.ponderer.feedback.ClientFeedback;
-import com.nododiiiii.ponderer.application.protocol.FeedbackMessagePayload;
-import static com.nododiiiii.ponderer.application.protocol.FeedbackMessagePayload.*;
+import com.nododiiiii.ponderer.feedback.protocol.FeedbackMessagePayload;
+import static com.nododiiiii.ponderer.feedback.protocol.FeedbackMessagePayload.*;
 
 /** Business dispatch; the payload remains a codec-only transport value. */
 public final class FeedbackMessageHandler {

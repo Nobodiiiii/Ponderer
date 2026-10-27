@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.features.projector;
 import com.nododiiiii.ponderer.support.structure.StructureDescriber;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.support.structure.ExtraStructurePlanner;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -36,7 +35,7 @@ public final class ProjectorSceneBounds {
             return null;
         }
 
-        DslScene scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
+        DslScene scene = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findByKey(sceneKey);
         if (scene == null) {
             return null;
         }
@@ -161,8 +160,8 @@ public final class ProjectorSceneBounds {
         }
 
         Path structurePath = pack == null || pack.isBlank()
-            ? SceneStore.getStructurePath(structureId)
-            : SceneStore.resolveStructurePath(toRelativeStructurePath(structureId), pack);
+            ? com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().getStructurePath(structureId)
+            : com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveStructurePath(toRelativeStructurePath(structureId), pack);
         if (structurePath == null || !Files.exists(structurePath)) {
             return null;
         }
@@ -187,7 +186,7 @@ public final class ProjectorSceneBounds {
         if (location == null) {
             return null;
         }
-        return SceneStore.resolveStructurePath(toRelativeStructurePath(location), scene.pack);
+        return com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveStructurePath(toRelativeStructurePath(location), scene.pack);
     }
 
     private static String toRelativeStructurePath(ResourceLocation location) {

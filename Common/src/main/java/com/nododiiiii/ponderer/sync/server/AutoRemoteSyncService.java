@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.sync.server;
 
-import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.application.security.UploadPermissions;
 import com.nododiiiii.ponderer.sync.client.SyncMeta;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.sync.protocol.SyncResponsePayload;
@@ -137,8 +137,8 @@ public final class AutoRemoteSyncService {
     private static ScanResult rebuildIndex(MinecraftServer server) {
         Map<ResourceKey, IndexedResource> previous = index;
         Map<ResourceKey, IndexedResource> next = new LinkedHashMap<>();
-        addRefs(next, previous, "scripts", true, SceneStore.collectServerScriptRefs(server));
-        addRefs(next, previous, "structures", false, SceneStore.collectServerStructureRefs(server));
+        addRefs(next, previous, "scripts", true, com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().collectServerScriptRefs(server));
+        addRefs(next, previous, "structures", false, com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().collectServerStructureRefs(server));
 
         Set<ResourceKey> changed = new LinkedHashSet<>();
         for (IndexedResource resource : next.values()) {
@@ -367,7 +367,7 @@ public final class AutoRemoteSyncService {
     }
 
     private static String displayId(ResourceKey key) {
-        return SceneStore.displaySceneKey(key.id(), key.pack());
+        return com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().displaySceneKey(key.id(), key.pack());
     }
 
     private record ResourceKey(String category, String id, @Nullable String pack, boolean script) {

@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.runtime.mixin;
 
-import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.ponder.foundation.PonderScene;
 import org.spongepowered.asm.mixin.Mixin;

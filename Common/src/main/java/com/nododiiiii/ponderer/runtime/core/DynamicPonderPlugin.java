@@ -1,14 +1,13 @@
 package com.nododiiiii.ponderer.runtime.core;
 
-import com.nododiiiii.ponderer.runtime.core.NbtSceneFilter;
-import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.NbtSceneFilter;
+import com.nododiiiii.ponderer.runtime.api.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
 import net.createmod.ponder.api.registration.PonderPlugin;
 import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
 import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
 import net.createmod.ponder.api.registration.SharedTextRegistrationHelper;
-import net.createmod.ponder.foundation.PonderScene;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import java.util.ArrayList;

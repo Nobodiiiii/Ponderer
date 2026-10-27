@@ -151,8 +151,29 @@ public final class LocalSceneRepository implements SceneRepository {
         return findLocalSceneFile(sceneId, null);
     }
 
-    public Path findLocalSceneFile(String sceneId) {
-        return findLocalSceneFile(sceneId, null);
+    public Path findLocalSceneFile(String sceneId, @javax.annotation.Nullable String pack) {
+        if (sceneId == null || sceneId.isBlank()) {
+            return null;
+        }
+        DslScene temp = new DslScene();
+        temp.id = sceneId;
+        temp.pack = pack;
+
+        if (pack != null && !pack.isBlank()) {
+            Path packDir = workspace.layout.getPackSceneDir(pack);
+            Path existing = packDir == null ? null : findExistingFile(packDir, sceneId);
+            return existing != null ? existing : workspace.layout.resolveLocalScenePath(temp);
+        }
+
+        Path existing = findExistingFile(workspace.layout.getSceneDir(), sceneId);
+        if (existing != null) {
+            return existing;
+        }
+        ResourceLocation loc = ResourceLocation.tryParse(sceneId);
+        if (loc == null) {
+            return null;
+        }
+        return workspace.layout.resolveLocalScenePath(temp);
     }
 
     public synchronized LocalSaveResult saveSceneToLocalDetailed(DslScene scene) {

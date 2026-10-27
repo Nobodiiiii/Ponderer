@@ -238,10 +238,6 @@ public final class SceneStepCatalog {
         return field;
     }
 
-
-
-
-
     private static Map<String, List<String>> extractEnums(
         List<String> required, List<String> optional) {
         Map<String, List<String>> enums = new LinkedHashMap<>();

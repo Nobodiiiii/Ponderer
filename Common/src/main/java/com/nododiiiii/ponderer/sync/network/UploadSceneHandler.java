@@ -2,9 +2,8 @@ package com.nododiiiii.ponderer.sync.network;
 
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.sync.server.RemoteWorkspaceService;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.sync.client.SyncMeta;
-import com.nododiiiii.ponderer.sync.server.UploadPermissions;
+import com.nododiiiii.ponderer.application.security.UploadPermissions;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
@@ -26,7 +25,7 @@ public final class UploadSceneHandler {
         }
 
         String pushMode = payload.mode() == null ? "check" : payload.mode();
-        String displayId = SceneStore.displaySceneKey(payload.sceneId(), payload.pack());
+        String displayId = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().displaySceneKey(payload.sceneId(), payload.pack());
 
         if (!"force".equals(pushMode)) {
             String lastSyncHash = payload.lastSyncHash() == null ? "" : payload.lastSyncHash();
@@ -58,7 +57,7 @@ public final class UploadSceneHandler {
             @Nullable String pack) {
         ResourceLocation loc = ResourceLocation.tryParse(sceneId);
         if (loc == null) return "";
-        java.nio.file.Path path = SceneStore.resolveServerScenePath(server, loc, pack);
+        java.nio.file.Path path = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveServerScenePath(server, loc, pack);
         if (path == null) return "";
         if (!java.nio.file.Files.exists(path)) return "";
         try {

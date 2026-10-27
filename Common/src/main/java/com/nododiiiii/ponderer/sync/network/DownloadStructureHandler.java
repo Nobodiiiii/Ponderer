@@ -3,8 +3,7 @@ package com.nododiiiii.ponderer.sync.network;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.sync.server.AutoRemoteSyncService;
-import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.sync.server.UploadPermissions;
+import com.nododiiiii.ponderer.application.security.UploadPermissions;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -53,7 +52,7 @@ public final class DownloadStructureHandler {
             : ResourceLocation.fromNamespaceAndPath(Ponderer.MODID, source.getPath());
         try {
             byte[] bytes = Files.readAllBytes(sourcePath);
-            boolean ok = SceneStore.saveStructureToServer(player.server, target.toString(), null, bytes);
+            boolean ok = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().saveStructureToServer(player.server, target.toString(), null, bytes);
             if (!ok) {
 
                 PondererServices.NETWORK.sendToPlayer(player, new DownloadStructureResultPayload(source.toString(), target.toString(), false,
@@ -76,11 +75,11 @@ public final class DownloadStructureHandler {
 
     private static Path resolveSourcePath(ServerPlayer player, ResourceLocation source) {
         if (Ponderer.MODID.equals(source.getNamespace())) {
-            Path direct = SceneStore.resolveServerStructurePath(player.server, source, null);
+            Path direct = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveServerStructurePath(player.server, source, null);
             if (direct != null && Files.exists(direct)) {
                 return direct;
             }
-            Path serverRoot = SceneStore.getServerStructureDir(player.server);
+            Path serverRoot = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().getServerStructureDir(player.server);
             Path legacy = SafePaths.resolveRelativePath(serverRoot, source.getPath() + ".nbt");
             if (legacy != null && Files.exists(legacy)) {
                 return legacy;
@@ -97,7 +96,7 @@ public final class DownloadStructureHandler {
             return generatedPath;
         }
 
-        Path serverRoot = SceneStore.getServerStructureDir(player.server);
+        Path serverRoot = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().getServerStructureDir(player.server);
         Path fallback = SafePaths.resolveRelativePath(serverRoot, source.getNamespace() + "/" + source.getPath() + ".nbt");
         if (fallback != null && Files.exists(fallback)) {
             return fallback;

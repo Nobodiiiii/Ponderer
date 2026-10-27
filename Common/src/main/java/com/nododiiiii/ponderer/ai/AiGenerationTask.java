@@ -12,7 +12,7 @@ public final class AiGenerationTask {
     private final CompletableFuture<?> completion;
     private final AiRunControl control;
 
-    AiGenerationTask(String runId, AiCancellationScope cancellation, CompletableFuture<?> completion, AiRunControl control) {
+    public AiGenerationTask(String runId, AiCancellationScope cancellation, CompletableFuture<?> completion, AiRunControl control) {
         this.runId = runId;
         this.cancellation = cancellation;
         this.completion = completion;

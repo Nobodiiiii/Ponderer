@@ -18,7 +18,7 @@ public final class DisabledFeatureUse {
         }
         if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
             com.nododiiiii.ponderer.platform.PondererServices.NETWORK.sendToPlayer(serverPlayer,
-                new com.nododiiiii.ponderer.application.protocol.FeedbackMessagePayload(Component.translatable(messageKey),
+                new com.nododiiiii.ponderer.feedback.protocol.FeedbackMessagePayload(Component.translatable(messageKey),
                     FeedbackLevel.ERROR, true));
         }
     }

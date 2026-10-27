@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.features.projector;
 
 import com.mojang.serialization.MapCodec;
-import com.nododiiiii.ponderer.registry.ModBlockEntities;
+import com.nododiiiii.ponderer.features.projector.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;

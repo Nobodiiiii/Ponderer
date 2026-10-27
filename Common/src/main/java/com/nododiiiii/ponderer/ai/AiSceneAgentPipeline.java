@@ -152,7 +152,7 @@ public final class AiSceneAgentPipeline {
             boolean nativeTools = "native".equals(config.toolCalling())
                 || (!"json".equals(config.toolCalling()) && llm.supportsNativeTools(config));
             String manifest = buildManifest(context);
-            String systemPrompt = AiSceneGenerator.buildAgentSystemPrompt(request.buildTutorial(), context.existingScene().available(),
+            String systemPrompt = AiPromptAssembler.build(resources.promptDirectory(), request.buildTutorial(), context.existingScene().available(),
                 nativeTools ? "Function tools are declared in the request. Use their schemas directly." : toolRegistry.promptSpecification());
             systemPrompt += nativeTools ? "\nTransport for this run: native function tools.\n" : "\nTransport for this run: JSON compatibility protocol.\n";
             diagnostics.accept("effective_system_prompt.txt", systemPrompt);

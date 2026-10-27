@@ -49,3 +49,14 @@
 - WorldFeedback 只处理提示调度和显示；编辑工具由产品生命周期独立调度。JEI 渲染和 AE2 菜单通过消费方 SPI 接入，编辑 JEI 操作仍在编辑工具一侧。
 - AI 管线接收 GenerationResources 和策略，输出不可变候选 SceneSnapshot；产品接入器沿用原保存方式。Java 导出接收固定场景快照与只读结构来源，算法不再读取全局目录。
 - 仅检查源码引用和 diff 格式；未运行构建、测试、联网 LLM 或功能验收。连接清理、遗留门面及最终依赖归属在阶段 6 收口。
+
+## 阶段 6：依赖收口、状态清理和归属
+
+- 删除 SceneStore 等迁移门面；Workspace API 完整覆盖布局、仓库、资源包、状态和注册表，产品实例只由 bootstrap 构造；RuntimeAccess / WorkspaceAccess 显式安装，无隐式产品回退。
+- 产品屏幕、组合 Mixin、命令、AI 保存适配及 PonderJS 文件用例归 application；编辑核心以会话、预览和采集回调为边界。编辑 JEI 呈现通过消费方接口注入，兼容插件与屏幕拖放归应用装配。
+- 自定义分类显式消费来源集合，Java 导出包含请求快照中的跨场景分类，PonderJS codec 不再依赖命令或全局运行目录。功能注册供应器归各自功能，产品保留原初始化顺序。
+- 可关闭编辑、同步、AI、投影客户端安装；世界/连接变化统一清理临时状态、监听、预览/渲染资源和旧 AI 回调。运行实例跟踪并关闭其播放会话，清理采用逐项尝试和异常汇总。
+- 修复拆仓库时两个重载方法被重复首个实现的问题，恢复基线的结构 ResourceLocation 路径与按 pack 查找场景实现。其余 JSON、协议 ID、codec、配置键和存储布局沿用原格式。
+- 移动或拆分的 Mixin 同步两端配置；涉及映射类型的 UI 注入移除不合适的 remap=false。按用户要求未编译、查看生成 refmap 或运行 smoke，此部分运行注入仍未验证。
+- [归属说明](MODULARIZATION_OWNERSHIP.md) 和 [逐项清单](MODULARIZATION_OWNERSHIP.csv) 记录主源码、资源、配置、注册、Mixin、SPI 与入口。原方案更新为实施状态，并保留阶段 7 的后续设计。
+- 已做语法/重复签名/项目引用、Mixin/SPI 源码解析、协议 codec 对照及 diff 格式检查；没有运行构建、测试或验收，没有新增测试。阶段 7 的物理 Gradle/JAR 提取不在本次范围。

@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.sync.network;
 
-import com.nododiiiii.ponderer.sync.network.PermissionListResponseHandler;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 import com.nododiiiii.ponderer.sync.protocol.PermissionListRequestPayload;

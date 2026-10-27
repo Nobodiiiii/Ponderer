@@ -1,12 +1,9 @@
 package com.nododiiiii.ponderer.editor.capture;
 
-import com.nododiiiii.ponderer.editor.screen.SceneEditorScreen;
-import com.nododiiiii.ponderer.editor.screen.SnapshotReturnContext;
-import com.nododiiiii.ponderer.editor.screen.StepEditorContext;
+import com.nododiiiii.ponderer.editor.api.SnapshotReturnContext;
 import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.nododiiiii.ponderer.editor.capture.protocol.CaptureBlockEntityNbtRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.scene.DslScene;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -64,35 +61,6 @@ public final class NbtPickState {
         NbtPickState.captureBlockId = captureBlockId;
         NbtPickState.formSnapshot = new HashMap<>(snapshot);
         NbtPickState.context = context;
-    }
-
-    public static void startPick(Map<String, String> snapshot,
-                                 String targetKey,
-                                 String stepType,
-                                 int editIndex,
-                                 int insertAfterIndex,
-                                 DslScene scene,
-                                 int sceneIndex,
-                                 SceneEditorScreen parent) {
-        startPick(snapshot, targetKey, false, stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent);
-    }
-
-    public static void startPick(Map<String, String> snapshot,
-                                 String targetKey,
-                                 boolean captureBlockId,
-                                 String stepType,
-                                 int editIndex,
-                                 int insertAfterIndex,
-                                 DslScene scene,
-                                 int sceneIndex,
-                                 SceneEditorScreen parent) {
-        NbtPickState.active = true;
-        NbtPickState.awaitingServerBlockEntityNbt = false;
-        NbtPickState.pendingServerBlockPos = null;
-        NbtPickState.targetKey = targetKey;
-        NbtPickState.captureBlockId = captureBlockId;
-        NbtPickState.formSnapshot = new HashMap<>(snapshot);
-        NbtPickState.context = new StepEditorContext(stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent);
     }
 
     public static boolean isAwaitingServer() { return awaitingServerBlockEntityNbt; }

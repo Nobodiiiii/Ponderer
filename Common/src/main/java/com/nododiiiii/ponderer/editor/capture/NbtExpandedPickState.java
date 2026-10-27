@@ -1,14 +1,11 @@
 package com.nododiiiii.ponderer.editor.capture;
 
-import com.nododiiiii.ponderer.editor.screen.NbtExpandedEditorScreen;
-import com.nododiiiii.ponderer.editor.screen.PonderScreenNavigation;
-import com.nododiiiii.ponderer.editor.screen.SnapshotReturnContext;
-import com.nododiiiii.ponderer.editor.screen.UIText;
+import com.nododiiiii.ponderer.editor.api.SnapshotReturnContext;
+import com.nododiiiii.ponderer.support.ui.UIText;
 import com.nododiiiii.ponderer.nbt.NbtCoordinateDetector;
 import com.nododiiiii.ponderer.nbt.NbtPath;
 import com.nododiiiii.ponderer.nbt.NbtPrettyPrinter;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
-import com.nododiiiii.ponderer.scene.DslScene;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -19,6 +16,7 @@ import java.util.Map;
 
 public final class NbtExpandedPickState {
 
+    public static final String TEXT_SNAPSHOT_KEY = "_expanded_nbt_text";
     public static final String SNAPSHOT_NOTICE_KEY = "_expanded_nbt_pick_notice";
     public static final String SNAPSHOT_ERROR_KEY = "_expanded_nbt_pick_error";
 
@@ -34,14 +32,14 @@ public final class NbtExpandedPickState {
     }
 
     public static void startPick(Map<String, String> snapshot, NbtPath path, SnapshotReturnContext context,
-                                 DslScene scene, int sceneIndex, boolean floatingTarget) {
+                                 java.util.function.BooleanSupplier openPreview, boolean floatingTarget) {
         NbtExpandedPickState.active = true;
         NbtExpandedPickState.floatingTarget = floatingTarget;
         NbtExpandedPickState.formSnapshot = new HashMap<>(snapshot);
         NbtExpandedPickState.context = context;
         NbtExpandedPickState.targetPath = path;
 
-        if (!PonderScreenNavigation.openPonderUIForScene(scene, sceneIndex)) {
+        if (!openPreview.getAsBoolean()) {
             cancelPick();
         }
     }
@@ -64,7 +62,7 @@ public final class NbtExpandedPickState {
             return;
         }
 
-        String text = formSnapshot.getOrDefault(NbtExpandedEditorScreen.TEXT_SNAPSHOT_KEY, "");
+        String text = formSnapshot.getOrDefault(TEXT_SNAPSHOT_KEY, "");
         NbtTextCodec.ParseResult parsed = NbtTextCodec.parse(text);
         if (!parsed.success()) {
             formSnapshot.put(SNAPSHOT_ERROR_KEY, parsed.errorMessage() == null ? UIText.of("ponderer.ui.nbt_editor.error.invalid") : parsed.errorMessage());
@@ -81,7 +79,7 @@ public final class NbtExpandedPickState {
         }
 
         NbtPrettyPrinter.FormattedText formatted = NbtPrettyPrinter.format(tag);
-        formSnapshot.put(NbtExpandedEditorScreen.TEXT_SNAPSHOT_KEY, formatted.text());
+        formSnapshot.put(TEXT_SNAPSHOT_KEY, formatted.text());
         formSnapshot.put(SNAPSHOT_NOTICE_KEY, UIText.of("ponderer.ui.nbt_editor.pick.filled"));
         reopenEditor();
     }

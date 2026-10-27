@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.function.Consumer;
 
 /** Ordered run facts. Persistence completes before a progress notification is delivered. */
-final class AiRunEvents {
+public final class AiRunEvents {
     private final String runId;
     private final Consumer<JsonObject> sink;
     private Consumer<String> onProgress = ignored -> {};
@@ -19,7 +19,7 @@ final class AiRunEvents {
     }
 
     synchronized void onProgress(Consumer<String> listener) { onProgress = listener; }
-    synchronized void onOutput(Consumer<AiOutputUpdate> listener) { onOutput = listener; }
+    public synchronized void onOutput(Consumer<AiOutputUpdate> listener) { onOutput = listener; }
     synchronized void output(int turn, int attempt, String text, boolean nativeTools) {
         onOutput.accept(new AiOutputUpdate(turn, attempt, AiOutputUpdate.visibleText(text, nativeTools)));
     }

@@ -2,7 +2,6 @@ package com.nododiiiii.ponderer.features.blueprint;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.FeatureAvailability;
-import com.nododiiiii.ponderer.registry.ModItems;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -56,7 +55,7 @@ public final class BlueprintFeature {
             if (!isBuiltinBlueprintItemEnabled()) {
                 return Items.AIR;
             }
-            return ModItems.BLUEPRINT.get();
+            return com.nododiiiii.ponderer.features.blueprint.BlueprintRegistration.BLUEPRINT.get();
         }
         return BuiltInRegistries.ITEM.getOptional(loc).orElse(Items.PAPER);
     }

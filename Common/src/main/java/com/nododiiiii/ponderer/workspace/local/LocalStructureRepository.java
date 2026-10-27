@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.workspace.local;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.resources.ResourceLocation;
-import com.nododiiiii.ponderer.Ponderer;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import java.io.IOException;
@@ -138,7 +137,7 @@ public final class LocalStructureRepository implements StructureRepository {
         String namespace;
         String path;
         if (idPath.getNameCount() == 1) {
-            namespace = Ponderer.MODID;
+            namespace = WorkspaceLayout.DEFAULT_NAMESPACE;
             path = idPath.getName(0).toString();
         } else {
             namespace = idPath.getName(0).toString();
