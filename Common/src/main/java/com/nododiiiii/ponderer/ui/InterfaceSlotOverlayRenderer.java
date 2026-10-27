@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;

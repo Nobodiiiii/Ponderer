@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
 import net.createmod.catnip.gui.ScreenOpener;

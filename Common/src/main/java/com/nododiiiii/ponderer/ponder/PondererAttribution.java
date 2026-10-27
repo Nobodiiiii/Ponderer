@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.engine_room.flywheel.lib.model.baked.PartialModel;
 import net.createmod.catnip.animation.AnimationTickHolder;

@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ai;
 
+import com.nododiiiii.ponderer.support.structure.StructureDescriber;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -7,8 +8,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.nododiiiii.ponderer.Config;
-import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.LocalizedText;
+import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.resources.ResourceLocation;

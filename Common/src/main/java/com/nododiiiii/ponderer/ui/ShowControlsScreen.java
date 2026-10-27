@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 

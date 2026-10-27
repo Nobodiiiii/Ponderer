@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.projector.client;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
 
 import java.util.List;

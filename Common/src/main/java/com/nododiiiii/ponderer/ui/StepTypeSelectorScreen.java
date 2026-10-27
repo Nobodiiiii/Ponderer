@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PageTurnListEntry;

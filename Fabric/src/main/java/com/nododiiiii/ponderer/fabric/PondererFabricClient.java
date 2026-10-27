@@ -57,6 +57,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        com.nododiiiii.ponderer.bootstrap.ClientSceneLanguage.install();
         PondererAttribution.iconModelLocation();
         BlueprintHandler.INSTANCE = blueprintHandler;
 

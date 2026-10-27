@@ -1,7 +1,10 @@
 package com.nododiiiii.ponderer.ponder;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.nododiiiii.ponderer.scene.SceneCodec;
+import com.nododiiiii.ponderer.scene.SceneNormalizer;
+import com.nododiiiii.ponderer.scene.StructureReferences;
+import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.util.SafePaths;
@@ -205,14 +208,6 @@ public final class SceneStore {
         }
     }
 
-    private static final Gson GSON = new GsonBuilder().setLenient()
-        .disableHtmlEscaping()
-        .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
-        .create();
-    private static final Gson GSON_PRETTY = new GsonBuilder().setPrettyPrinting()
-        .disableHtmlEscaping()
-        .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
-        .create();
     private static final String BASE_DIR = "ponderer";
     private static final String SCRIPT_DIR = "scripts";
     private static final String STRUCTURE_DIR = "structures";
@@ -224,10 +219,7 @@ public final class SceneStore {
 
     @javax.annotation.Nullable
     public static DslScene copyScene(@javax.annotation.Nullable DslScene scene) {
-        if (scene == null) {
-            return null;
-        }
-        return GSON.fromJson(GSON.toJson(scene), DslScene.class);
+        return SceneCodec.copy(scene);
     }
 
     public static Path getSceneDir() {
@@ -661,7 +653,7 @@ public final class SceneStore {
     private static SyncFileRef toServerSceneRef(Path root, Path file, @javax.annotation.Nullable String explicitPack) {
         try {
             String json = Files.readString(file, StandardCharsets.UTF_8);
-            DslScene scene = GSON.fromJson(json, DslScene.class);
+            DslScene scene = SceneCodec.decode(json);
             if (scene == null || scene.id == null || scene.id.isBlank()) {
                 LOGGER.warn("Skipping invalid server scene file (missing id): {}", file);
                 return null;
@@ -847,7 +839,7 @@ public final class SceneStore {
     /** The exact persisted representation, also used for AI rollback records before a save. */
     public static String serializeLocalScene(DslScene scene) {
         sanitizeScene(scene);
-        return GSON_PRETTY.toJson(scene);
+        return SceneCodec.pretty(scene);
     }
 
     /**
@@ -870,7 +862,7 @@ public final class SceneStore {
         try (Stream<Path> paths = Files.walk(dir)) {
             for (Path path : paths.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json")).toList()) {
                 try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-                    DslScene existing = GSON.fromJson(reader, DslScene.class);
+                    DslScene existing = SceneCodec.decode(reader);
                     if (existing != null && sceneId.equals(existing.id)) {
                         return path;
                     }
@@ -1276,7 +1268,7 @@ public final class SceneStore {
 
     private static void loadSceneFile(Path path, List<DslScene> loaded) {
         try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            DslScene scene = GSON.fromJson(reader, DslScene.class);
+            DslScene scene = SceneCodec.decode(reader);
             if (scene == null || scene.id == null || scene.id.isBlank()) {
                 LOGGER.warn("Skipping invalid scene file (missing id): {}", path);
                 return;
@@ -1296,37 +1288,10 @@ public final class SceneStore {
      * This prevents crashes when operations like hide_section come first.
      */
     public static void sanitizeScene(DslScene scene) {
-        if (scene.editable == null) {
-            scene.editable = Config.DEFAULT_EDITABLE.get();
-        }
-        if (scene.scenes != null) {
-            for (DslScene.SceneSegment seg : scene.scenes) {
-                ensureFirstStepIsShowStructure(seg);
-            }
-        }
+        SceneNormalizer.normalize(scene, Config.DEFAULT_EDITABLE.get());
     }
 
-    private static void ensureFirstStepIsShowStructure(DslScene.SceneSegment seg) {
-        if (seg.steps == null || seg.steps.isEmpty()) return;
-        for (DslScene.DslStep step : seg.steps) {
-            if (step == null || step.type == null) continue;
-            if ("show_structure".equalsIgnoreCase(step.type) || "show_interface".equalsIgnoreCase(step.type)) {
-                return; // already correct
-            }
-            break; // first meaningful step is not a valid scene-start step
-        }
-        // Prepend show_structure + idle(20t)
-        List<DslScene.DslStep> fixed = new ArrayList<>();
-        DslScene.DslStep showStep = new DslScene.DslStep();
-        showStep.type = "show_structure";
-        fixed.add(showStep);
-        DslScene.DslStep idleStep = new DslScene.DslStep();
-        idleStep.type = "idle";
-        idleStep.duration = 20;
-        fixed.add(idleStep);
-        fixed.addAll(seg.steps);
-        seg.steps = fixed;
-    }
+
 
     @javax.annotation.Nullable
     private static LocalSaveResult validateLocalSceneSave(DslScene scene) {
@@ -1592,7 +1557,7 @@ public final class SceneStore {
                 for (Path p : allScriptFiles) {
                     try {
                         String rawJson = Files.readString(p, StandardCharsets.UTF_8);
-                        DslScene scene = GSON.fromJson(rawJson, DslScene.class);
+                        DslScene scene = SceneCodec.decode(rawJson);
                         if (scene == null || scene.id == null) continue;
 
                         boolean isSelected = selectedSceneIds.contains(scene.id) ||
@@ -1607,7 +1572,7 @@ public final class SceneStore {
 
                         if (isSelected) {
                             scene.pack = normalizedName;
-                            String cleanJson = GSON_PRETTY.toJson(scene);
+                            String cleanJson = SceneCodec.pretty(scene);
                             collectStructureReferences(cleanJson, requiredStructures);
                             String cleanFilename = stripPackPrefix(p.getFileName().toString());
                             cleanFilename = deduplicateFilename(cleanFilename, usedEntryNames);
@@ -1755,10 +1720,10 @@ public final class SceneStore {
     private static String readAndUpdatePackField(Path path, String packName) {
         try {
             String rawJson = Files.readString(path, StandardCharsets.UTF_8);
-            DslScene scene = GSON.fromJson(rawJson, DslScene.class);
+            DslScene scene = SceneCodec.decode(rawJson);
             if (scene == null) return null;
             scene.pack = packName;
-            return GSON_PRETTY.toJson(scene);
+            return SceneCodec.pretty(scene);
         } catch (Exception e) {
             LOGGER.warn("Failed to read/update scene file: {}", path, e);
             return null;
@@ -2051,10 +2016,10 @@ public final class SceneStore {
             try {
                 // Read and update pack field
                 String rawJson = Files.readString(sourcePath, StandardCharsets.UTF_8);
-                DslScene scene = GSON.fromJson(rawJson, DslScene.class);
+                DslScene scene = SceneCodec.decode(rawJson);
                 if (scene == null) continue;
                 scene.pack = packName;
-                String updatedJson = GSON_PRETTY.toJson(scene);
+                String updatedJson = SceneCodec.pretty(scene);
 
                 // Determine target filename: [PackName] clean_name.json
                 String cleanFilename = stripPackPrefix(sourcePath.getFileName().toString());
@@ -2148,86 +2113,14 @@ public final class SceneStore {
 
     private static void collectStructureReferences(String sceneJson, Set<String> structures) {
         try {
-            collectStructureReferences(GSON.fromJson(sceneJson, DslScene.class), structures);
+            collectStructureReferences(SceneCodec.decode(sceneJson), structures);
         } catch (Exception e) {
             LOGGER.warn("Failed to collect structure references from scene", e);
         }
     }
 
     public static void collectStructureReferences(@javax.annotation.Nullable DslScene scene, Set<String> structures) {
-        if (scene == null || structures == null) {
-            return;
-        }
-
-        List<String> pool = getStructurePool(scene);
-        for (String ref : pool) {
-            addStructureReference(ref, structures);
-        }
-
-        if (scene.scenes == null) {
-            return;
-        }
-
-        for (DslScene.SceneSegment segment : scene.scenes) {
-            if (segment == null || segment.steps == null) {
-                continue;
-            }
-            for (DslScene.DslStep step : segment.steps) {
-                if (step == null || step.structure == null || step.structure.isBlank()) {
-                    continue;
-                }
-                addStructureReference(resolveStructureReference(pool, step.structure), structures);
-            }
-        }
-    }
-
-    private static List<String> getStructurePool(DslScene scene) {
-        if (scene.structures != null && !scene.structures.isEmpty()) {
-            return scene.structures;
-        }
-        if (scene.structure != null && !scene.structure.isBlank()) {
-            return List.of(scene.structure);
-        }
-        return List.of();
-    }
-
-    @javax.annotation.Nullable
-    private static String resolveStructureReference(List<String> pool, String ref) {
-        if (ref == null || ref.isBlank()) {
-            return null;
-        }
-        String trimmed = ref.trim();
-        Integer parsed = tryParseInt(trimmed);
-        if (parsed == null) {
-            return trimmed;
-        }
-
-        int index = -1;
-        if (parsed >= 1 && parsed <= pool.size()) {
-            index = parsed - 1;
-        } else if (parsed >= 0 && parsed < pool.size()) {
-            index = parsed;
-        }
-        return index >= 0 ? pool.get(index) : null;
-    }
-
-    private static void addStructureReference(@javax.annotation.Nullable String ref, Set<String> structures) {
-        if (ref == null || ref.isBlank()) {
-            return;
-        }
-        String trimmed = ref.trim();
-        if (!trimmed.matches("\\d+")) {
-            structures.add(trimmed);
-        }
-    }
-
-    @javax.annotation.Nullable
-    private static Integer tryParseInt(String raw) {
-        try {
-            return Integer.parseInt(raw);
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
+        StructureReferences.collect(scene, structures);
     }
 
     private static String createPackMetadata(String name, String version, String author) {
@@ -2420,10 +2313,10 @@ public final class SceneStore {
      */
     private static String injectPackField(String json, String packName) {
         try {
-            DslScene scene = GSON.fromJson(json, DslScene.class);
+            DslScene scene = SceneCodec.decode(json);
             if (scene != null) {
                 scene.pack = packName;
-                return GSON_PRETTY.toJson(scene);
+                return SceneCodec.pretty(scene);
             }
         } catch (Exception e) {
             LOGGER.warn("Failed to inject pack field, writing raw content", e);

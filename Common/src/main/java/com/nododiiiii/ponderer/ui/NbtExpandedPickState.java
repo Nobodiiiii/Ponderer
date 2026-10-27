@@ -4,7 +4,7 @@ import com.nododiiiii.ponderer.nbt.NbtCoordinateDetector;
 import com.nododiiiii.ponderer.nbt.NbtPath;
 import com.nododiiiii.ponderer.nbt.NbtPrettyPrinter;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;

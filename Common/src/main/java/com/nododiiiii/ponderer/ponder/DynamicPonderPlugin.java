@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
@@ -14,7 +15,7 @@ import com.nododiiiii.ponderer.interfaces.instruction.InterfaceActionInstruction
 import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceContextInstruction;
 import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceDataInstruction;
 import com.nododiiiii.ponderer.interfaces.instruction.SetInterfaceSlotsInstruction;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.ui.UiAnchorPoint;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;

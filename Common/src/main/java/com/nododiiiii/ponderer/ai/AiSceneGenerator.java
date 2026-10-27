@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.ai;
 
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.Config;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.UIText;
@@ -147,8 +147,8 @@ public class AiSceneGenerator {
         baseline.add("path", com.google.gson.JsonNull.INSTANCE); baseline.add("content", com.google.gson.JsonNull.INSTANCE);
         if (existingJson != null && !existingJson.isBlank()) {
             DslScene original = new com.google.gson.GsonBuilder()
-                .registerTypeAdapter(com.nododiiiii.ponderer.ponder.LocalizedText.class,
-                    new com.nododiiiii.ponderer.ponder.LocalizedText.GsonAdapter()).create().fromJson(existingJson, DslScene.class);
+                .registerTypeAdapter(com.nododiiiii.ponderer.scene.LocalizedText.class,
+                    new com.nododiiiii.ponderer.scene.LocalizedText.GsonAdapter()).create().fromJson(existingJson, DslScene.class);
             Path path = SceneStore.resolveLocalScenePath(original);
             if (path != null) {
                 baseline.addProperty("path", path.toAbsolutePath().normalize().toString());

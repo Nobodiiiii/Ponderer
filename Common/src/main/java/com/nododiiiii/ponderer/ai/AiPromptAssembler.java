@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ai;
 
+import com.nododiiiii.ponderer.scene.step.SceneStepCatalog;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;

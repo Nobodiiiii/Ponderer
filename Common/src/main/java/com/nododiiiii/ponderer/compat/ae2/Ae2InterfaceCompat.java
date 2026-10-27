@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.compat.ae2;
 
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
 import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
 import com.nododiiiii.ponderer.interfaces.sandbox.SandboxSession;
 import com.nododiiiii.ponderer.platform.PondererServices;

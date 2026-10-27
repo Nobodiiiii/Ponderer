@@ -1,9 +1,9 @@
-package com.nododiiiii.ponderer.interfaces.model;
+package com.nododiiiii.ponderer.scene.interfaces;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;

@@ -1,8 +1,13 @@
 package com.nododiiiii.ponderer.interfaces.model;
 
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptorJson;
+import com.nododiiiii.ponderer.scene.interfaces.LegacyInterfaceMigrator;
+import com.nododiiiii.ponderer.support.nbt.DataSanitizer;
+import com.nododiiiii.ponderer.support.nbt.IdentityRemapper;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.IntArrayTag;

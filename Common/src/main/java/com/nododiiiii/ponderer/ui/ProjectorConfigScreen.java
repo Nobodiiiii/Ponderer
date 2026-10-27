@@ -7,7 +7,7 @@ import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
 import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
 import com.nododiiiii.ponderer.network.ProjectorConfigUpdatePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.projector.ProjectorBlock;

@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.interfaces.sandbox;
 
 import com.nododiiiii.ponderer.compat.ae2.Ae2InterfaceCompat;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
 import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.MenuAccess;

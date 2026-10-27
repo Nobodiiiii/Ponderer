@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.scene.LocalizedText;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

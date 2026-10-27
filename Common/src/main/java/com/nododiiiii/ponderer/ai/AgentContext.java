@@ -1,7 +1,8 @@
 package com.nododiiiii.ponderer.ai;
 
+import com.nododiiiii.ponderer.support.structure.StructureDescriber;
 import com.google.gson.JsonObject;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;

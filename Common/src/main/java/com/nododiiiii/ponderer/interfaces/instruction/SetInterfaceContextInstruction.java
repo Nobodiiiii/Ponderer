@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.interfaces.instruction;
 
 import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.interfaces.sandbox.SessionOps;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
 import net.createmod.ponder.foundation.PonderScene;

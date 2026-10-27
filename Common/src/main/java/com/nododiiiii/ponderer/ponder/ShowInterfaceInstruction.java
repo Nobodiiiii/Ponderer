@@ -1,8 +1,9 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
-import com.nododiiiii.ponderer.interfaces.model.LegacyInterfaceMigrator;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
+import com.nododiiiii.ponderer.scene.interfaces.LegacyInterfaceMigrator;
 import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;

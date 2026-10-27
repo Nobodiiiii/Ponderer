@@ -2,9 +2,9 @@ package com.nododiiiii.ponderer.interfaces.sandbox;
 
 import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
-import com.nododiiiii.ponderer.interfaces.model.DataSanitizer;
-import com.nododiiiii.ponderer.interfaces.model.IdentityRemapper;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
+import com.nododiiiii.ponderer.support.nbt.DataSanitizer;
+import com.nododiiiii.ponderer.support.nbt.IdentityRemapper;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;

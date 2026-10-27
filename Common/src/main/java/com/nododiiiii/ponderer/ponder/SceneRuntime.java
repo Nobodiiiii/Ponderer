@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.scene.DslScene;
 import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;

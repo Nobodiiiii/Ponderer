@@ -3,8 +3,8 @@ package com.nododiiiii.ponderer.ui;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.LocalizedText;
+import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.scene.LocalizedText;
 
 import java.lang.reflect.Type;
 import java.util.ArrayDeque;

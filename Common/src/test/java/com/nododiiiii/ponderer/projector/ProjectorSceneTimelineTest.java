@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.projector;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

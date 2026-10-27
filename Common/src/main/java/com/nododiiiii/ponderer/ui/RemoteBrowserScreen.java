@@ -11,7 +11,7 @@ import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
 import com.nododiiiii.ponderer.network.RemoteRollbackRequestPayload;
 import com.nododiiiii.ponderer.network.SyncResponsePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;

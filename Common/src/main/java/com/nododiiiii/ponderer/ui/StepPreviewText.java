@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
-import com.nododiiiii.ponderer.interfaces.model.LegacyInterfaceMigrator;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
+import com.nododiiiii.ponderer.scene.interfaces.LegacyInterfaceMigrator;
+import com.nododiiiii.ponderer.scene.DslScene;
 import net.createmod.ponder.foundation.registration.PonderLocalization;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;

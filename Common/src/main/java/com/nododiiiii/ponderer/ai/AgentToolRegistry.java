@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.ai;
 
+import com.nododiiiii.ponderer.scene.step.SceneStepCatalog;
+import com.nododiiiii.ponderer.support.structure.StructureDescriber;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -7,8 +9,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
-import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.LocalizedText;
+import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.scene.LocalizedText;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
@@ -635,7 +637,7 @@ public final class AgentToolRegistry {
                     .map(AgentContext.StructureDocument::id).toList();
                 List<AiSceneValidator.Issue> errors = new ArrayList<>(
                     AiSceneValidator.validate(scene, structures, structureNames));
-                for (var issue : SceneStepCatalog.validateSceneFields(draft)) if (!errors.contains(issue)) errors.add(issue);
+                for (var issue : SceneStepValidation.validateSceneFields(draft)) if (!errors.contains(issue)) errors.add(issue);
                 List<AiSceneValidator.Issue> scopeErrors = AiEditGuard.validate(context, draft);
                 errors.addAll(scopeErrors);
                 if (scopeErrors.isEmpty()) context.drafts().replace(draft);

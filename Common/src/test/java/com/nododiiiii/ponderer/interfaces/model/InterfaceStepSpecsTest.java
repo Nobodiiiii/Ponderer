@@ -1,9 +1,10 @@
 package com.nododiiiii.ponderer.interfaces.model;
 
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.nododiiiii.ponderer.ponder.LocalizedText;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.LocalizedText;
+import com.nododiiiii.ponderer.scene.DslScene;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

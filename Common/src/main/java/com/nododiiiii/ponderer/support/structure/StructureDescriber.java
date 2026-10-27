@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.ai;
+package com.nododiiiii.ponderer.support.structure;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;

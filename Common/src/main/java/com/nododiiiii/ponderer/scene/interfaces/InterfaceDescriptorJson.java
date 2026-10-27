@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.interfaces.model;
+package com.nododiiiii.ponderer.scene.interfaces;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;

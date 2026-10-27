@@ -6,7 +6,7 @@ import com.nododiiiii.ponderer.mixin.MultilineTextFieldAccessor;
 import com.nododiiiii.ponderer.nbt.NbtCoordinateDetector;
 import com.nododiiiii.ponderer.nbt.NbtPrettyPrinter;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
 import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;

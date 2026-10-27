@@ -1,9 +1,11 @@
 package com.nododiiiii.ponderer.ai;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.LocalizedText;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptorJson;
+import com.nododiiiii.ponderer.scene.step.SceneStepCatalog;
+import com.nododiiiii.ponderer.support.structure.StructureDescriber;
+import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.scene.LocalizedText;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptorJson;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -156,7 +158,7 @@ public final class AiSceneValidator {
             issues.add(new Issue(path + ".type", "UNKNOWN_STEP: unsupported step type; query get_step_schema"));
             return;
         }
-        issues.addAll(SceneStepCatalog.validateFields(STEP_GSON.toJsonTree(step).getAsJsonObject(), path));
+        issues.addAll(SceneStepValidation.validateFields(STEP_GSON.toJsonTree(step).getAsJsonObject(), path));
         if (step.scale != null && (!Float.isFinite(step.scale) || ("zoom_scene".equals(type) && step.scale <= 0)))
             issues.add(new Issue(path + ".scale", "scale must be finite and zoom scale must be positive"));
         switch (type) {

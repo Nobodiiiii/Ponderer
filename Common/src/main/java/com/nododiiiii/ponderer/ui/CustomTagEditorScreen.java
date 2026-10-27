@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.ponder.CustomPonderTags;
-import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.LocalizedText;
+import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.minecraft.client.Minecraft;

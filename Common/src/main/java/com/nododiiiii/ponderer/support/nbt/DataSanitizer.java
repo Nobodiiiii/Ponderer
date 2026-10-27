@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.interfaces.model;
+package com.nododiiiii.ponderer.support.nbt;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;

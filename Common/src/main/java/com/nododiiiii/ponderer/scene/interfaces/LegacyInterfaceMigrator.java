@@ -1,6 +1,6 @@
-package com.nododiiiii.ponderer.interfaces.model;
+package com.nododiiiii.ponderer.scene.interfaces;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 
 import java.util.List;
 import java.util.Locale;

@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.projector.client;
 
 import com.nododiiiii.ponderer.ponder.SceneItemBindings;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.projector.ProjectorSceneKey;
 import net.createmod.ponder.foundation.PonderIndex;

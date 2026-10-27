@@ -1,5 +1,6 @@
-package com.nododiiiii.ponderer.interfaces.model;
+package com.nododiiiii.ponderer.support.nbt;
 
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.IntArrayTag;

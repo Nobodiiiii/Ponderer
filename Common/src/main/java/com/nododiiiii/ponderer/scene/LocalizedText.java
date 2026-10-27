@@ -1,10 +1,10 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.scene;
 
 import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import net.minecraft.client.Minecraft;
+import java.util.function.Supplier;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -25,6 +25,13 @@ public final class LocalizedText {
     private String plain;
     /** null if this is a plain string; the lang->text map otherwise */
     private Map<String, String> localized;
+
+    private static Supplier<String> language = () -> "en_us";
+
+    /** Install the host language lookup at client bootstrap; no game classes are loaded by the model. */
+    public static void useLanguage(Supplier<String> supplier) {
+        language = java.util.Objects.requireNonNull(supplier);
+    }
 
     private LocalizedText() {}
 
@@ -161,7 +168,7 @@ public final class LocalizedText {
 
     private static String getCurrentLanguage() {
         try {
-            return Minecraft.getInstance().getLanguageManager().getSelected();
+            return language.get();
         } catch (Exception e) {
             return "en_us";
         }

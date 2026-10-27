@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.interfaces.capture.InterfaceCapture;
 import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.google.gson.JsonObject;

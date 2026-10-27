@@ -53,6 +53,7 @@ public class PondererNeoForgeClient {
     private static boolean triggerKeyWasDown = false;
 
     static void init(IEventBus modEventBus) {
+        com.nododiiiii.ponderer.bootstrap.ClientSceneLanguage.install();
         PondererAttribution.iconModelLocation();
         BlueprintHandler.INSTANCE = blueprintHandler;
 

@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.interfaces.sandbox;
 
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 

@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.projector;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import net.minecraft.core.registries.BuiltInRegistries;

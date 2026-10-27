@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.ParticleEffectSpec;
 import com.nododiiiii.ponderer.ponder.ParticleEffects;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;

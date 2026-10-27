@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.interfaces.sandbox;
 
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
 import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
 import net.createmod.ponder.api.level.PonderLevel;
 import net.minecraft.ChatFormatting;

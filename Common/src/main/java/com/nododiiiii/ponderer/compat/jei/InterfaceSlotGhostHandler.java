@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.compat.jei;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler;

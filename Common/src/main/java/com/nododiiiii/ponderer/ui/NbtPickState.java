@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.nododiiiii.ponderer.network.CaptureBlockEntityNbtRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

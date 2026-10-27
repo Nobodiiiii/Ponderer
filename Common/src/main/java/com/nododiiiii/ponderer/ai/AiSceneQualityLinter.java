@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.ai;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
-import com.nododiiiii.ponderer.ponder.LocalizedText;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
+import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.scene.LocalizedText;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;

@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ai;
 
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.support.structure.StructureDescriber;
+import com.nododiiiii.ponderer.scene.DslScene;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import org.junit.jupiter.api.BeforeAll;

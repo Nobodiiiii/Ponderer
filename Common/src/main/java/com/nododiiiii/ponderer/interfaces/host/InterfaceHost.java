@@ -2,11 +2,11 @@ package com.nododiiiii.ponderer.interfaces.host;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.compat.jei.JeiCompat;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceDescriptor;
-import com.nododiiiii.ponderer.interfaces.model.InterfaceStepSpecs;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
+import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.interfaces.sandbox.SandboxSession;
 import com.nododiiiii.ponderer.interfaces.sandbox.SessionOps;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.InterfaceSlotOverlayRenderer;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;

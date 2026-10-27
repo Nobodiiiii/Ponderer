@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.ai;
 
 import com.google.gson.*;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import java.util.*;
 
 /** Mechanical edit boundaries. Natural-language intent remains subject to the user's review. */

@@ -6,7 +6,7 @@ import com.nododiiiii.ponderer.ui.catnip.PondererGuiIcons;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import com.nododiiiii.ponderer.ponder.CustomPonderTags;
-import com.nododiiiii.ponderer.ponder.DslScene;
+import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererAttribution;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import net.createmod.catnip.config.ui.ConfigScreenList;

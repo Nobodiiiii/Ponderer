@@ -1,5 +1,6 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.scene;
 
+import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.google.gson.JsonObject;
 import javax.annotation.Nullable;
 import java.util.List;
