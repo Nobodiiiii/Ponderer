@@ -8,7 +8,7 @@ import com.nododiiiii.ponderer.ui.catnip.WorkspaceHeaderListEntry;
 import com.nododiiiii.ponderer.ponder.CustomPonderTags;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererAttribution;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
@@ -58,7 +58,7 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
             .filter(tag -> !PondererAttribution.isTag(tag.getId().toString()))
             .filter(tag -> !CustomPonderTags.ownedBy(owner).containsKey(tag.getId().toString()))
             .forEach(tag -> tags.put(tag.getId().toString(), tag));
-        CustomPonderTags.collect(SceneRuntime.getScenes().stream().filter(this::isOtherScene).toList())
+        CustomPonderTags.collect(com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream().filter(this::isOtherScene).toList())
             .forEach((id, definition) -> tags.put(id, CustomPonderTags.preview(id, definition)));
         customTags.forEach((id, definition) -> {
             if (CustomPonderTags.isCustomId(id) && definition != null) {
@@ -84,7 +84,7 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
 
     @Nullable
     private DslScene findReference(String id) {
-        for (DslScene scene : SceneRuntime.getScenes()) {
+        for (DslScene scene : com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes()) {
             if (isOtherScene(scene) && scene.tags != null && scene.tags.contains(id)) {
                 return scene;
             }
@@ -179,7 +179,7 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
                 return UIText.of("ponderer.ui.custom_tag.error.exists", id);
             }
         }
-        for (DslScene scene : SceneRuntime.getScenes()) {
+        for (DslScene scene : com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes()) {
             if (isOtherScene(scene) && CustomPonderTags.ownedBy(scene).containsKey(id)) {
                 return UIText.of("ponderer.ui.custom_tag.error.exists", id);
             }

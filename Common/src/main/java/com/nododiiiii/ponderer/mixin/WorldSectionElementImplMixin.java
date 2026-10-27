@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.ponder.PonderRenderCache;
+import com.nododiiiii.ponderer.runtime.core.PonderRenderCache;
 import net.createmod.ponder.api.level.PonderLevel;
 import net.createmod.ponder.api.scene.Selection;
 import net.createmod.ponder.foundation.element.WorldSectionElementImpl;

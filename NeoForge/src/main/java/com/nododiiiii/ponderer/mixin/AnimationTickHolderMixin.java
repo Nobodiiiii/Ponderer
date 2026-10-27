@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
+import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import net.createmod.catnip.animation.AnimationTickHolder;
 import net.minecraft.world.level.LevelAccessor;
 import org.spongepowered.asm.mixin.Mixin;
@@ -59,20 +59,20 @@ public class AnimationTickHolderMixin {
     }
 
     private static void setFrameTick(CallbackInfoReturnable<Integer> cir) {
-        if (ProjectorRenderContext.hasFrameTime()) {
-            cir.setReturnValue(ProjectorRenderContext.frameTick());
+        if (PlaybackExecutionContext.hasFrameTime()) {
+            cir.setReturnValue(PlaybackExecutionContext.frameTick());
         }
     }
 
     private static void setPartialTick(CallbackInfoReturnable<Float> cir) {
-        if (ProjectorRenderContext.hasFrameTime()) {
-            cir.setReturnValue(ProjectorRenderContext.partialTick());
+        if (PlaybackExecutionContext.hasFrameTime()) {
+            cir.setReturnValue(PlaybackExecutionContext.partialTick());
         }
     }
 
     private static void setRenderTime(CallbackInfoReturnable<Float> cir) {
-        if (ProjectorRenderContext.hasFrameTime()) {
-            cir.setReturnValue(ProjectorRenderContext.renderTime());
+        if (PlaybackExecutionContext.hasFrameTime()) {
+            cir.setReturnValue(PlaybackExecutionContext.renderTime());
         }
     }
 }

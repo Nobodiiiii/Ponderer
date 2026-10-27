@@ -1,15 +1,15 @@
-package com.nododiiiii.ponderer.projector.client;
+package com.nododiiiii.ponderer.runtime.api;
 
 /**
  * Marks client-side Ponder playback that is being advanced only to render a
  * projector hologram. Instructions that would touch real client UI or play
  * real-world side effects must no-op while this context is active.
  */
-public final class ProjectorRenderContext {
+public final class PlaybackExecutionContext {
     private static final ThreadLocal<Integer> DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<FrameTime> FRAME_TIME = new ThreadLocal<>();
 
-    private ProjectorRenderContext() {
+    private PlaybackExecutionContext() {
     }
 
     public static boolean isActive() {

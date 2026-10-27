@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
 import net.createmod.catnip.gui.ConfirmationScreen;
@@ -383,7 +383,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         if (!pendingItemDuplicateConfirm) {
             List<String> duplicates = newItems.stream().distinct()
                 .filter(item -> scene.items == null || !scene.items.contains(item))
-                .filter(item -> SceneRuntime.getScenes().stream()
+                .filter(item -> com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream()
                     .anyMatch(s -> s != scene && s.items != null && s.items.contains(item)))
                 .toList();
             if (!duplicates.isEmpty()) {

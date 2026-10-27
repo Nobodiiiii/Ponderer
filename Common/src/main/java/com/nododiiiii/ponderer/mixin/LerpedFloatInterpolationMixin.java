@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.ponder.PonderInterpolationSnapshot;
+import com.nododiiiii.ponderer.runtime.core.PonderInterpolationSnapshot;
 import net.createmod.catnip.animation.LerpedFloat;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

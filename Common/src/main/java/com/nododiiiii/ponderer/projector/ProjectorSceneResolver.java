@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.projector;
 
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -29,7 +29,7 @@ public final class ProjectorSceneResolver {
         }
 
         Set<String> result = new LinkedHashSet<>();
-        for (DslScene scene : SceneRuntime.getScenes()) {
+        for (DslScene scene : com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes()) {
             if (scene == null || scene.id == null || !SceneItemBindings.matchesWithNbt(scene, stack)) {
                 continue;
             }

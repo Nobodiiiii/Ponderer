@@ -1,11 +1,11 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
-import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
+import com.nododiiiii.ponderer.runtime.core.NbtSceneFilter;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -66,7 +66,7 @@ public final class PonderScreenNavigation {
 
         List<PonderScene> ponderScenes = accessor.ponderer$getScenes();
         for (int i = 0; i < ponderScenes.size(); i++) {
-            SceneRuntime.SceneMatch match = SceneRuntime.findBySceneId(ponderScenes.get(i).getId());
+            SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findBySceneId(ponderScenes.get(i).getId());
             if (match != null && match.sceneIndex() == sceneIndex
                 && match.scene() != null && scene != null && match.scene().id.equals(scene.id)) {
                 accessor.ponderer$setIndex(i);

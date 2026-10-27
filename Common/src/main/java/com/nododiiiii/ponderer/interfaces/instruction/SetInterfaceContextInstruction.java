@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.interfaces.instruction;
 import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.interfaces.sandbox.SessionOps;
-import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
+import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
 
@@ -19,7 +19,7 @@ public class SetInterfaceContextInstruction extends TickingInstruction {
 
     @Override
     protected void firstTick(PonderScene scene) {
-        if (!ProjectorRenderContext.isActive()) {
+        if (!PlaybackExecutionContext.isActive()) {
             InterfaceHost.script(scene, null, session -> SessionOps.patchContext(session, patch));
         }
     }

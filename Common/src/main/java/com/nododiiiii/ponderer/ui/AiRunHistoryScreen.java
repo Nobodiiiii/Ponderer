@@ -7,7 +7,7 @@ import com.nododiiiii.ponderer.ai.AiRunFiles;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
@@ -148,7 +148,7 @@ public final class AiRunHistoryScreen extends AbstractReadonlyDeclarativeListScr
         try {
             DslScene saved = new GsonBuilder().registerTypeAdapter(LocalizedText.class,
                 new LocalizedText.GsonAdapter()).create().fromJson(current().read("undo.json").get("scene"), DslScene.class);
-            DslScene scene = SceneRuntime.findByKey(saved.sceneKey());
+            DslScene scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(saved.sceneKey());
             if (scene == null) throw new IllegalStateException(UIText.of("ponderer.cmd.scene_not_found", saved.sceneKey()));
             minecraft.setScreen(new SceneEditorScreen(scene, 0));
         } catch (RuntimeException error) { setErrorMessage(error.getMessage()); }

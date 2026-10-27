@@ -4,7 +4,7 @@ import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.CustomPonderTags;
 import com.nododiiiii.ponderer.scene.LocalizedText;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
@@ -242,7 +242,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         if (newPonderId.isEmpty() || newPonderId.equals(scene.id)) {
             return true;
         }
-        for (DslScene existingScene : SceneRuntime.getScenes()) {
+        for (DslScene existingScene : com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes()) {
             if (existingScene != scene && newPonderId.equals(existingScene.id)) {
                 setErrorMessage(Component.translatable(
                     "ponderer.ui.scene_desc.error.ponder_id_exists",

@@ -1,8 +1,9 @@
 package com.nododiiiii.ponderer.projector.client;
 
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.projector.ProjectorSceneKey;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderScene;
@@ -85,7 +86,7 @@ public final class ProjectorSceneBundle {
 
     @Nullable
     public static ProjectorSceneBundle compile(List<String> sceneKeys) {
-        return ProjectorRenderContext.supply(() -> compileRenderOnly(sceneKeys));
+        return PlaybackExecutionContext.supply(() -> compileRenderOnly(sceneKeys));
     }
 
     @Nullable
@@ -143,7 +144,7 @@ public final class ProjectorSceneBundle {
             return compileNativeRenderOnly(nativeKey);
         }
 
-        DslScene dsl = SceneRuntime.findByKey(sceneKey);
+        DslScene dsl = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
         if (dsl == null || dsl.items == null || dsl.items.isEmpty()) {
             return null;
         }
@@ -165,7 +166,7 @@ public final class ProjectorSceneBundle {
             int occurrence = occurrenceById.getOrDefault(ponderSceneId, 0);
             occurrenceById.put(ponderSceneId, occurrence + 1);
 
-            SceneRuntime.SceneMatch match = SceneRuntime.findBySceneId(compiledScene.getId(), occurrence);
+            SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findBySceneId(compiledScene.getId(), occurrence);
             if (match == null || match.scene() == null || !sceneKey.equals(match.scene().sceneKey())) {
                 continue;
             }
@@ -302,7 +303,8 @@ public final class ProjectorSceneBundle {
                 compatibilityMode));
         }
 
-        List<OverlayCue> cues = ProjectorCueIndexStore.get(segment.scene());
+        List<OverlayCue> cues = com.nododiiiii.ponderer.runtime.api.OverlayTimeline.get(segment.scene()).stream()
+            .map(cue -> createOverlayCue(cue.startTick(), cue.step())).filter(java.util.Objects::nonNull).toList();
         if (cues.isEmpty()) {
             cues = segment.cues();
         }

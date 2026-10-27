@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.support.structure;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
@@ -83,13 +83,15 @@ public final class ExtraStructurePlanner {
     }
 
     public static List<PlacedBlock> plan(Path nbtFile, BlockPos base, int rotationDegrees, boolean skipAir) throws IOException {
-        CompoundTag root;
-        try (InputStream is = Files.newInputStream(nbtFile)) {
-            root = NbtIo.read(
-                new DataInputStream(new BufferedInputStream(new GZIPInputStream(is))),
-                NbtAccounter.create(0x20000000L)
-            );
+        try (InputStream input = Files.newInputStream(nbtFile)) {
+            return plan(input, base, rotationDegrees, skipAir);
         }
+    }
+
+    public static List<PlacedBlock> plan(InputStream input, BlockPos base, int rotationDegrees, boolean skipAir) throws IOException {
+        CompoundTag root = NbtIo.read(
+            new DataInputStream(new BufferedInputStream(new GZIPInputStream(input))),
+            NbtAccounter.create(0x20000000L));
         return plan(root, base, rotationDegrees, skipAir);
     }
 

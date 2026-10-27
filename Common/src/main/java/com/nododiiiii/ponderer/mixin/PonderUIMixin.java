@@ -3,8 +3,8 @@ package com.nododiiiii.ponderer.mixin;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.workspace.local.PackStateStore;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
-import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
+import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
 import com.nododiiiii.ponderer.ui.PonderRuntimeZLayers;
 import com.nododiiiii.ponderer.ui.PonderScreenNavigation;
@@ -17,8 +17,8 @@ import com.nododiiiii.ponderer.ui.PonderZoomSlider;
 import com.nododiiiii.ponderer.ui.FunctionScreen;
 import com.nododiiiii.ponderer.ui.PondererDialogScreen;
 import com.nododiiiii.ponderer.ui.ReadonlyPackImportPromptScreen;
-import com.nododiiiii.ponderer.ui.UiAnchorCoords;
-import com.nododiiiii.ponderer.ui.UiAnchorViewport;
+import com.nododiiiii.ponderer.runtime.viewer.UiAnchorCoords;
+import com.nododiiiii.ponderer.runtime.viewer.UiAnchorViewport;
 import com.nododiiiii.ponderer.ui.SceneEditorScreen;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.NbtExpandedPickState;
@@ -457,13 +457,13 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
     }
 
     @Unique
-    private static SceneRuntime.SceneMatch ponderer$resolveDynamicScene(PonderUI ui) {
+    private static SceneCatalog.SceneMatch ponderer$resolveDynamicScene(PonderUI ui) {
         PonderScene active = ui.getActiveScene();
         if (!"ponderer".equals(active.getNamespace())) {
             return null;
         }
         int occurrence = ponderer$computeOccurrenceIndex(ui, active);
-        return SceneRuntime.findBySceneId(active.getId(), occurrence);
+        return com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findBySceneId(active.getId(), occurrence);
     }
 
     // ---- Pick mode integration ----

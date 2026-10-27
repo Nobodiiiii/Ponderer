@@ -1,7 +1,8 @@
 package com.nododiiiii.ponderer.projector.client;
 
+import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.projector.ProjectorSceneKey;
 import com.nododiiiii.ponderer.projector.ProjectorSceneResolver;
 import net.createmod.ponder.foundation.PonderIndex;
@@ -38,7 +39,7 @@ public final class ProjectorClientSceneResolver {
 
         List<PonderScene> scenes;
         try {
-            scenes = ProjectorRenderContext.supply(() -> PonderIndex.getSceneAccess().compile(componentId));
+            scenes = PlaybackExecutionContext.supply(() -> PonderIndex.getSceneAccess().compile(componentId));
         } catch (Throwable t) {
             LOGGER.debug("Skipping native projector scene discovery for {}", componentId, t);
             return new ArrayList<>(result);
@@ -53,7 +54,7 @@ public final class ProjectorClientSceneResolver {
             int occurrence = occurrences.getOrDefault(sceneId, 0);
             occurrences.put(sceneId, occurrence + 1);
 
-            if (SceneRuntime.findBySceneId(sceneId) != null) {
+            if (com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findBySceneId(sceneId) != null) {
                 continue;
             }
 

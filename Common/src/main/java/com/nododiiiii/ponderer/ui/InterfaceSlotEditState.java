@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.viewer.UiAnchorViewport;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
@@ -11,7 +12,7 @@ import com.nododiiiii.ponderer.interfaces.sandbox.SandboxSession;
 import com.nododiiiii.ponderer.interfaces.sandbox.SessionOps;
 import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.client.Minecraft;
@@ -80,7 +81,7 @@ public final class InterfaceSlotEditState {
         PonderUIAccessor accessor = (PonderUIAccessor) ponderUI;
         List<PonderScene> ponderScenes = accessor.ponderer$getScenes();
         for (int i = 0; i < ponderScenes.size(); i++) {
-            SceneRuntime.SceneMatch match = SceneRuntime.findBySceneId(ponderScenes.get(i).getId());
+            SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findBySceneId(ponderScenes.get(i).getId());
             if (match != null && match.sceneIndex() == context.sceneIndex() && match.scene().id.equals(context.scene().id)) {
                 accessor.ponderer$setIndex(i);
                 accessor.ponderer$getLazyIndex().startWithValue(i);

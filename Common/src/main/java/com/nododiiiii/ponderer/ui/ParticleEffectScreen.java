@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.ParticleEffectSpec;
-import com.nododiiiii.ponderer.ponder.ParticleEffects;
+import com.nododiiiii.ponderer.runtime.core.ParticleEffectSpec;
+import com.nododiiiii.ponderer.runtime.core.ParticleEffects;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.minecraft.network.chat.Component;
 

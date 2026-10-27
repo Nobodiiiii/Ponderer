@@ -1,8 +1,9 @@
 package com.nododiiiii.ponderer.projector.client;
 
+import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
-import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
-import com.nododiiiii.ponderer.ponder.PonderRenderCache;
+import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.runtime.core.PonderRenderCache;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorSceneTimeline;
 import net.createmod.ponder.foundation.PonderScene;
@@ -103,7 +104,7 @@ public final class ProjectorPlaybackState {
         if (blockEntity.getPlaybackRevision() != lastRevision
             || activeSegmentStartTick != segment.startTick()
             || targetLocalTick < activeLocalTick) {
-            ProjectorRenderContext.run(() -> {
+            PlaybackExecutionContext.run(() -> {
                 resetSceneViewState(activeScene);
                 activeScene.begin();
             });
@@ -162,7 +163,7 @@ public final class ProjectorPlaybackState {
     private void advanceScene(PonderScene activeScene, int targetLocalTick, int segmentDuration) {
         int previousLocalTick = activeLocalTick;
         int activeDuration = Math.max(0, segmentDuration);
-        ProjectorRenderContext.run(() -> {
+        PlaybackExecutionContext.run(() -> {
             // Ponder scenes only become visibly populated after their first tick.
             // Prime a freshly-begun segment so the projector's opening frame is not blank.
             if (previousLocalTick < 0 && targetLocalTick == 0) {

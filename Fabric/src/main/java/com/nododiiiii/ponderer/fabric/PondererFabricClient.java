@@ -7,7 +7,6 @@ import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.fabric.interfaces.FabricInterfaceEvents;
-import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
 import com.nododiiiii.ponderer.ponder.PondererAttribution;
 import com.nododiiiii.ponderer.ponder.AutoRemoteSyncClient;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
@@ -76,7 +75,7 @@ public class PondererFabricClient implements ClientModInitializer {
             pendingPackUpdates.addAll(result.updatedPacks);
         }
         SceneStore.reloadFromDisk();
-        PonderIndex.addPlugin(new DynamicPonderPlugin());
+        PonderIndex.addPlugin(com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().plugin());
         // Do NOT call PonderIndex.reload() here.
         // The Ponder library's load-complete lifecycle will run registerAll()
         // for initial registration; calling reload() here causes duplicate scenes.

@@ -11,10 +11,9 @@ import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.mixin.RenderSystemShaderLightsAccessor;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.DynamicPonderPlugin;
-import com.nododiiiii.ponderer.ponder.PonderRenderCache;
-import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
-import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
+import com.nododiiiii.ponderer.runtime.core.PonderRenderCache;
+import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import com.nododiiiii.ponderer.ui.catnip.ScreenTooltipBoxWidget;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.catnip.gui.widget.BoxWidget;
@@ -143,7 +142,8 @@ final class SceneEditorPreview implements AutoCloseable {
         PointPick pendingPick = pointPick;
         close();
         try {
-            DynamicPonderPlugin.EditorScene compiled = new DynamicPonderPlugin().compileEditorScene(definition, segmentIndex);
+            var compiled = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().compile(
+                new com.nododiiiii.ponderer.runtime.api.CompileRequest(com.nododiiiii.ponderer.scene.SceneSnapshot.of(definition), segmentIndex));
             if (compiled == null) return false;
             ponder = new PreviewPonderUI(compiled.scene(), compiled.playback());
             ponder.width = width;
@@ -198,7 +198,7 @@ final class SceneEditorPreview implements AutoCloseable {
     void tick() {
         if (playingStep && ponder != null) {
             PonderScene scene = ponder.getActiveScene();
-            ProjectorRenderContext.runWithFrameTime(scene.getCurrentTime(), 0, scene::tick);
+            PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), 0, scene::tick);
             listSeekStart = Util.getMillis();
             frozenPartialTick = 1;
             if (ponder.playback.isStepComplete() || scene.isFinished()) {
@@ -377,7 +377,7 @@ final class SceneEditorPreview implements AutoCloseable {
                 transform.apply(pose, partialTick);
                 transform.updateSceneRVE(partialTick);
                 var buffer = DefaultSuperRenderTypeBuffer.getInstance();
-                ProjectorRenderContext.runWithFrameTime(scene.getCurrentTime(), partialTick,
+                PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), partialTick,
                     () -> scene.renderScene(buffer, graphics, partialTick));
                 buffer.draw();
                 renderPointPick(graphics, partialTick);
@@ -402,7 +402,7 @@ final class SceneEditorPreview implements AutoCloseable {
                 accessor.ponderer$setScaleFactor(scene.getScaleFactor() / OVERLAY_SCALE);
                 transform.updateScreenParams(overlayWidth + (int) Math.round(panX * 2 / OVERLAY_SCALE),
                     overlayHeight + (int) Math.round(panY * 2 / OVERLAY_SCALE), 0);
-                ProjectorRenderContext.runWithFrameTime(scene.getCurrentTime(), partialTick,
+                PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), partialTick,
                     () -> scene.renderOverlay(ponder, graphics, partialTick));
             }
         } finally {
@@ -530,7 +530,7 @@ final class SceneEditorPreview implements AutoCloseable {
             transform.apply(projection, renderedPartialTick);
             // Invert the actual rendering matrix, including scripted view offsets and the free camera.
             Matrix4f inverse = new Matrix4f(projection.last().pose()).invert();
-            ProjectorRenderContext.runWithFrameTime(scene.getCurrentTime(), renderedPartialTick, () -> {
+            PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), renderedPartialTick, () -> {
                 SectionHit[] nearest = {null};
                 var bounds = scene.getWorld().getBounds();
                 scene.forEach(WorldSectionElement.class, section -> {
@@ -743,9 +743,9 @@ final class SceneEditorPreview implements AutoCloseable {
     /** Provides the native progress bar its PonderUI owner without initializing any Ponder UI chrome. */
     private static final class PreviewPonderUI extends PonderUI {
         private final float initialScale;
-        private final DynamicPonderPlugin.EditorScenePlayback playback;
+        private final com.nododiiiii.ponderer.runtime.api.PlaybackSession playback;
 
-        PreviewPonderUI(PonderScene scene, DynamicPonderPlugin.EditorScenePlayback playback) {
+        PreviewPonderUI(PonderScene scene, com.nododiiiii.ponderer.runtime.api.PlaybackSession playback) {
             super(List.of(scene));
             initialScale = scene.getScaleFactor();
             this.playback = playback;
@@ -761,13 +761,13 @@ final class SceneEditorPreview implements AutoCloseable {
                 // Preview ticks leave later instructions paused. Rebuild their normal state even
                 // for a forward seek, so the full timeline remains accurate after previewing.
                 playback.resumeTimeline();
-                ProjectorRenderContext.run(() -> {
+                PlaybackExecutionContext.run(() -> {
                     replay();
                     super.seekToTime(target);
                 });
             } else if (target != getActiveScene().getCurrentTime()) {
                 // The same synchronous rewind/seek path used by the full Ponder screen.
-                ProjectorRenderContext.run(() -> super.seekToTime(target));
+                PlaybackExecutionContext.run(() -> super.seekToTime(target));
             }
         }
 

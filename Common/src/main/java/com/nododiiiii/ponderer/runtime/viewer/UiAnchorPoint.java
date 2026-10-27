@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.ui;
+package com.nododiiiii.ponderer.runtime.viewer;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec2;

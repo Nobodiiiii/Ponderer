@@ -1,7 +1,7 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.runtime.core;
 
 import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
-import com.nododiiiii.ponderer.ui.PickState;
+import com.nododiiiii.ponderer.runtime.api.PlaybackInputLocks;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.element.OutlinerElement;
@@ -36,7 +36,7 @@ public class AdjustViewInstruction extends TickingInstruction {
     @Override
     protected void firstTick(PonderScene scene) {
         animationReady = false;
-        skipDueToPickMode = PickState.isActive();
+        skipDueToPickMode = PlaybackInputLocks.isLocked();
         if (skipDueToPickMode) {
             return;
         }

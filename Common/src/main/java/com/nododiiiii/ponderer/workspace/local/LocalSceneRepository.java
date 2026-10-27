@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.workspace.local;
 
+import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.scene.SceneCodec;
 import com.nododiiiii.ponderer.scene.SceneNormalizer;
 import com.nododiiiii.ponderer.scene.DslScene;

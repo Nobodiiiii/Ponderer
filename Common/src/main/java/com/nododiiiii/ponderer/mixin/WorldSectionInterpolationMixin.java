@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.ponder.PonderInterpolationSnapshot;
+import com.nododiiiii.ponderer.runtime.core.PonderInterpolationSnapshot;
 import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.foundation.element.WorldSectionElementImpl;
 import net.createmod.catnip.animation.AnimationTickHolder;

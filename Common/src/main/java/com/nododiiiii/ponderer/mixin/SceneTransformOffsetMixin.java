@@ -1,11 +1,11 @@
 package com.nododiiiii.ponderer.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
+import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PonderUiZoomAccess;
 import com.nododiiiii.ponderer.ui.PonderUiPreviewAccess;
 import com.nododiiiii.ponderer.ui.PonderFreePreview;
-import com.nododiiiii.ponderer.ui.UiAnchorPoint;
+import com.nododiiiii.ponderer.runtime.viewer.UiAnchorPoint;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.PonderUI;

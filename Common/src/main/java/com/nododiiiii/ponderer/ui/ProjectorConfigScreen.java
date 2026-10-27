@@ -9,7 +9,7 @@ import com.nododiiiii.ponderer.network.ProjectorConfigUpdatePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.projector.ProjectorBlock;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.projector.ProjectorMenu;
@@ -1135,7 +1135,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             if (sceneKey == null || sceneKey.isBlank()) {
                 continue;
             }
-            DslScene dslScene = SceneRuntime.findByKey(sceneKey);
+            DslScene dslScene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
             String sceneTitle = resolveSceneTitle(sceneKey, dslScene);
             try {
                 ProjectorSceneBundle bundle = ProjectorSceneBundle.compile(sceneKey);
@@ -1460,7 +1460,7 @@ public class ProjectorConfigScreen extends AbstractContainerScreen<ProjectorMenu
             return ScenePreview.EMPTY;
         }
 
-        DslScene dslScene = SceneRuntime.findByKey(sceneKey);
+        DslScene dslScene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
         String title = resolveSceneTitle(sceneKey, dslScene);
         try {
             ProjectorSceneBundle bundle = ProjectorSceneBundle.compile(sceneKey);

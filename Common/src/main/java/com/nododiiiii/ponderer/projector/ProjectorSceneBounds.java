@@ -2,8 +2,8 @@ package com.nododiiiii.ponderer.projector;
 
 import com.nododiiiii.ponderer.support.structure.StructureDescriber;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.ExtraStructurePlanner;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.support.structure.ExtraStructurePlanner;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -37,7 +37,7 @@ public final class ProjectorSceneBounds {
             return null;
         }
 
-        DslScene scene = SceneRuntime.findByKey(sceneKey);
+        DslScene scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
         if (scene == null) {
             return null;
         }

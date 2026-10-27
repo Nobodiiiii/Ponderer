@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.ui;
+package com.nododiiiii.ponderer.runtime.viewer;
 
 import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;

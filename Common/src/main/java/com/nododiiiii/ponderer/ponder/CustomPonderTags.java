@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.google.gson.Gson;
@@ -75,7 +76,7 @@ public final class CustomPonderTags {
     public static Map<String, DslScene.CustomTag> forScene(DslScene scene) {
         Map<String, DslScene.CustomTag> result = new LinkedHashMap<>(collect(java.util.List.of(scene)));
         if (scene.tags != null) {
-            Map<String, DslScene.CustomTag> all = collect(SceneRuntime.getScenes());
+            Map<String, DslScene.CustomTag> all = collect(com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes());
             for (String id : scene.tags) {
                 if (all.containsKey(id)) {
                     result.putIfAbsent(id, all.get(id));
@@ -122,7 +123,7 @@ public final class CustomPonderTags {
 
     public static void register() {
         PonderTagRegistry registry = (PonderTagRegistry) PonderIndex.getTagAccess();
-        collect(SceneRuntime.getScenes()).forEach((id, definition) -> {
+        collect(com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes()).forEach((id, definition) -> {
             // PonderTag's default getters read static lang files outside editing mode.
             // Register an instance with dynamic getters so scene text also follows language changes.
             PonderTag tag = preview(id, definition);

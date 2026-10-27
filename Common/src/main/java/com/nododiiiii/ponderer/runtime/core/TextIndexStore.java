@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.runtime.core;
 
 import net.createmod.ponder.foundation.PonderScene;
 

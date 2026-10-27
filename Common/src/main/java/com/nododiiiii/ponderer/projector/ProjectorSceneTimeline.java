@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.projector;
 
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +15,7 @@ public final class ProjectorSceneTimeline {
     }
 
     public static int estimateTotalTicks(String sceneKey) {
-        DslScene scene = SceneRuntime.findByKey(sceneKey);
+        DslScene scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
         if (scene == null || scene.scenes == null || scene.scenes.isEmpty()) {
             return 0;
         }
@@ -134,7 +134,7 @@ public final class ProjectorSceneTimeline {
     }
 
     public static int estimateSegmentCount(String sceneKey) {
-        DslScene scene = SceneRuntime.findByKey(sceneKey);
+        DslScene scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
         if (scene == null || scene.scenes == null || scene.scenes.isEmpty()) {
             return 0;
         }

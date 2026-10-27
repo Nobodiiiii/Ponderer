@@ -1,22 +1,20 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.runtime.api;
 
 import com.nododiiiii.ponderer.scene.DslScene;
+import com.nododiiiii.ponderer.scene.SceneCodec;
+import com.nododiiiii.ponderer.runtime.api.PonderIdIndex.SceneKeyEntry;
 import net.minecraft.resources.ResourceLocation;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public final class SceneRuntime {
-    private static volatile List<DslScene> scenes = List.of();
+public final class SceneCatalog {
+    private volatile List<DslScene> scenes = List.of();
 
     /** Pattern to strip _partN or _N suffix from scene IDs for multi-scene matching. */
     private static final Pattern SCENE_SUFFIX = Pattern.compile("^(.+?)(?:_part(\\d+)|_(\\d+))$");
@@ -26,29 +24,29 @@ public final class SceneRuntime {
      * that were registered under that ID, in registration order.
      * Populated by DynamicPonderPlugin.registerScene().
      */
-    private static final Map<String, List<SceneKeyEntry>> ponderIdToSceneKeys = new ConcurrentHashMap<>();
+    private final PonderIdIndex ids = new PonderIdIndex();
 
     /**
      * Entry recording a DslScene's sceneKey and the scene segment index for a registered PonderScene ID.
      */
-    public record SceneKeyEntry(String sceneKey, int sceneIndex) {}
 
-    private SceneRuntime() {
+
+    public SceneCatalog() {
     }
 
-    public static List<DslScene> getScenes() {
-        return scenes;
+    public List<DslScene> getScenes() {
+        return scenes.stream().map(SceneCodec::snapshot).toList();
     }
 
-    public static void setScenes(List<DslScene> newScenes) {
-        scenes = Collections.unmodifiableList(new ArrayList<>(newScenes));
+    public void setScenes(List<DslScene> newScenes) {
+        scenes = newScenes.stream().map(SceneCodec::snapshot).toList();
     }
 
     /**
      * Clear the ponder ID → scene key mapping. Called before scene registration.
      */
-    public static void clearPonderIdMapping() {
-        ponderIdToSceneKeys.clear();
+    public void clearPonderIdMapping() {
+        ids.clear();
     }
 
     /**
@@ -59,9 +57,8 @@ public final class SceneRuntime {
      * @param sceneKey the DslScene's sceneKey (e.g. "ponderer:example" or "[MyPack] ponderer:example")
      * @param sceneIndex the scene segment index within the DslScene
      */
-    public static void registerPonderIdMapping(String ponderSceneId, String sceneKey, int sceneIndex) {
-        ponderIdToSceneKeys.computeIfAbsent(ponderSceneId, k -> new ArrayList<>())
-                .add(new SceneKeyEntry(sceneKey, sceneIndex));
+    public void registerPonderIdMapping(String ponderSceneId, String sceneKey, int sceneIndex) {
+        ids.register(ponderSceneId, sceneKey, sceneIndex);
     }
 
     /**
@@ -73,10 +70,10 @@ public final class SceneRuntime {
      * @return set of PonderScene full IDs (e.g. "ponderer:example") that match,
      *         paired with the occurrence index for each
      */
-    public static Set<PonderSceneRef> resolvePonderSceneRefs(Collection<String> sceneKeys) {
+    public Set<PonderSceneRef> resolvePonderSceneRefs(Collection<String> sceneKeys) {
         Set<String> keySet = sceneKeys instanceof Set ? (Set<String>) sceneKeys : new HashSet<>(sceneKeys);
         Set<PonderSceneRef> result = new HashSet<>();
-        for (var entry : ponderIdToSceneKeys.entrySet()) {
+        for (var entry : ids.entries.entrySet()) {
             String ponderSceneId = entry.getKey();
             List<SceneKeyEntry> entries = entry.getValue();
             int occurrence = 0;
@@ -102,11 +99,11 @@ public final class SceneRuntime {
      * Key format: "ponderer:example" (local) or "[my_pack] ponderer:example" (pack).
      */
     @Nullable
-    public static DslScene findByKey(String sceneKey) {
+    public DslScene findByKey(String sceneKey) {
         if (sceneKey == null) return null;
         for (DslScene scene : scenes) {
             if (scene.id == null) continue;
-            if (sceneKey.equals(scene.sceneKey())) return scene;
+            if (sceneKey.equals(scene.sceneKey())) return SceneCodec.snapshot(scene);
         }
         return null;
     }
@@ -126,7 +123,7 @@ public final class SceneRuntime {
      * @return the matching DslScene and scene index, or null if not found
      */
     @Nullable
-    public static SceneMatch findBySceneId(ResourceLocation ponderSceneId) {
+    public SceneMatch findBySceneId(ResourceLocation ponderSceneId) {
         return findBySceneId(ponderSceneId, -1);
     }
 
@@ -141,13 +138,13 @@ public final class SceneRuntime {
      * @return the matching DslScene and scene index, or null if not found
      */
     @Nullable
-    public static SceneMatch findBySceneId(ResourceLocation ponderSceneId, int occurrenceIndex) {
+    public SceneMatch findBySceneId(ResourceLocation ponderSceneId, int occurrenceIndex) {
         if (ponderSceneId == null) return null;
 
         String fullId = ponderSceneId.toString();
 
         // Try the registration-time mapping first (most reliable)
-        List<SceneKeyEntry> entries = ponderIdToSceneKeys.get(fullId);
+        List<SceneKeyEntry> entries = ids.entries.get(fullId);
         if (entries != null && !entries.isEmpty()) {
             SceneKeyEntry entry;
             if (occurrenceIndex >= 0 && occurrenceIndex < entries.size()) {
@@ -169,7 +166,7 @@ public final class SceneRuntime {
      * Legacy matching logic: iterate scenes list and return first match.
      */
     @Nullable
-    private static SceneMatch findBySceneIdLegacy(ResourceLocation ponderSceneId) {
+    private SceneMatch findBySceneIdLegacy(ResourceLocation ponderSceneId) {
         String path = ponderSceneId.getPath();
 
         // First: try exact match
@@ -179,7 +176,7 @@ public final class SceneRuntime {
             if (sceneId == null) continue;
 
             if (sceneId.equals(ponderSceneId)) {
-                return new SceneMatch(scene, 0);
+                return new SceneMatch(SceneCodec.snapshot(scene), 0);
             }
         }
 
@@ -200,7 +197,7 @@ public final class SceneRuntime {
                 if (sceneId == null) continue;
 
                 if (sceneId.equals(baseId)) {
-                    return new SceneMatch(scene, Math.max(0, sceneIndex));
+                    return new SceneMatch(SceneCodec.snapshot(scene), Math.max(0, sceneIndex));
                 }
             }
         }
@@ -223,7 +220,7 @@ public final class SceneRuntime {
             // Try numeric index first (e.g. "_1", "_2")
             try {
                 int idx = Integer.parseInt(suffix) - 1;
-                return new SceneMatch(scene, Math.max(0, idx));
+                return new SceneMatch(SceneCodec.snapshot(scene), Math.max(0, idx));
             } catch (NumberFormatException ignored) {}
 
             // Try matching against named scene IDs (e.g. "_structure", "_entity_text")
@@ -231,7 +228,7 @@ public final class SceneRuntime {
                 for (int i = 0; i < scene.scenes.size(); i++) {
                     DslScene.SceneSegment sc = scene.scenes.get(i);
                     if (sc.id != null && suffix.equals(sc.id)) {
-                        return new SceneMatch(scene, i);
+                        return new SceneMatch(SceneCodec.snapshot(scene), i);
                     }
                 }
                 // Also try suffix matching for scene ids containing underscores
@@ -239,13 +236,13 @@ public final class SceneRuntime {
                 for (int i = 0; i < scene.scenes.size(); i++) {
                     DslScene.SceneSegment sc = scene.scenes.get(i);
                     if (sc.id != null && suffix.endsWith(sc.id)) {
-                        return new SceneMatch(scene, i);
+                        return new SceneMatch(SceneCodec.snapshot(scene), i);
                     }
                 }
             }
 
             // Fallback: scene 0
-            return new SceneMatch(scene, 0);
+            return new SceneMatch(SceneCodec.snapshot(scene), 0);
         }
 
         return null;

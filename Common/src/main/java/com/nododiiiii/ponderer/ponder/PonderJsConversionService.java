@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.feedback.FeedbackLevel;
@@ -41,7 +42,7 @@ public final class PonderJsConversionService {
     }
 
     public static int convertToPonderJs(ResourceLocation id) {
-        Optional<DslScene> scene = SceneRuntime.getScenes().stream()
+        Optional<DslScene> scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream()
             .filter(s -> id.toString().equals(s.id))
             .findFirst();
         if (scene.isEmpty()) {
@@ -72,7 +73,7 @@ public final class PonderJsConversionService {
 
     public static int convertAllToPonderJs() {
         int count = 0;
-        for (DslScene scene : SceneRuntime.getScenes()) {
+        for (DslScene scene : com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes()) {
             if (scene == null || scene.id == null || scene.id.isBlank()) {
                 continue;
             }

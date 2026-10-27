@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.projector.client;
 
+import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
@@ -256,7 +257,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
             layout.redTint(),
             layout.greenTint(),
             layout.blueTint());
-        ProjectorRenderContext.runWithFrameTime(localTick, partialTick,
+        PlaybackExecutionContext.runWithFrameTime(localTick, partialTick,
             () -> scene.renderScene(projectedBuffer, graphics, partialTick));
         sceneBuffer.draw();
 

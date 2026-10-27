@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.projector;
 
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -15,14 +15,14 @@ class ProjectorSceneTimelineTest {
 
     @AfterEach
     void resetScenes() {
-        SceneRuntime.setScenes(List.of());
+        com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().setScenes(List.of());
     }
 
     @Test
     void addsIntermissionsBetweenDslSectionsAndSceneKeysForSingleRun() {
         DslScene first = scene("ponderer:first", segment(10), segment(20));
         DslScene second = scene("ponderer:second", segment(30));
-        SceneRuntime.setScenes(List.of(first, second));
+        com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().setScenes(List.of(first, second));
 
         assertEquals(140, ProjectorSceneTimeline.estimatePlaybackTicks(
             List.of("ponderer:first", "ponderer:second"),

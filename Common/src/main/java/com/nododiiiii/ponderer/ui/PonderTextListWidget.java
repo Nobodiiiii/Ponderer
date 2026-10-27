@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.mixin.PonderUIAccessor;
-import com.nododiiiii.ponderer.ponder.TextIndexStore;
+import com.nododiiiii.ponderer.runtime.core.TextIndexStore;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
 import net.createmod.ponder.enums.PonderGuiTextures;

@@ -6,7 +6,7 @@ import com.nododiiiii.ponderer.ui.AbstractJeiAwareFormScreen;
 import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.ui.JeiAwareScreen;
 import com.nododiiiii.ponderer.ui.ProjectorConfigScreen;
-import com.nododiiiii.ponderer.ui.UiAnchorViewport;
+import com.nododiiiii.ponderer.runtime.viewer.UiAnchorViewport;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.gui.handlers.IGuiContainerHandler;

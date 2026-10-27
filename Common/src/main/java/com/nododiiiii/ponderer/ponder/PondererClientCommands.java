@@ -1,5 +1,8 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
+import com.nododiiiii.ponderer.runtime.core.NbtSceneFilter;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
 import com.nododiiiii.ponderer.workspace.local.PackStateStore;
 import com.nododiiiii.ponderer.scene.DslScene;
@@ -193,7 +196,7 @@ public final class PondererClientCommands {
     }
 
     public static int push(ResourceLocation id, String mode) {
-        Optional<DslScene> scene = SceneRuntime.getScenes().stream()
+        Optional<DslScene> scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream()
                 .filter(s -> id.toString().equals(s.id))
                 .findFirst();
 
@@ -210,7 +213,7 @@ public final class PondererClientCommands {
      * Key format: "ponderer:example" or "[my_pack] ponderer:example"
      */
     public static int pushByKey(String sceneKey, String mode) {
-        DslScene scene = SceneRuntime.findByKey(sceneKey);
+        DslScene scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
         if (scene == null) {
             notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey), FeedbackLevel.ERROR);
             return 0;
@@ -565,7 +568,7 @@ public final class PondererClientCommands {
     }
 
     public static int pushAll(String mode) {
-        List<DslScene> scenes = SceneRuntime.getScenes();
+        List<DslScene> scenes = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes();
         if (scenes.isEmpty()) {
             notifyClient(Component.translatable("ponderer.cmd.push.no_scenes"), FeedbackLevel.ERROR);
             return 0;
@@ -703,13 +706,13 @@ public final class PondererClientCommands {
     }
 
     private static boolean sceneExists(String id) {
-        return SceneRuntime.getScenes().stream().anyMatch(s -> id.equals(s.id));
+        return com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream().anyMatch(s -> id.equals(s.id));
     }
 
     // ---- /ponderer copy ----
 
     public static int copyScene(ResourceLocation sceneId, ResourceLocation targetItem) {
-        Optional<DslScene> source = SceneRuntime.getScenes().stream()
+        Optional<DslScene> source = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream()
                 .filter(s -> sceneId.toString().equals(s.id))
                 .findFirst();
         if (source.isEmpty()) {
@@ -723,7 +726,7 @@ public final class PondererClientCommands {
      * Copy a scene identified by its scene key to a new target item.
      */
     public static int copySceneByKey(String sceneKey, ResourceLocation targetItem) {
-        DslScene source = SceneRuntime.findByKey(sceneKey);
+        DslScene source = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
         if (source == null) {
             notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey), FeedbackLevel.ERROR);
             return 0;
@@ -765,7 +768,7 @@ public final class PondererClientCommands {
 
     public static int deleteScene(ResourceLocation sceneId) {
         String id = sceneId.toString();
-        Optional<DslScene> target = SceneRuntime.getScenes().stream()
+        Optional<DslScene> target = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream()
                 .filter(s -> id.equals(s.id))
                 .findFirst();
         if (target.isEmpty()) {
@@ -789,7 +792,7 @@ public final class PondererClientCommands {
      * Key format: "ponderer:example" or "[my_pack] ponderer:example"
      */
     public static int deleteSceneByKey(String sceneKey) {
-        DslScene target = SceneRuntime.findByKey(sceneKey);
+        DslScene target = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
         if (target == null) {
             notifyClient(Component.translatable("ponderer.cmd.scene_not_found", sceneKey), FeedbackLevel.ERROR);
             return 0;
@@ -808,7 +811,7 @@ public final class PondererClientCommands {
 
     public static int deleteScenesForItem(ResourceLocation itemId) {
         String itemStr = itemId.toString();
-        List<DslScene> matching = SceneRuntime.getScenes().stream()
+        List<DslScene> matching = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream()
                 .filter(s -> s.items != null && s.items.contains(itemStr))
                 .toList();
         if (matching.isEmpty()) {

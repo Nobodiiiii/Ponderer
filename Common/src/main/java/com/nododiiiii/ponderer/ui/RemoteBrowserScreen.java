@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
 import com.nododiiiii.ponderer.network.RemoteCatalogRequestPayload;
 import com.nododiiiii.ponderer.network.RemoteCatalogResponsePayload;
@@ -15,7 +15,7 @@ import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
@@ -415,7 +415,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
 
     private boolean hasLocalScene(RemoteCatalogResponsePayload.Entry entry) {
         return RemoteWorkspaceService.KIND_SCENE.equals(entry.kind())
-            && SceneRuntime.findByKey(displayKey(entry.id(), entry.pack())) != null;
+            && com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(displayKey(entry.id(), entry.pack())) != null;
     }
 
     private String sceneTitle(RemoteCatalogResponsePayload.Entry entry) {
@@ -534,7 +534,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
 
     @Nullable
     private ResourceLocation firstBoundItem(RemoteCatalogResponsePayload.Entry entry) {
-        DslScene localScene = SceneRuntime.findByKey(displayKey(entry.id(), entry.pack()));
+        DslScene localScene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(displayKey(entry.id(), entry.pack()));
         ResourceLocation localItem = firstValidItem(localScene == null ? null : localScene.items);
         if (localItem != null) {
             return localItem;

@@ -1,5 +1,8 @@
 package com.nododiiiii.ponderer.ponder;
 
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
+import com.nododiiiii.ponderer.runtime.core.ParticleEffectSpec;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.google.gson.Gson;
@@ -388,7 +391,7 @@ public final class JavaModuleExportService {
 
     private static List<DslScene> collectRequestedScenes(JavaModuleExportRequest request,
                                                          List<JavaModuleScanResult.Finding> fatals) {
-        List<DslScene> runtimeScenes = SceneRuntime.getScenes();
+        List<DslScene> runtimeScenes = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes();
         if (runtimeScenes.isEmpty()) {
             addFinding(fatals, "fatal", null, null, null, null, "No scenes are currently loaded.");
             return List.of();

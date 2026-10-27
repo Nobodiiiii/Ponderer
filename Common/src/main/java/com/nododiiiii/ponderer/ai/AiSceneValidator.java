@@ -196,7 +196,7 @@ public final class AiSceneValidator {
                 requireBlockPos(issues, path + ".blockPos", step.blockPos, bounds);
             case "spawn_particles" -> {
                 try {
-                    com.nododiiiii.ponderer.ponder.ParticleEffectSpec.validate(step);
+                    com.nododiiiii.ponderer.runtime.core.ParticleEffectSpec.validate(step);
                 } catch (IllegalArgumentException e) {
                     issues.add(new Issue(path, e.getMessage()));
                 }

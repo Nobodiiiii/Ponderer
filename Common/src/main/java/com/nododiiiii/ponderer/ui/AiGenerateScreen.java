@@ -15,8 +15,8 @@ import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.workspace.local.PackStateStore;
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.EntryTextSupport;
@@ -128,7 +128,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         if (Minecraft.getInstance().screen == this && viewedGeneratedSceneKey != null) {
             PonderScreenNavigation.restoreReturnState(generatedPonderReturnState);
             generatedPonderReturnState = null;
-            DslScene generated = SceneRuntime.findByKey(viewedGeneratedSceneKey);
+            DslScene generated = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(viewedGeneratedSceneKey);
             viewedGeneratedSceneKey = null;
             if (!cachedEditExisting && generated != null) {
                 cachedEditExisting = true;
@@ -257,7 +257,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 this::openGeneratedPonder,
                 () -> HEADER_TEXT_COLOR,
                 () -> !cachedGenerating && !cachedGeneratedSceneKey.isBlank()
-                    && SceneRuntime.findByKey(cachedGeneratedSceneKey) != null))));
+                    && com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(cachedGeneratedSceneKey) != null))));
     }
 
     @Override
@@ -504,14 +504,14 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     }
 
     private void openExistingScenePicker() {
-        if (SceneRuntime.getScenes().isEmpty()) {
+        if (com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().isEmpty()) {
             setCachedStatus(UIText.of("ponderer.ui.function_page.no_scenes"), true);
             return;
         }
         Minecraft.getInstance().setScreen(new PonderItemGridScreen(this,
             sceneKey -> {
                 Minecraft.getInstance().setScreen(this);
-                DslScene scene = SceneRuntime.findByKey(sceneKey);
+                DslScene scene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
                 if (scene == null || !canAdjustScene(scene)) {
                     return;
                 }
@@ -766,7 +766,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 setCachedStatus(UIText.of("ponderer.ui.ai_generate.error.no_existing_scene"), true);
                 return false;
             }
-            existingScene = SceneRuntime.findByKey(cachedExistingSceneKey);
+            existingScene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(cachedExistingSceneKey);
             if (existingScene == null) {
                 setCachedStatus(UIText.of("ponderer.cmd.scene_not_found", cachedExistingSceneKey), true);
                 return false;
@@ -881,7 +881,7 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private static void rememberGeneratedScene(String filePath) {
         Path savedPath = Path.of(filePath).toAbsolutePath().normalize();
         cachedGeneratedSceneKey = "";
-        for (DslScene scene : SceneRuntime.getScenes()) {
+        for (DslScene scene : com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes()) {
             Path scenePath = SceneStore.resolveLocalScenePath(scene);
             if (scenePath != null && savedPath.equals(scenePath.toAbsolutePath().normalize())) {
                 cachedGeneratedSceneKey = scene.sceneKey();
@@ -893,11 +893,11 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
     private void openGeneratedPonder() {
         if (cachedGenerating) return;
         try {
-            DslScene generated = SceneRuntime.findByKey(cachedGeneratedSceneKey);
+            DslScene generated = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(cachedGeneratedSceneKey);
             ResourceLocation carrier = generated == null ? null : SceneItemBindings.firstItem(generated);
             if (carrier == null) throw new IllegalStateException(UIText.of("ponderer.ui.ai_generate.error.cannot_open_generated"));
 
-            var refs = SceneRuntime.resolvePonderSceneRefs(List.of(generated.sceneKey()));
+            var refs = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().resolvePonderSceneRefs(List.of(generated.sceneKey()));
             Map<String, Integer> occurrences = new LinkedHashMap<>();
             List<PonderScene> scenes = new ArrayList<>();
             PonderScene firstSegment = null;
@@ -906,9 +906,9 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
                 String id = scene.getId().toString();
                 int occurrence = occurrences.getOrDefault(id, 0);
                 occurrences.put(id, occurrence + 1);
-                if (refs.contains(new SceneRuntime.PonderSceneRef(id, occurrence))) {
+                if (refs.contains(new SceneCatalog.PonderSceneRef(id, occurrence))) {
                     scenes.add(scene);
-                    SceneRuntime.SceneMatch match = SceneRuntime.findBySceneId(scene.getId(), occurrence);
+                    SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findBySceneId(scene.getId(), occurrence);
                     if (match != null && match.sceneIndex() == 0) firstSegment = scene;
                 }
             }

@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.SelectionRowListEntry;
@@ -143,7 +143,7 @@ public class PonderPackSelectScreen extends AbstractDeclarativeListScreen {
     }
 
     private ItemStack packIcon(PonderPackInfo info) {
-        var firstScene = SceneRuntime.getScenes().stream()
+        var firstScene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream()
             .filter(scene -> info.name.equals(scene.pack))
             .findFirst().orElse(null);
         var itemId = SceneItemBindings.firstItem(firstScene);

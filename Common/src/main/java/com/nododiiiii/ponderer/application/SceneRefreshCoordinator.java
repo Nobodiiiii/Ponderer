@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.application;
 
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import net.createmod.ponder.foundation.PonderIndex;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -13,7 +13,7 @@ public final class SceneRefreshCoordinator {
 
     public static int loadCatalog() {
         var scenes = Workspaces.files().scenes().loadScenes();
-        SceneRuntime.setScenes(scenes);
+        com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().setScenes(scenes);
         version++;
         return scenes.size();
     }
@@ -30,7 +30,7 @@ public final class SceneRefreshCoordinator {
         }
     }
     public static void onItemTagsUpdated() {
-        if (SceneRuntime.getScenes().stream().anyMatch(SceneItemBindings::hasTagBindings)) {
+        if (com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes().stream().anyMatch(SceneItemBindings::hasTagBindings)) {
             reloadPonderIndex();
         }
     }

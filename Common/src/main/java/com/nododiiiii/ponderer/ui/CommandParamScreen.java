@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.ui;
 
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;
@@ -329,7 +329,7 @@ public class CommandParamScreen extends AbstractInventoryPickerFormScreen implem
     }
 
     private void openSceneSelector(String targetFieldId, boolean multiSelect) {
-        List<DslScene> scenes = SceneRuntime.getScenes();
+        List<DslScene> scenes = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes();
         if (scenes.isEmpty()) {
             setErrorMessage(UIText.of("ponderer.ui.function_page.no_scenes"));
             return;

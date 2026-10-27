@@ -1,9 +1,9 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.ponder.SceneItemBindings;
+import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.core.NbtSceneFilter;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
@@ -549,7 +549,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         Map<String, Map<String, List<String>>> packGroups = new LinkedHashMap<>();
         Map<String, Map<String, List<String>>> packItemFilters = new LinkedHashMap<>();
 
-        for (DslScene scene : SceneRuntime.getScenes()) {
+        for (DslScene scene : com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes()) {
             if (scene.items == null || scene.id == null) {
                 continue;
             }
@@ -614,7 +614,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         Map<String, List<String>> entryMap = new LinkedHashMap<>();
         Map<String, List<String>> itemFilters = new LinkedHashMap<>();
 
-        for (DslScene scene : SceneRuntime.getScenes()) {
+        for (DslScene scene : com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().getScenes()) {
             if (scene.items == null || scene.id == null) {
                 continue;
             }
@@ -711,7 +711,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         var accessor = (com.nododiiiii.ponderer.mixin.PonderUIAccessor) (Object) ui;
         List<net.createmod.ponder.foundation.PonderScene> allScenes = accessor.ponderer$getScenes();
 
-        Set<SceneRuntime.PonderSceneRef> refs = SceneRuntime.resolvePonderSceneRefs(entry.sceneKeys);
+        Set<SceneCatalog.PonderSceneRef> refs = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().resolvePonderSceneRefs(entry.sceneKeys);
         if (!refs.isEmpty()) {
             Map<String, int[]> idCounters = new LinkedHashMap<>();
             List<net.createmod.ponder.foundation.PonderScene> filtered = new ArrayList<>();
@@ -719,7 +719,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
                 String psId = ps.getId().toString();
                 int[] counter = idCounters.computeIfAbsent(psId, ignored -> new int[]{0});
                 int occ = counter[0]++;
-                if (refs.contains(new SceneRuntime.PonderSceneRef(psId, occ))) {
+                if (refs.contains(new SceneCatalog.PonderSceneRef(psId, occ))) {
                     filtered.add(ps);
                 }
             }

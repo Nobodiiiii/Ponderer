@@ -997,9 +997,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         mc.setScreen(null);
 
         final net.minecraft.resources.ResourceLocation reopenId =
-            com.nododiiiii.ponderer.ponder.SceneItemBindings.firstItem(scene);
+            com.nododiiiii.ponderer.runtime.core.SceneItemBindings.firstItem(scene);
         final String targetSceneId = computeCurrentSceneId();
-        final String nbtFilter = com.nododiiiii.ponderer.ponder.SceneItemBindings.firstNbtFilter(scene);
+        final String nbtFilter = com.nododiiiii.ponderer.runtime.core.SceneItemBindings.firstNbtFilter(scene);
 
         if (reloadFromDisk) {
             com.nododiiiii.ponderer.ponder.SceneStore.reloadFromDisk();
@@ -1026,7 +1026,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private static net.minecraft.world.item.ItemStack buildFilteredStack(net.minecraft.resources.ResourceLocation itemId,
                                                                          String nbtFilter) {
-        return com.nododiiiii.ponderer.ponder.NbtSceneFilter.createStack(itemId, nbtFilter);
+        return com.nododiiiii.ponderer.runtime.core.NbtSceneFilter.createStack(itemId, nbtFilter);
     }
 
     @Nullable

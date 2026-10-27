@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.ui;
 import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
-import com.nododiiiii.ponderer.ponder.SceneRuntime;
+import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -64,7 +64,7 @@ public class ReadonlyPackImportPromptScreen {
         SceneStore.reloadFromDisk();
         Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
 
-        DslScene importedScene = SceneRuntime.findByKey(sceneKey);
+        DslScene importedScene = com.nododiiiii.ponderer.bootstrap.ProductRuntime.engine().catalog().findByKey(sceneKey);
         if (importedScene == null) {
             dialog.closeToSource();
             return;

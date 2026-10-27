@@ -21,3 +21,13 @@
 - SceneRefreshCoordinator 统一发布与重载；投影缓存通过装配订阅失效。编辑器保存使用应用用例，SaveOutcome 分别报告写盘与发布结果。
 - SceneStore 作为过渡静态委托保留至阶段 6。原有异步重载调用时机保留。
 - 仅进行源码与差异检查；未运行构建、测试或运行验收。
+
+## 阶段 3：独立运行服务
+
+- DynamicPonderPlugin 只负责注册适配；SceneCompiler 负责结构/分段与编译；SceneStepExecutor 保留原步骤执行算法。
+- RuntimeEngine 接收 SceneSource、StructureSource、IngredientResolver 和可选注册贡献；ProductRuntime 负责产品装配，内存宿主无需引用工作区。
+- 场景目录改为实例 SceneCatalog，独立 PonderIdIndex 保留重复 ID 的注册顺序；SceneSnapshot 隔离输入和可变草稿。
+- CompilationResult / PlaybackSession 提供独立时间线。投影专用上下文下沉为 PlaybackExecutionContext，保留帧时间与副作用抑制；界面提示改为通用 OverlayTimeline。
+- 蓝图指南和默认分类注册移到装配贡献，JEI 通过运行 SPI 注入。结构资源通过流打开，路径选择只留在产品适配器。
+- Ponder API 核对来源：ref/1.21.1/Ponder/common/src/main/java/net/createmod/ponder/foundation/registration/PonderSceneRegistry.java。
+- 仅进行源码引用与差异检查；未编译，也未运行 Mixin smoke 或功能验收。

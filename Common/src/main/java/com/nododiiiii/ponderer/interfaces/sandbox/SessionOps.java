@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.interfaces.sandbox;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
 import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
-import com.nododiiiii.ponderer.ui.UiAnchorCoords;
+import com.nododiiiii.ponderer.runtime.viewer.UiAnchorCoords;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.events.GuiEventListener;

@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.ponder.NbtSceneFilter;
+import com.nododiiiii.ponderer.runtime.core.NbtSceneFilter;
 import net.createmod.ponder.foundation.PonderTag;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import net.minecraft.world.item.ItemStack;

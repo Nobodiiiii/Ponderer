@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.ponder.TextIndexStore;
-import com.nododiiiii.ponderer.projector.client.ProjectorCueIndexStore;
+import com.nododiiiii.ponderer.runtime.core.TextIndexStore;
+import com.nododiiiii.ponderer.runtime.api.OverlayTimeline;
 import net.createmod.ponder.foundation.PonderScene;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,6 +15,6 @@ public class PonderSceneTextIndexMixin {
     private void ponderer$clearTextIndex(CallbackInfo ci) {
         PonderScene scene = (PonderScene) (Object) this;
         TextIndexStore.clear(scene);
-        ProjectorCueIndexStore.clear(scene);
+        OverlayTimeline.clear(scene);
     }
 }

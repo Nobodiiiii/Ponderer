@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.interfaces.instruction;
 
 import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
-import com.nododiiiii.ponderer.projector.client.ProjectorRenderContext;
+import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
 import net.minecraft.network.chat.Component;
@@ -30,7 +30,7 @@ public class AwaitInterfaceInstruction extends TickingInstruction {
 
     @Override
     protected void firstTick(PonderScene scene) {
-        if (!ProjectorRenderContext.isActive()) {
+        if (!PlaybackExecutionContext.isActive()) {
             InterfaceHost.beginExercise(scene, goal, hint == null ? null : Component.literal(hint), timeout);
         }
     }

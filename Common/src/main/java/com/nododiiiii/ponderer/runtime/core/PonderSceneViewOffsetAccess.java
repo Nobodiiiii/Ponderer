@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.runtime.core;
 
 import net.createmod.catnip.animation.LerpedFloat;
 
