@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.neoforge.interfaces;
 
-import com.nododiiiii.ponderer.bootstrap.InterfaceSmokeTest;
 import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.runtime.render.PonderRenderCache;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -58,6 +57,5 @@ public final class NeoForgeInterfaceEvents {
     private static void onClientTick(ClientTickEvent.Post event) {
         PonderRenderCache.tick();
         InterfaceHost.tick();
-        InterfaceSmokeTest.tick();
     }
 }

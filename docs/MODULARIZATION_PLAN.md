@@ -375,7 +375,7 @@ Java/PonderJS 导出接收固定输入和只读资源接口 → 公共语义分�
 
 ## 9. 验证矩阵与执行纪律
 
-下列命令用于实施阶段。本次文档编写未运行它们；所有长运行命令应由执行器设置外层期限，超时终止本次启动的进程树并记录日志。
+当前按用户要求仅保留 AI 测试；非 AI JUnit、界面自检及 `quickPlaySmoke` 已删除。实施阶段执行过的命令和结果保留在实施、审计记录中。下列命令反映当前可用入口；所有长运行命令应由执行器设置外层期限，超时终止本次启动的进程树并记录日志。
 
 | 改动范围 | 最小验证 | 补充条件 |
 | --- | --- | --- |
@@ -383,12 +383,12 @@ Java/PonderJS 导出接收固定输入和只读资源接口 → 公共语义分�
 | 小范围共享实现、阶段迁移 | `./gradlew.bat :NeoForge:build :Fabric:build` | 当前默认；两端覆盖共享源码合并编译 |
 | 纯 Common 局部逻辑且编译已足够 | `./gradlew.bat :Common:compileJava :NeoForge:compileJava :Fabric:compileJava` | 仅在编译确为最小充分验证时使用；涉及行为则加相关既有测试 |
 | 单个平台接入 | `./gradlew.bat :NeoForge:build` 或 `./gradlew.bat :Fabric:build` | 可以证明 compile 已足够时按仓库规则缩小 |
-| 场景存储、界面模型、同步、投影仪、导出、AI 管线 | `./gradlew.bat :Common:test --tests <现有测试类全名>` | 只选受影响的既有测试；Common 当前显式启用 JUnit；不新增测试、不默认调用真实 LLM |
-| Mixin、注入归属或描述符变化 | 受影响模块编译 + 映射/配置检查 + `./gradlew.bat quickPlaySmoke -PsmokeTimeout=180` | smoke 本身构建两端；确认每端实际启动、入世界与清理 |
-| 沙盒/界面运行 Mixin 变化 | 上项 + `./gradlew.bat quickPlaySmoke -PsmokeTimeout=180 -PsmokeInterfaces` | 使用现有 `InterfaceSmokeTest`，不能用普通入世界代替界面检查 |
+| AI 管线 | `./gradlew.bat :Common:test` | Common 显式启用 JUnit，仅保留 AI 测试；不新增测试、不默认调用真实 LLM |
+| Mixin、注入归属或描述符变化 | 受影响模块构建 + 映射/配置检查 + 实际客户端验证 | 自动 smoke 已删除；启动验证仍须有期限、退出和进程清理 |
+| 沙盒/界面运行 Mixin 变化 | 上项 + 实际界面操作验证 | 界面自检已删除，构建通过不能替代运行验证 |
 | 阶段 7 构建/打包 | 新模块 scoped build、发行 JAR 类/资源清单、依赖元数据核对、最小装配运行 | 仍需外层超时与退出清理；不新增测试专用脚本 |
 
-现有测试可按范围选择：`SceneStoreTest`、`InterfaceModelTest`、`InterfaceStepSpecsTest`、`NbtTextPipelineTest`、`SyncResponsePayloadTest`、`ProjectorConfigUpdatePayloadTest`、`ProjectorSceneTimelineTest`、`ProjectorBlockEntityPlaybackStateTest`、`JavaModuleExportServiceTest`、`AiSceneAgentPipelineTest`。类位置以 [Common/src/test](D:/Files/ponderer/Common/src/test) 的实际目录为准。
+现有测试仅剩 `AiSceneAgentPipelineTest` 和默认跳过的 `RealLlmCodexConfigTest`。类位置以 [Common/src/test](D:/Files/ponderer/Common/src/test) 的实际目录为准。`test.py` 保留构建、复制及 quickplay 启动功能。
 
 执行时须区分以下情况：
 

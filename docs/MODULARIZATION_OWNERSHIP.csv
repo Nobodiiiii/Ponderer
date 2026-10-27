@@ -267,7 +267,6 @@ java,Common,application,Common/src/main/java/com/nododiiiii/ponderer/application
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ClientCatalogBindings.java,com.nododiiiii.ponderer.bootstrap.ClientCatalogBindings
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ClientFeatureLifecycle.java,com.nododiiiii.ponderer.bootstrap.ClientFeatureLifecycle
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ClientSceneLanguage.java,com.nododiiiii.ponderer.bootstrap.ClientSceneLanguage
-java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/InterfaceSmokeTest.java,com.nododiiiii.ponderer.bootstrap.InterfaceSmokeTest
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ProductExport.java,com.nododiiiii.ponderer.bootstrap.ProductExport
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ProductFeedbackProtocol.java,com.nododiiiii.ponderer.bootstrap.ProductFeedbackProtocol
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ProductGeneration.java,com.nododiiiii.ponderer.bootstrap.ProductGeneration
