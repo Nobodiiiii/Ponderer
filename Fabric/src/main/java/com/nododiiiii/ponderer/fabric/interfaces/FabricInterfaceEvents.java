@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.fabric.interfaces;
 
+import com.nododiiiii.ponderer.bootstrap.InterfaceSmokeTest;
 import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.runtime.render.PonderRenderCache;
 import net.createmod.ponder.foundation.ui.PonderUI;
@@ -35,6 +36,7 @@ public final class FabricInterfaceEvents {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             PonderRenderCache.tick();
             InterfaceHost.tick();
+            InterfaceSmokeTest.tick();
         });
     }
 }

@@ -6,6 +6,7 @@ Build, copy, and quickplay local Ponderer client instances.
 from __future__ import annotations
 
 import argparse
+import errno
 import glob
 import io
 import json
@@ -16,6 +17,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -95,6 +98,27 @@ DEFAULT_WIDTH = 1600
 DEFAULT_HEIGHT = 900
 # Fixed offline UUID for Dev, shared by all local client launches.
 DEFAULT_PLAYER_UUID = "380df991f603344ca090369bad2a924a"
+DEFAULT_SMOKE_TIMEOUT = 40
+DEFAULT_SMOKE_LOG_LINES = 160
+POST_ENTRY_SETTLE_SECONDS = 2.0
+
+SUCCESS_PATTERNS = (
+    re.compile(r"\[Server thread/INFO\](?: \[[^\]]+\])?: .+ logged in with entity id "),
+    re.compile(r"\[Server thread/INFO\](?: \[[^\]]+\])?: .+ joined the game"),
+    re.compile(r"\[Server thread/INFO\](?: \[[^\]]+\])?: .+加入了游戏"),
+)
+
+INTERFACE_SMOKE_PASS = re.compile(r"\[PondererSmoke\] interfaces PASS")
+INTERFACE_SMOKE_FAIL = re.compile(r"\[PondererSmoke\] interfaces FAIL")
+WORLD_LOCKED_PATTERN = re.compile(r"session\.lock: already locked \(possibly by other Minecraft instance\?\)")
+
+# Extra JVM system properties for the launched client (set from command-line flags).
+EXTRA_JVM_ARGS: list[str] = []
+
+ERROR_PATTERN = re.compile(
+    r"\b(ERROR|FATAL)\b|Exception|Caused by:|Mixin apply failed|Crash|Failed to|Unable to",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -104,6 +128,21 @@ class PlatformSpec:
     loader: str
     instance_suffix: str
     prefer_all_jar: bool = False
+
+
+@dataclass(frozen=True)
+class LogCursor:
+    exists: bool
+    size: int = 0
+    mtime_ns: int = 0
+
+
+@dataclass(frozen=True)
+class SmokeResult:
+    target: str
+    ok: bool
+    log_path: Path
+    process_exit_code: int | None = None
 
 
 KNOWN_PLATFORMS = (
@@ -358,6 +397,39 @@ def resolve_world(instance: Path, requested_world: str | None) -> str:
     return world
 
 
+def world_is_locked(instance: Path, world: str) -> bool:
+    """Probe the existing session lock without changing the save or creating a lock file."""
+    try:
+        handle = (instance / "saves" / world / "session.lock").open("r+b")
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        if getattr(exc, "winerror", None) in (32, 33):
+            return True
+        raise
+
+    with handle:
+        if os.name == "nt":
+            import msvcrt
+
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                if exc.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    return True
+                raise
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            try:
+                fcntl.lockf(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.lockf(handle, fcntl.LOCK_UN)
+    return False
+
+
 def run_build(targets: list[PlatformSpec], offline: bool) -> None:
     gradlew = PROJECT_ROOT / ("gradlew.bat" if platform.system() == "Windows" else "gradlew")
     if not gradlew.exists():
@@ -434,6 +506,114 @@ def copy_mod_jar(spec: PlatformSpec, props: dict[str, str], instance: Path) -> P
     return destination
 
 
+def latest_log_candidates(instance: Path) -> list[Path]:
+    return [instance / "logs" / "latest.log", DOT_MINECRAFT / "logs" / "latest.log"]
+
+
+def capture_log_cursor(path: Path) -> LogCursor:
+    if not path.exists():
+        return LogCursor(False)
+    stat = path.stat()
+    return LogCursor(True, stat.st_size, stat.st_mtime_ns)
+
+
+def read_log_since(path: Path, cursor: LogCursor) -> str:
+    try:
+        stat = path.stat()
+        start = 0
+        if cursor.exists and stat.st_mtime_ns == cursor.mtime_ns and stat.st_size >= cursor.size:
+            start = cursor.size
+
+        with path.open("rb") as handle:
+            handle.seek(start)
+            return handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def read_smoke_log(instance: Path, cursors: dict[Path, LogCursor]) -> tuple[Path, str]:
+    candidates = latest_log_candidates(instance)
+    for path in candidates:
+        text = read_log_since(path, cursors[path])
+        if text.strip():
+            return path, text
+    return candidates[0], ""
+
+
+def entered_world(log_text: str) -> bool:
+    return any(pattern.search(log_text) for pattern in SUCCESS_PATTERNS)
+
+
+def smoke_outcome(log_text: str, interfaces: bool) -> bool | None:
+    """True/False once the smoke outcome is known from the log, None while still pending."""
+    if interfaces and INTERFACE_SMOKE_FAIL.search(log_text):
+        return False
+    if WORLD_LOCKED_PATTERN.search(log_text):
+        return True
+    if not interfaces:
+        return True if entered_world(log_text) else None
+    if INTERFACE_SMOKE_PASS.search(log_text):
+        return True
+    return None
+
+
+def extract_error_excerpt(log_text: str, max_lines: int) -> str:
+    lines = log_text.splitlines()
+    if not lines:
+        return "No new log output was written during the smoke window."
+
+    excerpt: list[str] = []
+    index = 0
+    blocks = 0
+    while index < len(lines) and len(excerpt) < max_lines and blocks < 3:
+        if not ERROR_PATTERN.search(lines[index]):
+            index += 1
+            continue
+
+        start = max(0, index - 2)
+        end = index + 1
+        while end < len(lines) and end - index < 80:
+            line = lines[end]
+            if (
+                line.startswith((" ", "\t"))
+                or line.startswith(("Caused by:", "Suppressed:", "..."))
+                or ERROR_PATTERN.search(line)
+            ):
+                end += 1
+                continue
+            break
+
+        excerpt.extend(lines[start:end])
+        excerpt.append("")
+        blocks += 1
+        index = end
+
+    if excerpt:
+        return "\n".join(excerpt[:max_lines])
+    return "\n".join(lines[-max_lines:])
+
+
+def stop_process_tree(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return
+
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
 def build_launch_command(spec: PlatformSpec, mc_version: str, world: str, width: int, height: int) -> tuple[list[str], Path]:
     version_json = resolve_version_json(spec, mc_version)
     instance = version_json.parent
@@ -442,6 +622,7 @@ def build_launch_command(spec: PlatformSpec, mc_version: str, world: str, width:
     command = [
         find_java(),
         *build_jvm_args(version_data, instance, classpath),
+        *EXTRA_JVM_ARGS,
         version_data["mainClass"],
         *build_game_args(version_data, instance, world, width, height),
     ]
@@ -474,6 +655,172 @@ def launch(spec: PlatformSpec, mc_version: str, world: str, width: int, height: 
     print(f"  pid: {process.pid}")
 
 
+def smoke_target(
+    spec: PlatformSpec,
+    mc_version: str,
+    world: str,
+    width: int,
+    height: int,
+    timeout: int,
+    max_log_lines: int,
+    dry_run: bool,
+    interfaces: bool = False,
+) -> SmokeResult:
+    instance = instance_dir(spec, mc_version)
+    cursors = {path: capture_log_cursor(path) for path in latest_log_candidates(instance)}
+
+    if dry_run:
+        command, _ = build_launch_command(spec, mc_version, world, width, height)
+        print(f"[SMOKE][DRY] {instance.name}")
+        print(f"  world: {world}")
+        print(f"  timeout: {timeout}s")
+        print(f"  args: {len(command)}")
+        return SmokeResult(spec.target, True, latest_log_candidates(instance)[0])
+
+    if world_is_locked(instance, world):
+        print(f"[SMOKE][SKIP] {instance.name}: world '{world}' is in use; treating as success")
+        return SmokeResult(spec.target, True, latest_log_candidates(instance)[0])
+
+    timer_done = threading.Event()
+    stop_timer = threading.Event()
+    launched = threading.Event()
+    process_holder: dict[str, subprocess.Popen] = {}
+    launch_error: dict[str, Exception] = {}
+
+    def timer_thread() -> None:
+        stop_timer.wait(timeout)
+        timer_done.set()
+
+    def quickplay_thread() -> None:
+        try:
+            process, _instance = start_client(spec, mc_version, world, width, height)
+            process_holder["process"] = process
+            print(f"[SMOKE][LAUNCH] {_instance.name}")
+            print(f"  world: {world}")
+            print(f"  pid: {process.pid}")
+        except Exception as exc:
+            launch_error["error"] = exc
+            timer_done.set()
+        finally:
+            launched.set()
+
+    goal = "the interface self-test result" if interfaces else "quickplay world entry"
+    print(f"[SMOKE] {instance.name}: waiting {timeout}s for {goal}")
+    timer = threading.Thread(target=timer_thread, name=f"smoke-timer-{spec.target}")
+    quickplay = threading.Thread(target=quickplay_thread, name=f"smoke-quickplay-{spec.target}")
+    timer.start()
+    quickplay.start()
+
+    try:
+        log_path = latest_log_candidates(instance)[0]
+        log_text = ""
+        outcome: bool | None = None
+        while not timer_done.wait(0.1):
+            log_path, log_text = read_smoke_log(instance, cursors)
+            if log_text:
+                outcome = smoke_outcome(log_text, interfaces)
+                if outcome is not None:
+                    break
+            if "error" in launch_error:
+                break
+
+        final_log_path, final_log_text = read_smoke_log(instance, cursors)
+        if final_log_text.strip():
+            log_path = final_log_path
+            log_text = final_log_text
+        if outcome is None and log_text:
+            outcome = smoke_outcome(log_text, interfaces)
+        ok = outcome is True
+
+        launched.wait(timeout=1)
+        process = process_holder.get("process")
+        exit_code = process.poll() if process else None
+
+        if ok and WORLD_LOCKED_PATTERN.search(log_text):
+            print(f"[SMOKE][SKIP] {instance.name}: world '{world}' is in use; treating as success")
+        elif ok:
+            print(
+                f"[SMOKE][PASS] {instance.name}: {goal} reached within {timeout}s; "
+                f"waiting {POST_ENTRY_SETTLE_SECONDS:g}s before cleanup"
+            )
+            if interfaces:
+                for line in log_text.splitlines():
+                    if "[PondererSmoke]" in line:
+                        print(f"  {line.strip()}")
+            time.sleep(POST_ENTRY_SETTLE_SECONDS)
+        else:
+            if outcome is False:
+                print(f"[SMOKE][FAIL] {instance.name}: interface self-test reported FAIL")
+                for line in log_text.splitlines():
+                    if "[PondererSmoke]" in line:
+                        print(f"  {line.strip()}")
+            else:
+                print(f"[SMOKE][FAIL] {instance.name}: {goal} not reached within {timeout}s")
+            if "error" in launch_error:
+                print(f"[SMOKE][LAUNCH ERROR] {launch_error['error']}")
+            if exit_code is not None:
+                print(f"[SMOKE][PROCESS EXIT] code={exit_code}")
+            print(f"[SMOKE][LOG] {log_path}")
+            print(extract_error_excerpt(log_text, max_log_lines))
+
+        return SmokeResult(spec.target, ok, log_path, exit_code)
+    finally:
+        process = process_holder.get("process")
+        if process:
+            stop_process_tree(process)
+
+        stop_timer.set()
+        timer.join(timeout=1)
+        quickplay.join(timeout=1)
+
+
+def run_smoke(
+    targets: list[PlatformSpec],
+    props: dict[str, str],
+    mc_version: str,
+    worlds: dict[PlatformSpec, str],
+    args: argparse.Namespace,
+) -> int:
+    print("=== Ponderer Quickplay Smoke ===")
+    print(f"  Minecraft: {mc_version}")
+    print(f"  Targets: {', '.join(target.target for target in targets)}")
+    print(f"  Timeout: {args.smoke_timeout}s")
+
+    if not args.skip_build:
+        run_build(targets, offline=not args.online_build)
+
+    launch_targets = []
+    for target in targets:
+        instance = instance_dir(target, mc_version)
+        if not args.dry_run and world_is_locked(instance, worlds[target]):
+            print(f"[SMOKE][SKIP] {instance.name}: world '{worlds[target]}' is in use; treating as success")
+        else:
+            launch_targets.append(target)
+    if not launch_targets:
+        return 0
+
+    if not args.no_copy:
+        for target in launch_targets:
+            destination = copy_mod_jar(target, props, instance_dir(target, mc_version))
+            print(f"[COPY] {destination}")
+
+    results = [
+        smoke_target(
+            target,
+            mc_version,
+            worlds[target],
+            args.width,
+            args.height,
+            args.smoke_timeout,
+            args.smoke_log_lines,
+            args.dry_run,
+            args.smoke_interfaces,
+        )
+        for target in launch_targets
+    ]
+    return 0 if all(result.ok for result in results) else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build, copy, and quickplay local Ponderer client instances.")
     parser.add_argument("target", nargs="?", default="both", choices=["fabric", "forge", "neoforge", "both"])
@@ -482,9 +829,24 @@ def main() -> int:
     parser.add_argument("--online-build", action="store_true")
     parser.add_argument("--no-copy", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Build/copy as requested, but print launch targets instead of starting clients.")
+    parser.add_argument("--smoke", action="store_true", help="Build, quickplay, wait for a world-entry log marker, then clean up; occupied worlds count as success.")
+    parser.add_argument("--smoke-timeout", type=int, default=DEFAULT_SMOKE_TIMEOUT)
+    parser.add_argument("--smoke-log-lines", type=int, default=DEFAULT_SMOKE_LOG_LINES)
+    parser.add_argument("--smoke-interfaces", action="store_true",
+                        help="With --smoke: run the in-game interface sandbox self-test and wait for its PASS/FAIL marker.")
+    parser.add_argument("--smoke-ponder-item", help="With --smoke-interfaces: also open PonderUI for this item id and screenshot it.")
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH)
     parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
     args = parser.parse_args()
+    if args.smoke_timeout <= 0:
+        parser.error("--smoke-timeout must be greater than 0")
+    if args.smoke_log_lines <= 0:
+        parser.error("--smoke-log-lines must be greater than 0")
+
+    if args.smoke_interfaces:
+        EXTRA_JVM_ARGS.append("-Dponderer.smoke.interfaces=true")
+        if args.smoke_ponder_item:
+            EXTRA_JVM_ARGS.append(f"-Dponderer.smoke.interfaces.ponder={args.smoke_ponder_item}")
 
     props = read_gradle_properties()
     mc_version = props["minecraft_version"]
@@ -493,6 +855,9 @@ def main() -> int:
         target: resolve_world(instance_dir(target, mc_version), args.world)
         for target in targets
     }
+
+    if args.smoke:
+        return run_smoke(targets, props, mc_version, worlds, args)
 
     print("=== Ponderer Quickplay ===")
     print(f"  Minecraft: {mc_version}")

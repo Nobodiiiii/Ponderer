@@ -2,11 +2,13 @@
 
 本清单对应 Minecraft 1.21.1 的 `Common / NeoForge / Fabric`，依据当前 `settings.gradle`。`Forge/`、历史 `ref/`、生成目录及测试代码不计入发布归属。仍沿用原三个 Gradle 项目；没有新增独立运行库 JAR，也未实施阶段 7。
 
-[完整归属表](MODULARIZATION_OWNERSHIP.csv) 逐项列出 578 个活动主源码文件、64 个资源文件、1 个加载器元数据模板、83 个两端 Mixin 配置项、8 个 SPI 提供项、34 个 payload ID、29 个配置键及游戏注册 ID。相同共享类可出现在两个加载器的 Mixin 配置中，83 是配置项数量，不是不同类数量。该表是源码快照，不是构建产物清单。
+[完整归属表](MODULARIZATION_OWNERSHIP.csv) 逐项列出 579 个活动主源码文件、64 个资源文件、1 个加载器元数据模板、83 个两端 Mixin 配置项、8 个 SPI 提供项、34 个 payload ID、29 个配置键及游戏注册 ID。相同共享类可出现在两个加载器的 Mixin 配置中，83 是配置项数量，不是不同类数量。该表是源码快照，不是构建产物清单。
 
-2026-10-27 按用户要求仅保留 AI 测试，已移除其他 JUnit、界面自检及 smoke 入口，并同步移除归属表中的自检类。下文构建与测试结果保留为删除前的历史记录。
+2026-10-27 按用户要求仅保留 AI 单元测试，其他 JUnit 已删除。随后按用户要求恢复 `smoke.py`、`quickPlaySmoke`、`test.py` 的 smoke 分支及界面自检调用链，并同步恢复归属表中的自检类。`smoke.py` 转用 `test.py --smoke`，沿用当前分支的实例识别、超时和进程清理。
 
-删除后验证：`:NeoForge:build :Fabric:build :Common:test` 通过，AI 管线 5 项通过、真实 LLM 1 项按原条件跳过；`quickPlayBoth -PskipBuild -PnoCopy -PdryRun` 通过，当前 1.11.0 两端 JAR 均不含自检类。未启动客户端或调用真实 LLM。
+删除时验证（恢复 smoke 前）：`:NeoForge:build :Fabric:build :Common:test` 通过，AI 管线 5 项通过、真实 LLM 1 项按原条件跳过；`quickPlayBoth -PskipBuild -PnoCopy -PdryRun` 通过，当时 1.11.0 两端 JAR 均不含自检类。未启动客户端或调用真实 LLM。下文构建与测试结果保留为历史记录。
+
+恢复后验证：两端 build 与 `:Common:test` 通过；`smoke.py` 和 `quickPlaySmoke -PskipBuild -PnoCopy -PdryRun -PsmokeTimeout=180 -PsmokeInterfaces -PsmokePonderItem=minecraft:grass_block` 均完成双端 dry-run。此次未实际启动客户端。
 
 ## 实际职责
 
