@@ -700,8 +700,8 @@ public final class PondererClientCommands {
         Minecraft mc = Minecraft.getInstance();
         net.minecraft.client.gui.screens.Screen returnScreen = mc.screen;
         mc.execute(() -> net.createmod.catnip.gui.ScreenOpener.open(
-            new com.nododiiiii.ponderer.ui.SceneTypeSelectorScreen(
-                new com.nododiiiii.ponderer.ui.SceneEditorScreen(scene, 0), returnScreen)));
+            new com.nododiiiii.ponderer.editor.screen.SceneTypeSelectorScreen(
+                new com.nododiiiii.ponderer.editor.screen.SceneEditorScreen(scene, 0), returnScreen)));
         return 1;
     }
 
@@ -834,7 +834,7 @@ public final class PondererClientCommands {
 
     public static int openItemList() {
         Minecraft.getInstance().execute(
-                () -> Minecraft.getInstance().setScreen(new com.nododiiiii.ponderer.ui.PonderItemGridScreen()));
+                () -> Minecraft.getInstance().setScreen(new com.nododiiiii.ponderer.editor.screen.PonderItemGridScreen()));
         return 1;
     }
 
@@ -867,12 +867,12 @@ public final class PondererClientCommands {
     }
 
     private static int openExportScreen() {
-        Minecraft.getInstance().setScreen(new com.nododiiiii.ponderer.ui.ExportPackScreen());
+        Minecraft.getInstance().setScreen(new com.nododiiiii.ponderer.editor.screen.ExportPackScreen());
         return 1;
     }
 
     private static int openImportScreen() {
-        Minecraft.getInstance().setScreen(new com.nododiiiii.ponderer.ui.ImportPackScreen());
+        Minecraft.getInstance().setScreen(new com.nododiiiii.ponderer.editor.screen.ImportPackScreen());
         return 1;
     }
 

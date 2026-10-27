@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.projector.client;
 
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.mixin.InputWindowElementAccessor;
-import com.nododiiiii.ponderer.mixin.TextWindowElementAccessor;
+import com.nododiiiii.ponderer.runtime.mixin.InputWindowElementAccessor;
+import com.nododiiiii.ponderer.runtime.mixin.TextWindowElementAccessor;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.AnimatedOverlayElement;

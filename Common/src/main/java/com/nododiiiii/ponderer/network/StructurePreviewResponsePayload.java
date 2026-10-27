@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.ui.StructureListScreen;
+import com.nododiiiii.ponderer.editor.screen.StructureListScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;

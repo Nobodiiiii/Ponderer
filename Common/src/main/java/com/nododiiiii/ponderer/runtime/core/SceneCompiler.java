@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.runtime.core;
 import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.mixin.TickingInstructionAccessor;
+import com.nododiiiii.ponderer.runtime.mixin.TickingInstructionAccessor;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.scene.PonderStoryBoard;
 import net.createmod.ponder.foundation.PonderScene;

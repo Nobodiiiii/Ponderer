@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.interfaces.capture.InterfaceCapture;
+import com.nododiiiii.ponderer.editor.capture.InterfaceCapture;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;

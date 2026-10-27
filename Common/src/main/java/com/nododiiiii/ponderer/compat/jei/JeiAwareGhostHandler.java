@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.compat.jei;
 
-import com.nododiiiii.ponderer.ui.IdFieldMode;
-import com.nododiiiii.ponderer.ui.JeiAwareScreen;
+import com.nododiiiii.ponderer.editor.screen.IdFieldMode;
+import com.nododiiiii.ponderer.editor.screen.JeiAwareScreen;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import net.minecraft.client.gui.screens.Screen;

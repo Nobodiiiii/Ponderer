@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.interfaces.sandbox.SandboxScope;
+import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SandboxScope;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.neoforged.bus.api.Event;
 import net.neoforged.bus.api.IEventBus;

@@ -31,3 +31,12 @@
 - 蓝图指南和默认分类注册移到装配贡献，JEI 通过运行 SPI 注入。结构资源通过流打开，路径选择只留在产品适配器。
 - Ponder API 核对来源：ref/1.21.1/Ponder/common/src/main/java/net/createmod/ponder/foundation/registration/PonderSceneRegistry.java。
 - 仅进行源码引用与差异检查；未编译，也未运行 Mixin smoke 或功能验收。
+
+## 阶段 4：编辑、播放呈现与界面采集
+
+- EditorSession / EditCommand / EditorHistory 接管草稿步骤变更和历史；屏幕保留原有即时保存、分段切换和跨屏返回流程。
+- 界面数据在 scene.interfaces，执行/沙盒在 runtime.interfaces，采集与槽位拖拽在 editor.capture。运行槽位指令只发布变化通知。
+- InterfaceEditingExtension 和可关闭 EditorModule 隔离编辑预览/幽灵槽位、按键接管和监听；普通播放使用空扩展即可运行。
+- 播放控件在 runtime.viewer，编辑预览在 editor.preview。PonderUIMixin 保留播放职责，PonderEditorMixin 持有按钮、点选、采集提示和编辑返回；两端配置明确列出归属。
+- 界面平台由客户端装配显式安装，AE2 菜单构建与 JEI 渲染从执行实现中转为注入能力。
+- 仅做源码引用、服务描述与差异检查；Mixin 配置/注入变更未做编译、映射或 smoke 验证。

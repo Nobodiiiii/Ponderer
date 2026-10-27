@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.ui.NbtPickState;
+import com.nododiiiii.ponderer.editor.capture.NbtPickState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.RegistryFriendlyByteBuf;

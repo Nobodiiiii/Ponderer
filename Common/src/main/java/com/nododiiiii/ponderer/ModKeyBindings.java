@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.nododiiiii.ponderer.mixin.PonderKeybindsAccessor;
+import com.nododiiiii.ponderer.runtime.mixin.PonderKeybindsAccessor;
 import net.createmod.ponder.enums.PonderKeybinds;
 import net.minecraft.client.KeyMapping;
 import org.lwjgl.glfw.GLFW;

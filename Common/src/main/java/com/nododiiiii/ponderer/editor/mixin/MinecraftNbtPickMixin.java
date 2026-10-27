@@ -1,0 +1,39 @@
+package com.nododiiiii.ponderer.editor.mixin;
+
+import com.nododiiiii.ponderer.editor.capture.CoordPickState;
+import com.nododiiiii.ponderer.editor.capture.NbtPickState;
+import net.minecraft.client.Minecraft;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+/**
+ * Intercepts vanilla middle-click pick behavior while NBT pick or coord pick mode is active,
+ * and routes middle click to our capture flow.
+ */
+@Mixin(Minecraft.class)
+public class MinecraftNbtPickMixin {
+
+    // Optional injection: avoid hard crash when runtime mapping cannot resolve target method.
+    @Inject(method = "handleKeybinds", at = @At("HEAD"), require = 0)
+    private void ponderer$interceptMiddlePickForNbtCapture(CallbackInfo ci) {
+        Minecraft mc = (Minecraft) (Object) this;
+        if (mc.player == null || mc.screen != null) {
+            return;
+        }
+
+        if (NbtPickState.isActive()) {
+            while (mc.options.keyPickItem.consumeClick()) {
+                NbtPickState.handleUseClick();
+            }
+            return;
+        }
+
+        if (CoordPickState.isActive()) {
+            while (mc.options.keyPickItem.consumeClick()) {
+                CoordPickState.handleMiddleClick();
+            }
+        }
+    }
+}

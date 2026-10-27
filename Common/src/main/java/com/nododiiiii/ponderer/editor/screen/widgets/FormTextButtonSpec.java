@@ -1,0 +1,36 @@
+package com.nododiiiii.ponderer.editor.screen.widgets;
+
+import com.nododiiiii.ponderer.editor.screen.FieldDecorator;
+import com.nododiiiii.ponderer.editor.screen.FieldDecorators;
+import com.nododiiiii.ponderer.editor.screen.IdFieldMode;
+
+import javax.annotation.Nullable;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
+
+@FunctionalInterface
+public interface FormTextButtonSpec extends FieldDecorator {
+
+    int DEFAULT_WIDTH = 20;
+
+    void attach(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry);
+
+    @Override
+    default void applyText(AbstractDeclarativeFormScreen screen, PlainTextListEntry entry) {
+        attach(screen, entry);
+    }
+
+    static FormTextButtonSpec action(String label, int color, @Nullable String tooltipText, Runnable onClick) {
+        return action(DEFAULT_WIDTH, onClick, () -> label, () -> color, tooltipText);
+    }
+
+    static FormTextButtonSpec action(int width, Runnable onClick, Supplier<String> labelGetter,
+                                     IntSupplier colorGetter, @Nullable String tooltipText) {
+        FieldDecorator decorator = FieldDecorators.textAction(width, onClick, labelGetter, colorGetter, tooltipText);
+        return decorator::applyText;
+    }
+
+    static FormTextButtonSpec jei(IdFieldMode mode) {
+        return FieldDecorators.jei(mode)::applyText;
+    }
+}

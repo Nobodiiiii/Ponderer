@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.fabric.interfaces;
 
-import com.nododiiiii.ponderer.interfaces.platform.InterfaceSandboxPlatform;
+import com.nododiiiii.ponderer.runtime.interfaces.platform.InterfaceSandboxPlatform;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
 import net.minecraft.client.gui.screens.MenuScreens;

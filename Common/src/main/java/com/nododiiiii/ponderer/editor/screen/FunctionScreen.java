@@ -1,0 +1,274 @@
+package com.nododiiiii.ponderer.editor.screen;
+
+import com.nododiiiii.ponderer.compat.resourcify.ResourcifyCompat;
+import com.nododiiiii.ponderer.ponder.PondererClientCommands;
+import com.nododiiiii.ponderer.editor.screen.widgets.AbstractReadonlyDeclarativeListScreen;
+import com.nododiiiii.ponderer.editor.screen.widgets.ButtonPairListEntry;
+import com.nododiiiii.ponderer.editor.screen.widgets.SectionHeaderListEntry;
+import net.createmod.catnip.config.ui.ConfigScreenList;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.resources.ResourceLocation;
+
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
+
+public class FunctionScreen extends AbstractReadonlyDeclarativeListScreen {
+
+    private record ButtonDef(String labelKey, Runnable action, String tooltipKey) {
+    }
+
+    private record Section(String titleKey, List<ButtonDef> buttons) {
+    }
+
+    private final List<Section> sections = new ArrayList<>();
+    @Nullable
+    private final PonderScreenNavigation.ReturnState ponderReturnState;
+
+    public FunctionScreen() {
+        this(null, null);
+    }
+
+    public FunctionScreen(@Nullable Screen parent, @Nullable PonderScreenNavigation.ReturnState ponderReturnState) {
+        super(parent, "ponderer.ui.scope.editor", "ponderer.ui.function_page.title", UILayoutConstants.EDITOR_LIST_W);
+        this.ponderReturnState = ponderReturnState;
+
+        sections.add(new Section("ponderer.ui.function_page.scene_management", List.of(
+            new ButtonDef("ponderer.ui.function_page.new_scene",
+                () -> Minecraft.getInstance().setScreen(buildNewScenePage()),
+                "ponderer.ui.function_page.new_scene.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.ai_generate",
+                () -> Minecraft.getInstance().setScreen(new AiGenerateScreen()),
+                "ponderer.ui.function_page.ai_generate.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.copy_scene",
+                () -> Minecraft.getInstance().setScreen(buildCopyPage()),
+                "ponderer.ui.function_page.copy_scene.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.delete_scene",
+                () -> Minecraft.getInstance().setScreen(buildDeletePage()),
+                "ponderer.ui.function_page.delete_scene.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.scene_list",
+                PondererClientCommands::openItemList,
+                "ponderer.ui.function_page.scene_list.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.reload",
+                () -> runOnPageStatus(PondererClientCommands::reloadLocal),
+                "ponderer.ui.function_page.reload.tooltip")
+        )));
+
+        sections.add(new Section("ponderer.ui.function_page.sync", List.of(
+            new ButtonDef("ponderer.ui.function_page.push",
+                () -> Minecraft.getInstance().setScreen(buildPushPage()),
+                "ponderer.ui.function_page.push.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.pull",
+                () -> Minecraft.getInstance().setScreen(buildPullPage()),
+                "ponderer.ui.function_page.pull.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.remote_browser",
+                () -> Minecraft.getInstance().setScreen(new RemoteBrowserScreen(this)),
+                "ponderer.ui.function_page.remote_browser.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.permissions",
+                () -> Minecraft.getInstance().setScreen(new PermissionManagementScreen(this)),
+                "ponderer.ui.function_page.permissions.tooltip")
+        )));
+
+        sections.add(new Section("ponderer.ui.function_page.import_export", List.of(
+            new ButtonDef("ponderer.ui.function_page.export",
+                () -> Minecraft.getInstance().setScreen(new ExportPackScreen()),
+                "ponderer.ui.function_page.export.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.export_java",
+                () -> Minecraft.getInstance().setScreen(new JavaModuleExportScreen()),
+                "ponderer.ui.function_page.export_java.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.import",
+                () -> Minecraft.getInstance().setScreen(new ImportPackScreen()),
+                "ponderer.ui.function_page.import.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.browse_modrinth",
+                () -> ResourcifyCompat.openBrowseScreen("[Ponderer]"),
+                "ponderer.ui.function_page.browse_modrinth.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.to_ponderjs",
+                () -> runOnPageStatus(PondererClientCommands::convertAllToPonderJs),
+                "ponderer.ui.function_page.to_ponderjs.tooltip"),
+            new ButtonDef("ponderer.ui.function_page.from_ponderjs",
+                () -> runOnPageStatus(PondererClientCommands::convertAllFromPonderJs),
+                "ponderer.ui.function_page.from_ponderjs.tooltip")
+        )));
+
+        sections.add(new Section(
+            "ponderer.ui.function_page.settings",
+            List.of(
+                new ButtonDef("ponderer.ui.mod_config.category.general",
+                    () -> Minecraft.getInstance().setScreen(new PondererGeneralConfigScreen(this)),
+                    "ponderer.ui.mod_config.category.general.tooltip"),
+                new ButtonDef("ponderer.ui.function_page.ai_config",
+                    () -> Minecraft.getInstance().setScreen(new AiConfigScreen(this)),
+                    "ponderer.ui.function_page.ai_config.tooltip"),
+                new ButtonDef("ponderer.ui.mod_config.category.blueprint",
+                    () -> Minecraft.getInstance().setScreen(new BlueprintItemConfigScreen(this)),
+                    "ponderer.ui.mod_config.category.blueprint.tooltip"),
+                new ButtonDef("ponderer.ui.mod_config.category.projector",
+                    () -> Minecraft.getInstance().setScreen(new ProjectorFeatureConfigScreen(this)),
+                    "ponderer.ui.mod_config.category.projector.tooltip"),
+                new ButtonDef("ponderer.ui.function_page.keybindings",
+                    () -> Minecraft.getInstance().setScreen(new PondererKeyBindingsScreen(this)),
+                    "ponderer.ui.function_page.keybindings.tooltip"))));
+    }
+
+    @Override
+    protected void collectEntries(List<ConfigScreenList.Entry> entries) {
+        for (Section section : sections) {
+            entries.add(compactSectionHeader(UIText.of(section.titleKey)));
+            for (int i = 0; i < section.buttons.size(); i += 2) {
+                ButtonDef left = section.buttons.get(i);
+                ButtonDef right = i + 1 < section.buttons.size() ? section.buttons.get(i + 1) : null;
+                entries.add(new ButtonPairListEntry(
+                    UIText.of(left.labelKey),
+                    UIText.of(left.tooltipKey),
+                    left.action,
+                    right == null ? null : UIText.of(right.labelKey),
+                    right == null ? null : UIText.of(right.tooltipKey),
+                    right == null ? null : right.action));
+            }
+        }
+    }
+
+    @Override
+    protected int getEntryHeight() {
+        return UILayoutConstants.COMPACT_LIST_ENTRY_H;
+    }
+
+    @Override
+    protected void attemptBackToParent() {
+        if (ponderReturnState == null) {
+            super.attemptBackToParent();
+            return;
+        }
+
+        PonderScreenNavigation.restoreReturnState(ponderReturnState);
+        Minecraft.getInstance().setScreen(parent);
+    }
+
+    private void runOnPageStatus(Runnable command) {
+        PondererClientCommands.runReportingTo(this::setInfoMessage, this::setErrorMessage, command);
+    }
+
+    private static SectionHeaderListEntry compactSectionHeader(String title) {
+        return new SectionHeaderListEntry(title);
+    }
+
+    private static CommandParamScreen buildPushPage() {
+        return CommandParamScreen.builder("ponderer.ui.function_page.push.title")
+            .choiceField("mode", "ponderer.ui.function_page.param.mode",
+                List.of("ponderer.ui.function_page.mode.check", "ponderer.ui.function_page.mode.force"),
+                List.of("check", "force"))
+            .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
+                "ponderer.ui.function_page.param.scene_id.hint", false, true)
+            .packIdField("pack_id", "ponderer.ui.function_page.param.pack_id",
+                "ponderer.ui.function_page.param.pack_id.hint", false)
+            .onExecute(values -> {
+                String mode = values.get("mode");
+                String packIds = values.get("pack_id");
+                if (packIds != null && !packIds.isBlank()) {
+                    for (String packId : packIds.lines().map(String::trim)
+                        .filter(pack -> !pack.isEmpty()).distinct().toList()) {
+                        PondererClientCommands.pushSourcePack(packId, mode);
+                    }
+                    return;
+                }
+                String sceneId = values.get("scene_id");
+                if (sceneId != null && !sceneId.isEmpty()) {
+                    for (String part : sceneId.split(",")) {
+                        String trimmed = part.trim();
+                        if (trimmed.isEmpty()) {
+                            continue;
+                        }
+                        PondererClientCommands.pushByKey(trimmed, mode);
+                    }
+                    return;
+                }
+                PondererClientCommands.pushAll(mode);
+            })
+            .build();
+    }
+
+    private static CommandParamScreen buildPullPage() {
+        return CommandParamScreen.builder("ponderer.ui.function_page.pull.title")
+            .choiceField("mode", "ponderer.ui.function_page.param.mode",
+                List.of("ponderer.ui.function_page.mode.check",
+                    "ponderer.ui.function_page.mode.force",
+                    "ponderer.ui.function_page.mode.keep_local"),
+                List.of("check", "force", "keep_local"))
+            .onExecute(values -> PondererClientCommands.pull(values.get("mode")))
+            .build();
+    }
+
+    private static CommandParamScreen buildNewScenePage() {
+        CommandParamScreen screen = CommandParamScreen.builder("ponderer.ui.function_page.new_scene.title")
+            .itemField("item_id", "ponderer.ui.scene_desc.item_id",
+                "ponderer.ui.scene_desc.hint.item_id", true)
+            .nbtField("nbt", "ponderer.ui.function_page.param.nbt",
+                "ponderer.ui.function_page.param.nbt.hint", false)
+            .toggleField("capture_nbt", "ponderer.ui.function_page.new.capture_nbt", false)
+            .onExecute(values -> PondererClientCommands.newSceneForBindingSnbt(
+                values.get("item_id"), values.get("nbt")))
+            .build();
+
+        screen.enableItemTagDropdown("item_id");
+        screen.enableInventoryItemPicker("item_id", "nbt", "capture_nbt");
+
+        return screen;
+    }
+
+    private static CommandParamScreen buildCopyPage() {
+        return CommandParamScreen.builder("ponderer.ui.function_page.copy_scene.title")
+            .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
+                null, true)
+            .itemField("target_item", "ponderer.ui.function_page.param.target_item",
+                "ponderer.ui.function_page.param.target_item.hint", true)
+            .onExecute(values -> {
+                String sceneKey = values.get("scene_id");
+                ResourceLocation targetItem = ResourceLocation.tryParse(values.get("target_item"));
+                if (sceneKey != null && !sceneKey.isEmpty() && targetItem != null) {
+                    PondererClientCommands.copySceneByKey(sceneKey, targetItem);
+                }
+            })
+            .build();
+    }
+
+    private static CommandParamScreen buildDeletePage() {
+        CommandParamScreen screen = CommandParamScreen.builder("ponderer.ui.function_page.delete_scene.title")
+            .choiceField("mode", "ponderer.ui.function_page.param.mode",
+                List.of("ponderer.ui.function_page.delete.by_scene", "ponderer.ui.function_page.delete.by_item"),
+                List.of("by_scene", "by_item"))
+            .sceneIdField("scene_id", "ponderer.ui.function_page.param.scene_id",
+                null, false, true)
+            .itemField("item_id", "ponderer.ui.function_page.param.item_id",
+                "ponderer.ui.function_page.param.item_id.hint", false)
+            .onExecute(values -> {
+                String mode = values.get("mode");
+                if ("by_scene".equals(mode)) {
+                    String sceneId = values.get("scene_id");
+                    if (sceneId != null && !sceneId.isEmpty()) {
+                        for (String part : sceneId.split(",")) {
+                            String trimmed = part.trim();
+                            if (trimmed.isEmpty()) {
+                                continue;
+                            }
+                            PondererClientCommands.deleteSceneByKey(trimmed);
+                        }
+                    }
+                    return;
+                }
+
+                String itemId = values.get("item_id");
+                if (itemId != null && !itemId.isEmpty()) {
+                    ResourceLocation rl = ResourceLocation.tryParse(itemId);
+                    if (rl != null) {
+                        PondererClientCommands.deleteScenesForItem(rl);
+                    }
+                }
+            })
+            .build();
+        screen.showFieldWhenValue("scene_id", "mode", "by_scene");
+        screen.showFieldWhenValue("item_id", "mode", "by_item");
+        return screen;
+    }
+
+}

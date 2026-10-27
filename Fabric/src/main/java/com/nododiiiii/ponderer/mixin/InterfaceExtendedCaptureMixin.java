@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.mixin;
 
-import com.nododiiiii.ponderer.interfaces.capture.InterfaceCapture;
+import com.nododiiiii.ponderer.editor.capture.InterfaceCapture;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
 import net.minecraft.network.RegistryFriendlyByteBuf;

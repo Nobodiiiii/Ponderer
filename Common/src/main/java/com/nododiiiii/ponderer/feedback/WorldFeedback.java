@@ -1,9 +1,9 @@
 package com.nododiiiii.ponderer.feedback;
 
-import com.nododiiiii.ponderer.interfaces.capture.InterfaceCapture;
-import com.nododiiiii.ponderer.mixin.GuiFeedbackAccessor;
-import com.nododiiiii.ponderer.ui.CoordPickState;
-import com.nododiiiii.ponderer.ui.NbtPickState;
+import com.nododiiiii.ponderer.editor.capture.InterfaceCapture;
+import com.nododiiiii.ponderer.runtime.mixin.GuiFeedbackAccessor;
+import com.nododiiiii.ponderer.editor.capture.CoordPickState;
+import com.nododiiiii.ponderer.editor.capture.NbtPickState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 

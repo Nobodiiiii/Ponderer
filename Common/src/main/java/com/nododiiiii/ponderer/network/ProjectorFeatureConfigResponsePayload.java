@@ -6,7 +6,7 @@ import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
-import com.nododiiiii.ponderer.ui.ProjectorFeatureConfigScreen;
+import com.nododiiiii.ponderer.editor.screen.ProjectorFeatureConfigScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;

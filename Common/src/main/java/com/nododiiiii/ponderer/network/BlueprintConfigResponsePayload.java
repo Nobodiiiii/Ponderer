@@ -6,7 +6,7 @@ import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.ponder.UploadPermissions;
-import com.nododiiiii.ponderer.ui.BlueprintItemConfigScreen;
+import com.nododiiiii.ponderer.editor.screen.BlueprintItemConfigScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;

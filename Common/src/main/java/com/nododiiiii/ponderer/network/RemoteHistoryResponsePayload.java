@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.network;
 
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
-import com.nododiiiii.ponderer.ui.RemoteBrowserScreen;
+import com.nododiiiii.ponderer.editor.screen.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;

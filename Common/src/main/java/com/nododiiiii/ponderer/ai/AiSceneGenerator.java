@@ -5,7 +5,7 @@ import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.editor.screen.UIText;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.platform.PondererServices;

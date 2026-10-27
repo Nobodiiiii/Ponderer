@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.projector.client;
 
 import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
-import com.nododiiiii.ponderer.mixin.PonderSceneAccessor;
+import com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor;
 import com.nododiiiii.ponderer.runtime.core.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.core.PonderRenderCache;
 import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;

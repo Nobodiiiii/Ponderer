@@ -10,7 +10,7 @@ import com.nododiiiii.ponderer.ponder.AutoRemoteSyncClient;
 import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
-import com.nododiiiii.ponderer.ui.RemoteBrowserScreen;
+import com.nododiiiii.ponderer.editor.screen.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;

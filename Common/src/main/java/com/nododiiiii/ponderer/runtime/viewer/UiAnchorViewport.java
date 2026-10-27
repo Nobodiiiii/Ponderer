@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.runtime.viewer;
 
-import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
-import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
+import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.runtime.interfaces.platform.InterfacePlatform;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 

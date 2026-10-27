@@ -31,6 +31,7 @@ public final class ProductRuntime {
             @Override public boolean isAvailable() { return JeiCompat.isAvailable(); }
             @Override public ScreenElement fluid(Fluid fluid, int amount) { return JeiCompat.createFluidIngredientElement(fluid, amount); }
             @Override public ScreenElement resolve(String id) { return JeiCompat.resolveIngredientById(id); }
+            @Override public ScreenElement resolve(String id, String kind) { return JeiCompat.resolveIngredientById(id, kind); }
         }, new ProductRegistration(), () -> Config.DEFAULT_EDITABLE.get());
     }
     public static RuntimeEngine engine() { return Holder.ENGINE; }

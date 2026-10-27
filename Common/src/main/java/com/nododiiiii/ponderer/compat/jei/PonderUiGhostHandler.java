@@ -1,9 +1,9 @@
 package com.nododiiiii.ponderer.compat.jei;
 
-import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
-import com.nododiiiii.ponderer.interfaces.sandbox.SandboxSession;
-import com.nododiiiii.ponderer.interfaces.sandbox.SessionOps;
-import com.nododiiiii.ponderer.ui.InterfaceSlotEditState;
+import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SandboxSession;
+import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SessionOps;
+import com.nododiiiii.ponderer.editor.capture.InterfaceSlotEditState;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import net.createmod.ponder.foundation.ui.PonderUI;

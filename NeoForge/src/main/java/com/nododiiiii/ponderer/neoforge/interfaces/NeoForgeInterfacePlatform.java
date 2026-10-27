@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.neoforge.interfaces;
 
-import com.nododiiiii.ponderer.interfaces.platform.InterfaceSandboxPlatform;
+import com.nododiiiii.ponderer.runtime.interfaces.platform.InterfaceSandboxPlatform;
 import io.netty.buffer.Unpooled;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.Screen;

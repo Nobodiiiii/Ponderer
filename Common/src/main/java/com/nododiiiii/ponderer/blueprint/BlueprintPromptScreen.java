@@ -1,12 +1,12 @@
 package com.nododiiiii.ponderer.blueprint;
 
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ui.FieldBindings;
-import com.nododiiiii.ponderer.ui.FieldSpecs;
-import com.nododiiiii.ponderer.ui.UILayoutConstants;
-import com.nododiiiii.ponderer.ui.UIText;
-import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeFormScreen;
-import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.editor.screen.FieldBindings;
+import com.nododiiiii.ponderer.editor.screen.FieldSpecs;
+import com.nododiiiii.ponderer.editor.screen.UILayoutConstants;
+import com.nododiiiii.ponderer.editor.screen.UIText;
+import com.nododiiiii.ponderer.editor.screen.widgets.AbstractDeclarativeFormScreen;
+import com.nododiiiii.ponderer.editor.screen.widgets.DeclarativeFormEntry;
 import net.minecraft.client.Minecraft;
 
 import java.util.List;

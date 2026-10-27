@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.compat.jei;
 
 import net.createmod.catnip.gui.element.ScreenElement;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ui.UIText;
+import com.nododiiiii.ponderer.editor.screen.UIText;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;

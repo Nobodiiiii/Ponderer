@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.compat.jei;
 
-import com.nododiiiii.ponderer.interfaces.host.InterfaceHost;
-import com.nododiiiii.ponderer.interfaces.platform.InterfacePlatform;
-import com.nododiiiii.ponderer.interfaces.sandbox.SandboxSession;
+import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.runtime.interfaces.platform.InterfacePlatform;
+import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SandboxSession;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.handlers.IGlobalGuiHandler;
 import mezz.jei.api.runtime.IClickableIngredient;
