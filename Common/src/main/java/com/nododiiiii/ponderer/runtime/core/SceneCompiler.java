@@ -421,22 +421,5 @@ public final class SceneCompiler {
         return false;
     }
 
-    private PonderPalette parsePalette(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        return switch (raw.toLowerCase(Locale.ROOT)) {
-            case "white" -> PonderPalette.WHITE;
-            case "black" -> PonderPalette.BLACK;
-            case "red" -> PonderPalette.RED;
-            case "green" -> PonderPalette.GREEN;
-            case "blue" -> PonderPalette.BLUE;
-            case "input" -> PonderPalette.INPUT;
-            case "output" -> PonderPalette.OUTPUT;
-            case "slow" -> PonderPalette.SLOW;
-            case "medium" -> PonderPalette.MEDIUM;
-            case "fast" -> PonderPalette.FAST;
-            default -> null;
-        };
-    }
+
 }

@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.nododiiiii.ponderer.application.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [],
+  "client": [
+    "PonderLocalizationMixin",
+    "MinecraftCoordPickScrollMixin",
+    "MultiLineEditBoxAccessor",
+    "MultilineTextFieldAccessor",
+    "PonderEditorMixin"
+  ],
+  "server": []
+}

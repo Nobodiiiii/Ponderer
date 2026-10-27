@@ -2,7 +2,7 @@
 
 本清单对应 Minecraft 1.21.1 的 `Common / NeoForge / Fabric`，依据当前 `settings.gradle`。`Forge/`、历史 `ref/`、生成目录及测试代码不计入发布归属。仍沿用原三个 Gradle 项目；没有新增独立运行库 JAR，也未实施阶段 7。
 
-[完整归属表](MODULARIZATION_OWNERSHIP.csv) 逐项列出 576 个活动主源码文件、56 个资源文件、1 个加载器元数据模板、81 个两端 Mixin 配置项、8 个 SPI 提供项、34 个 payload ID、29 个配置键及游戏注册 ID。相同共享类可出现在两个加载器的 Mixin 配置中，81 是配置项数量，不是不同类数量。该表是源码快照，不是构建产物清单。
+[完整归属表](MODULARIZATION_OWNERSHIP.csv) 逐项列出 576 个活动主源码文件、64 个资源文件、1 个加载器元数据模板、81 个两端 Mixin 配置项、8 个 SPI 提供项、34 个 payload ID、29 个配置键及游戏注册 ID。相同共享类可出现在两个加载器的 Mixin 配置中，81 是配置项数量，不是不同类数量。该表是源码快照，不是构建产物清单。
 
 ## 实际职责
 
@@ -70,14 +70,14 @@ Java 导出支持模板归导出器；内置脚本和结构归工作区默认资
 
 ## Mixin、SPI 与加载器入口
 
-两端 `ponderer.mixins.json` 的逐项实际所有者在 CSV：运行注入归运行层，编辑采集注入归编辑层，产品窗口/返回/本地化和组合输入路由归应用层，反馈访问器归反馈。平台专用渲染/网络/采集实现继续留在平台模块；没有复制为 Common 游戏实现。
+两端五份 Mixin 配置的逐项实际所有者在 CSV：运行注入归运行层，编辑采集注入归编辑层，产品窗口/返回/本地化和组合输入路由归应用层，反馈访问器归反馈。平台专用渲染/网络/采集实现继续留在平台模块；没有复制为 Common 游戏实现。
 
 每端保留四个 Java SPI 提供项：`PlatformHelper`（环境）、`NetworkHelper`（传输）、`RegistrationHelper`（注册）、`InterfaceSandboxPlatform`（界面沙盒）。投影菜单通过安装既有平台实现所实现的 `ProjectorPlatform` 接口提供，不额外发现第二个有状态平台实例。`PondererServices` 仅承担加载器 SPI 发现，没有场景目录或功能业务状态；它是保留的平台机制，不是待删除的迁移门面。
 
-Fabric 的主/客户端/ModMenu/JEI 入口已按实际包名列出；NeoForge 继续通过加载器注解发现入口和 JEI 插件，元数据模板保持原发布方式。`fabric.mod.json`、服务文件名/提供类、Mixin 相对包名已同步迁移。访问扩大器文件仍归产品平台元数据，未按未来 JAR 拆分。
+Fabric 的主/客户端/ModMenu/JEI 入口已按实际包名列出；NeoForge 继续通过加载器注解发现入口和 JEI 插件，元数据模板保持原发布方式。`fabric.mod.json`、服务文件名/提供类、Mixin 相对包名已同步迁移。访问扩大器文件仍归产品平台元数据，未按未来 JAR 拆分。Mixin 配置分别限定为平台、runtime、editor、application、feedback 的实际 mixin 包，避免声明整个产品包造成入口类无法加载。
 
 ## 源码检查与未验证范围
 
 执行了 Java 语法解析（仅 `JavacTask.parse`，不做类型分析或编译）、重复签名和项目类引用检查、跨包静态访问审阅、Mixin/SPI 声明解析、网络 codec 源码对照以及 `git diff --check`。34 个 payload 的 ID 保持原值；89 个既有 codec/type 方法与基线源码对照未发现内容差异。没有新增测试。
 
-按用户要求未运行 Gradle、JUnit、Mixin 编译/refmap、客户端 smoke、LLM、功能验收或独立运行宿主。源码归属不能证明编译通过或功能完全等价。后续如需要验证，先执行 `./gradlew.bat :NeoForge:build :Fabric:build`，再检查两端 Mixin 映射并按项目超时规范运行 `quickPlaySmoke`。这些均不是本次已完成检查。
+阶段实施时按用户要求未运行构建与验收；后续已按新请求完成两端 build、Fabric refmap 检查与两端 `quickPlaySmoke -PskipBuild -PsmokeTimeout=180 -PsmokeInterfaces`。构建和界面 smoke 均通过，两个客户端已退出；结果、日志和自检跳过项/空场景日志限制见 [后续验证记录](MODULARIZATION_IMPLEMENTATION.md#后续构建与-smoke2026-10-27)。未运行 Common JUnit、LLM、完整人工验收、专用服务器或独立运行宿主，不能据此证明全部功能等价。

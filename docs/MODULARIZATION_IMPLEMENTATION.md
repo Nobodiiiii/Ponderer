@@ -2,7 +2,7 @@
 
 范围：Minecraft 1.21.1；活动构建项目仍为 Common、NeoForge、Fabric。阶段 7 的独立 JAR 不在本次范围。
 
-本次用户明确要求不运行测试与验收。因此未执行 Gradle、JUnit、客户端 smoke 或人工运行验收；源码检查只用于迁移与代码审阅，不构成功能等价证明。未新增测试。
+阶段 1–6 实施时，用户明确要求不运行测试与验收，因此当时只进行了源码检查，未执行 Gradle、JUnit、客户端 smoke 或人工运行验收。后续已按用户新请求补跑构建与 smoke，结果见文末。未新增测试。
 
 ## 阶段 1：场景契约和叶子能力
 
@@ -60,3 +60,26 @@
 - 移动或拆分的 Mixin 同步两端配置；涉及映射类型的 UI 注入移除不合适的 remap=false。按用户要求未编译、查看生成 refmap 或运行 smoke，此部分运行注入仍未验证。
 - [归属说明](MODULARIZATION_OWNERSHIP.md) 和 [逐项清单](MODULARIZATION_OWNERSHIP.csv) 记录主源码、资源、配置、注册、Mixin、SPI 与入口。原方案更新为实施状态，并保留阶段 7 的后续设计。
 - 已做语法/重复签名/项目引用、Mixin/SPI 源码解析、协议 codec 对照及 diff 格式检查；没有运行构建、测试或验收，没有新增测试。阶段 7 的物理 Gradle/JAR 提取不在本次范围。
+
+## 后续构建与 smoke（2026-10-27）
+
+用户随后要求运行构建和 smoke。本轮修复了实际验证发现的迁移遗漏，并作为独立修复提交：
+
+- `PonderPackRegistry` 实现 `PackRegistry`，恢复 `PackEntry` 类型继承和工作区接口返回类型。
+- JEI 拖放调用正确的公开 `resolveIngredientId`；调色板解析方法移到实际使用它的步骤执行器。
+- 原 Mixin 配置覆盖整个产品根包，导致两端模组入口均触发 `IllegalClassLoadError`。两端现在分别声明平台、runtime、editor、application、feedback 的专用 Mixin 包；保留原有 40/41 个注入，更新加载器元数据和归属表。
+
+验证结果（Java 21，离线缓存）：
+
+| 检查 | 命令或证据 | 结果 |
+| --- | --- | --- |
+| 两端构建 | `./gradlew.bat :NeoForge:build :Fabric:build --offline --no-daemon --console=plain --continue` | 通过；最终重跑 16 秒 |
+| 两端界面 smoke | `./gradlew.bat quickPlaySmoke -PskipBuild -PsmokeTimeout=180 -PsmokeInterfaces --offline --no-daemon --console=plain` | 通过；约 1 分 21 秒，两个实例均实际启动，均为 `interfaces PASS (intercepted=7, taintDrops=0)` |
+| Fabric refmap | `Fabric/build/classes/java/main/ponderer.refmap.json` | 迁移后的 UI、反馈注入包含 `class_* / method_* / field_*` 映射；JAR 中 refmap 存在 |
+| NeoForge Mixin | 最终 JAR 的五份配置与实际启动/界面路径 | 当前 1.21.1 ModDev 构建未产生独立 refmap；未按旧版 Forge 的 SRG 名称推断 |
+| 归属与打包 | CSV 覆盖 641 个主源码/资源输入；两端 JAR 的配置类均存在 | 通过；没有遗留旧 `ponder/` 类 |
+| 清理 | smoke 自带每端 180 秒超时/进程树清理，外层 600 秒超时 | 通过；最终客户端 PID 11980、13072 均已退出 |
+
+最终日志：`build/modularization-verification/build-3.log`、`build/modularization-verification/smoke-2.log`；运行日志位于项目本地 `.minecraft/versions/1.21.1-{Fabric,NeoForge}/logs/latest.log`。
+
+检查边界：两端均提示 `world capture fixture unavailable; skipped`。自检的空 ID 场景在预览编译中记录空指针日志；已核对重构前相同的空场景夹具和 `ResourceLocation.tryParse(scene.id)` 路径，未在本轮扩展修改该逻辑。NeoForge 本地模组环境另有 Curios 的 scroll/spellbook 槽位未注册日志。smoke PASS 不代表这些日志消失，也不覆盖完整人工功能验收、独立运行宿主或专用服务器；本轮未运行 Common JUnit。

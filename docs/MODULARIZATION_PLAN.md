@@ -1,6 +1,6 @@
 # Ponderer 功能模块化与运行库提取方案
 
-状态：阶段 1–6 已实施并分阶段提交。实际边界及调整见 [实施记录](MODULARIZATION_IMPLEMENTATION.md) 与 [归属说明](MODULARIZATION_OWNERSHIP.md)。阶段 7 未实施；本次按用户要求不运行测试与验收。
+状态：阶段 1–6 已实施并分阶段提交。实际边界及调整见 [实施记录](MODULARIZATION_IMPLEMENTATION.md) 与 [归属说明](MODULARIZATION_OWNERSHIP.md)。阶段 7 未实施；阶段实施时按用户要求未运行测试与验收，后续构建与 smoke 结果见实施记录。
 
 基线：2026-10-27，当前 `1.21.1` 分支，HEAD `457d0619`，Minecraft 1.21.1、Java 21。实际活动模块为 `Common / NeoForge / Fabric`，以 [settings.gradle](D:/Files/ponderer/settings.gradle) 和 [gradle.properties](D:/Files/ponderer/gradle.properties) 为准；磁盘中的 `Forge/` 不属于本方案的当前构建范围。
 
@@ -409,4 +409,4 @@ Java/PonderJS 导出接收固定输入和只读资源接口 → 公共语义分�
 
 开始实施时优先处理阶段 1—2，再进入运行与编辑迁移。不要先搬空目录再追修引用；每次提交围绕一个可验证的职责变化，保留可回退边界，最后才改变发布结构。
 
-阶段 1–6 的实施已完成，详见实施记录。上述验证命令为原方案保留的后续建议，本次按用户要求未执行；阶段 7、构建结果、Mixin 映射和运行等价性均未验证。
+阶段 1–6 的实施已完成，详见实施记录。上述验证命令保留原方案建议；后续已补跑两端构建、Mixin 检查与界面 smoke，详见实施记录。阶段 7、独立宿主、专用服务器和完整功能等价性仍未验证。

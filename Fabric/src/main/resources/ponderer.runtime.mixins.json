@@ -1,0 +1,36 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.nododiiiii.ponderer.runtime.mixin",
+  "refmap": "ponderer.refmap.json",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [],
+  "client": [
+    "PonderLevelMixin",
+    "SandboxScreenGateMixin",
+    "SandboxNetworkFirewallMixin",
+    "SandboxWorldBridgeMixin",
+    "SandboxClientLevelMixin",
+    "SandboxChunkCacheMixin",
+    "WorldSectionElementImplMixin",
+    "LerpedFloatInterpolationMixin",
+    "WorldSectionInterpolationMixin",
+    "PonderSceneAccessor",
+    "TickingInstructionAccessor",
+    "TextWindowElementAccessor",
+    "InputWindowElementAccessor",
+    "RenderSystemShaderLightsAccessor",
+    "PonderKeybindsAccessor",
+    "PonderSceneViewOffsetMixin",
+    "PonderSceneTextIndexMixin",
+    "SceneTransformOffsetMixin",
+    "PonderUIAccessor",
+    "PonderUIMixin",
+    "PonderProgressBarMixin",
+    "PonderPlaybackMixin"
+  ],
+  "server": []
+}

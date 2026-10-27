@@ -10,7 +10,11 @@
   "license": "${mod_license}",
   "environment": "*",
   "mixins": [
-    "ponderer.mixins.json"
+    "ponderer.mixins.json",
+    "ponderer.runtime.mixins.json",
+    "ponderer.editor.mixins.json",
+    "ponderer.application.mixins.json",
+    "ponderer.feedback.mixins.json"
   ],
   "accessWidener": "ponderer.accesswidener",
   "entrypoints": {

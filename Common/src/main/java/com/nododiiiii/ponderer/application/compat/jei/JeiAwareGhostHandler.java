@@ -21,7 +21,7 @@ public class JeiAwareGhostHandler<T extends Screen & JeiAwareScreen> implements 
         List<Target<I>> targets = new ArrayList<>();
         for (JeiAwareScreen.IngredientTarget target : gui.getJeiIngredientTargets()) {
             String id = target.mode() == IdFieldMode.INGREDIENT
-                ? JeiCompat.resolveId(ingredient)
+                ? JeiCompat.resolveIngredientId(ingredient)
                 : ingredient.getItemStack().map(target.mode()::resolveItemId).orElse(null);
             if (id == null) {
                 continue;

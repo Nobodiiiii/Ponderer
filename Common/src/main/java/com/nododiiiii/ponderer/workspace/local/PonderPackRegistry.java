@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.workspace.local;
 
 import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
+import com.nododiiiii.ponderer.workspace.api.PackRegistry;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -19,7 +20,7 @@ import java.util.Map;
  * Manages the registry of loaded Ponderer packs.
  * Stores metadata in .ponderer_registry.json
  */
-public class PonderPackRegistry {
+public class PonderPackRegistry implements PackRegistry {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String REGISTRY_FILE = ".ponderer_registry.json";

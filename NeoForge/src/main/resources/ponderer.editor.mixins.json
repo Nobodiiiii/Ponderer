@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.nododiiiii.ponderer.editor.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [],
+  "client": [
+    "MinecraftNbtPickMixin",
+    "InterfaceCaptureMixin",
+    "InterfaceItemCaptureMixin",
+    "InterfaceBlockCaptureMixin",
+    "InterfaceLevelCaptureMixin",
+    "InterfaceMenuCaptureMixin"
+  ],
+  "server": []
+}
