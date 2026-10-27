@@ -899,7 +899,6 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             }
             clearStatusMessages();
             preview.load(scene, sceneIndex);
-            Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
             return true;
         }
         setErrorMessage(com.nododiiiii.ponderer.application.ui.WorkspaceMessages.saveError(result));
@@ -963,8 +962,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         Minecraft mc = Minecraft.getInstance();
         mc.setScreen(null);
         if (deleted) {
-            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-            mc.execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refreshAndReport();
         }
     }
 
@@ -987,13 +985,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         final String targetSceneId = computeCurrentSceneId();
         final String nbtFilter = com.nododiiiii.ponderer.runtime.api.SceneItemBindings.firstNbtFilter(scene);
 
-        if (reloadFromDisk) {
-            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        }
-
         mc.execute(() -> {
             if (reloadFromDisk) {
-                com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reloadPonderIndex();
+                if (com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refreshAndReport() < 0) return;
             }
             if (reopenId != null && net.createmod.ponder.foundation.PonderIndex.getSceneAccess().doScenesExistForId(reopenId)) {
                 net.createmod.ponder.foundation.ui.PonderUI ui;

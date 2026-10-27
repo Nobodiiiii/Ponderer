@@ -252,11 +252,19 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     }
 
     private void overwriteUpdates(List<PendingRemoteUpdates.Update> updates) {
-        int count = RemotePullClient.overwritePending(updates);
-        if (count < updates.size()) {
-            setErrorMessage(UIText.of("ponderer.ui.remote_browser.status.overwrite_failed", count, updates.size() - count));
+        var result = RemotePullClient.overwritePending(updates);
+        int count = result.applied();
+        boolean incomplete = count < updates.size();
+        String status = incomplete
+            ? UIText.of("ponderer.ui.remote_browser.status.overwrite_failed", count, updates.size() - count)
+            : UIText.of("ponderer.ui.remote_browser.status.overwritten", count);
+        if (result.refreshFailure() != null) {
+            setErrorMessage(status + "\n" + UIText.of("ponderer.ui.save_error.refresh_after_save",
+                result.refreshFailure().getMessage()));
+        } else if (incomplete) {
+            setErrorMessage(status);
         } else {
-            setInfoMessage(UIText.of("ponderer.ui.remote_browser.status.overwritten", count));
+            setInfoMessage(status);
         }
         onSyncUpdatesChanged();
     }

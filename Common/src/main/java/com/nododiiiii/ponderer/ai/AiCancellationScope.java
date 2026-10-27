@@ -16,9 +16,17 @@ public final class AiCancellationScope {
     });
     private volatile boolean expired;
     private java.util.concurrent.ScheduledFuture<?> deadline;
+    private final Object commitLock = new Object();
+    private boolean committed;
 
     public void expireAfter(int seconds) {
-        deadline = TIMER.schedule(() -> { expired = true; cancelPending(); }, seconds, java.util.concurrent.TimeUnit.SECONDS);
+        deadline = TIMER.schedule(() -> {
+            synchronized (commitLock) {
+                if (committed) return;
+                expired = true;
+            }
+            cancelPending();
+        }, seconds, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     public void closeDeadline() { if (deadline != null) deadline.cancel(false); }
@@ -42,11 +50,22 @@ public final class AiCancellationScope {
     private final Set<CompletableFuture<?>> tracked = ConcurrentHashMap.newKeySet();
 
     public boolean cancel() {
-        if (!cancelled.compareAndSet(false, true)) {
-            return false;
+        synchronized (commitLock) {
+            if (committed || !cancelled.compareAndSet(false, true)) return false;
         }
         cancelPending();
         return true;
+    }
+
+    /** Cancellation and the final disk commit have one ordering point. Acquire repository locks first. */
+    public <T> T commit(java.util.concurrent.Callable<T> action) throws Exception {
+        synchronized (commitLock) {
+            throwIfCancelled();
+            T result = action.call();
+            committed = true;
+            closeDeadline();
+            return result;
+        }
     }
 
     public boolean isCancellationRequested() {

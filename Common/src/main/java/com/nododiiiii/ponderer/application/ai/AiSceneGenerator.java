@@ -37,13 +37,22 @@ import java.util.function.Consumer;
 public class AiSceneGenerator {
 
     private static volatile long epoch;
+    private static final Object SCOPE_LOCK = new Object();
     private static boolean accepting = true;
-    public static void startModule() { accepting = true; }
-    public static void stopModule() { accepting = false; cancelAll(); }
+    public static void startModule() { synchronized (SCOPE_LOCK) { accepting = true; } }
+    public static void stopModule() { closeScope(true); }
     private static final java.util.Map<String, AiGenerationTask> activeTasks = new java.util.concurrent.ConcurrentHashMap<>();
     public static void cancelAll() {
-        epoch++;
-        for (AiGenerationTask task : activeTasks.values()) task.cancel();
+        closeScope(false);
+    }
+    private static void closeScope(boolean stop) {
+        List<AiGenerationTask> tasks;
+        synchronized (SCOPE_LOCK) {
+            if (stop) accepting = false;
+            epoch++;
+            tasks = List.copyOf(activeTasks.values());
+        }
+        for (AiGenerationTask task : tasks) task.cancel();
     }
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -89,8 +98,11 @@ public class AiSceneGenerator {
     public static AiGenerationTask startRequest(AiSceneAgentPipeline.Request request, AiRunFiles recovery,
             Consumer<String> onSuccess, Consumer<String> onError, Runnable onCancelled, Consumer<String> onStatus,
             Consumer<AiOutputUpdate> onOutput) {
-        if (!accepting) throw new IllegalStateException("AI authoring is not installed");
-        final long requestEpoch = epoch;
+        final long requestEpoch;
+        synchronized (SCOPE_LOCK) {
+            if (!accepting) throw new IllegalStateException("AI authoring is not installed");
+            requestEpoch = epoch;
+        }
         String runId = UUID.randomUUID().toString();
         AiCancellationScope cancellation = new AiCancellationScope();
         AiRunControl control = new AiRunControl();
@@ -118,7 +130,7 @@ public class AiSceneGenerator {
                         if ("last_agent_trace.log".equals(name)) writeLog(name, content);
                     }, cancellation, control, files.events());
                 cancellation.throwIfCancelled();
-                return saveResult(files, result.scene());
+                return saveResult(files, result.scene(), requestEpoch, cancellation);
             } catch (RuntimeException error) {
                 if (cancellation.isDeadlineExceeded()) throw new AiRunStoppedException("budget_exhausted", "AI time budget exhausted; the draft is retained for recovery.");
                 throw error;
@@ -126,11 +138,17 @@ public class AiSceneGenerator {
         });
         CompletableFuture<Void> completion = worker.handleAsync((filePath, error) -> {
             if (requestEpoch != epoch) {
-                recordStatus(files, "cancelled", "Authoring scope closed; draft retained");
+                if (error != null) recordStatus(files, "cancelled", "Authoring scope closed; draft retained");
                 return null;
             }
             if (error == null) {
-                PondererClientCommands.reloadLocal(); onSuccess.accept(filePath); return null;
+                try { PondererClientCommands.reloadLocalOrThrow(); }
+                catch (RuntimeException failure) {
+                    LOGGER.error("AI scene saved, but Ponder refresh failed: {}", filePath, failure);
+                    onError.accept(UIText.of("ponderer.ui.save_error.refresh_after_save", failure.getMessage()));
+                    return null;
+                }
+                onSuccess.accept(filePath); return null;
             }
             Throwable cause = unwrap(error);
             if (cancellation.isCancellationRequested() || cause instanceof CancellationException) {
@@ -143,26 +161,45 @@ public class AiSceneGenerator {
         }, Minecraft.getInstance());
         completion.whenComplete((ignored, error) -> control.close());
         AiGenerationTask task = new AiGenerationTask(runId, cancellation, completion, control);
-        activeTasks.put(runId, task);
+        boolean stale;
+        synchronized (SCOPE_LOCK) {
+            stale = requestEpoch != epoch || !accepting;
+            if (!stale) activeTasks.put(runId, task);
+        }
+        if (stale) task.cancel();
         completion.whenComplete((ignored, error) -> activeTasks.remove(runId));
         return task;
     }
 
-    private static String saveResult(AiRunFiles files, DslScene scene) throws Exception {
+    private static String saveResult(AiRunFiles files, DslScene scene, long requestEpoch,
+                                     AiCancellationScope cancellation) throws Exception {
         synchronized (com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes()) {
-            var baseline = files.read("baseline.json"); checkBaseline(baseline);
-            Path target = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveLocalScenePath(scene);
-            if (target == null) throw new IllegalStateException("Cannot resolve AI scene output path");
-            String before = Files.isRegularFile(target) ? Files.readString(target) : null;
-            boolean editingTarget = baseline.has("path") && !baseline.get("path").isJsonNull()
-                && target.toAbsolutePath().normalize().equals(Path.of(baseline.get("path").getAsString()).toAbsolutePath().normalize());
-            if (before != null && !editingTarget) throw new IllegalStateException("SCENE_EXISTS: a new AI scene cannot overwrite an existing scene; choose a different scene ID.");
-            files.recordUndo(target, before, scene);
-            com.nododiiiii.ponderer.workspace.api.WorkspaceResults.LocalSaveResult saved = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().saveSceneToLocalDetailed(scene);
-            if (!saved.isSuccess() || saved.path() == null) throw new IllegalStateException(saved.englishMessage());
-            files.markSaved(saved.path()); files.status("completed", saved.path().toString());
-            return saved.path().toString();
+            synchronized (SCOPE_LOCK) {
+                if (!accepting || requestEpoch != epoch) throw new CancellationException("Authoring scope closed");
+                String path = cancellation.commit(() -> saveCommittedResult(files, scene));
+                try {
+                    files.markSaved(Path.of(path));
+                    files.status("completed", path);
+                } catch (RuntimeException failure) {
+                    LOGGER.error("AI scene committed, but final run metadata could not be persisted: {}", path, failure);
+                }
+                return path;
+            }
         }
+    }
+
+    private static String saveCommittedResult(AiRunFiles files, DslScene scene) throws Exception {
+        var baseline = files.read("baseline.json"); checkBaseline(baseline);
+        Path target = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().layout().resolveLocalScenePath(scene);
+        if (target == null) throw new IllegalStateException("Cannot resolve AI scene output path");
+        String before = Files.isRegularFile(target) ? Files.readString(target) : null;
+        boolean editingTarget = baseline.has("path") && !baseline.get("path").isJsonNull()
+            && target.toAbsolutePath().normalize().equals(Path.of(baseline.get("path").getAsString()).toAbsolutePath().normalize());
+        if (before != null && !editingTarget) throw new IllegalStateException("SCENE_EXISTS: a new AI scene cannot overwrite an existing scene; choose a different scene ID.");
+        files.recordUndo(target, before, scene);
+        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.LocalSaveResult saved = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().saveSceneToLocalDetailed(scene);
+        if (!saved.isSuccess() || saved.path() == null) throw new IllegalStateException(saved.englishMessage());
+        return saved.path().toString();
     }
 
     private static void recordStatus(AiRunFiles files, String status, String detail) {

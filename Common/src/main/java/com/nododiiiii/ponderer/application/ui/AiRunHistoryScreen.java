@@ -158,8 +158,13 @@ public final class AiRunHistoryScreen extends AbstractReadonlyDeclarativeListScr
         if (current() == null) return;
         try {
             current().undo();
-            PondererClientCommands.reloadLocal();
-            setInfoMessage(UIText.of("ponderer.ui.ai_runs.undone"));
+            try {
+                PondererClientCommands.reloadLocalOrThrow();
+                setInfoMessage(UIText.of("ponderer.ui.ai_runs.undone"));
+            } catch (RuntimeException failure) {
+                com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reportFailure(failure);
+                setErrorMessage(UIText.of("ponderer.refresh.failed", failure.getMessage()));
+            }
             rebuildListPreservingScroll();
         } catch (Exception error) { setErrorMessage(error.getMessage()); }
     }

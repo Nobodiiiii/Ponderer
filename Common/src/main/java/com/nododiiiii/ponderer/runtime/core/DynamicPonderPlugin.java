@@ -16,15 +16,20 @@ import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.runtime.spi.RegistrationContribution;
 
 /** Ponder registration adapter; compilation and step execution have separate owners. */
-public final class DynamicPonderPlugin implements PonderPlugin {
+public final class DynamicPonderPlugin implements PonderPlugin, AutoCloseable {
     private static final Logger LOGGER = LogUtils.getLogger();
     private final SceneCatalog catalog;
     private final SceneCompiler compiler;
     private final RegistrationContribution contribution;
-    public DynamicPonderPlugin(SceneCatalog catalog, SceneCompiler compiler, RegistrationContribution contribution) {
+    private final RuntimeStructureSources.Registration structures;
+    private final NbtSceneFilter.Registration bindings = new NbtSceneFilter.Registration();
+    private boolean closed;
+    public DynamicPonderPlugin(SceneCatalog catalog, SceneCompiler compiler, RegistrationContribution contribution,
+                               com.nododiiiii.ponderer.runtime.spi.StructureSource source) {
         this.catalog = catalog;
         this.compiler = compiler;
         this.contribution = contribution;
+        this.structures = new RuntimeStructureSources.Registration(source);
     }
     @Override public String getModId() { return compiler.getModId(); }
 
@@ -53,7 +58,7 @@ public final class DynamicPonderPlugin implements PonderPlugin {
                 continue;
             }
             ResourceLocation schematic = schematics.get(i);
-            multi.addStoryBoard(schematic, compiler.createStoryBoard(scene, sc, i, sceneList.size()), tags);
+            multi.addStoryBoard(structures.route(schematic), compiler.createStoryBoard(scene, sc, i, sceneList.size()), tags);
 
             // Register scene in NbtSceneFilter
             ResourceLocation baseId = ResourceLocation.tryParse(scene.id);
@@ -61,7 +66,7 @@ public final class DynamicPonderPlugin implements PonderPlugin {
             String scenePath = sceneList.size() > 1 ? basePath + "_" + compiler.sceneSuffix(sc, i) : basePath;
             String fullSceneId = compiler.getModId() + ":" + scenePath;
             for (SceneItemBindings.ResolvedBinding binding : bindings) {
-                NbtSceneFilter.registerScene(binding.itemId(), fullSceneId,
+                this.bindings.registerScene(binding.itemId(), fullSceneId,
                     NbtSceneFilter.parseNbt(binding.nbtFilter()));
             }
 
@@ -71,6 +76,7 @@ public final class DynamicPonderPlugin implements PonderPlugin {
     }
 
     public void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
+        if (closed) return;
         contribution.beforeTags(helper);
         for (DslScene scene : catalog.getScenes()) {
             ResourceLocation[] tags = resolveTags(scene.tags);
@@ -84,7 +90,8 @@ public final class DynamicPonderPlugin implements PonderPlugin {
     }
 
     public void registerScenes(PonderSceneRegistrationHelper<ResourceLocation> helper) {
-        NbtSceneFilter.clear();
+        if (closed) return;
+        bindings.clear();
         catalog.clearPonderIdMapping();
         for (DslScene scene : catalog.getScenes()) {
             registerScene(helper, scene);
@@ -104,6 +111,7 @@ public final class DynamicPonderPlugin implements PonderPlugin {
     }
 
     public void registerSharedText(SharedTextRegistrationHelper helper) {
+        if (closed) return;
         for (DslScene scene : catalog.getScenes()) {
             List<DslScene.SceneSegment> sceneList = compiler.normalizeScenes(scene);
             for (DslScene.SceneSegment sc : sceneList) {
@@ -124,5 +132,10 @@ public final class DynamicPonderPlugin implements PonderPlugin {
                 }
             }
         }
+    }
+    @Override public void close() {
+        closed = true;
+        bindings.close();
+        structures.close();
     }
 }

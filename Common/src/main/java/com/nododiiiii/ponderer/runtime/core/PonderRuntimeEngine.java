@@ -6,19 +6,20 @@ import net.createmod.ponder.api.registration.PonderPlugin;
 
 /** Minimal runtime assembly. A host may supply memory documents and stream-only structures. */
 public final class PonderRuntimeEngine implements RuntimeEngine {
-    private final java.util.Set<OwnedSession> sessions = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    private final java.util.Set<OwnedSession> sessions = new java.util.HashSet<>();
     private boolean closed;
     private final SceneCatalog catalog = new SceneCatalog();
     private final SceneCompiler compiler;
-    private final PonderPlugin plugin;
+    private final DynamicPonderPlugin plugin;
     public PonderRuntimeEngine(String namespace, StructureSource structures,
                                IngredientResolver ingredients, RegistrationContribution contribution,
                                java.util.function.BooleanSupplier defaultEditable) {
         compiler = new SceneCompiler(namespace, structures, ingredients, defaultEditable);
-        plugin = new DynamicPonderPlugin(catalog, compiler, contribution);
+        plugin = new DynamicPonderPlugin(catalog, compiler, contribution, structures);
     }
     @Override public SceneCatalog catalog() { return catalog; }
     @Override public void replaceCatalog(SceneSource source) {
+        if (closed) throw new IllegalStateException("Runtime engine is closed");
         catalog.setScenes(source.scenes().stream().map(snapshot -> snapshot.document()).toList());
     }
     @Override public CompilationResult compile(CompileRequest request) {
@@ -40,6 +41,7 @@ public final class PonderRuntimeEngine implements RuntimeEngine {
             sessions.clear();
             catalog.setScenes(java.util.List.of());
             catalog.clearPonderIdMapping();
+            plugin.close();
         }
     }
     private final class OwnedSession implements PlaybackSession {

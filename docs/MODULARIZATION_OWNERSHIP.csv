@@ -269,6 +269,7 @@ java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/Cli
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ClientSceneLanguage.java,com.nododiiiii.ponderer.bootstrap.ClientSceneLanguage
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/InterfaceSmokeTest.java,com.nododiiiii.ponderer.bootstrap.InterfaceSmokeTest
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ProductExport.java,com.nododiiiii.ponderer.bootstrap.ProductExport
+java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ProductFeedbackProtocol.java,com.nododiiiii.ponderer.bootstrap.ProductFeedbackProtocol
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ProductGeneration.java,com.nododiiiii.ponderer.bootstrap.ProductGeneration
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ProductRegistration.java,com.nododiiiii.ponderer.bootstrap.ProductRegistration
 java,Common,bootstrap,Common/src/main/java/com/nododiiiii/ponderer/bootstrap/ProductRuntime.java,com.nododiiiii.ponderer.bootstrap.ProductRuntime
@@ -417,6 +418,7 @@ java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/core/Ad
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/core/DynamicPonderPlugin.java,com.nododiiiii.ponderer.runtime.core.DynamicPonderPlugin
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/core/OverlayMarkerInstruction.java,com.nododiiiii.ponderer.runtime.core.OverlayMarkerInstruction
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/core/PonderRuntimeEngine.java,com.nododiiiii.ponderer.runtime.core.PonderRuntimeEngine
+java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/core/RuntimeStructureSources.java,com.nododiiiii.ponderer.runtime.core.RuntimeStructureSources
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/core/SceneCompiler.java,com.nododiiiii.ponderer.runtime.core.SceneCompiler
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/core/SceneSectionOwnership.java,com.nododiiiii.ponderer.runtime.core.SceneSectionOwnership
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/core/SceneStepExecutor.java,com.nododiiiii.ponderer.runtime.core.SceneStepExecutor
@@ -460,6 +462,7 @@ java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/mixin/P
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/mixin/PonderSceneAccessor.java,com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/mixin/PonderSceneTextIndexMixin.java,com.nododiiiii.ponderer.runtime.mixin.PonderSceneTextIndexMixin
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/mixin/PonderSceneViewOffsetMixin.java,com.nododiiiii.ponderer.runtime.mixin.PonderSceneViewOffsetMixin
+java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/mixin/PonderStructureSourceMixin.java,com.nododiiiii.ponderer.runtime.mixin.PonderStructureSourceMixin
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/mixin/PonderUIAccessor.java,com.nododiiiii.ponderer.runtime.mixin.PonderUIAccessor
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/mixin/PonderUIMixin.java,com.nododiiiii.ponderer.runtime.mixin.PonderUIMixin
 java,Common,runtime,Common/src/main/java/com/nododiiiii/ponderer/runtime/mixin/RenderSystemShaderLightsAccessor.java,com.nododiiiii.ponderer.runtime.mixin.RenderSystemShaderLightsAccessor
@@ -639,6 +642,7 @@ mixin-client,Fabric,runtime,Fabric/src/main/resources/ponderer.runtime.mixins.js
 mixin-client,Fabric,runtime,Fabric/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.LerpedFloatInterpolationMixin
 mixin-client,Fabric,runtime,Fabric/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderKeybindsAccessor
 mixin-client,Fabric,runtime,Fabric/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderLevelMixin
+mixin-client,Fabric,runtime,Fabric/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderStructureSourceMixin
 mixin-client,Fabric,runtime,Fabric/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderPlaybackMixin
 mixin-client,Fabric,runtime,Fabric/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderProgressBarMixin
 mixin-client,Fabric,runtime,Fabric/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor
@@ -680,6 +684,7 @@ mixin-client,NeoForge,runtime,NeoForge/src/main/resources/ponderer.runtime.mixin
 mixin-client,NeoForge,runtime,NeoForge/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.LerpedFloatInterpolationMixin
 mixin-client,NeoForge,runtime,NeoForge/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderKeybindsAccessor
 mixin-client,NeoForge,runtime,NeoForge/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderLevelMixin
+mixin-client,NeoForge,runtime,NeoForge/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderStructureSourceMixin
 mixin-client,NeoForge,runtime,NeoForge/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderPlaybackMixin
 mixin-client,NeoForge,runtime,NeoForge/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderProgressBarMixin
 mixin-client,NeoForge,runtime,NeoForge/src/main/resources/ponderer.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor

@@ -172,9 +172,17 @@ public final class PondererClientCommands {
     }
 
     public static int reloadLocal() {
+        try { return reloadLocalOrThrow(); }
+        catch (RuntimeException failure) {
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reportFailure(failure);
+            return 0;
+        }
+    }
+
+    /** Other use cases must observe refresh failure before reporting their own success. */
+    public static int reloadLocalOrThrow() {
         com.nododiiiii.ponderer.workspace.api.WorkspaceResults.AutoLoadResult autoLoadResult = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().packs().autoLoadPonderPacks();
-        int count = com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+        int count = com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refresh();
         for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo info : autoLoadResult.updatedPacks) {
             notifyClient(Component.literal("[Ponderer] ")
                 .append(Component.translatable("ponderer.pack.update.readonly_newer_source",
@@ -755,8 +763,7 @@ public final class PondererClientCommands {
         copy.itemNbtFilters = null;
 
         if (com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().saveSceneToLocal(copy)) {
-            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-            Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+            if (com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refreshAndReport() < 0) return 0;
             notifyClient(
                     Component.translatable("ponderer.cmd.copy.done", original.id, newId, targetItem.toString()));
             return 1;
@@ -779,8 +786,7 @@ public final class PondererClientCommands {
         }
 
         if (com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().deleteSceneLocal(id)) {
-            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-            Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+            if (com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refreshAndReport() < 0) return 0;
             notifyClient(Component.translatable("ponderer.cmd.delete.done", id), FeedbackLevel.SUCCESS);
             return 1;
         } else {
@@ -801,8 +807,7 @@ public final class PondererClientCommands {
         }
 
         if (com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().deleteSceneByKey(sceneKey)) {
-            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-            Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+            if (com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refreshAndReport() < 0) return 0;
             notifyClient(Component.translatable("ponderer.cmd.delete.done", sceneKey), FeedbackLevel.SUCCESS);
             return 1;
         } else {
@@ -826,8 +831,7 @@ public final class PondererClientCommands {
                 count++;
             }
         }
-        com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+        if (com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refreshAndReport() < 0) return 0;
         notifyClient(Component.translatable("ponderer.cmd.delete.item_done", count, itemStr), FeedbackLevel.SUCCESS);
         return count;
     }
@@ -898,8 +902,7 @@ public final class PondererClientCommands {
         com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().packState().removeImportedPack(packName);
 
         com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().packs().autoLoadPonderPacks();
-        com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+        if (com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refreshAndReport() < 0) return 0;
 
         notifyClient(Component.translatable("ponderer.pack.unregister.done", packName), FeedbackLevel.SUCCESS);
         return 1;

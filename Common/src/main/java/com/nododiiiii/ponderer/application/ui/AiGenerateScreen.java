@@ -817,6 +817,18 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         } catch (RuntimeException error) { cachedGenerating = false; cachedCancelling = false; setCachedStatus(error.getMessage(), true); }
     }
 
+    /** Release UI ownership when the authoring scope closes; persisted run status stays authoritative. */
+    public static void resetGenerationScope() {
+        boolean hadTask = cachedGenerating || cachedGenerationTask != null;
+        cachedGenerationTask = null;
+        cachedGenerating = false;
+        cachedCancelling = false;
+        if (hadTask) {
+            outputState.status(UIText.of("ponderer.ui.ai_generate.status.scope_closed"), false, true);
+            refreshCurrentScreen();
+        }
+    }
+
     private boolean beginGeneration(AiSceneAgentPipeline.Request request, @Nullable AiRunFiles recovery) {
         cachedGenerating = true;
         cachedCancelling = false;
@@ -827,50 +839,60 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
         refreshGenerationActionButton();
 
         AtomicReference<AiGenerationTask> taskRef = new AtomicReference<>();
-        AiGenerationTask task = AiSceneGenerator.startRequest(request, recovery,
-            filePath -> Minecraft.getInstance().execute(() -> {
-                if (!isCurrentTask(taskRef.get())) {
-                    return;
-                }
-                cachedGenerating = false;
-                cachedCancelling = false;
-                cachedGenerationTask = null;
-                rememberGeneratedScene(filePath);
-                outputState.status(UIText.of("ponderer.ui.ai_generate.status.success") + " " + UIText.of("ponderer.ui.ai_runs.review_hint"), false, true);
-                ClientFeedback.chat(Component.translatable("ponderer.ui.ai_generate.completed",
-                    Path.of(filePath).getFileName().toString()));
-                refreshCurrentScreen();
-            }),
-            error -> Minecraft.getInstance().execute(() -> {
-                if (!isCurrentTask(taskRef.get())) {
-                    return;
-                }
-                cachedGenerating = false;
-                cachedCancelling = false;
-                cachedGenerationTask = null;
-                outputState.status(error, true, true);
-                refreshCurrentScreen();
-            }),
-            () -> Minecraft.getInstance().execute(() -> {
-                if (!isCurrentTask(taskRef.get())) {
-                    return;
-                }
-                cachedGenerating = false;
-                cachedCancelling = false;
-                cachedGenerationTask = null;
-                outputState.status(UIText.of("ponderer.ui.ai_generate.status.cancelled"), false, true);
-                refreshCurrentScreen();
-            }),
-            statusMsg -> Minecraft.getInstance().execute(() -> {
-                if (!isCurrentTask(taskRef.get()) || cachedCancelling) {
-                    return;
-                }
-                outputState.status(statusMsg, false, true);
-            }),
-            update -> {
-                if (!isCurrentTask(taskRef.get()) || cachedCancelling) return;
-                outputState.output(update);
-            });
+        AiGenerationTask task;
+        try {
+            task = AiSceneGenerator.startRequest(request, recovery,
+                filePath -> Minecraft.getInstance().execute(() -> {
+                    if (!isCurrentTask(taskRef.get())) {
+                        return;
+                    }
+                    cachedGenerating = false;
+                    cachedCancelling = false;
+                    cachedGenerationTask = null;
+                    rememberGeneratedScene(filePath);
+                    outputState.status(UIText.of("ponderer.ui.ai_generate.status.success") + " " + UIText.of("ponderer.ui.ai_runs.review_hint"), false, true);
+                    ClientFeedback.chat(Component.translatable("ponderer.ui.ai_generate.completed",
+                        Path.of(filePath).getFileName().toString()));
+                    refreshCurrentScreen();
+                }),
+                error -> Minecraft.getInstance().execute(() -> {
+                    if (!isCurrentTask(taskRef.get())) {
+                        return;
+                    }
+                    cachedGenerating = false;
+                    cachedCancelling = false;
+                    cachedGenerationTask = null;
+                    outputState.status(error, true, true);
+                    refreshCurrentScreen();
+                }),
+                () -> Minecraft.getInstance().execute(() -> {
+                    if (!isCurrentTask(taskRef.get())) {
+                        return;
+                    }
+                    cachedGenerating = false;
+                    cachedCancelling = false;
+                    cachedGenerationTask = null;
+                    outputState.status(UIText.of("ponderer.ui.ai_generate.status.cancelled"), false, true);
+                    refreshCurrentScreen();
+                }),
+                statusMsg -> Minecraft.getInstance().execute(() -> {
+                    if (!isCurrentTask(taskRef.get()) || cachedCancelling) {
+                        return;
+                    }
+                    outputState.status(statusMsg, false, true);
+                }),
+                update -> {
+                    if (!isCurrentTask(taskRef.get()) || cachedCancelling) return;
+                    outputState.output(update);
+                });
+        } catch (RuntimeException error) {
+            cachedGenerating = false;
+            cachedCancelling = false;
+            cachedGenerationTask = null;
+            outputState.status(error.getMessage(), true, true);
+            refreshCurrentScreen();
+            return false;
+        }
         taskRef.set(task);
         cachedGenerationTask = task;
         refreshSteeringInput();

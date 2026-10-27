@@ -203,7 +203,7 @@ public final class IdentityRemapper {
         }
     }
 
-    static List<String> splitPath(String path) {
+    public static List<String> splitPath(String path) {
         List<String> segments = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         for (int i = 0; i < path.length(); i++) {

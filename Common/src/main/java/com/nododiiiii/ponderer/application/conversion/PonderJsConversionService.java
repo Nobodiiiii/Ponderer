@@ -91,8 +91,7 @@ public final class PonderJsConversionService {
             notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.scan_failed"), FeedbackLevel.ERROR);
             return 0;
         }
-        com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+        if (com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refreshAndReport() < 0) return 0;
         notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.from_done", count, id.toString()));
         return count;
     }
@@ -118,8 +117,7 @@ public final class PonderJsConversionService {
             notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.scan_failed"), FeedbackLevel.ERROR);
             return 0;
         }
-        com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+        if (com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refreshAndReport() < 0) return 0;
         notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.from_all_done", count));
         return count;
     }

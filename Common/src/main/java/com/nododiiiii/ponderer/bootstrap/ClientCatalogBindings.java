@@ -17,7 +17,8 @@ public final class ClientCatalogBindings {
     public static void install() {
         com.nododiiiii.ponderer.application.api.RuntimeAccess.install(ProductRuntime::engine);
         com.nododiiiii.ponderer.application.ai.AiSceneGenerator.startModule();
-        if (sync == null) sync = new com.nododiiiii.ponderer.sync.client.SyncClientModule();
+        if (sync == null) sync = new com.nododiiiii.ponderer.sync.client.SyncClientModule(
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator::refresh);
         if (sandbox == null) sandbox = com.nododiiiii.ponderer.runtime.interfaces.platform.InterfacePlatform.install(
             com.nododiiiii.ponderer.platform.PondererServices.load(com.nododiiiii.ponderer.runtime.interfaces.platform.InterfaceSandboxPlatform.class));
         if (menus == null) menus = com.nododiiiii.ponderer.runtime.interfaces.InterfaceExtensions.installMenus(
@@ -37,10 +38,15 @@ public final class ClientCatalogBindings {
             com.nododiiiii.ponderer.application.network.FeedbackResponseDispatch::handleResponse);
         com.nododiiiii.ponderer.features.blueprint.BlueprintHandler.installPrompt(() ->
             net.minecraft.client.Minecraft.getInstance().setScreen(new com.nododiiiii.ponderer.application.ui.BlueprintPromptScreen()));
-        if (projector == null) projector = new com.nododiiiii.ponderer.features.projector.client.ProjectorClientModule();
+        if (projector == null) projector = new com.nododiiiii.ponderer.features.projector.client.ProjectorClientModule(
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator::subscribe);
     }
 
-    public static void stopAi() { com.nododiiiii.ponderer.application.ai.AiSceneGenerator.stopModule(); }
+    public static void stopAi() {
+        com.nododiiiii.ponderer.support.lifecycle.Cleanup.all(
+            com.nododiiiii.ponderer.application.ai.AiSceneGenerator::stopModule,
+            com.nododiiiii.ponderer.application.ui.AiGenerateScreen::resetGenerationScope);
+    }
     public static void stopSync() {
         if (sync != null) { sync.close(); sync = null; }
     }
@@ -77,6 +83,7 @@ public final class ClientCatalogBindings {
     public static void resetWorld() {
         com.nododiiiii.ponderer.support.lifecycle.Cleanup.all(
             () -> com.nododiiiii.ponderer.application.ai.AiSceneGenerator.cancelAll(),
+            () -> com.nododiiiii.ponderer.application.ui.AiGenerateScreen.resetGenerationScope(),
             () -> com.nododiiiii.ponderer.sync.client.AutoRemoteSyncClient.resetConnection(),
             () -> com.nododiiiii.ponderer.feedback.ClientFeedback.resetConnection(),
             () -> com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost.closeAll("world changed"),

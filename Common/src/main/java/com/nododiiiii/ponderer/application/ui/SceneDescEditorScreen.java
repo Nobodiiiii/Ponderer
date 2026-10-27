@@ -181,21 +181,24 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
             }
         }
 
-        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.LocalSaveResult saveResult = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().saveSceneToLocalDetailed(candidate);
+        var outcome = new com.nododiiiii.ponderer.application.SceneApplicationService(
+            com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes()).save(candidate);
+        var saveResult = outcome.persistence();
         if (!saveResult.isSuccess()) {
             setErrorMessage(com.nododiiiii.ponderer.application.ui.WorkspaceMessages.saveError(saveResult));
             return false;
         }
 
         applySavedScene(candidate);
-        com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
-
         syncStateFromScene();
         markStateSaved();
         newSegment = false;
         rebuildListPreservingScroll();
-        setInfoMessage(UIText.of("ponderer.ui.scene_desc.saved"));
+        if (outcome.refreshFailure() != null) {
+            setErrorMessage(UIText.of("ponderer.ui.save_error.refresh_after_save", outcome.refreshFailure().getMessage()));
+        } else {
+            setInfoMessage(UIText.of("ponderer.ui.scene_desc.saved"));
+        }
         return true;
     }
 

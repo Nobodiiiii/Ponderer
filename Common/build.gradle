@@ -28,6 +28,8 @@ dependencies {
 
     testImplementation platform("org.junit:junit-bom:5.10.2")
     testImplementation "org.junit.jupiter:junit-jupiter"
+    // Existing timeline fixtures now install a runtime host instead of relying on a global product catalog.
+    testRuntimeOnly "net.createmod.ponder:Ponder-Common-${minecraft_version}:${ponder_version}"
 }
 
 java {

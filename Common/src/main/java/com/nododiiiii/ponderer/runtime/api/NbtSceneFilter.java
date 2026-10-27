@@ -37,38 +37,46 @@ public final class NbtSceneFilter {
     private record BindingFilter(ResourceLocation itemId, @Nullable CompoundTag nbt) {
     }
 
-    // A scene may have several alternative bindings, including overlapping item tags.
-    private static final Map<String, List<BindingFilter>> FILTERS = new ConcurrentHashMap<>();
+    private static final Set<Registration> REGISTRATIONS = ConcurrentHashMap.newKeySet();
 
-    // itemId -> set of scene IDs registered by our plugin (both filtered and unfiltered)
-    private static final Map<ResourceLocation, Set<String>> ALL_SCENES = new ConcurrentHashMap<>();
-
-    // ThreadLocal to pass the hovered ItemStack from PonderUI.of() into compile()
+    // Only the transient hovered stack is shared by the native PonderUI bridge.
     static final ThreadLocal<ItemStack> CURRENT_STACK = new ThreadLocal<>();
-
     private NbtSceneFilter() {}
 
-    // ---- Registration ----
-
-    /**
-     * Register a scene for an item. Called for ALL scenes (with or without NBT filter).
-     */
-    public static void registerScene(ResourceLocation itemId, String sceneId, @Nullable CompoundTag nbtFilter) {
-        ALL_SCENES.computeIfAbsent(itemId, k -> ConcurrentHashMap.newKeySet()).add(sceneId);
-        FILTERS.compute(sceneId, (key, existing) -> {
-            List<BindingFilter> filters = existing == null ? new ArrayList<>() : new ArrayList<>(existing);
-            BindingFilter binding = new BindingFilter(itemId, nbtFilter);
-            if (!filters.contains(binding)) filters.add(binding);
-            return List.copyOf(filters);
-        });
+    /** One runtime owns its bindings; re-registering or closing it never clears another runtime. */
+    public static final class Registration implements AutoCloseable {
+        private final Map<String, List<BindingFilter>> filters = new ConcurrentHashMap<>();
+        private final Map<ResourceLocation, Set<String>> scenes = new ConcurrentHashMap<>();
+        public Registration() { REGISTRATIONS.add(this); }
+        public void registerScene(ResourceLocation itemId, String sceneId, @Nullable CompoundTag nbtFilter) {
+            scenes.computeIfAbsent(itemId, ignored -> ConcurrentHashMap.newKeySet()).add(sceneId);
+            filters.compute(sceneId, (key, existing) -> {
+                List<BindingFilter> next = existing == null ? new ArrayList<>() : new ArrayList<>(existing);
+                BindingFilter binding = new BindingFilter(itemId, nbtFilter);
+                if (!next.contains(binding)) next.add(binding);
+                return List.copyOf(next);
+            });
+        }
+        public void clear() { filters.clear(); scenes.clear(); }
+        @Override public void close() { REGISTRATIONS.remove(this); clear(); }
     }
 
-    /**
-     * Clear all registrations (called on reload).
-     */
-    public static void clear() {
-        FILTERS.clear();
-        ALL_SCENES.clear();
+    private static Set<String> scenesFor(ResourceLocation item) {
+        Set<String> result = new java.util.HashSet<>();
+        for (Registration owner : REGISTRATIONS) result.addAll(owner.scenes.getOrDefault(item, Set.of()));
+        return result;
+    }
+    @Nullable
+    private static List<BindingFilter> bindingsFor(String id) {
+        List<BindingFilter> result = null;
+        for (Registration owner : REGISTRATIONS) {
+            List<BindingFilter> bindings = owner.filters.get(id);
+            if (bindings != null) {
+                if (result == null) result = new ArrayList<>();
+                result.addAll(bindings);
+            }
+        }
+        return result;
     }
 
     // ---- ThreadLocal stack for mixin ----
@@ -119,10 +127,10 @@ public final class NbtSceneFilter {
      * Check whether any registered filters exist for the given item.
      */
     public static boolean hasFilters(ResourceLocation itemId) {
-        Set<String> sceneIds = ALL_SCENES.get(itemId);
+        Set<String> sceneIds = scenesFor(itemId);
         if (sceneIds == null || sceneIds.isEmpty()) return false;
         for (String sid : sceneIds) {
-            List<BindingFilter> filters = FILTERS.get(sid);
+            List<BindingFilter> filters = bindingsFor(sid);
             if (filters != null && filters.stream().anyMatch(filter ->
                 filter.itemId().equals(itemId) && filter.nbt() != null)) return true;
         }
@@ -135,11 +143,11 @@ public final class NbtSceneFilter {
      * If filters exist, returns true if at least one scene has no filter OR matches.
      */
     public static boolean hasVisibleScenes(ItemStack stack, ResourceLocation itemId) {
-        Set<String> sceneIds = ALL_SCENES.get(itemId);
+        Set<String> sceneIds = scenesFor(itemId);
         if (sceneIds == null || sceneIds.isEmpty()) return true;
 
         for (String sid : sceneIds) {
-            if (matchesBindings(stack, FILTERS.get(sid))) return true;
+            if (matchesBindings(stack, bindingsFor(sid))) return true;
         }
         return false;
     }
@@ -150,14 +158,14 @@ public final class NbtSceneFilter {
      * If ALL scenes would be filtered out, returns the original list as fallback.
      */
     public static List<PonderScene> filter(ItemStack stack, List<PonderScene> scenes) {
-        if (FILTERS.isEmpty()) return scenes;
+        if (REGISTRATIONS.isEmpty()) return scenes;
 
         List<PonderScene> filtered = new ArrayList<>();
         boolean anyFiltered = false;
 
         for (PonderScene scene : scenes) {
             String sceneId = scene.getId().toString();
-            List<BindingFilter> filters = FILTERS.get(sceneId);
+            List<BindingFilter> filters = bindingsFor(sceneId);
             if (filters == null) {
                 filtered.add(scene);
             } else {

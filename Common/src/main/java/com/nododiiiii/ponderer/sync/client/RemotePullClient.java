@@ -114,7 +114,9 @@ public final class RemotePullClient {
         }
     }
 
-    public static int overwritePending(List<PendingRemoteUpdates.Update> updates) {
+    public record OverwriteResult(int applied, @Nullable RuntimeException refreshFailure) {}
+
+    public static OverwriteResult overwritePending(List<PendingRemoteUpdates.Update> updates) {
         PullSession session = new PullSession("force", "resolve");
         List<PendingRemoteUpdates.Update> pending = PendingRemoteUpdates.list();
         int selected = 0;
@@ -131,8 +133,8 @@ public final class RemotePullClient {
                     update.category(), ext, session);
             }
         }
-        finishSession(session);
-        return selected - session.skipped;
+        RuntimeException refreshFailure = finishSession(session);
+        return new OverwriteResult(selected - session.skipped, refreshFailure);
     }
 
     private static void persistSessionMetadata(PullSession session) {
@@ -146,12 +148,14 @@ public final class RemotePullClient {
         }
     }
 
-    private static void finishSession(PullSession session) {
+    @Nullable
+    private static RuntimeException finishSession(PullSession session) {
         persistSessionMetadata(session);
 
-        if (session.written > 0 || session.deleted > 0) {
-            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-            Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+        RuntimeException refreshFailure = session.written > 0 || session.deleted > 0
+            ? SyncClientEvents.workspaceChanged() : null;
+        if (refreshFailure != null) {
+            LOGGER.error("Remote updates saved, but Ponder refresh failed; /ponderer reload can retry", refreshFailure);
         }
         SyncClientEvents.updatesChanged();
 
@@ -159,9 +163,14 @@ public final class RemotePullClient {
             || session.conflicts > 0) {
             String key = session.automatic() ? "ponderer.cmd.pull.auto_done" : "ponderer.cmd.pull.done";
             Component summary = Component.translatable(key, session.written + session.deleted, session.skipped, session.conflicts);
+            if (refreshFailure != null) {
+                summary = summary.copy().append("\n").append(Component.translatable(
+                    "ponderer.ui.save_error.refresh_after_save", refreshFailure.getMessage()));
+            }
             if (session.automatic()) ClientFeedback.chat(summary);
             else ClientFeedback.result(summary,
-                session.skipped > 0 || session.conflicts > 0 ? FeedbackLevel.WARNING : FeedbackLevel.SUCCESS);
+                refreshFailure != null ? FeedbackLevel.ERROR
+                    : session.skipped > 0 || session.conflicts > 0 ? FeedbackLevel.WARNING : FeedbackLevel.SUCCESS);
         }
         if (!session.automatic() && session.conflicts > 0 && "check".equals(session.pullMode)) {
             notifyClient(Component.translatable("ponderer.cmd.pull.hint_force"));
@@ -170,6 +179,7 @@ public final class RemotePullClient {
         if (session.conflicts > 0 && !session.automatic()) {
             notifyClient(Component.translatable("ponderer.cmd.pull.hint_remote_manager"));
         }
+        return refreshFailure;
     }
 
     private static void applyDeletes(List<DeleteEntry> entries, String category, String ext, PullSession session) {

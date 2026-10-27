@@ -1,5 +1,6 @@
 {
-  "ponderer.ui.save_error.refresh_after_save": "已保存到磁盘，但场景目录刷新失败：%s",
+  "ponderer.refresh.failed": "思索刷新失败：%s。可使用 /ponderer reload 重试。",
+  "ponderer.ui.save_error.refresh_after_save": "已保存到磁盘，但思索刷新失败：%s。可使用 /ponderer reload 重试。",
   "ponderer.ui.field.item.hint": "minecraft:iron_ingot",
   "ponderer.ui.field.block.hint": "minecraft:stone",
   "ponderer.ui.field.entity.hint": "minecraft:zombie",
@@ -1346,6 +1347,7 @@
   "ponderer.ui.ai_generate.status.fix": "正在修正场景草稿...",
   "ponderer.ui.ai_generate.status.cancelling": "正在终止生成...",
   "ponderer.ui.ai_generate.status.cancelled": "生成已终止。",
+  "ponderer.ui.ai_generate.status.scope_closed": "世界或 AI 会话已变化。草稿已保留，请在运行历史中查看最终结果。",
   "ponderer.ui.ai_generate.stop": "终止生成",
   "ponderer.ui.ai_generate.stop.tooltip": "取消当前 AI 生成，不保存未完成的场景。",
   "ponderer.ui.ai_generate.add.tooltip": "从文件选择 NBT 结构",

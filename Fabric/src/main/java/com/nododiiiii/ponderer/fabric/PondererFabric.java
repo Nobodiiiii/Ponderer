@@ -26,6 +26,7 @@ public class PondererFabric implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        com.nododiiiii.ponderer.bootstrap.ProductFeedbackProtocol.install();
         com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.install(com.nododiiiii.ponderer.bootstrap.Workspaces::files);
         com.nododiiiii.ponderer.features.projector.ProjectorPlatforms.install((com.nododiiiii.ponderer.features.projector.spi.ProjectorPlatform) PondererServices.PLATFORM);
         // Trigger static init of ModItems (registration via Fabric Registry)

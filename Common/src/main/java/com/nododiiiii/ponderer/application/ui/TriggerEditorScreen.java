@@ -462,7 +462,9 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             candidate.triggerCoord2 = null;
         }
 
-        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.LocalSaveResult saveResult = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().saveSceneToLocalDetailed(candidate);
+        var outcome = new com.nododiiiii.ponderer.application.SceneApplicationService(
+            com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes()).save(candidate);
+        var saveResult = outcome.persistence();
         if (!saveResult.isSuccess()) {
             setErrorMessage(com.nododiiiii.ponderer.application.ui.WorkspaceMessages.saveError(saveResult));
             return false;
@@ -485,8 +487,9 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         scene.triggerCoord1 = candidate.triggerCoord1;
         scene.triggerCoord2 = candidate.triggerCoord2;
 
-        com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+        if (outcome.refreshFailure() != null) {
+            setErrorMessage(UIText.of("ponderer.ui.save_error.refresh_after_save", outcome.refreshFailure().getMessage()));
+        }
         return true;
     }
 

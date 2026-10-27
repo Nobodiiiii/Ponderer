@@ -60,8 +60,14 @@ public class ReadonlyPackImportPromptScreen {
         }
 
         com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().packs().autoLoadPonderPacks();
-        com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
+        try {
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refresh();
+        } catch (RuntimeException failure) {
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reportFailure(failure);
+            dialog.closeToSource();
+            notifyUser(Component.translatable("ponderer.refresh.failed", failure.getMessage()));
+            return;
+        }
 
         DslScene importedScene = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findByKey(sceneKey);
         if (importedScene == null) {

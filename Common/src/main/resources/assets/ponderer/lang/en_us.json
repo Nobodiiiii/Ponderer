@@ -1,5 +1,6 @@
 {
-  "ponderer.ui.save_error.refresh_after_save": "Saved to disk, but the scene catalog could not refresh: %s",
+  "ponderer.refresh.failed": "Unable to refresh Ponder scenes: %s. Use /ponderer reload to retry.",
+  "ponderer.ui.save_error.refresh_after_save": "Saved to disk, but Ponder scenes could not refresh: %s. Use /ponderer reload to retry.",
   "ponderer.ui.field.item.hint": "minecraft:iron_ingot",
   "ponderer.ui.field.block.hint": "minecraft:stone",
   "ponderer.ui.field.entity.hint": "minecraft:zombie",
@@ -1363,6 +1364,7 @@
   "ponderer.ui.ai_generate.status.fix": "Fixing the scene draft...",
   "ponderer.ui.ai_generate.status.cancelling": "Stopping generation...",
   "ponderer.ui.ai_generate.status.cancelled": "Generation stopped.",
+  "ponderer.ui.ai_generate.status.scope_closed": "The world or AI session changed. Check run history for the final result; drafts are retained.",
   "ponderer.ui.ai_generate.stop": "Stop generation",
   "ponderer.ui.ai_generate.stop.tooltip": "Cancel the active AI generation without saving a partial scene.",
   "ponderer.ui.ai_generate.add.tooltip": "Select an NBT structure file",

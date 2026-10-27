@@ -177,10 +177,14 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
         }
 
         com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().packs().autoLoadPonderPacks();
-        com.nododiiiii.ponderer.application.SceneRefreshCoordinator.loadCatalog();
-        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
         ImportPackScreen next = new ImportPackScreen();
-        next.setInfoMessage(UIText.of(result.uiMessageKey(), result.uiMessageArgs()));
+        try {
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refresh();
+            next.setInfoMessage(UIText.of(result.uiMessageKey(), result.uiMessageArgs()));
+        } catch (RuntimeException failure) {
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reportFailure(failure);
+            next.setErrorMessage(UIText.of("ponderer.refresh.failed", failure.getMessage()));
+        }
         Minecraft.getInstance().setScreen(next);
     }
 

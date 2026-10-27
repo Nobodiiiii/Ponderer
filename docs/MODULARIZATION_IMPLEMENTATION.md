@@ -83,3 +83,17 @@
 最终日志：`build/modularization-verification/build-3.log`、`build/modularization-verification/smoke-2.log`；运行日志位于项目本地 `.minecraft/versions/1.21.1-{Fabric,NeoForge}/logs/latest.log`。
 
 检查边界：两端均提示 `world capture fixture unavailable; skipped`。自检的空 ID 场景在预览编译中记录空指针日志；已核对重构前相同的空场景夹具和 `ResourceLocation.tryParse(scene.id)` 路径，未在本轮扩展修改该逻辑。NeoForge 本地模组环境另有 Curios 的 scroll/spellbook 槽位未注册日志。smoke PASS 不代表这些日志消失，也不覆盖完整人工功能验收、独立运行宿主或专用服务器；本轮未运行 Common JUnit。
+
+## 审计后修复（2026-10-27）
+
+用户要求修复阶段 1–6 审计发现，禁止新增测试，功能开关允许下次启动生效。本轮已修复 F1–F6：恢复包迁移后的访问与既有夹具装配；保存结果覆盖真实索引刷新并提供恢复/重试；普通播放贯穿宿主结构来源；NBT 过滤由运行实例独占；AI 提交与取消/作用域关闭确定先后；反馈协议表和刷新依赖由产品装配连接。JSON、工作区路径、配置与游戏注册 ID、34 个 payload codec 和 24 个 envelope 序号保持不变。
+
+验证：两端 build、既有 Common JUnit（61 项中 60 通过、1 个真实 LLM 用例按原条件跳过）、双端界面 smoke、NeoForge 现有场景普通 Ponder 播放 smoke 均通过。新增运行 Mixin 的 Fabric 映射与两端最终 JAR 配置已核对。没有新增测试文件、用例、断言、脚本或 smoke 夹具；只为原投影时间线测试调整显式运行宿主装配及测试运行依赖。
+
+现有成功保存、编辑返回/定位、同步冲突策略、AI 保存/复查流程保留；刷新失败现在明确报告，已写盘结果不冒充磁盘保存失败，AI 已完成提交也不再改标取消。具体调用链、验证命令和未实测范围见 [审计修复记录](MODULARIZATION_AUDIT.md#修复状态2026-10-27)。本轮仍不实施阶段 7。
+
+## 功能链路复审后的补充修复（2026-10-27）
+
+复审发现的 R1/R2 已完成源码修复：世界切换/停用 AI 在关闭任务作用域后显式释放生成界面的任务状态；同步覆盖返回磁盘写入数量与发布异常，最终提示保留刷新失败和重试路径。生成请求被同步拒绝时也会恢复界面可操作状态。原有草稿、运行历史、协议、冲突和保存算法保留，没有新增测试。
+
+两端 build 和 Common 既有测试通过（60 通过、1 跳过）。最新 smoke、打包检查和仍未实测的场景见 [复审修复记录](MODULARIZATION_REAUDIT.md#r1r2-修复状态2026-10-27)。此处源码修复不等于阶段 6 的独立宿主、多人或专用服务器已完成运行验收。

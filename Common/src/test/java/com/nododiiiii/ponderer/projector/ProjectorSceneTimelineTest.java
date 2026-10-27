@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.features.projector;
 
 import com.nododiiiii.ponderer.scene.DslScene;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -12,9 +13,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProjectorSceneTimelineTest {
 
+    private com.nododiiiii.ponderer.runtime.api.RuntimeEngine engine;
+
+    @BeforeEach
+    void installRuntime() {
+        engine = new com.nododiiiii.ponderer.runtime.core.PonderRuntimeEngine("ponderer",
+            new com.nododiiiii.ponderer.runtime.spi.StructureSource() {
+                @Override public net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate loadSchematic(
+                        net.minecraft.resources.ResourceLocation id) { throw new UnsupportedOperationException("Timeline only"); }
+                @Override public java.io.InputStream open(String path, String pack) { return null; }
+            }, com.nododiiiii.ponderer.runtime.spi.IngredientResolver.NONE,
+            com.nododiiiii.ponderer.runtime.spi.RegistrationContribution.NONE, () -> true);
+        com.nododiiiii.ponderer.application.api.RuntimeAccess.install(() -> engine);
+    }
+
     @AfterEach
     void resetScenes() {
-        com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().setScenes(List.of());
+        engine.close();
     }
 
     @Test
