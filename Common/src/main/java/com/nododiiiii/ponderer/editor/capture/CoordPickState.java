@@ -3,7 +3,7 @@ package com.nododiiiii.ponderer.editor.capture;
 import com.nododiiiii.ponderer.editor.screen.SnapshotReturnContext;
 import com.nododiiiii.ponderer.editor.screen.TriggerEditorScreen;
 import com.nododiiiii.ponderer.feedback.WorldFeedback;
-import com.nododiiiii.ponderer.blueprint.RaycastHelper;
+import com.nododiiiii.ponderer.features.blueprint.RaycastHelper;
 import net.createmod.catnip.outliner.Outliner;
 import net.createmod.ponder.enums.PonderSpecialTextures;
 import net.minecraft.client.Minecraft;

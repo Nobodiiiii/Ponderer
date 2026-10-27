@@ -1,9 +1,6 @@
 package com.nododiiiii.ponderer.feedback;
 
-import com.nododiiiii.ponderer.editor.capture.InterfaceCapture;
 import com.nododiiiii.ponderer.runtime.mixin.GuiFeedbackAccessor;
-import com.nododiiiii.ponderer.editor.capture.CoordPickState;
-import com.nododiiiii.ponderer.editor.capture.NbtPickState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -37,15 +34,13 @@ public final class WorldFeedback {
         Minecraft.getInstance().gui.setTimes(0, 20, 10);
     }
 
-    public static void tick() {
+    public static void beginTick() {
         Minecraft mc = Minecraft.getInstance();
         ClientFeedback.tick();
         if (world != mc.level) {
             hints.clear();
             release(mc);
             world = mc.level;
-            NbtPickState.reset();
-            CoordPickState.reset();
         }
         ticks++;
         hints.values().removeIf(hint -> hint.until() <= ticks);
@@ -54,14 +49,11 @@ public final class WorldFeedback {
             release(mc);
             return;
         }
-        if (NbtPickState.isActive()) {
-            hint("nbt", Component.translatable(NbtPickState.isAwaitingServer()
-                ? "ponderer.ui.nbt_pick.waiting" : "ponderer.ui.nbt_pick.middle_prompt"), 60, 2);
-        } else clear("nbt");
-        if (CoordPickState.isActive()) CoordPickState.onClientTick();
-        else clear("coordinates");
-        if (InterfaceCapture.isObserving()) hint("capture", Component.translatable("ponderer.interface.capture.start"), 60, 2);
-        else clear("capture");
+    }
+
+    public static void tick() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.screen != null) return;
         Hint selected = null;
         for (Hint hint : hints.values()) {
             if (selected == null || hint.priority() > selected.priority()) selected = hint;

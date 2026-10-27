@@ -1,7 +1,6 @@
 package com.nododiiiii.ponderer.feedback;
 
 import com.nododiiiii.ponderer.Config;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;

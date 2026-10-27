@@ -1,10 +1,10 @@
 package com.nododiiiii.ponderer.editor.screen;
 
-import com.nododiiiii.ponderer.network.PermissionListRequestPayload;
-import com.nododiiiii.ponderer.network.PermissionListResponsePayload;
-import com.nododiiiii.ponderer.network.PermissionUpdateRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.PermissionListRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.PermissionListResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.PermissionUpdateRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ponder.UploadPermissions;
+import com.nododiiiii.ponderer.sync.server.UploadPermissions;
 import com.nododiiiii.ponderer.editor.screen.widgets.ActionStripListEntry;
 import com.nododiiiii.ponderer.editor.screen.widgets.CollapsibleSectionHeaderListEntry;
 import com.nododiiiii.ponderer.editor.screen.widgets.DeclarativeFormEntry;

@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.editor.mixin;
 
-import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
+import com.nododiiiii.ponderer.features.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.editor.capture.PickState;
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;

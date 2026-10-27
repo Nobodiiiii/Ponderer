@@ -27,12 +27,7 @@ public final class ProductRuntime {
                 var file = Workspaces.files().layout().resolveStructurePath(path, pack);
                 return file == null || !Files.exists(file) ? null : Files.newInputStream(file);
             }
-        }, new IngredientResolver() {
-            @Override public boolean isAvailable() { return JeiCompat.isAvailable(); }
-            @Override public ScreenElement fluid(Fluid fluid, int amount) { return JeiCompat.createFluidIngredientElement(fluid, amount); }
-            @Override public ScreenElement resolve(String id) { return JeiCompat.resolveIngredientById(id); }
-            @Override public ScreenElement resolve(String id, String kind) { return JeiCompat.resolveIngredientById(id, kind); }
-        }, new ProductRegistration(), () -> Config.DEFAULT_EDITABLE.get());
+        }, new com.nododiiiii.ponderer.compat.jei.RuntimeJeiIngredients(), new ProductRegistration(), () -> Config.DEFAULT_EDITABLE.get());
     }
     public static RuntimeEngine engine() { return Holder.ENGINE; }
 }

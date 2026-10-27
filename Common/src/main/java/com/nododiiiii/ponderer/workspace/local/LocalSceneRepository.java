@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.workspace.local;
 
-import com.nododiiiii.ponderer.ponder.SyncMeta;
 import com.nododiiiii.ponderer.scene.SceneCodec;
 import com.nododiiiii.ponderer.scene.SceneNormalizer;
 import com.nododiiiii.ponderer.scene.DslScene;
@@ -242,7 +241,7 @@ public final class LocalSceneRepository implements SceneRepository {
         }
         try {
             Files.deleteIfExists(existing);
-            SyncMeta.recordLocalSceneDeletion(sceneId, existing);
+            workspace.sceneDeleted.accept(sceneId, existing);
             LOGGER.info("Deleted scene file: {}", existing);
             return true;
         } catch (IOException e) {
@@ -306,7 +305,7 @@ public final class LocalSceneRepository implements SceneRepository {
             Files.deleteIfExists(existing);
             String packPrefix = DslScene.extractPackPrefix(sceneKey);
             String sceneId = packPrefix == null ? sceneKey : sceneKey.substring(packPrefix.length()).trim();
-            SyncMeta.recordLocalSceneDeletion(sceneId, existing);
+            workspace.sceneDeleted.accept(sceneId, existing);
             LOGGER.info("Deleted scene file: {}", existing);
             return true;
         } catch (IOException e) {

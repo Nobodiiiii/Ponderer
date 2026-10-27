@@ -7,7 +7,6 @@ import com.nododiiiii.ponderer.ai.AiRunFiles;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
-import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.editor.screen.widgets.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.editor.screen.widgets.ActionStripListEntry;
 import com.nododiiiii.ponderer.editor.screen.widgets.EntryTextSupport;

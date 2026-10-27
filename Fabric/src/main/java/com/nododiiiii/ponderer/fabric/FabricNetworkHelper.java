@@ -1,8 +1,74 @@
 package com.nododiiiii.ponderer.fabric;
 
+import com.nododiiiii.ponderer.application.protocol.FeatureAvailabilityPayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackMessagePayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackRequestPayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackResponsePayload;
+import com.nododiiiii.ponderer.editor.capture.protocol.CaptureBlockEntityNbtRequestPayload;
+import com.nododiiiii.ponderer.editor.capture.protocol.CaptureBlockEntityNbtResponsePayload;
+import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigRequestPayload;
+import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigResponsePayload;
+import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigUpdatePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorConfigUpdatePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigRequestPayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigResponsePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigUpdatePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorPlaybackStartPayload;
+import com.nododiiiii.ponderer.sync.protocol.AutoSyncPreferencePayload;
+import com.nododiiiii.ponderer.sync.protocol.DownloadStructurePayload;
+import com.nododiiiii.ponderer.sync.protocol.DownloadStructureResultPayload;
+import com.nododiiiii.ponderer.sync.protocol.PermissionListRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.PermissionListResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.PermissionUpdateRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteActionResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteCatalogRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteCatalogResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteDeleteRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteHistoryRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteHistoryResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemotePullRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteRollbackRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.StructurePreviewRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.StructurePreviewResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.SyncRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.SyncResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.UploadResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.UploadScenePayload;
+import com.nododiiiii.ponderer.sync.network.UploadSceneHandler;
+import com.nododiiiii.ponderer.sync.network.UploadResponseHandler;
+import com.nododiiiii.ponderer.sync.client.RemotePullClient;
+import com.nododiiiii.ponderer.sync.network.SyncRequestHandler;
+import com.nododiiiii.ponderer.sync.network.StructurePreviewResponseHandler;
+import com.nododiiiii.ponderer.sync.network.StructurePreviewRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteRollbackRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemotePullRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteHistoryResponseHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteHistoryRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteDeleteRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteCatalogResponseHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteCatalogRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteActionResponseHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorPlaybackStartHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigUpdateHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigResponseHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigRequestHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorConfigUpdateHandler;
+import com.nododiiiii.ponderer.sync.network.PermissionUpdateRequestHandler;
+import com.nododiiiii.ponderer.sync.network.PermissionListResponseHandler;
+import com.nododiiiii.ponderer.sync.network.PermissionListRequestHandler;
+import com.nododiiiii.ponderer.application.network.FeedbackRequestHandler;
+import com.nododiiiii.ponderer.application.network.FeedbackMessageHandler;
+import com.nododiiiii.ponderer.application.network.FeatureAvailabilityHandler;
+import com.nododiiiii.ponderer.sync.network.DownloadStructureResultHandler;
+import com.nododiiiii.ponderer.sync.network.DownloadStructureHandler;
+import com.nododiiiii.ponderer.editor.capture.network.CaptureBlockEntityNbtResponseHandler;
+import com.nododiiiii.ponderer.editor.capture.network.CaptureBlockEntityNbtRequestHandler;
+import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigUpdateHandler;
+import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigResponseHandler;
+import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigRequestHandler;
+import com.nododiiiii.ponderer.sync.network.AutoSyncPreferenceHandler;
 import com.nododiiiii.ponderer.feedback.ServerFeedback;
 import com.nododiiiii.ponderer.feedback.ClientFeedback;
-import com.nododiiiii.ponderer.network.*;
 import com.nododiiiii.ponderer.platform.services.NetworkHelper;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -64,78 +130,78 @@ public class FabricNetworkHelper implements NetworkHelper {
 
     private void registerServerHandlers() {
         ServerPlayNetworking.registerGlobalReceiver(FeedbackRequestPayload.TYPE, (payload, context) ->
-            context.server().execute(() -> FeedbackRequestPayload.handle(payload, context.player())));
+            context.server().execute(() -> FeedbackRequestHandler.handle(payload, context.player())));
         ServerPlayNetworking.registerGlobalReceiver(StructurePreviewRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            player.server.execute(() -> StructurePreviewRequestPayload.handle(payload, player));
+            player.server.execute(() -> StructurePreviewRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(UploadScenePayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> UploadScenePayload.handle(payload, player));
+            context.player().server.execute(() -> UploadSceneHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(SyncRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> SyncRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> SyncRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(AutoSyncPreferencePayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            player.server.execute(() -> AutoSyncPreferencePayload.handle(payload, player));
+            player.server.execute(() -> AutoSyncPreferenceHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(DownloadStructurePayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> DownloadStructurePayload.handle(payload, player));
+            context.player().server.execute(() -> DownloadStructureHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(CaptureBlockEntityNbtRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> CaptureBlockEntityNbtRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> CaptureBlockEntityNbtRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(PermissionListRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> PermissionListRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> PermissionListRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(PermissionUpdateRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> PermissionUpdateRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> PermissionUpdateRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(BlueprintConfigRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> BlueprintConfigRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> BlueprintConfigRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(BlueprintConfigUpdatePayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> BlueprintConfigUpdatePayload.handle(payload, player));
+            context.player().server.execute(() -> BlueprintConfigUpdateHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(ProjectorConfigUpdatePayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> ProjectorConfigUpdatePayload.handle(payload, player));
+            context.player().server.execute(() -> ProjectorConfigUpdateHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(ProjectorFeatureConfigRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> ProjectorFeatureConfigRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> ProjectorFeatureConfigRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(ProjectorFeatureConfigUpdatePayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> ProjectorFeatureConfigUpdatePayload.handle(payload, player));
+            context.player().server.execute(() -> ProjectorFeatureConfigUpdateHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(RemoteCatalogRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> RemoteCatalogRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> RemoteCatalogRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(RemotePullRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> RemotePullRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> RemotePullRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(RemoteDeleteRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> RemoteDeleteRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> RemoteDeleteRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(RemoteHistoryRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> RemoteHistoryRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> RemoteHistoryRequestHandler.handle(payload, player));
         });
         ServerPlayNetworking.registerGlobalReceiver(RemoteRollbackRequestPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();
-            context.player().server.execute(() -> RemoteRollbackRequestPayload.handle(payload, player));
+            context.player().server.execute(() -> RemoteRollbackRequestHandler.handle(payload, player));
         });
     }
 
@@ -144,45 +210,45 @@ public class FabricNetworkHelper implements NetworkHelper {
         ClientPlayNetworking.registerGlobalReceiver(FeedbackResponsePayload.TYPE, (payload, context) ->
             context.client().execute(() -> ClientFeedback.receive(payload)));
         ClientPlayNetworking.registerGlobalReceiver(FeedbackMessagePayload.TYPE, (payload, context) ->
-            context.client().execute(() -> FeedbackMessagePayload.handle(payload)));
+            context.client().execute(() -> FeedbackMessageHandler.handle(payload)));
         ClientPlayNetworking.registerGlobalReceiver(StructurePreviewResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> StructurePreviewResponsePayload.handle(payload));
+            context.client().execute(() -> StructurePreviewResponseHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(SyncResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> SyncResponsePayload.handle(payload));
+            context.client().execute(() -> RemotePullClient.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(DownloadStructureResultPayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> DownloadStructureResultPayload.handle(payload));
+            context.client().execute(() -> DownloadStructureResultHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(UploadResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> UploadResponsePayload.handle(payload));
+            context.client().execute(() -> UploadResponseHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(CaptureBlockEntityNbtResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> CaptureBlockEntityNbtResponsePayload.handle(payload));
+            context.client().execute(() -> CaptureBlockEntityNbtResponseHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(PermissionListResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> PermissionListResponsePayload.handle(payload));
+            context.client().execute(() -> PermissionListResponseHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(BlueprintConfigResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> BlueprintConfigResponsePayload.handle(payload));
+            context.client().execute(() -> BlueprintConfigResponseHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(ProjectorFeatureConfigResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> ProjectorFeatureConfigResponsePayload.handle(payload));
+            context.client().execute(() -> ProjectorFeatureConfigResponseHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(ProjectorPlaybackStartPayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> ProjectorPlaybackStartPayload.handle(payload));
+            context.client().execute(() -> ProjectorPlaybackStartHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(FeatureAvailabilityPayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> FeatureAvailabilityPayload.handle(payload));
+            context.client().execute(() -> FeatureAvailabilityHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(RemoteCatalogResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> RemoteCatalogResponsePayload.handle(payload));
+            context.client().execute(() -> RemoteCatalogResponseHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(RemoteActionResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> RemoteActionResponsePayload.handle(payload));
+            context.client().execute(() -> RemoteActionResponseHandler.handle(payload));
         });
         ClientPlayNetworking.registerGlobalReceiver(RemoteHistoryResponsePayload.TYPE, (payload, context) -> {
-            context.client().execute(() -> RemoteHistoryResponsePayload.handle(payload));
+            context.client().execute(() -> RemoteHistoryResponseHandler.handle(payload));
         });
     }
 

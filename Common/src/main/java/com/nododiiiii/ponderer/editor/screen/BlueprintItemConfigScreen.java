@@ -1,9 +1,9 @@
 package com.nododiiiii.ponderer.editor.screen;
 
 import com.nododiiiii.ponderer.Config;
-import com.nododiiiii.ponderer.network.BlueprintConfigRequestPayload;
-import com.nododiiiii.ponderer.network.BlueprintConfigResponsePayload;
-import com.nododiiiii.ponderer.network.BlueprintConfigUpdatePayload;
+import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigRequestPayload;
+import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigResponsePayload;
+import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigUpdatePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.editor.screen.widgets.DeclarativeFormEntry;
 import net.minecraft.client.gui.screens.Screen;

@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.application;
 
-import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import net.createmod.ponder.foundation.PonderIndex;
 import java.util.concurrent.CopyOnWriteArrayList;

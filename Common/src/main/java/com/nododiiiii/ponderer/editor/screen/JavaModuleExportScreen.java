@@ -1,9 +1,8 @@
 package com.nododiiiii.ponderer.editor.screen;
 
-import com.nododiiiii.ponderer.ponder.JavaModuleExportRequest;
-import com.nododiiiii.ponderer.ponder.JavaModuleExportResult;
-import com.nododiiiii.ponderer.ponder.JavaModuleExportService;
-import com.nododiiiii.ponderer.ponder.JavaModuleScanResult;
+import com.nododiiiii.ponderer.exporter.JavaModuleExportRequest;
+import com.nododiiiii.ponderer.exporter.JavaModuleExportResult;
+import com.nododiiiii.ponderer.exporter.JavaModuleScanResult;
 import com.nododiiiii.ponderer.editor.screen.widgets.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.editor.screen.widgets.PondererGuiIcons;
 import net.minecraft.client.Minecraft;
@@ -76,8 +75,8 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
             return false;
         }
 
-        JavaModuleExportRequest request = new JavaModuleExportRequest(targetPath, selectedSceneKeys);
-        JavaModuleScanResult scanResult = JavaModuleExportService.scan(request);
+        JavaModuleExportRequest request = com.nododiiiii.ponderer.bootstrap.ProductExport.request(targetPath, selectedSceneKeys);
+        JavaModuleScanResult scanResult = com.nododiiiii.ponderer.bootstrap.ProductExport.service().scan(request);
         if (scanResult.hasFatalFindings()) {
             setErrorMessage(scanResult.fatalFindings.get(0).message);
             return false;
@@ -205,7 +204,7 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
     }
 
     private boolean runExport(JavaModuleExportRequest request, JavaModuleScanResult scanResult) {
-        JavaModuleExportResult exportResult = JavaModuleExportService.export(request, scanResult);
+        JavaModuleExportResult exportResult = com.nododiiiii.ponderer.bootstrap.ProductExport.service().export(request, scanResult);
         if (!exportResult.success) {
             setErrorMessage(exportResult.errorMessage == null
                 ? UIText.of("ponderer.ui.export_java.failed")

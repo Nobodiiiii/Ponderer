@@ -1,8 +1,74 @@
 package com.nododiiiii.ponderer.neoforge;
 
+import com.nododiiiii.ponderer.application.protocol.FeatureAvailabilityPayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackMessagePayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackRequestPayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackResponsePayload;
+import com.nododiiiii.ponderer.editor.capture.protocol.CaptureBlockEntityNbtRequestPayload;
+import com.nododiiiii.ponderer.editor.capture.protocol.CaptureBlockEntityNbtResponsePayload;
+import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigRequestPayload;
+import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigResponsePayload;
+import com.nododiiiii.ponderer.features.blueprint.protocol.BlueprintConfigUpdatePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorConfigUpdatePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigRequestPayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigResponsePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigUpdatePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorPlaybackStartPayload;
+import com.nododiiiii.ponderer.sync.protocol.AutoSyncPreferencePayload;
+import com.nododiiiii.ponderer.sync.protocol.DownloadStructurePayload;
+import com.nododiiiii.ponderer.sync.protocol.DownloadStructureResultPayload;
+import com.nododiiiii.ponderer.sync.protocol.PermissionListRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.PermissionListResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.PermissionUpdateRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteActionResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteCatalogRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteCatalogResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteDeleteRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteHistoryRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteHistoryResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemotePullRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteRollbackRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.StructurePreviewRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.StructurePreviewResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.SyncRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.SyncResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.UploadResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.UploadScenePayload;
+import com.nododiiiii.ponderer.sync.network.UploadSceneHandler;
+import com.nododiiiii.ponderer.sync.network.UploadResponseHandler;
+import com.nododiiiii.ponderer.sync.client.RemotePullClient;
+import com.nododiiiii.ponderer.sync.network.SyncRequestHandler;
+import com.nododiiiii.ponderer.sync.network.StructurePreviewResponseHandler;
+import com.nododiiiii.ponderer.sync.network.StructurePreviewRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteRollbackRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemotePullRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteHistoryResponseHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteHistoryRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteDeleteRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteCatalogResponseHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteCatalogRequestHandler;
+import com.nododiiiii.ponderer.sync.network.RemoteActionResponseHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorPlaybackStartHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigUpdateHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigResponseHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorFeatureConfigRequestHandler;
+import com.nododiiiii.ponderer.features.projector.network.ProjectorConfigUpdateHandler;
+import com.nododiiiii.ponderer.sync.network.PermissionUpdateRequestHandler;
+import com.nododiiiii.ponderer.sync.network.PermissionListResponseHandler;
+import com.nododiiiii.ponderer.sync.network.PermissionListRequestHandler;
+import com.nododiiiii.ponderer.application.network.FeedbackRequestHandler;
+import com.nododiiiii.ponderer.application.network.FeedbackMessageHandler;
+import com.nododiiiii.ponderer.application.network.FeatureAvailabilityHandler;
+import com.nododiiiii.ponderer.sync.network.DownloadStructureResultHandler;
+import com.nododiiiii.ponderer.sync.network.DownloadStructureHandler;
+import com.nododiiiii.ponderer.editor.capture.network.CaptureBlockEntityNbtResponseHandler;
+import com.nododiiiii.ponderer.editor.capture.network.CaptureBlockEntityNbtRequestHandler;
+import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigUpdateHandler;
+import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigResponseHandler;
+import com.nododiiiii.ponderer.features.blueprint.network.BlueprintConfigRequestHandler;
+import com.nododiiiii.ponderer.sync.network.AutoSyncPreferenceHandler;
 import com.nododiiiii.ponderer.feedback.ServerFeedback;
 import com.nododiiiii.ponderer.feedback.ClientFeedback;
-import com.nododiiiii.ponderer.network.*;
 import com.nododiiiii.ponderer.platform.services.NetworkHelper;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,104 +89,104 @@ public class NeoForgeNetworkHelper implements NetworkHelper {
     public void registerPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(VERSION);
         registrar.playToServer(FeedbackRequestPayload.TYPE, FeedbackRequestPayload.CODEC,
-            (payload, ctx) -> ctx.enqueueWork(() -> FeedbackRequestPayload.handle(payload, (ServerPlayer) ctx.player())));
+            (payload, ctx) -> ctx.enqueueWork(() -> FeedbackRequestHandler.handle(payload, (ServerPlayer) ctx.player())));
         registrar.playToClient(FeedbackResponsePayload.TYPE, FeedbackResponsePayload.CODEC,
             (payload, ctx) -> ctx.enqueueWork(() -> ClientFeedback.receive(payload)));
         registrar.playToClient(FeedbackMessagePayload.TYPE, FeedbackMessagePayload.CODEC,
-            (payload, ctx) -> ctx.enqueueWork(() -> FeedbackMessagePayload.handle(payload)));
+            (payload, ctx) -> ctx.enqueueWork(() -> FeedbackMessageHandler.handle(payload)));
         event.registrar(VERSION).optional().playToServer(AutoSyncPreferencePayload.TYPE, AutoSyncPreferencePayload.CODEC,
-            (payload, ctx) -> ctx.enqueueWork(() -> AutoSyncPreferencePayload.handle(payload, (ServerPlayer) ctx.player())));
+            (payload, ctx) -> ctx.enqueueWork(() -> AutoSyncPreferenceHandler.handle(payload, (ServerPlayer) ctx.player())));
 
         registrar.playToServer(UploadScenePayload.TYPE, UploadScenePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> UploadScenePayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> UploadSceneHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(SyncRequestPayload.TYPE, SyncRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> SyncRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> SyncRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(DownloadStructurePayload.TYPE, DownloadStructurePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> DownloadStructurePayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> DownloadStructureHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(StructurePreviewRequestPayload.TYPE, StructurePreviewRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> StructurePreviewRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> StructurePreviewRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(CaptureBlockEntityNbtRequestPayload.TYPE, CaptureBlockEntityNbtRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> CaptureBlockEntityNbtRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> CaptureBlockEntityNbtRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(PermissionListRequestPayload.TYPE, PermissionListRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> PermissionListRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> PermissionListRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(PermissionUpdateRequestPayload.TYPE, PermissionUpdateRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> PermissionUpdateRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> PermissionUpdateRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(BlueprintConfigRequestPayload.TYPE, BlueprintConfigRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> BlueprintConfigRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> BlueprintConfigRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(BlueprintConfigUpdatePayload.TYPE, BlueprintConfigUpdatePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> BlueprintConfigUpdatePayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> BlueprintConfigUpdateHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(ProjectorConfigUpdatePayload.TYPE, ProjectorConfigUpdatePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> ProjectorConfigUpdatePayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> ProjectorConfigUpdateHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(ProjectorFeatureConfigRequestPayload.TYPE, ProjectorFeatureConfigRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> ProjectorFeatureConfigRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> ProjectorFeatureConfigRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(ProjectorFeatureConfigUpdatePayload.TYPE, ProjectorFeatureConfigUpdatePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> ProjectorFeatureConfigUpdatePayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> ProjectorFeatureConfigUpdateHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(RemoteCatalogRequestPayload.TYPE, RemoteCatalogRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteCatalogRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> RemoteCatalogRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(RemotePullRequestPayload.TYPE, RemotePullRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemotePullRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> RemotePullRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(RemoteDeleteRequestPayload.TYPE, RemoteDeleteRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteDeleteRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> RemoteDeleteRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(RemoteHistoryRequestPayload.TYPE, RemoteHistoryRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteHistoryRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> RemoteHistoryRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
         registrar.playToServer(RemoteRollbackRequestPayload.TYPE, RemoteRollbackRequestPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteRollbackRequestPayload.handle(payload, (ServerPlayer) ctx.player()));
+            ctx.enqueueWork(() -> RemoteRollbackRequestHandler.handle(payload, (ServerPlayer) ctx.player()));
         });
 
         registrar.playToClient(SyncResponsePayload.TYPE, SyncResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> SyncResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> RemotePullClient.handle(payload));
         });
         registrar.playToClient(DownloadStructureResultPayload.TYPE, DownloadStructureResultPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> DownloadStructureResultPayload.handle(payload));
+            ctx.enqueueWork(() -> DownloadStructureResultHandler.handle(payload));
         });
         registrar.playToClient(StructurePreviewResponsePayload.TYPE, StructurePreviewResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> StructurePreviewResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> StructurePreviewResponseHandler.handle(payload));
         });
         registrar.playToClient(UploadResponsePayload.TYPE, UploadResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> UploadResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> UploadResponseHandler.handle(payload));
         });
         registrar.playToClient(CaptureBlockEntityNbtResponsePayload.TYPE, CaptureBlockEntityNbtResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> CaptureBlockEntityNbtResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> CaptureBlockEntityNbtResponseHandler.handle(payload));
         });
         registrar.playToClient(PermissionListResponsePayload.TYPE, PermissionListResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> PermissionListResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> PermissionListResponseHandler.handle(payload));
         });
         registrar.playToClient(BlueprintConfigResponsePayload.TYPE, BlueprintConfigResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> BlueprintConfigResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> BlueprintConfigResponseHandler.handle(payload));
         });
         registrar.playToClient(ProjectorFeatureConfigResponsePayload.TYPE, ProjectorFeatureConfigResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> ProjectorFeatureConfigResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> ProjectorFeatureConfigResponseHandler.handle(payload));
         });
         registrar.playToClient(ProjectorPlaybackStartPayload.TYPE, ProjectorPlaybackStartPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> ProjectorPlaybackStartPayload.handle(payload));
+            ctx.enqueueWork(() -> ProjectorPlaybackStartHandler.handle(payload));
         });
         registrar.playToClient(FeatureAvailabilityPayload.TYPE, FeatureAvailabilityPayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> FeatureAvailabilityPayload.handle(payload));
+            ctx.enqueueWork(() -> FeatureAvailabilityHandler.handle(payload));
         });
         registrar.playToClient(RemoteCatalogResponsePayload.TYPE, RemoteCatalogResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteCatalogResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> RemoteCatalogResponseHandler.handle(payload));
         });
         registrar.playToClient(RemoteActionResponsePayload.TYPE, RemoteActionResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteActionResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> RemoteActionResponseHandler.handle(payload));
         });
         registrar.playToClient(RemoteHistoryResponsePayload.TYPE, RemoteHistoryResponsePayload.CODEC, (payload, ctx) -> {
-            ctx.enqueueWork(() -> RemoteHistoryResponsePayload.handle(payload));
+            ctx.enqueueWork(() -> RemoteHistoryResponseHandler.handle(payload));
         });
     }
 

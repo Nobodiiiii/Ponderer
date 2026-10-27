@@ -1,5 +1,8 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.exporter;
 
+import com.nododiiiii.ponderer.exporter.JavaModuleExportRequest;
+import com.nododiiiii.ponderer.exporter.JavaModuleExportService;
+import com.nododiiiii.ponderer.exporter.JavaModuleScanResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -41,7 +44,7 @@ class JavaModuleExportServiceTest {
             }
             """);
 
-        JavaModuleScanResult scan = JavaModuleExportService.scan(
+        JavaModuleScanResult scan = new JavaModuleExportService((id, pack) -> null).scan(
             new JavaModuleExportRequest(targetRoot, Set.of()));
 
         assertFalse(scan.hasFatalFindings());
@@ -51,7 +54,7 @@ class JavaModuleExportServiceTest {
         assertEquals("com.example.examplemod", scan.targetProject.basePackage);
         assertEquals(metadata, scan.targetProject.metadataPath);
 
-        String clientSource = JavaModuleExportService.buildNeoForgeClientSource(scan.targetProject);
+        String clientSource = new JavaModuleExportService((id, pack) -> null).buildNeoForgeClientSource(scan.targetProject);
         assertTrue(clientSource.contains("import net.neoforged.fml.common.EventBusSubscriber;"));
         assertTrue(clientSource.contains("import net.neoforged.bus.api.SubscribeEvent;"));
         assertTrue(clientSource.contains("public final class GeneratedPonderNeoForgeClient"));
@@ -60,11 +63,11 @@ class JavaModuleExportServiceTest {
         assertTrue(clientSource.contains("PonderIndex.addPlugin(new GeneratedPonderPlugin())"));
         assertFalse(clientSource.contains("net.minecraftforge"));
 
-        String attributionSource = JavaModuleExportService.buildAttributionSource(scan.targetProject);
+        String attributionSource = new JavaModuleExportService((id, pack) -> null).buildAttributionSource(scan.targetProject);
         assertTrue(attributionSource.contains("ResourceLocation.fromNamespaceAndPath"));
         assertFalse(attributionSource.contains("new ResourceLocation("));
 
-        String locationExpression = JavaModuleExportService.resourceLocationExpr("minecraft:stone");
+        String locationExpression = new JavaModuleExportService((id, pack) -> null).resourceLocationExpr("minecraft:stone");
         assertEquals("ResourceLocation.fromNamespaceAndPath(\"minecraft\", \"stone\")", locationExpression);
     }
 

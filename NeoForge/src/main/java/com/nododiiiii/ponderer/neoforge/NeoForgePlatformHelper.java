@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.neoforge;
 
 import com.nododiiiii.ponderer.platform.services.PlatformHelper;
-import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
+import com.nododiiiii.ponderer.features.projector.ProjectorBlockEntity;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.ModList;
@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 /**
  * NeoForge implementation of PlatformHelper.
  */
-public class NeoForgePlatformHelper implements PlatformHelper {
+public class NeoForgePlatformHelper implements PlatformHelper, com.nododiiiii.ponderer.features.projector.spi.ProjectorPlatform {
 
     @Override
     public String getPlatformName() {

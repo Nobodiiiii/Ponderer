@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.editor.screen;
 import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
-import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;

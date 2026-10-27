@@ -4,7 +4,7 @@ import com.nododiiiii.ponderer.editor.screen.SceneEditorScreen;
 import com.nododiiiii.ponderer.editor.screen.SnapshotReturnContext;
 import com.nododiiiii.ponderer.editor.screen.StepEditorContext;
 import com.nododiiiii.ponderer.feedback.WorldFeedback;
-import com.nododiiiii.ponderer.network.CaptureBlockEntityNbtRequestPayload;
+import com.nododiiiii.ponderer.editor.capture.protocol.CaptureBlockEntityNbtRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.scene.DslScene;
 import net.minecraft.client.Minecraft;

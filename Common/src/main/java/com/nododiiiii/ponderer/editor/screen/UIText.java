@@ -2,7 +2,6 @@ package com.nododiiiii.ponderer.editor.screen;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import net.minecraft.client.resources.language.I18n;
 
 import javax.annotation.Nullable;

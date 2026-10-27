@@ -4,13 +4,10 @@ import com.nododiiiii.ponderer.support.structure.StructureDescriber;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
-import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.resources.ResourceLocation;
 
@@ -43,8 +40,14 @@ public final class AiSceneAgentPipeline {
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
         .create();
 
-    private AiSceneAgentPipeline() {
+    private final GenerationResources resources;
+    private final java.util.function.IntSupplier maxTurns;
+
+    public AiSceneAgentPipeline(GenerationResources resources, java.util.function.IntSupplier maxTurns) {
+        this.resources = java.util.Objects.requireNonNull(resources);
+        this.maxTurns = java.util.Objects.requireNonNull(maxTurns);
     }
+
 
     public record Request(List<Path> structurePaths,
                           String carrierItemId,
@@ -91,34 +94,35 @@ public final class AiSceneAgentPipeline {
     }
 
     public record Result(String runId,
-                         DslScene scene,
+                         com.nododiiiii.ponderer.scene.SceneSnapshot candidate,
                          String finalJson,
                          int turnCount,
                          int toolCallCount,
                          int validationAttempts,
                          List<TraceEntry> trace) {
+        public DslScene scene() { return candidate.document(); }
     }
 
-    public static Result run(Request request, LlmProvider llm, AiRuntimeConfig config,
+    public Result run(Request request, LlmProvider llm, AiRuntimeConfig config,
                              Consumer<String> onStatus) {
         return run(UUID.randomUUID().toString(), request, llm, config,
-            Config.AI_MAX_AGENT_TURNS.get(), onStatus, (name, content) -> {
+            maxTurns.getAsInt(), onStatus, (name, content) -> {
             }, new AiCancellationScope());
     }
 
-    public static Result run(Request request, LlmProvider llm, AiRuntimeConfig config,
+    public Result run(Request request, LlmProvider llm, AiRuntimeConfig config,
                              Consumer<String> onStatus, BiConsumer<String, String> diagnostics) {
         return run(UUID.randomUUID().toString(), request, llm, config,
-            Config.AI_MAX_AGENT_TURNS.get(), onStatus, diagnostics, new AiCancellationScope());
+            maxTurns.getAsInt(), onStatus, diagnostics, new AiCancellationScope());
     }
 
-    static Result run(String runId, Request request, LlmProvider llm, AiRuntimeConfig config,
+    public Result run(String runId, Request request, LlmProvider llm, AiRuntimeConfig config,
                       int maxTurns, Consumer<String> onStatus,
                       BiConsumer<String, String> diagnostics, AiCancellationScope cancellation) {
         return run(runId, request, llm, config, maxTurns, onStatus, diagnostics, cancellation, new AiRunControl());
     }
 
-    static Result run(String runId, Request request, LlmProvider llm, AiRuntimeConfig config,
+    public Result run(String runId, Request request, LlmProvider llm, AiRuntimeConfig config,
                       int maxTurns, Consumer<String> onStatus, BiConsumer<String, String> diagnostics,
                       AiCancellationScope cancellation, AiRunControl control) {
         AiRunEvents events = new AiRunEvents(runId, 0, event -> diagnostics.accept(
@@ -126,7 +130,7 @@ public final class AiSceneAgentPipeline {
         return run(runId, request, llm, config, maxTurns, onStatus, diagnostics, cancellation, control, events);
     }
 
-    static Result run(String runId, Request request, LlmProvider llm, AiRuntimeConfig config,
+    public Result run(String runId, Request request, LlmProvider llm, AiRuntimeConfig config,
                       int maxTurns, Consumer<String> onStatus, BiConsumer<String, String> diagnostics,
                       AiCancellationScope cancellation, AiRunControl control, AiRunEvents events) {
         events.onProgress(onStatus);
@@ -255,7 +259,7 @@ public final class AiSceneAgentPipeline {
                 if (submittedScene != null) {
                     String finalJson = GSON_PRETTY.toJson(submittedScene);
                     diagnostics.accept("last_extracted_json_attempt_final.log", finalJson);
-                    return new Result(runId, submittedScene, finalJson, turn, toolCallCount, context.runState().validationAttempts(), List.copyOf(trace));
+                    return new Result(runId, com.nododiiiii.ponderer.scene.SceneSnapshot.of(submittedScene), finalJson, turn, toolCallCount, context.runState().validationAttempts(), List.copyOf(trace));
                 }
                 budget.progress(context, results);
                 if (!context.runState().lastErrors().isEmpty()) events.progress("Fixing scene draft");
@@ -329,7 +333,7 @@ public final class AiSceneAgentPipeline {
         }
     }
 
-    private static AgentContext prepareContext(Request request, Consumer<String> onStatus,
+    private AgentContext prepareContext(Request request, Consumer<String> onStatus,
                                                BiConsumer<String, String> diagnostics,
                                                AiCancellationScope cancellation) {
         try {
@@ -340,7 +344,7 @@ public final class AiSceneAgentPipeline {
             List<AgentContext.StructureDocument> structures = new ArrayList<>();
             if (existingScene.available()) {
                 Set<String> references = new LinkedHashSet<>();
-                SceneStore.collectStructureReferences(existingScene.scene(), references);
+                com.nododiiiii.ponderer.scene.StructureReferences.collect(existingScene.scene(), references);
                 for (String reference : references) {
                     cancellation.throwIfCancelled();
                     structures.add(inspectExistingStructure(reference, existingScene.scene().pack));
@@ -356,7 +360,7 @@ public final class AiSceneAgentPipeline {
                 }
             }
             if (structures.isEmpty()) {
-                try (InputStream in = SceneStore.openBuiltinStructure("basic")) {
+                try (InputStream in = resources.builtin("basic")) {
                     if (in != null) {
                         structures.add(new AgentContext.StructureDocument(
                             "ponderer:basic", StructureDescriber.inspect(in)));
@@ -385,7 +389,7 @@ public final class AiSceneAgentPipeline {
         }
     }
 
-    private static AgentContext.StructureDocument inspectExistingStructure(String reference,
+    private AgentContext.StructureDocument inspectExistingStructure(String reference,
                                                                            @Nullable String pack) throws Exception {
         ResourceLocation id = ResourceLocation.tryParse(reference.contains(":") ? reference : "ponderer:" + reference);
         if (id == null) {
@@ -393,12 +397,12 @@ public final class AiSceneAgentPipeline {
         }
         String relative = "ponderer".equals(id.getNamespace())
             ? id.getPath() : id.getNamespace() + "/" + id.getPath();
-        Path path = SceneStore.resolveStructurePath(relative, pack);
+        Path path = resources.resolve(relative, pack);
         if (path != null && Files.isRegularFile(path)) {
             return new AgentContext.StructureDocument(id.toString(), StructureDescriber.inspect(path));
         }
         if ("ponderer".equals(id.getNamespace())) {
-            try (InputStream in = SceneStore.openBuiltinStructure(id.getPath())) {
+            try (InputStream in = resources.builtin(id.getPath())) {
                 if (in != null) {
                     return new AgentContext.StructureDocument(id.toString(), StructureDescriber.inspect(in));
                 }
@@ -619,8 +623,8 @@ public final class AiSceneAgentPipeline {
         };
     }
 
-    private static String toStructureId(Path path) {
-        Path structureDir = SceneStore.getStructureDir();
+    private String toStructureId(Path path) {
+        Path structureDir = resources.structureRoot();
         Path absolute = path.toAbsolutePath().normalize();
         Path root = structureDir.toAbsolutePath().normalize();
         if (absolute.startsWith(root)) {

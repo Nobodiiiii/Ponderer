@@ -1,5 +1,7 @@
-package com.nododiiiii.ponderer.projector;
+package com.nododiiiii.ponderer.features.projector;
 
+import com.nododiiiii.ponderer.features.projector.ProjectorBlockEntity;
+import com.nododiiiii.ponderer.features.projector.ProjectorTriggerMode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;

@@ -1,11 +1,10 @@
 package com.nododiiiii.ponderer.registry;
 
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.projector.ProjectorBlock;
-import com.nododiiiii.ponderer.projector.ProjectorBlockItem;
-import com.nododiiiii.ponderer.projector.ProjectorKind;
+import com.nododiiiii.ponderer.features.projector.ProjectorBlock;
+import com.nododiiiii.ponderer.features.projector.ProjectorBlockItem;
+import com.nododiiiii.ponderer.features.projector.ProjectorKind;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;

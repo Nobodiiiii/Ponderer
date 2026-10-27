@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.editor.mixin;
 
-import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
+import com.nododiiiii.ponderer.features.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.editor.capture.CoordPickState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;

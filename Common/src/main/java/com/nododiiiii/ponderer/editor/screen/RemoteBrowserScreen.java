@@ -1,23 +1,22 @@
 package com.nododiiiii.ponderer.editor.screen;
 
+import com.nododiiiii.ponderer.sync.client.RemotePullClient;
 import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
-import com.nododiiiii.ponderer.network.RemoteActionResponsePayload;
-import com.nododiiiii.ponderer.network.RemoteCatalogRequestPayload;
-import com.nododiiiii.ponderer.network.RemoteCatalogResponsePayload;
-import com.nododiiiii.ponderer.network.RemoteDeleteRequestPayload;
-import com.nododiiiii.ponderer.network.RemoteHistoryRequestPayload;
-import com.nododiiiii.ponderer.network.RemoteHistoryResponsePayload;
-import com.nododiiiii.ponderer.network.RemotePullRequestPayload;
-import com.nododiiiii.ponderer.network.RemoteRollbackRequestPayload;
-import com.nododiiiii.ponderer.network.SyncResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteActionResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteCatalogRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteCatalogResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteDeleteRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteHistoryRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteHistoryResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.RemotePullRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.RemoteRollbackRequestPayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
-import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
-import com.nododiiiii.ponderer.ponder.RemoteWorkspaceService;
-import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
+import com.nododiiiii.ponderer.sync.client.PendingRemoteUpdates;
+import com.nododiiiii.ponderer.sync.server.RemoteWorkspaceService;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ponder.SyncMeta;
+import com.nododiiiii.ponderer.sync.client.SyncMeta;
 import com.nododiiiii.ponderer.editor.screen.widgets.ActionStripListEntry;
 import com.nododiiiii.ponderer.editor.screen.widgets.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.editor.screen.widgets.DynamicActionRowListEntry;
@@ -28,7 +27,6 @@ import com.nododiiiii.ponderer.editor.screen.widgets.WorkspaceHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.ponder.enums.PonderGuiTextures;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -254,7 +252,7 @@ public class RemoteBrowserScreen extends AbstractReadonlyDeclarativeListScreen {
     }
 
     private void overwriteUpdates(List<PendingRemoteUpdates.Update> updates) {
-        int count = SyncResponsePayload.overwritePending(updates);
+        int count = RemotePullClient.overwritePending(updates);
         if (count < updates.size()) {
             setErrorMessage(UIText.of("ponderer.ui.remote_browser.status.overwrite_failed", count, updates.size() - count));
         } else {

@@ -1,8 +1,9 @@
 package com.nododiiiii.ponderer.feedback;
 
-import com.nododiiiii.ponderer.network.FeedbackRequestPayload;
-import com.nododiiiii.ponderer.network.FeedbackResponsePayload;
-import com.nododiiiii.ponderer.network.FeedbackPackets;
+import com.nododiiiii.ponderer.application.network.FeedbackPacketHandlers;
+import com.nododiiiii.ponderer.application.protocol.FeedbackRequestPayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackResponsePayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackPackets;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -44,7 +45,7 @@ public final class ClientFeedback {
         Request previous = receiving;
         receiving = request;
         try {
-            if (response.payload() != null) FeedbackPackets.handleResponse(response.payload());
+            if (response.payload() != null) FeedbackPacketHandlers.handleResponse(response.payload());
             if (response.complete()) {
                 requests.remove(response.requestId());
                 if (!request.notices.isEmpty()) {

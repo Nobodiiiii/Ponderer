@@ -1,19 +1,18 @@
 package com.nododiiiii.ponderer.fabric;
 
 import com.nododiiiii.ponderer.feedback.PackFeedback;
-import com.nododiiiii.ponderer.feedback.WorldFeedback;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.blueprint.BlueprintHandler;
+import com.nododiiiii.ponderer.features.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.fabric.interfaces.FabricInterfaceEvents;
 import com.nododiiiii.ponderer.ponder.PondererAttribution;
-import com.nododiiiii.ponderer.ponder.AutoRemoteSyncClient;
+import com.nododiiiii.ponderer.sync.client.AutoRemoteSyncClient;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.ponder.TriggerManager;
-import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
-import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
+import com.nododiiiii.ponderer.features.trigger.TriggerManager;
+import com.nododiiiii.ponderer.features.projector.client.ProjectorBlockEntityRenderer;
+import com.nododiiiii.ponderer.features.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.editor.screen.FunctionScreen;
@@ -141,7 +140,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
             // Trigger manager tick
             TriggerManager.tick();
-            WorldFeedback.tick();
+            com.nododiiiii.ponderer.bootstrap.ClientFeatureLifecycle.tick();
 
             // Trigger key: process after TriggerManager.tick() so activeScene is fresh.
             if (client.player != null && client.screen == null) {

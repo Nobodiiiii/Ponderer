@@ -1,7 +1,5 @@
 package com.nododiiiii.ponderer.platform.services;
 
-import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
-import net.minecraft.server.level.ServerPlayer;
 
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -34,9 +32,4 @@ public interface PlatformHelper {
     /** Execute a runnable only on the client side (avoids class-loading issues). */
     void executeOnClient(Supplier<Runnable> runnable);
 
-    /**
-     * Open the projector's server-backed menu.
-     */
-    default void openProjectorMenu(ServerPlayer player, ProjectorBlockEntity projector) {
-    }
 }

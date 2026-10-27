@@ -90,7 +90,7 @@ public class AiSceneGenerator {
                 com.google.gson.JsonObject baseline = recovery == null ? captureBaseline(request.existingJson()) : recovery.read("baseline.json");
                 files.write("baseline.json", baseline.toString());
                 checkBaseline(baseline);
-                AiSceneAgentPipeline.Result result = AiSceneAgentPipeline.run(runId, request, AiProviderFactory.create(config), config,
+                AiSceneAgentPipeline.Result result = com.nododiiiii.ponderer.bootstrap.ProductGeneration.pipeline().run(runId, request, AiProviderFactory.create(config), config,
                     Config.AI_MAX_AGENT_TURNS.get(), status -> notifyStatus(onStatus, status),
                     (name, content) -> {
                         files.write(name, content);

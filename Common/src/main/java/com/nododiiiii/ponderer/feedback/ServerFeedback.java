@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.feedback;
 
-import com.nododiiiii.ponderer.network.FeedbackMessagePayload;
-import com.nododiiiii.ponderer.network.FeedbackResponsePayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackMessagePayload;
+import com.nododiiiii.ponderer.application.protocol.FeedbackResponsePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -30,7 +30,7 @@ public final class ServerFeedback {
 
     public static CustomPacketPayload response(ServerPlayer player, CustomPacketPayload payload) {
         Context current = context.get();
-        if (current == null || current.player() != player || !com.nododiiiii.ponderer.network.FeedbackPackets.isResponse(payload)) return payload;
+        if (current == null || current.player() != player || !com.nododiiiii.ponderer.application.protocol.FeedbackPackets.isResponse(payload)) return payload;
         return new FeedbackResponsePayload(current.requestId(), payload, false);
     }
 

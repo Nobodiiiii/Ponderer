@@ -2,9 +2,9 @@ package com.nododiiiii.ponderer.editor.screen;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.network.ProjectorFeatureConfigRequestPayload;
-import com.nododiiiii.ponderer.network.ProjectorFeatureConfigResponsePayload;
-import com.nododiiiii.ponderer.network.ProjectorFeatureConfigUpdatePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigRequestPayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigResponsePayload;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorFeatureConfigUpdatePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.editor.screen.widgets.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.editor.screen.widgets.LocalizedDoubleConfigEntry;

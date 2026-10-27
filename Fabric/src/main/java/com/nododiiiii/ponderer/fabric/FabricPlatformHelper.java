@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.fabric;
 
-import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
+import com.nododiiiii.ponderer.features.projector.ProjectorBlockEntity;
 import com.nododiiiii.ponderer.platform.services.PlatformHelper;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 /**
  * Fabric implementation of PlatformHelper.
  */
-public class FabricPlatformHelper implements PlatformHelper {
+public class FabricPlatformHelper implements PlatformHelper, com.nododiiiii.ponderer.features.projector.spi.ProjectorPlatform {
 
     @Override
     public String getPlatformName() {

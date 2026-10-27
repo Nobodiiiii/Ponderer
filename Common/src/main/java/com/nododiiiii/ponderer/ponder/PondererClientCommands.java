@@ -1,10 +1,10 @@
 package com.nododiiiii.ponderer.ponder;
 
-import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
+import com.nododiiiii.ponderer.exporter.PonderJsConversionService;
+import com.nododiiiii.ponderer.sync.client.SyncMeta;
 import com.nododiiiii.ponderer.runtime.core.NbtSceneFilter;
 import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
 import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
-import com.nododiiiii.ponderer.workspace.local.PackStateStore;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.feedback.FeedbackLevel;
@@ -13,9 +13,9 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.Ponderer;
-import com.nododiiiii.ponderer.network.DownloadStructurePayload;
-import com.nododiiiii.ponderer.network.UploadScenePayload;
-import com.nododiiiii.ponderer.network.SyncRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.DownloadStructurePayload;
+import com.nododiiiii.ponderer.sync.protocol.UploadScenePayload;
+import com.nododiiiii.ponderer.sync.protocol.SyncRequestPayload;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.Commands;

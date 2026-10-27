@@ -10,7 +10,7 @@ public final class Workspaces {
     private static final class Holder {
         static final WorkspaceFiles FILES = new WorkspaceFiles(
             PondererServices.PLATFORM.getConfigDir(), PondererServices.PLATFORM.getGameDir(),
-            () -> Config.DEFAULT_EDITABLE.get());
+            () -> Config.DEFAULT_EDITABLE.get(), com.nododiiiii.ponderer.sync.client.SyncMeta::recordLocalSceneDeletion);
     }
     public static WorkspaceFiles files() { return Holder.FILES; }
 }

@@ -1,7 +1,8 @@
 package com.nododiiiii.ponderer.network;
 
-import com.nododiiiii.ponderer.projector.ProjectorTriggerMode;
-import com.nododiiiii.ponderer.projector.ProjectorProjectionMode;
+import com.nododiiiii.ponderer.features.projector.protocol.ProjectorConfigUpdatePayload;
+import com.nododiiiii.ponderer.features.projector.ProjectorTriggerMode;
+import com.nododiiiii.ponderer.features.projector.ProjectorProjectionMode;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.RegistryAccess;

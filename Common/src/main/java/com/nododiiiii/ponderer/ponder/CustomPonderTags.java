@@ -1,6 +1,5 @@
 package com.nododiiiii.ponderer.ponder;
 
-import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.google.gson.Gson;

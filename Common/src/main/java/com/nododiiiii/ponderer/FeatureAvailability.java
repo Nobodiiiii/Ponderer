@@ -8,45 +8,40 @@ import java.util.function.BooleanSupplier;
  */
 public final class FeatureAvailability {
 
-    private static boolean captured;
-    private static boolean blueprintEnabled = true;
-    private static boolean projectorEnabled = true;
+    public record Snapshot(boolean blueprintEnabled, boolean projectorEnabled) {}
+    private static volatile Snapshot captured;
 
     private FeatureAvailability() {
     }
 
     public static void captureFromConfig() {
-        blueprintEnabled = readBlueprintConfig();
-        projectorEnabled = readProjectorConfig();
-        captured = true;
+        captured = new Snapshot(readBlueprintConfig(), readProjectorConfig());
     }
 
     public static void captureFromServer(boolean enableBlueprint, boolean enableProjector) {
-        blueprintEnabled = enableBlueprint;
-        projectorEnabled = enableProjector;
-        captured = true;
+        captured = new Snapshot(enableBlueprint, enableProjector);
     }
 
-    public static void reset() {
-        captured = false;
-        blueprintEnabled = true;
-        projectorEnabled = true;
-    }
+    public static void reset() { captured = null; }
 
     public static boolean isBlueprintEnabled() {
-        return captured ? blueprintEnabled : readBlueprintConfig();
+        Snapshot snapshot = captured;
+        return snapshot != null ? snapshot.blueprintEnabled() : readBlueprintConfig();
     }
 
     public static boolean isBlueprintEnabled(BooleanSupplier uncapturedReader) {
-        return captured ? blueprintEnabled : readUncaptured(uncapturedReader);
+        Snapshot snapshot = captured;
+        return snapshot != null ? snapshot.blueprintEnabled() : readUncaptured(uncapturedReader);
     }
 
     public static boolean isProjectorEnabled() {
-        return captured ? projectorEnabled : readProjectorConfig();
+        Snapshot snapshot = captured;
+        return snapshot != null ? snapshot.projectorEnabled() : readProjectorConfig();
     }
 
     public static boolean isProjectorEnabled(BooleanSupplier uncapturedReader) {
-        return captured ? projectorEnabled : readUncaptured(uncapturedReader);
+        Snapshot snapshot = captured;
+        return snapshot != null ? snapshot.projectorEnabled() : readUncaptured(uncapturedReader);
     }
 
     private static boolean readUncaptured(BooleanSupplier reader) {

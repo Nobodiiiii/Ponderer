@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.editor.screen.widgets;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.RenderElement;
 import net.createmod.catnip.gui.widget.AbstractSimiWidget;
-import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
 import net.minecraft.client.gui.GuiGraphics;
 

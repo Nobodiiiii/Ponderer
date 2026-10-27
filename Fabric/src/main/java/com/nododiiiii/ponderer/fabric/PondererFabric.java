@@ -1,13 +1,14 @@
 package com.nododiiiii.ponderer.fabric;
 
+import com.nododiiiii.ponderer.application.network.FeatureAvailabilityHandler;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.FeatureAvailability;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ai.AiConfigMigration;
-import com.nododiiiii.ponderer.network.FeatureAvailabilityPayload;
-import com.nododiiiii.ponderer.network.SyncResponsePayload;
+import com.nododiiiii.ponderer.application.protocol.FeatureAvailabilityPayload;
+import com.nododiiiii.ponderer.sync.protocol.SyncResponsePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ponder.AutoRemoteSyncService;
+import com.nododiiiii.ponderer.sync.server.AutoRemoteSyncService;
 import com.nododiiiii.ponderer.registry.ModItems;
 import fuzs.forgeconfigapiport.fabric.api.neoforge.v4.NeoForgeConfigRegistry;
 import net.fabricmc.api.ModInitializer;
@@ -25,6 +26,7 @@ public class PondererFabric implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        com.nododiiiii.ponderer.features.projector.ProjectorPlatforms.install((com.nododiiiii.ponderer.features.projector.spi.ProjectorPlatform) PondererServices.PLATFORM);
         // Trigger static init of ModItems (registration via Fabric Registry)
         ModItems.init();
         FabricRecipeConditions.register();
@@ -53,7 +55,7 @@ public class PondererFabric implements ModInitializer {
                 handler.disconnect(Component.literal("Ponderer is required on client when installed on this server."));
                 return;
             }
-            FeatureAvailabilityPayload.sendTo(handler.player);
+            FeatureAvailabilityHandler.sendTo(handler.player);
             AutoRemoteSyncService.onPlayerJoined(handler.player);
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->

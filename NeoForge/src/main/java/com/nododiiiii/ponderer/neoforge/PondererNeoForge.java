@@ -1,14 +1,13 @@
 package com.nododiiiii.ponderer.neoforge;
 
+import com.nododiiiii.ponderer.application.network.FeatureAvailabilityHandler;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.FeatureAvailability;
 import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.ai.AiConfigMigration;
-import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
-import com.nododiiiii.ponderer.network.FeatureAvailabilityPayload;
+import com.nododiiiii.ponderer.features.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.ponder.AutoRemoteSyncService;
-import com.nododiiiii.ponderer.ponder.SceneStore;
+import com.nododiiiii.ponderer.sync.server.AutoRemoteSyncService;
 import com.nododiiiii.ponderer.registry.ModItems;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
@@ -37,6 +36,7 @@ public class PondererNeoForge {
     static List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo> pendingPackUpdates = new ArrayList<>();
 
     public PondererNeoForge(IEventBus modEventBus, ModContainer modContainer) {
+        com.nododiiiii.ponderer.features.projector.ProjectorPlatforms.install((com.nododiiiii.ponderer.features.projector.spi.ProjectorPlatform) PondererServices.PLATFORM);
         // Force static init of ModItems
         ModItems.init();
         NeoForgeRegistrationHelper.modEventBus = modEventBus;
@@ -87,7 +87,7 @@ public class PondererNeoForge {
 
     private void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
-            FeatureAvailabilityPayload.sendTo(player);
+            FeatureAvailabilityHandler.sendTo(player);
             AutoRemoteSyncService.onPlayerJoined(player);
         }
     }

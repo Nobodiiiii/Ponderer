@@ -1,0 +1,80 @@
+package com.nododiiiii.ponderer.features.blueprint;
+
+import com.nododiiiii.ponderer.DisabledFeatureUse;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.DoubleTag;
+import net.minecraft.nbt.IntTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+
+/**
+ * Ported from Create's SchematicAndQuillItem.
+ * Simple item – all selection logic lives in {@link BlueprintHandler} (client-side).
+ */
+public class BlueprintItem extends Item {
+
+    public BlueprintItem(Properties properties) {
+        super(properties);
+    }
+
+    @Override
+    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand usedHand) {
+        ItemStack stack = player.getItemInHand(usedHand);
+        if (!BlueprintFeature.isBuiltinBlueprintItemEnabled()) {
+            if (!level.isClientSide) {
+                DisabledFeatureUse.consumeOne(player, stack, "ponderer.message.disabled.blueprint");
+            }
+            return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
+        }
+        return super.use(level, player, usedHand);
+    }
+
+    @Override
+    public InteractionResult useOn(UseOnContext context) {
+        if (!BlueprintFeature.isBuiltinBlueprintItemEnabled()) {
+            if (!context.getLevel().isClientSide) {
+                DisabledFeatureUse.consumeOne(
+                    context.getPlayer(),
+                    context.getItemInHand(),
+                    "ponderer.message.disabled.blueprint");
+            }
+            return InteractionResult.sidedSuccess(context.getLevel().isClientSide);
+        }
+        return super.useOn(context);
+    }
+
+    /** Replace structure void palette entries with air. */
+    public static void replaceStructureVoidWithAir(CompoundTag nbt) {
+        String air = Blocks.AIR.builtInRegistryHolder().key().location().toString();
+        String structureVoid = Blocks.STRUCTURE_VOID.builtInRegistryHolder().key().location().toString();
+
+        ListTag palette = nbt.getList("palette", Tag.TAG_COMPOUND);
+        for (int i = 0; i < palette.size(); i++) {
+            CompoundTag entry = palette.getCompound(i);
+            if (entry.contains("Name") && entry.getString("Name").equals(structureVoid)) {
+                entry.putString("Name", air);
+            }
+        }
+    }
+
+    private static ListTag newIntegerList(int... values) {
+        ListTag list = new ListTag();
+        for (int v : values) list.add(IntTag.valueOf(v));
+        return list;
+    }
+
+    private static ListTag newDoubleList(double... values) {
+        ListTag list = new ListTag();
+        for (double v : values) list.add(DoubleTag.valueOf(v));
+        return list;
+    }
+}

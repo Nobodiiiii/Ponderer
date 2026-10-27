@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.editor.screen;
 
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.network.StructurePreviewRequestPayload;
-import com.nododiiiii.ponderer.network.StructurePreviewResponsePayload;
+import com.nododiiiii.ponderer.sync.protocol.StructurePreviewRequestPayload;
+import com.nododiiiii.ponderer.sync.protocol.StructurePreviewResponsePayload;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import com.nododiiiii.ponderer.editor.screen.widgets.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.editor.screen.widgets.FullButtonListEntry;

@@ -57,7 +57,7 @@ class AiSceneAgentPipelineTest {
         );
 
         List<String> statuses = new ArrayList<>();
-        AiSceneAgentPipeline.Result result = AiSceneAgentPipeline.run(
+        AiSceneAgentPipeline.Result result = new AiSceneAgentPipeline(GenerationResources.bundled(), () -> 6).run(
             "test-run",
             request,
             llm,

@@ -8,7 +8,6 @@ import com.nododiiiii.ponderer.editor.screen.widgets.FullButtonListEntry;
 import com.nododiiiii.ponderer.editor.screen.widgets.SectionHeaderListEntry;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
 
 import javax.annotation.Nullable;
 import java.nio.file.Path;

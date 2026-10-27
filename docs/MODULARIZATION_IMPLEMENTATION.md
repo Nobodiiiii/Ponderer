@@ -40,3 +40,12 @@
 - 播放控件在 runtime.viewer，编辑预览在 editor.preview。PonderUIMixin 保留播放职责，PonderEditorMixin 持有按钮、点选、采集提示和编辑返回；两端配置明确列出归属。
 - 界面平台由客户端装配显式安装，AE2 菜单构建与 JEI 渲染从执行实现中转为注入能力。
 - 仅做源码引用、服务描述与差异检查；Mixin 配置/注入变更未做编译、映射或 smoke 验证。
+
+## 阶段 5：功能协议、服务与平台能力
+
+- 保留全部 payload ID、codec 字段/顺序及反馈 envelope allowlist 顺序；DTO 不再承载文件、配置、屏幕和服务调用。各功能的 protocol 与 handler 分开；服务器批量发送 SyncSender 与客户端 RemotePullClient 分离，冲突/权限/自动同步算法保留。
+- 投影仪、蓝图、触发器归 features；远程目录/历史/权限归 sync。工作区删除通知改为注入回调，不再引用同步服务。
+- PlatformHelper 仅保留环境能力，投影菜单使用独立 ProjectorPlatform；加载器负责安装对应实现。服务器可用性以不可变 Snapshot 保存，原捕获与回退时机保留。
+- WorldFeedback 只处理提示调度和显示；编辑工具由产品生命周期独立调度。JEI 渲染和 AE2 菜单通过消费方 SPI 接入，编辑 JEI 操作仍在编辑工具一侧。
+- AI 管线接收 GenerationResources 和策略，输出不可变候选 SceneSnapshot；产品接入器沿用原保存方式。Java 导出接收固定场景快照与只读结构来源，算法不再读取全局目录。
+- 仅检查源码引用和 diff 格式；未运行构建、测试、联网 LLM 或功能验收。连接清理、遗留门面及最终依赖归属在阶段 6 收口。

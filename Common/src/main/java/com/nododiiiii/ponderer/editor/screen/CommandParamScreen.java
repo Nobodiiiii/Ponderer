@@ -2,7 +2,6 @@ package com.nododiiiii.ponderer.editor.screen;
 
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererClientCommands;
-import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.editor.screen.widgets.DeclarativeFormEntry;
 import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import net.minecraft.client.Minecraft;

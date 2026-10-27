@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.bootstrap;
 
-import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
+import com.nododiiiii.ponderer.features.blueprint.BlueprintFeature;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;

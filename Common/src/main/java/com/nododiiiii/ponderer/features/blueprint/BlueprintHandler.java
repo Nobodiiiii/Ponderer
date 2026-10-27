@@ -1,0 +1,255 @@
+package com.nododiiiii.ponderer.features.blueprint;
+
+import com.nododiiiii.ponderer.feedback.WorldFeedback;
+import com.mojang.logging.LogUtils;
+import com.nododiiiii.ponderer.ponder.SceneStore;
+import net.createmod.catnip.math.VecHelper;
+import net.createmod.catnip.outliner.Outliner;
+import net.createmod.ponder.enums.PonderSpecialTextures;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.AxisDirection;
+import net.minecraft.core.Vec3i;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult.Type;
+import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+
+import java.nio.file.Path;
+
+/**
+ * Client-side handler for the Blueprint (蓝图与笔) selection tool.
+ * Ported from Create's SchematicAndQuillHandler.
+ * <p>
+ * All selection state lives here on the client -- no server packets needed
+ * until the user actually saves.
+ */
+public class BlueprintHandler {
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    /** Singleton instance, set by platform entry point. */
+    public static BlueprintHandler INSTANCE;
+
+    private final Object outlineSlot = new Object();
+
+    public BlockPos firstPos;
+    public BlockPos secondPos;
+    private BlockPos selectedPos;
+    private Direction selectedFace;
+    private int range = 10;
+
+    // -- scroll -------------------------------------------------------------------
+
+    public boolean mouseScrolled(double delta) {
+        if (!isActive())
+            return false;
+        if (!hasCtrlDown())
+            return false;
+        if (secondPos == null)
+            range = (int) Mth.clamp(range + delta, 1, 100);
+        if (selectedFace == null)
+            return true;
+
+        AABB bb = new AABB(Vec3.atLowerCornerOf(firstPos), Vec3.atLowerCornerOf(secondPos));
+        Vec3i vec = selectedFace.getNormal();
+        Vec3 projectedView = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+        if (bb.contains(projectedView))
+            delta *= -1;
+
+        int intDelta = (int) (delta > 0 ? Math.ceil(delta) : Math.floor(delta));
+
+        int x = vec.getX() * intDelta;
+        int y = vec.getY() * intDelta;
+        int z = vec.getZ() * intDelta;
+
+        AxisDirection axisDirection = selectedFace.getAxisDirection();
+        if (axisDirection == AxisDirection.NEGATIVE)
+            bb = bb.move(-x, -y, -z);
+
+        double maxX = Math.max(bb.maxX - x * axisDirection.getStep(), bb.minX);
+        double maxY = Math.max(bb.maxY - y * axisDirection.getStep(), bb.minY);
+        double maxZ = Math.max(bb.maxZ - z * axisDirection.getStep(), bb.minZ);
+        bb = new AABB(bb.minX, bb.minY, bb.minZ, maxX, maxY, maxZ);
+
+        firstPos = BlockPos.containing(bb.minX, bb.minY, bb.minZ);
+        secondPos = BlockPos.containing(bb.maxX, bb.maxY, bb.maxZ);
+
+        return true;
+    }
+
+    // -- right-click --------------------------------------------------------------
+
+    public boolean onMouseInput(int button, boolean pressed) {
+        if (!pressed || button != 1)
+            return false;
+        if (!isActive())
+            return false;
+
+        LocalPlayer player = Minecraft.getInstance().player;
+
+        if (player.isShiftKeyDown()) {
+            discard();
+            return true;
+        }
+
+        if (secondPos != null) {
+            Minecraft.getInstance().setScreen(new BlueprintPromptScreen());
+            return true;
+        }
+
+        if (selectedPos == null) {
+            sendStatus(player, Component.translatable("item.ponderer.blueprint.no_target"));
+            return true;
+        }
+
+        if (firstPos != null) {
+            secondPos = selectedPos;
+            sendStatus(player, Component.translatable("item.ponderer.blueprint.end_set"));
+            return true;
+        }
+
+        firstPos = selectedPos;
+        sendStatus(player, Component.translatable("item.ponderer.blueprint.start_set"));
+        return true;
+    }
+
+    public void discard() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        firstPos = null;
+        secondPos = null;
+        sendStatus(player, Component.translatable("item.ponderer.blueprint.abort"));
+    }
+
+    // -- tick ---------------------------------------------------------------------
+
+    public void tick() {
+        if (!isActive()) {
+            WorldFeedback.clear("blueprint");
+            return;
+        }
+
+        LocalPlayer player = Minecraft.getInstance().player;
+
+        // Free-aiming with Ctrl held
+        if (hasCtrlDown()) {
+            float pt = Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false);
+            Vec3 targetVec = player.getEyePosition(pt).add(player.getLookAngle().scale(range));
+            selectedPos = BlockPos.containing(targetVec);
+        } else {
+            BlockHitResult trace = RaycastHelper.rayTraceRange(player.level(), player, 75);
+            if (trace != null && trace.getType() == Type.BLOCK) {
+                BlockPos hit = trace.getBlockPos();
+                boolean replaceable = player.level().getBlockState(hit)
+                        .canBeReplaced(new BlockPlaceContext(new UseOnContext(player, InteractionHand.MAIN_HAND, trace)));
+                if (trace.getDirection().getAxis().isVertical() && !replaceable)
+                    hit = hit.relative(trace.getDirection());
+                selectedPos = hit;
+            } else {
+                selectedPos = null;
+            }
+        }
+
+        // Determine which face the player is looking at (for scroll-resize)
+        selectedFace = null;
+        if (secondPos != null) {
+            AABB bb = new AABB(Vec3.atLowerCornerOf(firstPos), Vec3.atLowerCornerOf(secondPos))
+                    .expandTowards(1, 1, 1).inflate(.45f);
+            Vec3 projectedView = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+            boolean inside = bb.contains(projectedView);
+            RaycastHelper.PredicateTraceResult result =
+                    RaycastHelper.rayTraceUntil(player, 70,
+                            pos -> inside ^ bb.contains(VecHelper.getCenterOf(pos)));
+            selectedFace = result == null || result.missed() ? null
+                    : inside ? result.getFacing().getOpposite() : result.getFacing();
+        }
+
+        Component hint = Component.translatable(secondPos != null ? "ponderer.blueprint.hint.confirm"
+            : firstPos != null ? "ponderer.blueprint.hint.second" : "ponderer.blueprint.hint.first");
+        if (firstPos != null && secondPos != null) hint = hint.copy().append(" | ").append(
+            Component.translatable("item.ponderer.blueprint.dimensions", Math.abs(secondPos.getX() - firstPos.getX()) + 1,
+                Math.abs(secondPos.getY() - firstPos.getY()) + 1, Math.abs(secondPos.getZ() - firstPos.getZ()) + 1));
+        WorldFeedback.hint("blueprint", hint, 40, 2);
+
+        AABB currentSelectionBox = getCurrentSelectionBox();
+        if (currentSelectionBox != null) {
+            Outliner.getInstance().chaseAABB(outlineSlot, currentSelectionBox)
+                    .colored(0x6886c5)
+                    .lineWidth(1 / 16f)
+                    .withFaceTexture(PonderSpecialTextures.BLANK)
+                    .highlightFace(selectedFace);
+        }
+    }
+
+    private AABB getCurrentSelectionBox() {
+        if (secondPos == null) {
+            if (firstPos == null)
+                return selectedPos == null ? null : new AABB(selectedPos);
+            return selectedPos == null ? new AABB(firstPos)
+                    : new AABB(Vec3.atLowerCornerOf(firstPos), Vec3.atLowerCornerOf(selectedPos))
+                    .expandTowards(1, 1, 1);
+        }
+        return new AABB(Vec3.atLowerCornerOf(firstPos), Vec3.atLowerCornerOf(secondPos))
+                .expandTowards(1, 1, 1);
+    }
+
+    // -- save ---------------------------------------------------------------------
+
+    public BlueprintExport.SaveResult saveBlueprint(String name) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
+        if (player == null || firstPos == null || secondPos == null || mc.level == null) {
+            BlueprintExport.SaveResult failure = BlueprintExport.SaveResult.failure(
+                "Cannot save blueprint because the selection is incomplete",
+                "ponderer.ui.save_error.io",
+                "Selection is incomplete"
+            );
+            return failure;
+        }
+
+        Path dir = SceneStore.getStructureDir();
+        BlueprintExport.SaveResult result = BlueprintExport.saveBlueprint(
+                dir, name, true,
+                mc.level, firstPos, secondPos
+        );
+        if (!result.isSuccess() || result.exportResult() == null) {
+            return result;
+        }
+        firstPos = null;
+        secondPos = null;
+        return result;
+    }
+
+    // -- helpers ------------------------------------------------------------------
+
+    private boolean isActive() {
+        return isPresent() && isBlueprintInHand();
+    }
+
+    private boolean isPresent() {
+        Minecraft mc = Minecraft.getInstance();
+        return mc != null && mc.level != null && mc.screen == null;
+    }
+
+    private boolean isBlueprintInHand() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return false;
+        return BlueprintFeature.matchesCarrierStack(mc.player.getMainHandItem());
+    }
+
+    private static boolean hasCtrlDown() {
+        return net.minecraft.client.gui.screens.Screen.hasControlDown();
+    }
+
+    private static void sendStatus(LocalPlayer player, Component message) {
+        if (player != null)
+            WorldFeedback.interaction(message);
+    }
+}

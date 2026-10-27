@@ -8,7 +8,6 @@ import com.nododiiiii.ponderer.editor.screen.widgets.WorkspaceHeaderListEntry;
 import com.nododiiiii.ponderer.ponder.CustomPonderTags;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.ponder.PondererAttribution;
-import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;

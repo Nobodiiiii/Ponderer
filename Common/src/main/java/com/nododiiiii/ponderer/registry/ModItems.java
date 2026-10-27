@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.registry;
 
-import com.nododiiiii.ponderer.blueprint.BlueprintItem;
+import com.nododiiiii.ponderer.features.blueprint.BlueprintItem;
 import com.nododiiiii.ponderer.platform.PondererServices;
 import net.minecraft.world.item.Item;
 

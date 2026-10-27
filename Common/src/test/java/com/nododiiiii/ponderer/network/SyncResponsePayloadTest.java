@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.network;
 
+import com.nododiiiii.ponderer.sync.protocol.SyncResponsePayload;
+import com.nododiiiii.ponderer.sync.client.RemotePullClient;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -55,7 +57,7 @@ class SyncResponsePayloadTest {
         byte[] bytes = new byte[] {1, 2, 3, 4};
         Files.write(file, bytes);
 
-        assertTrue(SyncResponsePayload.hasSameLocalContent(file, bytes));
+        assertTrue(RemotePullClient.hasSameLocalContent(file, bytes));
     }
 
     @Test
@@ -63,7 +65,7 @@ class SyncResponsePayloadTest {
         Path file = tempDir.resolve("scene.json");
         Files.write(file, new byte[] {1, 2, 3, 4});
 
-        assertFalse(SyncResponsePayload.hasSameLocalContent(file, new byte[] {4, 3, 2, 1}));
-        assertFalse(SyncResponsePayload.hasSameLocalContent(tempDir.resolve("missing.json"), new byte[] {1}));
+        assertFalse(RemotePullClient.hasSameLocalContent(file, new byte[] {4, 3, 2, 1}));
+        assertFalse(RemotePullClient.hasSameLocalContent(tempDir.resolve("missing.json"), new byte[] {1}));
     }
 }

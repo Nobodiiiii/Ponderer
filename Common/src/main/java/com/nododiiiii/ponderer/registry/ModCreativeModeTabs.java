@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.registry;
 
-import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
+import com.nododiiiii.ponderer.features.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.projector.ProjectorFeature;
+import com.nododiiiii.ponderer.features.projector.ProjectorFeature;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;

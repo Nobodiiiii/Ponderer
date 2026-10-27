@@ -1,7 +1,7 @@
 package com.nododiiiii.ponderer.registry;
 
 import com.nododiiiii.ponderer.platform.PondererServices;
-import com.nododiiiii.ponderer.projector.ProjectorBlockEntity;
+import com.nododiiiii.ponderer.features.projector.ProjectorBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
 import java.util.function.Supplier;

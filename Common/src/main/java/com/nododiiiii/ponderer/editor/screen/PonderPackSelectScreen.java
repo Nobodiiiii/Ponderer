@@ -2,7 +2,6 @@ package com.nododiiiii.ponderer.editor.screen;
 
 import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
 import com.nododiiiii.ponderer.runtime.core.SceneItemBindings;
-import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.editor.screen.widgets.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.editor.screen.widgets.SelectionRowListEntry;

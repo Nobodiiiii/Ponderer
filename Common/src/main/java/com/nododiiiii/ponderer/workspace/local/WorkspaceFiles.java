@@ -8,6 +8,7 @@ public final class WorkspaceFiles {
     final Path configDir;
     final Path gameDir;
     final BooleanSupplier defaultEditable;
+    final java.util.function.BiConsumer<String, Path> sceneDeleted;
     final WorkspaceLayout layout;
     final LocalSceneRepository scenes;
     final LocalStructureRepository structures;
@@ -16,6 +17,12 @@ public final class WorkspaceFiles {
     final PonderPackRegistry registry;
 
     public WorkspaceFiles(Path configDir, Path gameDir, BooleanSupplier defaultEditable) {
+        this(configDir, gameDir, defaultEditable, (id, path) -> {});
+    }
+
+    public WorkspaceFiles(Path configDir, Path gameDir, BooleanSupplier defaultEditable,
+                          java.util.function.BiConsumer<String, Path> sceneDeleted) {
+        this.sceneDeleted = sceneDeleted;
         this.configDir = configDir;
         this.gameDir = gameDir;
         this.defaultEditable = defaultEditable;
