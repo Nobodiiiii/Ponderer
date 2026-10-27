@@ -6,7 +6,6 @@ import com.nododiiiii.ponderer.ponder.CustomPonderTags;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.ui.catnip.LocalizedTextListEntry;
 import net.createmod.catnip.gui.ConfirmationScreen;
@@ -183,7 +182,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
             }
         }
 
-        SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(candidate);
+        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(candidate);
         if (!saveResult.isSuccess()) {
             setErrorMessage(UIText.saveError(saveResult));
             return false;
@@ -191,7 +190,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
 
         applySavedScene(candidate);
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
 
         syncStateFromScene();
         markStateSaved();

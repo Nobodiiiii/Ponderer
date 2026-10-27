@@ -12,7 +12,7 @@ import java.util.List;
 /** Shared login notices; interactive chat components retain their original click semantics. */
 public final class PackFeedback {
     private PackFeedback() {}
-    public static void show(List<SceneStore.PackUpdateInfo> updates, List<String> orphaned) {
+    public static void show(List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo> updates, List<String> orphaned) {
         if (updates.isEmpty() && orphaned.isEmpty()) return;
 
         Minecraft mc = Minecraft.getInstance();
@@ -20,7 +20,7 @@ public final class PackFeedback {
             var player = mc.player;
             if (player == null) return;
 
-            for (SceneStore.PackUpdateInfo info : updates) {
+            for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo info : updates) {
                 String versionChange = info.oldVersion != null
                         ? "v" + info.oldVersion + " → v" + info.newVersion
                         : "v" + info.newVersion;

@@ -5,7 +5,6 @@ import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
-import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import net.createmod.catnip.gui.ConfirmationScreen;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.ui.catnip.DeclarativeFormEntry;
@@ -462,7 +461,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             candidate.triggerCoord2 = null;
         }
 
-        SceneStore.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(candidate);
+        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.LocalSaveResult saveResult = SceneStore.saveSceneToLocalDetailed(candidate);
         if (!saveResult.isSuccess()) {
             setErrorMessage(UIText.saveError(saveResult));
             return false;
@@ -486,7 +485,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
         scene.triggerCoord2 = candidate.triggerCoord2;
 
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
         return true;
     }
 

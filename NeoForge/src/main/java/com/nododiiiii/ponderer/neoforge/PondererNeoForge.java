@@ -34,7 +34,7 @@ public class PondererNeoForge {
     /** Orphaned pack names detected during startup. */
     static List<String> pendingOrphanedPacks = new ArrayList<>();
     /** Pack updates detected during startup. */
-    static List<SceneStore.PackUpdateInfo> pendingPackUpdates = new ArrayList<>();
+    static List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo> pendingPackUpdates = new ArrayList<>();
 
     public PondererNeoForge(IEventBus modEventBus, ModContainer modContainer) {
         // Force static init of ModItems

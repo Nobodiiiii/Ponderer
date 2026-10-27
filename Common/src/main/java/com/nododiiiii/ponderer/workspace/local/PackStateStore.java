@@ -1,10 +1,10 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.workspace.local;
 
+import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.platform.PondererServices;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
@@ -31,11 +31,15 @@ public final class PackStateStore {
     private static final String STATE_FILE = ".pack_state.json";
     private static final String LEGACY_REGISTRY_FILE = ".ponderer_registry.json";
 
-    private static final Map<String, ImportedPackState> IMPORTS = new LinkedHashMap<>();
-    private static final Path STATE_PATH = PondererServices.PLATFORM.getConfigDir().resolve("ponderer").resolve(STATE_FILE);
-    private static final Path LEGACY_REGISTRY_PATH = PondererServices.PLATFORM.getConfigDir().resolve("ponderer").resolve(LEGACY_REGISTRY_FILE);
+    private final Map<String, ImportedPackState> IMPORTS = new LinkedHashMap<>();
+    private final Path STATE_PATH;
+    private final Path LEGACY_REGISTRY_PATH;
 
-    private PackStateStore() {
+    private final WorkspaceFiles workspace;
+    PackStateStore(WorkspaceFiles workspace) {
+        this.workspace = workspace;
+        STATE_PATH = workspace.configDir.resolve("ponderer").resolve(STATE_FILE);
+        LEGACY_REGISTRY_PATH = workspace.configDir.resolve("ponderer").resolve(LEGACY_REGISTRY_FILE);
     }
 
     public static final class ImportedPackState {
@@ -60,7 +64,7 @@ public final class PackStateStore {
         }
     }
 
-    public static void load() {
+    public void load() {
         IMPORTS.clear();
 
         if (Files.exists(STATE_PATH)) {
@@ -94,7 +98,7 @@ public final class PackStateStore {
         migrateLegacyImportedPacks();
     }
 
-    public static void save() {
+    public void save() {
         try {
             Files.createDirectories(STATE_PATH.getParent());
             JsonObject root = new JsonObject();
@@ -109,35 +113,35 @@ public final class PackStateStore {
         }
     }
 
-    public static Collection<ImportedPackState> getImportedPacks() {
+    public Collection<ImportedPackState> getImportedPacks() {
         return IMPORTS.values().stream().map(ImportedPackState::copy).toList();
     }
 
     @Nullable
-    public static ImportedPackState getImportedPack(String packId) {
+    public ImportedPackState getImportedPack(String packId) {
         ImportedPackState state = IMPORTS.get(packId);
         return state == null ? null : state.copy();
     }
 
-    public static boolean hasImportedState(String packId) {
+    public boolean hasImportedState(String packId) {
         return IMPORTS.containsKey(packId);
     }
 
-    public static boolean isImported(String packId) {
+    public boolean isImported(String packId) {
         return IMPORTS.containsKey(packId) && hasLocalSceneCopy(packId);
     }
 
-    public static boolean hasLocalSceneCopy(String packId) {
-        Path packDir = SceneStore.getPackSceneDir(packId);
+    public boolean hasLocalSceneCopy(String packId) {
+        Path packDir = workspace.layout.getPackSceneDir(packId);
         if (containsJsonFiles(packDir)) {
             return true;
         }
 
-        Path legacyPackDir = SceneStore.getSceneDir().resolve("_packs").resolve(packId);
+        Path legacyPackDir = workspace.layout.getSceneDir().resolve("_packs").resolve(packId);
         return containsJsonFiles(legacyPackDir);
     }
 
-    private static boolean containsJsonFiles(@Nullable Path packDir) {
+    private boolean containsJsonFiles(@Nullable Path packDir) {
         if (packDir == null || !Files.exists(packDir)) {
             return false;
         }
@@ -151,7 +155,7 @@ public final class PackStateStore {
         }
     }
 
-    public static ImportedPackState markImported(PonderPackInfo info) {
+    public ImportedPackState markImported(PonderPackInfo info) {
         ImportedPackState state = IMPORTS.computeIfAbsent(info.name, ignored -> new ImportedPackState());
         state.packId = info.name;
         state.displayName = info.name;
@@ -165,7 +169,7 @@ public final class PackStateStore {
         return state.copy();
     }
 
-    public static void updateCurrentSource(PonderPackInfo info) {
+    public void updateCurrentSource(PonderPackInfo info) {
         ImportedPackState state = IMPORTS.get(info.name);
         if (state == null) {
             return;
@@ -192,7 +196,7 @@ public final class PackStateStore {
         }
     }
 
-    public static void clearMissingSources(Collection<String> presentPackIds) {
+    public void clearMissingSources(Collection<String> presentPackIds) {
         TreeSet<String> present = new TreeSet<>(presentPackIds);
         boolean changed = false;
 
@@ -214,7 +218,7 @@ public final class PackStateStore {
         }
     }
 
-    public static boolean shouldNotifySourceUpdate(String packId, String sourceVersion) {
+    public boolean shouldNotifySourceUpdate(String packId, String sourceVersion) {
         ImportedPackState state = IMPORTS.get(packId);
         if (state == null || state.importedVersion == null || state.importedVersion.isBlank()) {
             return false;
@@ -228,7 +232,7 @@ public final class PackStateStore {
         return !sourceVersion.equals(state.lastNotifiedSourceVersion);
     }
 
-    public static void markNotified(String packId, String sourceVersion) {
+    public void markNotified(String packId, String sourceVersion) {
         ImportedPackState state = IMPORTS.get(packId);
         if (state == null) {
             return;
@@ -240,13 +244,13 @@ public final class PackStateStore {
         save();
     }
 
-    public static void removeImportedPack(String packId) {
+    public void removeImportedPack(String packId) {
         if (IMPORTS.remove(packId) != null) {
             save();
         }
     }
 
-    private static void migrateLegacyImportedPacks() {
+    private void migrateLegacyImportedPacks() {
         Map<String, LegacyPackEntry> legacyRegistry = loadLegacyRegistry();
         boolean changed = false;
 
@@ -290,7 +294,7 @@ public final class PackStateStore {
         }
     }
 
-    private static Map<String, LegacyPackEntry> loadLegacyRegistry() {
+    private Map<String, LegacyPackEntry> loadLegacyRegistry() {
         Map<String, LegacyPackEntry> entries = new LinkedHashMap<>();
         if (!Files.exists(LEGACY_REGISTRY_PATH)) {
             return entries;
@@ -332,15 +336,15 @@ public final class PackStateStore {
         return entries;
     }
 
-    private static TreeSet<String> listLocalImportedPackIds() {
+    private TreeSet<String> listLocalImportedPackIds() {
         TreeSet<String> packIds = new TreeSet<>();
-        collectPackIds(SceneStore.getPacksRoot(), packIds);
-        collectPackIds(SceneStore.getSceneDir().resolve("_packs"), packIds);
-        collectPackIds(SceneStore.getStructureDir().resolve("_packs"), packIds);
+        collectPackIds(workspace.layout.getPacksRoot(), packIds);
+        collectPackIds(workspace.layout.getSceneDir().resolve("_packs"), packIds);
+        collectPackIds(workspace.layout.getStructureDir().resolve("_packs"), packIds);
         return packIds;
     }
 
-    private static void collectPackIds(Path packsDir, TreeSet<String> packIds) {
+    private void collectPackIds(Path packsDir, TreeSet<String> packIds) {
         if (!Files.exists(packsDir)) {
             return;
         }
@@ -355,7 +359,7 @@ public final class PackStateStore {
         }
     }
 
-    private static boolean equalsNullable(@Nullable String left, @Nullable String right) {
+    private boolean equalsNullable(@Nullable String left, @Nullable String right) {
         if (left == null) {
             return right == null;
         }

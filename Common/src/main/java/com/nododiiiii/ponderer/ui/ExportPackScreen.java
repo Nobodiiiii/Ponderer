@@ -78,7 +78,7 @@ public class ExportPackScreen extends AbstractStatefulDeclarativeFormScreen {
             return false;
         }
 
-        SceneStore.PackExportResult result = selectedSceneIds.isEmpty()
+        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackExportResult result = selectedSceneIds.isEmpty()
             ? SceneStore.packScenesAndStructuresDetailed(name, version, author)
             : SceneStore.packSelectedScenesAndStructuresDetailed(name, version, author, selectedSceneIds);
 

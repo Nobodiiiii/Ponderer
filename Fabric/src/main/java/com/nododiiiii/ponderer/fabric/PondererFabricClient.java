@@ -14,7 +14,6 @@ import com.nododiiiii.ponderer.ponder.PondererClientCommands;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
-import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
@@ -48,7 +47,7 @@ import java.util.List;
 public class PondererFabricClient implements ClientModInitializer {
 
     private static List<String> pendingOrphanedPacks = new ArrayList<>();
-    private static List<SceneStore.PackUpdateInfo> pendingPackUpdates = new ArrayList<>();
+    private static List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo> pendingPackUpdates = new ArrayList<>();
 
     private final BlueprintHandler blueprintHandler = new BlueprintHandler();
     private boolean hasNotified = false;
@@ -58,6 +57,7 @@ public class PondererFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         com.nododiiiii.ponderer.bootstrap.ClientSceneLanguage.install();
+        com.nododiiiii.ponderer.bootstrap.ClientCatalogBindings.install();
         PondererAttribution.iconModelLocation();
         BlueprintHandler.INSTANCE = blueprintHandler;
 
@@ -68,7 +68,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
         // Ponder init
         SceneStore.extractDefaultsIfNeeded();
-        SceneStore.AutoLoadResult result = SceneStore.autoLoadPonderPacks();
+        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.AutoLoadResult result = SceneStore.autoLoadPonderPacks();
         if (!result.orphanedPacks.isEmpty()) {
             pendingOrphanedPacks.addAll(result.orphanedPacks);
         }
@@ -83,7 +83,7 @@ public class PondererFabricClient implements ClientModInitializer {
         PonderConfig.client().editingMode.set(false);
         CommonLifecycleEvents.TAGS_LOADED.register((registries, client) -> {
             if (client) {
-                Minecraft.getInstance().execute(ProjectorClientCaches::onItemTagsUpdated);
+                Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::onItemTagsUpdated);
             }
         });
 
@@ -180,7 +180,7 @@ public class PondererFabricClient implements ClientModInitializer {
     }
 
     private void showPendingNotifications() {
-        List<SceneStore.PackUpdateInfo> updates = new ArrayList<>(pendingPackUpdates);
+        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo> updates = new ArrayList<>(pendingPackUpdates);
         pendingPackUpdates.clear();
         List<String> orphaned = new ArrayList<>(pendingOrphanedPacks);
         pendingOrphanedPacks.clear();

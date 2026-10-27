@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.mixin;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.blueprint.BlueprintFeature;
-import com.nododiiiii.ponderer.ponder.PackStateStore;
+import com.nododiiiii.ponderer.workspace.local.PackStateStore;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ponder.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.ui.PickState;
@@ -157,8 +157,8 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
                     return;
                 }
                 String packId = result.scene().pack;
-                PackStateStore.load();
-                if (packId != null && !packId.isBlank() && !PackStateStore.isImported(packId)) {
+                com.nododiiiii.ponderer.application.Workspaces.files().packState().load();
+                if (packId != null && !packId.isBlank() && !com.nododiiiii.ponderer.application.Workspaces.files().packState().isImported(packId)) {
                     new ReadonlyPackImportPromptScreen(current, packId, result.scene().sceneKey(), result.sceneIndex()).open();
                     return;
                 }

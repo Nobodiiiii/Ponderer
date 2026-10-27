@@ -130,7 +130,7 @@ public class AiSceneGenerator {
                 && target.toAbsolutePath().normalize().equals(Path.of(baseline.get("path").getAsString()).toAbsolutePath().normalize());
             if (before != null && !editingTarget) throw new IllegalStateException("SCENE_EXISTS: a new AI scene cannot overwrite an existing scene; choose a different scene ID.");
             files.recordUndo(target, before, scene);
-            SceneStore.LocalSaveResult saved = SceneStore.saveSceneToLocalDetailed(scene);
+            com.nododiiiii.ponderer.workspace.api.WorkspaceResults.LocalSaveResult saved = SceneStore.saveSceneToLocalDetailed(scene);
             if (!saved.isSuccess() || saved.path() == null) throw new IllegalStateException(saved.englishMessage());
             files.markSaved(saved.path()); files.status("completed", saved.path().toString());
             return saved.path().toString();

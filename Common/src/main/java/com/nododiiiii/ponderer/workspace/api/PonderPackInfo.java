@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.workspace.api;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

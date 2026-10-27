@@ -1,10 +1,10 @@
-package com.nododiiiii.ponderer.ponder;
+package com.nododiiiii.ponderer.workspace.local;
 
+import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.platform.PondererServices;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -26,11 +26,13 @@ public class PonderPackRegistry {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String REGISTRY_FILE = ".ponderer_registry.json";
 
-    private static Map<String, PackEntry> registry = new HashMap<>();
-    private static Path registryPath;
+    private Map<String, PackEntry> registry = new HashMap<>();
+    private Path registryPath;
 
-    static {
-        registryPath = PondererServices.PLATFORM.getConfigDir().resolve("ponderer").resolve(REGISTRY_FILE);
+    private final WorkspaceFiles workspace;
+    PonderPackRegistry(WorkspaceFiles workspace) {
+        this.workspace = workspace;
+        registryPath = workspace.configDir.resolve("ponderer").resolve(REGISTRY_FILE);
     }
 
     public static class PackEntry {
@@ -61,7 +63,7 @@ public class PonderPackRegistry {
     /**
      * Load registry from disk
      */
-    public static void load() {
+    public void load() {
         registry.clear();
         if (!Files.exists(registryPath)) {
             LOGGER.info("Registry file not found, creating new registry");
@@ -92,7 +94,7 @@ public class PonderPackRegistry {
     /**
      * Save registry to disk
      */
-    public static void save() {
+    public void save() {
         try {
             Files.createDirectories(registryPath.getParent());
             JsonObject root = new JsonObject();
@@ -114,7 +116,7 @@ public class PonderPackRegistry {
     /**
      * Add or update a pack in the registry
      */
-    public static void addOrUpdatePack(String displayName, PonderPackInfo info, String fileHash) {
+    public void addOrUpdatePack(String displayName, PonderPackInfo info, String fileHash) {
         PackEntry entry = new PackEntry(info, fileHash);
         registry.put(displayName, entry);
         LOGGER.info("Added pack to registry: {}", displayName);
@@ -124,7 +126,7 @@ public class PonderPackRegistry {
     /**
      * Remove a pack from the registry
      */
-    public static void removePack(String displayName) {
+    public void removePack(String displayName) {
         if (registry.remove(displayName) != null) {
             LOGGER.info("Removed pack from registry: {}", displayName);
             save();
@@ -134,28 +136,28 @@ public class PonderPackRegistry {
     /**
      * Get a pack entry by display name
      */
-    public static PackEntry getPack(String displayName) {
+    public PackEntry getPack(String displayName) {
         return registry.get(displayName);
     }
 
     /**
      * Get all packs in registry
      */
-    public static Map<String, PackEntry> getAllPacks() {
+    public Map<String, PackEntry> getAllPacks() {
         return new HashMap<>(registry);
     }
 
     /**
      * Check if a pack with this display name is registered
      */
-    public static boolean hasPack(String displayName) {
+    public boolean hasPack(String displayName) {
         return registry.containsKey(displayName);
     }
 
     /**
      * Get the display name for a pack (e.g., "[Ponderer] MyPack")
      */
-    public static String getDisplayName(String packName) {
+    public String getDisplayName(String packName) {
         return "[Ponderer] " + packName;
     }
 }

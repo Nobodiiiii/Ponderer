@@ -12,7 +12,6 @@ import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.TriggerManager;
 import com.nododiiiii.ponderer.neoforge.interfaces.NeoForgeInterfaceEvents;
 import com.nododiiiii.ponderer.projector.client.ProjectorBlockEntityRenderer;
-import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.projector.client.ProjectorWorldOverlayQueue;
 import com.nododiiiii.ponderer.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.registry.ModMenuTypes;
@@ -54,6 +53,7 @@ public class PondererNeoForgeClient {
 
     static void init(IEventBus modEventBus) {
         com.nododiiiii.ponderer.bootstrap.ClientSceneLanguage.install();
+        com.nododiiiii.ponderer.bootstrap.ClientCatalogBindings.install();
         PondererAttribution.iconModelLocation();
         BlueprintHandler.INSTANCE = blueprintHandler;
 
@@ -81,7 +81,7 @@ public class PondererNeoForgeClient {
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Pre event) -> PonderSceneTextLayer.cancelPending());
         NeoForge.EVENT_BUS.addListener((TagsUpdatedEvent event) -> {
             if (event.getUpdateCause() == TagsUpdatedEvent.UpdateCause.CLIENT_PACKET_RECEIVED) {
-                Minecraft.getInstance().execute(ProjectorClientCaches::onItemTagsUpdated);
+                Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::onItemTagsUpdated);
             }
         });
         NeoForgeInterfaceEvents.register();
@@ -90,7 +90,7 @@ public class PondererNeoForgeClient {
     private static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             SceneStore.extractDefaultsIfNeeded();
-            SceneStore.AutoLoadResult result = SceneStore.autoLoadPonderPacks();
+            com.nododiiiii.ponderer.workspace.api.WorkspaceResults.AutoLoadResult result = SceneStore.autoLoadPonderPacks();
             if (!result.orphanedPacks.isEmpty()) {
                 PondererNeoForge.pendingOrphanedPacks.addAll(result.orphanedPacks);
             }
@@ -174,7 +174,7 @@ public class PondererNeoForgeClient {
 
     // --- Player join notifications ---
     private static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        List<SceneStore.PackUpdateInfo> updates = new ArrayList<>(PondererNeoForge.pendingPackUpdates);
+        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo> updates = new ArrayList<>(PondererNeoForge.pendingPackUpdates);
         PondererNeoForge.pendingPackUpdates.clear();
         List<String> orphaned = new ArrayList<>(PondererNeoForge.pendingOrphanedPacks);
         PondererNeoForge.pendingOrphanedPacks.clear();

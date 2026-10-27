@@ -5,7 +5,6 @@ import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.feedback.FeedbackLevel;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.util.SafePaths;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -109,7 +108,7 @@ public final class PonderJsConversionService {
             return 0;
         }
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
         notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.from_done", count, id.toString()));
         return count;
     }
@@ -136,7 +135,7 @@ public final class PonderJsConversionService {
             return 0;
         }
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
         notifyClient(net.minecraft.network.chat.Component.translatable("ponderer.cmd.convert.from_all_done", count));
         return count;
     }

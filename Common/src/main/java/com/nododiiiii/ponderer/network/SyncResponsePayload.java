@@ -10,7 +10,6 @@ import com.nododiiiii.ponderer.ponder.AutoRemoteSyncClient;
 import com.nododiiiii.ponderer.ponder.PendingRemoteUpdates;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.ponder.SyncMeta;
-import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.RemoteBrowserScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -145,19 +144,19 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
             return;
         }
 
-        List<SceneStore.SyncFileRef> scripts = SceneStore.collectServerScriptRefs(player.server);
-        List<SceneStore.SyncFileRef> structures = SceneStore.collectServerStructureRefs(player.server);
+        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> scripts = SceneStore.collectServerScriptRefs(player.server);
+        List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> structures = SceneStore.collectServerStructureRefs(player.server);
         List<FileEntry> scriptBatch = new ArrayList<>();
         List<FileEntry> structureBatch = new ArrayList<>();
         int currentBytes = 0;
         int skippedByServer = 0;
 
-        for (SceneStore.SyncFileRef ref : scripts) {
+        for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : scripts) {
             QueueResult result = queueFile(player, ref, scriptBatch, structureBatch, true, currentBytes, mode);
             currentBytes = result.currentBytes();
             skippedByServer += result.skippedByServer();
         }
-        for (SceneStore.SyncFileRef ref : structures) {
+        for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : structures) {
             QueueResult result = queueFile(player, ref, scriptBatch, structureBatch, false, currentBytes, mode);
             currentBytes = result.currentBytes();
             skippedByServer += result.skippedByServer();
@@ -260,7 +259,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
 
         if (session.written > 0 || session.deleted > 0) {
             SceneStore.reloadFromDisk();
-            Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+            Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
         }
         if (Minecraft.getInstance().screen instanceof RemoteBrowserScreen screen) {
             screen.onSyncUpdatesChanged();
@@ -415,7 +414,7 @@ public record SyncResponsePayload(List<FileEntry> scripts, List<FileEntry> struc
         }
     }
 
-    private static QueueResult queueFile(ServerPlayer player, SceneStore.SyncFileRef ref, List<FileEntry> scriptBatch,
+    private static QueueResult queueFile(ServerPlayer player, com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref, List<FileEntry> scriptBatch,
                                          List<FileEntry> structureBatch, boolean script, int currentBytes, String mode) {
         long size;
         try {

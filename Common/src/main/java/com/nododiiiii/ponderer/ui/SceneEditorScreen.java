@@ -5,7 +5,6 @@ import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
-import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.catnip.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
 import com.nododiiiii.ponderer.ui.catnip.PonderIconStencils;
@@ -909,12 +908,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private boolean saveToFile() {
-        com.nododiiiii.ponderer.ponder.SceneStore.LocalSaveResult result = com.nododiiiii.ponderer.ponder.SceneStore.saveSceneToLocalDetailed(scene);
+        var outcome = new com.nododiiiii.ponderer.application.SceneApplicationService(
+            com.nododiiiii.ponderer.application.Workspaces.files().scenes()).save(scene);
+        var result = outcome.persistence();
         if (result.isSuccess()) {
             clearStatusMessages();
             preview.load(scene, sceneIndex);
-            com.nododiiiii.ponderer.ponder.SceneStore.reloadFromDisk();
-            Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+            Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
             return true;
         }
         setErrorMessage(UIText.saveError(result));
@@ -978,7 +978,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         mc.setScreen(null);
         if (deleted) {
             com.nododiiiii.ponderer.ponder.SceneStore.reloadFromDisk();
-            mc.execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+            mc.execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
         }
     }
 
@@ -1007,7 +1007,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
         mc.execute(() -> {
             if (reloadFromDisk) {
-                ProjectorClientCaches.reloadPonderIndexAndInvalidate();
+                com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reloadPonderIndex();
             }
             if (reopenId != null && net.createmod.ponder.foundation.PonderIndex.getSceneAccess().doScenesExistForId(reopenId)) {
                 net.createmod.ponder.foundation.ui.PonderUI ui;

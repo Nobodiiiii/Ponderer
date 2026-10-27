@@ -1,9 +1,8 @@
 package com.nododiiiii.ponderer.ui;
 
-import com.nododiiiii.ponderer.ponder.PackStateStore;
-import com.nododiiiii.ponderer.ponder.PonderPackInfo;
+import com.nododiiiii.ponderer.workspace.local.PackStateStore;
+import com.nododiiiii.ponderer.workspace.api.PonderPackInfo;
 import com.nododiiiii.ponderer.ponder.SceneStore;
-import com.nododiiiii.ponderer.projector.client.ProjectorClientCaches;
 import com.nododiiiii.ponderer.ui.catnip.AbstractReadonlyDeclarativeListScreen;
 import com.nododiiiii.ponderer.ui.catnip.FullButtonListEntry;
 import com.nododiiiii.ponderer.ui.catnip.SectionHeaderListEntry;
@@ -75,12 +74,12 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
 
     private void scanPacks() {
         packEntries.clear();
-        PackStateStore.load();
+        com.nododiiiii.ponderer.application.Workspaces.files().packState().load();
 
         Map<String, PackEntryRow> merged = new LinkedHashMap<>();
         for (PonderPackInfo info : SceneStore.scanAvailableSourcePacks()) {
-            PackStateStore.ImportedPackState imported = PackStateStore.getImportedPack(info.name);
-            PackEntryState state = PackStateStore.isImported(info.name)
+            PackStateStore.ImportedPackState imported = com.nododiiiii.ponderer.application.Workspaces.files().packState().getImportedPack(info.name);
+            PackEntryState state = com.nododiiiii.ponderer.application.Workspaces.files().packState().isImported(info.name)
                 ? isSourceNewer(imported, info.version) ? PackEntryState.SOURCE_NEWER : PackEntryState.IMPORTED_LOCAL
                 : PackEntryState.READONLY_AVAILABLE;
 
@@ -94,11 +93,11 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
                 state));
         }
 
-        for (PackStateStore.ImportedPackState imported : PackStateStore.getImportedPacks()) {
+        for (PackStateStore.ImportedPackState imported : com.nododiiiii.ponderer.application.Workspaces.files().packState().getImportedPacks()) {
             if (imported.packId == null || imported.packId.isBlank()) {
                 continue;
             }
-            if (!PackStateStore.isImported(imported.packId) || merged.containsKey(imported.packId)) {
+            if (!com.nododiiiii.ponderer.application.Workspaces.files().packState().isImported(imported.packId) || merged.containsKey(imported.packId)) {
                 continue;
             }
 
@@ -169,7 +168,7 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
             return;
         }
 
-        SceneStore.PackImportResult result = SceneStore.importPackFromResourcePack(row.sourcePath());
+        com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackImportResult result = SceneStore.importPackFromResourcePack(row.sourcePath());
         if (!result.isSuccess()) {
             String key = result.uiMessageKey();
             setErrorMessage(key == null || key.isBlank()
@@ -180,7 +179,7 @@ public class ImportPackScreen extends AbstractReadonlyDeclarativeListScreen {
 
         SceneStore.autoLoadPonderPacks();
         SceneStore.reloadFromDisk();
-        Minecraft.getInstance().execute(ProjectorClientCaches::reloadPonderIndexAndInvalidate);
+        Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::reloadPonderIndex);
         ImportPackScreen next = new ImportPackScreen();
         next.setInfoMessage(UIText.of(result.uiMessageKey(), result.uiMessageArgs()));
         Minecraft.getInstance().setScreen(next);

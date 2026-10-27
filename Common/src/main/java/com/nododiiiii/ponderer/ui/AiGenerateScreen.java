@@ -14,7 +14,7 @@ import net.createmod.catnip.config.ui.HintableTextFieldWidget;
 import com.nododiiiii.ponderer.ponder.SceneStore;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.LocalizedText;
-import com.nododiiiii.ponderer.ponder.PackStateStore;
+import com.nododiiiii.ponderer.workspace.local.PackStateStore;
 import com.nododiiiii.ponderer.ponder.SceneItemBindings;
 import com.nododiiiii.ponderer.ponder.SceneRuntime;
 import com.nododiiiii.ponderer.ui.catnip.ActionStripListEntry;
@@ -540,8 +540,8 @@ public class AiGenerateScreen extends AbstractJeiAwareFormScreen {
             setCachedStatus(UIText.of("ponderer.ui.readonly_scene.message"), true);
             return false;
         }
-        PackStateStore.load();
-        if (scene.pack != null && !scene.pack.isBlank() && !PackStateStore.isImported(scene.pack)) {
+        com.nododiiiii.ponderer.application.Workspaces.files().packState().load();
+        if (scene.pack != null && !scene.pack.isBlank() && !com.nododiiiii.ponderer.application.Workspaces.files().packState().isImported(scene.pack)) {
             setCachedStatus(UIText.of("ponderer.ui.readonly_import_prompt.message"), true);
             return false;
         }

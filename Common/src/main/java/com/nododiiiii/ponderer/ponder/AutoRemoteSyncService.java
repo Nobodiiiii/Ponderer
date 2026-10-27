@@ -160,8 +160,8 @@ public final class AutoRemoteSyncService {
     }
 
     private static void addRefs(Map<ResourceKey, IndexedResource> next, Map<ResourceKey, IndexedResource> previous,
-                                String category, boolean script, List<SceneStore.SyncFileRef> refs) {
-        for (SceneStore.SyncFileRef ref : refs) {
+                                String category, boolean script, List<com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef> refs) {
+        for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.SyncFileRef ref : refs) {
             if (ref == null || ref.id() == null || ref.id().isBlank() || ref.path() == null) {
                 continue;
             }

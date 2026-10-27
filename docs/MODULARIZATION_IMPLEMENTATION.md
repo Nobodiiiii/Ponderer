@@ -13,3 +13,11 @@
 - 暂留 SceneStore 委托，随工作区迁移消除产品级混合职责。
 
 后续如需验证，首先执行 `./gradlew.bat :NeoForge:build :Fabric:build`；本次未执行。
+
+## 阶段 2：工作区与应用用例
+
+- 将原 SceneStore 算法分入 WorkspaceLayout、LocalSceneRepository、LocalStructureRepository、LocalPackService，保留路径、备份、导入顺序和结果字段。
+- WorkspaceFiles 显式接收配置/游戏根目录和默认可编辑策略，独占包状态；工作区不发布运行状态，也不引用屏幕或投影仪。
+- SceneRefreshCoordinator 统一发布与重载；投影缓存通过装配订阅失效。编辑器保存使用应用用例，SaveOutcome 分别报告写盘与发布结果。
+- SceneStore 作为过渡静态委托保留至阶段 6。原有异步重载调用时机保留。
+- 仅进行源码与差异检查；未运行构建、测试或运行验收。

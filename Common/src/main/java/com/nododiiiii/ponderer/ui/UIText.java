@@ -36,7 +36,7 @@ public final class UIText {
         return fallbackTranslate(key, args);
     }
 
-    public static String saveError(SceneStore.LocalSaveResult result) {
+    public static String saveError(com.nododiiiii.ponderer.workspace.api.WorkspaceResults.LocalSaveResult result) {
         if (result == null) {
             return of("ponderer.ui.save_error.io", "I/O error");
         }
