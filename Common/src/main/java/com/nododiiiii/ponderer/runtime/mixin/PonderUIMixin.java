@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.runtime.mixin;
 
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.nododiiiii.ponderer.runtime.api.PlaybackPreferences;
 import com.nododiiiii.ponderer.runtime.api.PlaybackInputLocks;
 import com.nododiiiii.ponderer.runtime.api.PlaybackUiExtensions;
@@ -12,8 +13,6 @@ import com.nododiiiii.ponderer.runtime.viewer.PonderUiPreviewAccess;
 import com.nododiiiii.ponderer.runtime.viewer.PonderFreePreview;
 import com.nododiiiii.ponderer.runtime.viewer.PonderZoomSlider;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.AbstractPonderScreen;
 import net.createmod.ponder.foundation.ui.PonderButton;
@@ -30,7 +29,9 @@ import org.spongepowered.asm.mixin.Unique;
 
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Slice;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -137,19 +138,18 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
         }
     }
 
-    @Redirect(method = "mouseClicked", at = @At(value = "INVOKE",
+    @ModifyExpressionValue(method = "mouseClicked", at = @At(value = "INVOKE",
         target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z", remap = false))
-    private boolean ponderer$skipPreviewClipboard() {
-        return PonderIndex.editingModeActive() && !ponderer$getFreePreview().isActive();
+    private boolean ponderer$skipPreviewClipboard(boolean original) {
+        return original && !ponderer$getFreePreview().isActive();
     }
 
-    @Redirect(method = "renderOverlay", at = @At(value = "FIELD",
+    @ModifyExpressionValue(method = "renderOverlay", at = @At(value = "FIELD",
         target = "Lnet/createmod/ponder/foundation/ui/PonderUI;identifyMode:Z", ordinal = 0, remap = false))
-    private boolean ponderer$keepPreviewTextVisible(PonderUI ui) {
+    private boolean ponderer$keepPreviewTextVisible(boolean original) {
         PonderFreePreview preview = ponderer$getFreePreview();
         // Only bypass the overlay's early return; keep the paused interpolation below it.
-        return ((PonderUIAccessor) ui).ponderer$getIdentifyMode()
-            && (!preview.isActive() || !preview.isTextVisible());
+        return original && (!preview.isActive() || !preview.isTextVisible());
     }
 
     /**
@@ -412,19 +412,19 @@ public abstract class PonderUIMixin extends AbstractPonderScreen implements Pond
      * (NDC 0.8), and still solidly inside [-1, +1] even after the scene's own scale/rotation
      * extents.
      *
-     * Ordinal 0 targets the first {@code PoseStack.translate(F,F,F)} call inside
-     * {@code renderScene} (line 632 in upstream Ponder 1.20.1 sources, offset 140 in 1.0.92
-     * bytecode). There is only one {@code renderScene} declaration in PonderUI, so the bare
-     * method name is unambiguous and avoids depending on cross-loader signature remapping of
-     * {@code GuiGraphics}.
+     * Only change the Z argument of the translation before the scene's screen parameters
+     * are updated, leaving the original call and its other arguments available to other mixins.
      */
-    @Redirect(method = "renderScene",
+    @ModifyArg(method = "renderScene",
         at = @At(value = "INVOKE",
             target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(FFF)V",
-            ordinal = 0,
-            remap = true))
-    private void ponderer$liftSceneOutOfBackgroundDepth(PoseStack ps, float x, float y, float z) {
-        ps.translate(x, y, 5000.0f);
+            remap = true),
+        slice = @Slice(to = @At(value = "INVOKE",
+            target = "Lnet/createmod/ponder/foundation/PonderScene$SceneTransform;updateScreenParams(IID)V",
+            remap = false)),
+        index = 2, allow = 1)
+    private float ponderer$liftSceneOutOfBackgroundDepth(float z) {
+        return 5000.0f;
     }
 
     /**

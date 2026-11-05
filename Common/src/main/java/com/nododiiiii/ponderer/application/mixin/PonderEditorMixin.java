@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.application.mixin;
 
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.nododiiiii.ponderer.features.blueprint.BlueprintFeature;
 import com.nododiiiii.ponderer.runtime.api.SceneCatalog;
 import com.nododiiiii.ponderer.editor.capture.PickState;
@@ -16,7 +17,6 @@ import com.nododiiiii.ponderer.editor.capture.NbtExpandedPickState;
 import com.nododiiiii.ponderer.support.ui.UIText;
 import com.nododiiiii.ponderer.application.ui.widgets.PondererGuiIcons;
 import com.mojang.blaze3d.platform.Window;
-import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.ui.AbstractPonderScreen;
 import net.createmod.ponder.foundation.ui.PonderButton;
@@ -35,7 +35,6 @@ import org.spongepowered.asm.mixin.Unique;
 import java.util.List;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.nododiiiii.ponderer.runtime.mixin.PonderUIAccessor;
@@ -97,36 +96,36 @@ public abstract class PonderEditorMixin extends AbstractPonderScreen {
         return NbtExpandedPickState.isActive();
     }
 
-    @Redirect(method = "init",
+    @ModifyExpressionValue(method = "init",
         at = @At(value = "INVOKE",
             target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
             remap = false), require = 0)
-    private boolean ponderer$forceEditingActiveInInit() {
-        return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
+    private boolean ponderer$forceEditingActiveInInit(boolean original) {
+        return original || ponderer$isBlockPickActive();
     }
 
-    @Redirect(method = "renderScene",
+    @ModifyExpressionValue(method = "renderScene",
         at = @At(value = "INVOKE",
             target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
             remap = false), require = 0)
-    private boolean ponderer$forceEditingActiveInRenderScene() {
-        return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
+    private boolean ponderer$forceEditingActiveInRenderScene(boolean original) {
+        return original || ponderer$isBlockPickActive();
     }
 
-    @Redirect(method = "renderWidgets",
+    @ModifyExpressionValue(method = "renderWidgets",
         at = @At(value = "INVOKE",
             target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
             remap = false), require = 0)
-    private boolean ponderer$forceEditingActiveInRenderWidgets() {
-        return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
+    private boolean ponderer$forceEditingActiveInRenderWidgets(boolean original) {
+        return original || ponderer$isBlockPickActive();
     }
 
-    @Redirect(method = "renderHoverTooltips",
+    @ModifyExpressionValue(method = "renderHoverTooltips",
         at = @At(value = "INVOKE",
             target = "Lnet/createmod/ponder/foundation/PonderIndex;editingModeActive()Z",
             remap = false), require = 0)
-    private boolean ponderer$forceEditingActiveInRenderHoverTooltips() {
-        return PonderIndex.editingModeActive() || ponderer$isBlockPickActive();
+    private boolean ponderer$forceEditingActiveInRenderHoverTooltips(boolean original) {
+        return original || ponderer$isBlockPickActive();
     }
 
     private static int ponderer$computeOccurrenceIndex(PonderUI ui, PonderScene target) {

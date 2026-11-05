@@ -1,5 +1,6 @@
 package com.nododiiiii.ponderer.runtime.mixin;
 
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.runtime.render.PonderInterpolationSnapshot;
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
@@ -115,12 +116,12 @@ public abstract class PonderPlaybackMixin extends Screen {
         ponderer$previousPonderTicks = PonderUI.ponderTicks;
     }
 
-    @Redirect(method = "tick", at = @At(value = "INVOKE",
+    @ModifyExpressionValue(method = "tick", at = @At(value = "INVOKE",
         target = "Lnet/createmod/ponder/foundation/ui/PonderUI;isComfyReadingEnabled()Z", remap = false))
-    private boolean ponderer$applyPlaybackInterval(PonderUI ui) {
+    private boolean ponderer$applyPlaybackInterval(boolean original) {
         // Reuse Ponder's extended-tick interpolation for smooth half-speed playback.
         extendedTickLength = ponderer$playbackSpeed == .5 ? 1 : 0;
-        return ponderer$playbackSpeed == 1 && ui.isComfyReadingEnabled();
+        return ponderer$playbackSpeed == 1 && original;
     }
 
     @Redirect(method = "tick", at = @At(value = "INVOKE",

@@ -74,18 +74,25 @@ public final class ClientCatalogBindings {
         }
         projector = input = sandbox = menus = preferences = syncUpdates = feedback = null;
         com.nododiiiii.ponderer.features.blueprint.BlueprintHandler.installPrompt(() -> {});
-        try { resetWorld(); } catch (RuntimeException error) {
+        try { resetConnection(); } catch (RuntimeException error) {
             if (failure == null) failure = error;
             else failure.addSuppressed(error);
         }
         if (failure != null) throw failure;
     }
+    /** End connection-owned state as well as any world-owned tools and playback. */
+    public static void resetConnection() {
+        com.nododiiiii.ponderer.support.lifecycle.Cleanup.all(
+            () -> com.nododiiiii.ponderer.sync.client.AutoRemoteSyncClient.resetConnection(),
+            () -> com.nododiiiii.ponderer.feedback.ClientFeedback.resetConnection(),
+            ClientCatalogBindings::resetWorld
+        );
+    }
+    /** Dimension changes end world-owned state while preserving requests on the same connection. */
     public static void resetWorld() {
         com.nododiiiii.ponderer.support.lifecycle.Cleanup.all(
             () -> com.nododiiiii.ponderer.application.ai.AiSceneGenerator.cancelAll(),
             () -> com.nododiiiii.ponderer.application.ui.AiGenerateScreen.resetGenerationScope(),
-            () -> com.nododiiiii.ponderer.sync.client.AutoRemoteSyncClient.resetConnection(),
-            () -> com.nododiiiii.ponderer.feedback.ClientFeedback.resetConnection(),
             () -> com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost.closeAll("world changed"),
             () -> com.nododiiiii.ponderer.editor.api.EditorModule.resetSession(),
             () -> com.nododiiiii.ponderer.application.ui.SceneEditorScreen.resetSession(),

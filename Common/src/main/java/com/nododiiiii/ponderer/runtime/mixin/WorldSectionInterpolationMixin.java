@@ -1,9 +1,9 @@
 package com.nododiiiii.ponderer.runtime.mixin;
 
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.nododiiiii.ponderer.runtime.render.PonderInterpolationSnapshot;
 import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.foundation.element.WorldSectionElementImpl;
-import net.createmod.catnip.animation.AnimationTickHolder;
 import net.createmod.ponder.foundation.ui.PonderUI;
 import com.nododiiiii.ponderer.runtime.viewer.PonderUiPreviewAccess;
 import net.minecraft.client.Minecraft;
@@ -11,21 +11,20 @@ import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(WorldSectionElementImpl.class)
 public class WorldSectionInterpolationMixin {
-    @Redirect(method = "reverseTransformVec", at = @At(value = "INVOKE",
+    @ModifyExpressionValue(method = "reverseTransformVec", at = @At(value = "INVOKE",
         target = "Lnet/createmod/catnip/animation/AnimationTickHolder;getPartialTicks()F", remap = false))
-    private float ponderer$freezePreviewPicking() {
+    private float ponderer$freezePreviewPicking(float original) {
         if (Minecraft.getInstance().screen instanceof PonderUI ui) {
             var preview = ((PonderUiPreviewAccess) ui).ponderer$getFreePreview();
             if (preview.isActive()) {
                 return preview.partialTicks();
             }
         }
-        return AnimationTickHolder.getPartialTicks();
+        return original;
     }
 
     @Inject(method = "setAnimatedOffset", at = @At("HEAD"))

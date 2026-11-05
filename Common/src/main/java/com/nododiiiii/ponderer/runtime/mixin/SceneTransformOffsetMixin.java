@@ -1,5 +1,8 @@
 package com.nododiiiii.ponderer.runtime.mixin;
 
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.viewer.PonderUiZoomAccess;
@@ -18,7 +21,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -70,12 +72,12 @@ public class SceneTransformOffsetMixin {
         return preview == null ? pt : preview.partialTicks();
     }
 
-    @Redirect(method = {
+    @WrapOperation(method = {
         "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;", "screenToScene"
     }, at = @At(value = "INVOKE", target = "Lnet/createmod/catnip/animation/LerpedFloat;getValue(F)F", remap = false))
-    private float ponderer$previewRotation(LerpedFloat rotation, float pt) {
+    private float ponderer$previewRotation(LerpedFloat rotation, float pt, Operation<Float> original) {
         PonderFreePreview preview = ponderer$preview();
-        float value = rotation.getValue(pt);
+        float value = original.call(rotation, pt);
         if (preview != null) {
             if (rotation == xRotation) value += preview.pitch();
             if (rotation == yRotation) value += preview.yaw();
@@ -103,17 +105,18 @@ public class SceneTransformOffsetMixin {
         return preview == null ? y : y - preview.panY();
     }
 
-    @Redirect(method = {
+    @ModifyExpressionValue(method = {
         "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;",
         "screenToScene"
     }, at = @At(value = "FIELD", target = "Lnet/createmod/ponder/foundation/PonderScene;scaleFactor:F", remap = false))
-    private float ponderer$effectiveScale(PonderScene scene) {
+    private float ponderer$effectiveScale(float original) {
+        PonderScene scene = ponderer$scene;
         PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) scene;
         PonderFreePreview preview = ponderer$preview();
         float pt = preview == null ? ponderer$capturedPt : preview.partialTicks();
         float scale = access.ponderer$isScaleOverrideActive()
             ? access.ponderer$getScaleOverride().getValue(pt)
-            : ((PonderSceneAccessor) scene).ponderer$getScaleFactor();
+            : original;
         // Keep the stored script scale untouched, including during seeking and replay.
         if (Minecraft.getInstance().screen instanceof PonderUI ui
             && ((PonderUIAccessor) ui).ponderer$getScenes().contains(scene)) {

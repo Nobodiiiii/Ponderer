@@ -21,6 +21,9 @@ subprojects {
 
     dependencies {
         compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+        // Fabric Loader and NeoForge supply the runtime; compile against Fabric's baseline.
+        compileOnly "io.github.llamalad7:mixinextras-common:0.4.1"
+        annotationProcessor "io.github.llamalad7:mixinextras-common:0.4.1"
     }
 
     tasks.withType(JavaCompile).configureEach {
