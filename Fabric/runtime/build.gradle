@@ -1,0 +1,33 @@
+plugins {
+    id "fabric-loom" version "${loom_version}"
+}
+evaluationDependsOn(":RuntimeCommon")
+evaluationDependsOn(":SceneModel")
+def shared = project(":RuntimeCommon")
+def model = project(":SceneModel")
+base { archivesName = "pondererlib-${minecraft_version}-fabric" }
+version = lib_version
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    modApi(include("net.createmod.ponder:Ponder-Fabric-${minecraft_version}:${ponder_version}"))
+    modApi "dev.engine-room.flywheel:flywheel-fabric-api-${minecraft_version}:${flywheel_version}"
+    modImplementation(include("dev.engine-room.flywheel:flywheel-fabric-${minecraft_version}:${flywheel_version}"))
+    compileOnly shared
+    compileOnly model
+}
+loom {
+    mixin.setDefaultRefmapName("pondererlib.refmap.json")
+}
+tasks.named("compileJava", JavaCompile) {
+    source(shared.sourceSets.main.allJava, model.sourceSets.main.allJava)
+}
+processResources { from shared.sourceSets.main.resources }
+java { withSourcesJar() }
+tasks.named("sourcesJar", Jar) { from(shared.sourceSets.main.allSource, model.sourceSets.main.allSource) }
+publishing {
+    publications { mavenJava(MavenPublication) { from components.java } }
+    repositories { maven { name = "libStaging"; url = rootProject.layout.buildDirectory.dir("lib-repository") } }
+}

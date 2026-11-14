@@ -1,10 +1,12 @@
 # 阶段 1–6 的实际边界与归属
 
+2026-11-14 更新：运行库物理提取、三档导出与策略 API 已实现，当前活动项目为 `Common / NeoForge / Fabric / SceneModel / RuntimeCommon / RuntimeNeoForge / RuntimeFabric`。CSV 同步 600 个活动主源码文件、70 个资源/模板文件、1 个产品元数据模板、86 个两端 Mixin 配置项、5 个 Fabric 入口及 8 个 SPI 提供项。完整 API、构建和验收边界见 [Ponderer Lib](PONDERER_LIB.md)。下文原三个项目和阶段 7 未实施的描述保留为此前阶段记录。
+
 本清单对应 Minecraft 1.21.1 的 `Common / NeoForge / Fabric`，依据当前 `settings.gradle`。`Forge/`、历史 `ref/`、生成目录及测试代码不计入发布归属。仍沿用原三个 Gradle 项目；没有新增独立运行库 JAR，也未实施阶段 7。
 
 [完整归属表](MODULARIZATION_OWNERSHIP.csv) 逐项列出 579 个活动主源码文件、64 个资源文件、1 个加载器元数据模板、83 个两端 Mixin 配置项、8 个 SPI 提供项、34 个 payload ID、29 个配置键及游戏注册 ID。相同共享类可出现在两个加载器的 Mixin 配置中，83 是配置项数量，不是不同类数量。该表是源码快照，不是构建产物清单。
 
-2026-10-27 按用户要求仅保留 AI 单元测试，其他 JUnit 已删除。随后按用户要求恢复 `smoke.py`、`quickPlaySmoke`、`test.py` 的 smoke 分支及界面自检调用链，并同步恢复归属表中的自检类。`smoke.py` 转用 `test.py --smoke`，沿用当前分支的实例识别、超时和进程清理。
+2026-10-27 按用户要求仅保留 AI 单元测试，其他 JUnit 已删除。随后按用户要求恢复 `smoke.py`、`quickPlaySmoke`、`test.py` 的 smoke 分支及界面自检调用链，并同步恢复归属表中的自检类。2026-11-14 按用户新要求删除重复的 `smoke.py` 入口、NeoForge `gameTestServer` 配置，以及自动打开界面、思索播放和捕获的 `InterfaceSmokeTest`（含两端 tick 注册、启动参数和 CSV 归属行）。启动游戏的自动测试仅保留 `quickPlaySmoke` 的普通入世界、超时和清理；`quickPlayForge` 等手动任务、Online 变体及 `test.py` 手动启动功能保持不变。下列 smoke 恢复与验证结果为历史记录。
 
 删除时验证（恢复 smoke 前）：`:NeoForge:build :Fabric:build :Common:test` 通过，AI 管线 5 项通过、真实 LLM 1 项按原条件跳过；`quickPlayBoth -PskipBuild -PnoCopy -PdryRun` 通过，当时 1.11.0 两端 JAR 均不含自检类。未启动客户端或调用真实 LLM。下文构建与测试结果保留为历史记录。
 
@@ -74,7 +76,7 @@ engine.close();
 
 蓝图物品由 `BlueprintRegistration` 注册，投影方块/方块实体/菜单由 `features.projector.registry` 注册；`registry.ModItems.init()` 保留蓝图、方块、创造标签、方块实体、菜单的原顺序。`ModCreativeModeTabs` 仍组合完整产品内容。游戏 ID 继续为 `ponderer:blueprint`、`miniature_projector`、`life_size_projector`、`projector` 与创造标签 `ponderer`（均在 `ponderer` 命名空间），按注册表区分重复路径。
 
-Java 导出支持模板归导出器；内置脚本和结构归工作区默认资源；AI 提示归 AI；蓝图/投影配方、模型与纹理归对应功能；归属标记的观察者模型/纹理归 `product.catalog`。语言、动作图标与元数据仍由产品统一打包，语言键没有按功能拆成多个文件。
+Java 导出支持模板由运行库的同源生成任务提供，导出器消费该模板；运行所需语言键由 Lib 携带，其余语言由产品打包；内置脚本和结构归工作区默认资源；AI 提示归 AI；蓝图/投影配方、模型与纹理归对应功能；归属标记的观察者模型/纹理归 `product.catalog`。语言、动作图标与元数据仍由产品统一打包，语言键没有按功能拆成多个文件。
 
 ## Mixin、SPI 与加载器入口
 

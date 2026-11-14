@@ -1,5 +1,7 @@
 # Ponderer 功能模块化与运行库提取方案
 
+2026-11-14：阶段 7 的 Lib 物理拆分、三档导出与策略 API 已实现；当前项目与验证记录见 [Ponderer Lib](PONDERER_LIB.md)。下文保留原计划基线。
+
 状态：阶段 1–6 已实施并分阶段提交。实际边界及调整见 [实施记录](MODULARIZATION_IMPLEMENTATION.md) 与 [归属说明](MODULARIZATION_OWNERSHIP.md)。阶段 7 未实施；阶段实施时按用户要求未运行测试与验收，后续构建与 smoke 结果见实施记录。
 
 基线：2026-10-27，当前 `1.21.1` 分支，HEAD `457d0619`，Minecraft 1.21.1、Java 21。实际活动模块为 `Common / NeoForge / Fabric`，以 [settings.gradle](D:/Files/ponderer/settings.gradle) 和 [gradle.properties](D:/Files/ponderer/gradle.properties) 为准；磁盘中的 `Forge/` 不属于本方案的当前构建范围。
@@ -375,7 +377,7 @@ Java/PonderJS 导出接收固定输入和只读资源接口 → 公共语义分�
 
 ## 9. 验证矩阵与执行纪律
 
-当前按用户要求仅保留 AI 单元测试；非 AI JUnit 已删除，`smoke.py`、`quickPlaySmoke` 及界面自检已按后续要求恢复。实施阶段执行过的命令和结果保留在实施、审计记录中。下列命令反映当前可用入口；所有长运行命令应由执行器设置外层期限，超时终止本次启动的进程树并记录日志。
+当前按用户要求仅保留 AI 单元测试；非 AI JUnit 已删除。2026-11-14 按用户要求，启动游戏的自动测试仅保留 `quickPlaySmoke` 的普通入世界、超时和进程清理；删除重复的 `smoke.py` 入口、NeoForge `gameTestServer` 配置及自动打开界面、思索播放和捕获的 `InterfaceSmokeTest`（含注册与参数）。`quickPlayForge`、`quickPlayFabric`、`quickPlayBoth` 及其 Online 变体和 `test.py` 普通手动启动功能保持不变。实施阶段执行过的命令和结果保留在实施、审计记录中。下列命令反映当前可用入口；所有长运行命令应由执行器设置外层期限，超时终止本次启动的进程树并记录日志。
 
 | 改动范围 | 最小验证 | 补充条件 |
 | --- | --- | --- |
@@ -385,10 +387,20 @@ Java/PonderJS 导出接收固定输入和只读资源接口 → 公共语义分�
 | 单个平台接入 | `./gradlew.bat :NeoForge:build` 或 `./gradlew.bat :Fabric:build` | 可以证明 compile 已足够时按仓库规则缩小 |
 | AI 管线 | `./gradlew.bat :Common:test` | Common 显式启用 JUnit，仅保留 AI 测试；不新增测试、不默认调用真实 LLM |
 | Mixin、注入归属或描述符变化 | 受影响模块编译 + 映射/配置检查 + `./gradlew.bat quickPlaySmoke -PsmokeTimeout=180` | smoke 本身构建两端；确认每端实际启动、入世界与清理 |
-| 沙盒/界面运行 Mixin 变化 | 上项 + `./gradlew.bat quickPlaySmoke -PsmokeTimeout=180 -PsmokeInterfaces` | 使用现有 `InterfaceSmokeTest`，不能用普通入世界代替界面检查 |
+| 沙盒/界面运行 Mixin 变化 | 上项 + 现有手动界面检查清单 | 自动界面、思索和捕获自检已删除；普通入世界不代表界面功能已验证 |
 | 阶段 7 构建/打包 | 新模块 scoped build、发行 JAR 类/资源清单、依赖元数据核对、最小装配运行 | 仍需外层超时与退出清理；不新增测试专用脚本 |
 
-现有 JUnit 仅剩 `AiSceneAgentPipelineTest` 和默认跳过的 `RealLlmCodexConfigTest`。类位置以 [Common/src/test](D:/Files/ponderer/Common/src/test) 的实际目录为准。`test.py` 保留构建、复制、quickplay 及 smoke 功能；`python smoke.py` 转用同一 smoke 入口，可传入平台、超时、界面检查等参数。
+现有 JUnit 仅剩 `AiSceneAgentPipelineTest` 和默认跳过的 `RealLlmCodexConfigTest`。类位置以 [Common/src/test](D:/Files/ponderer/Common/src/test) 的实际目录为准。`test.py` 保留构建、复制、手动 quickplay 及 `quickPlaySmoke` 所需的普通入世界 smoke 功能；自动启动游戏验证统一使用 `quickPlaySmoke`，保留超时、日志行数等参数，界面自检与指定思索物品参数已删除。
+
+Windows 上的 `quickPlaySmoke`（或 `test.py --smoke`）默认在独立 Win32 桌面启动完整客户端，包含 NeoForge 早期窗口；启动时不切换当前桌面。客户端运行期间尽可能显示托盘图标，点击可查看 smoke 桌面，点击其左上角“返回工作桌面”按钮或按 `Ctrl+Alt+F10` 返回；快捷键被占用时仍可使用按钮。没有托盘支持时继续静默运行；无法建立独立桌面时报告失败，不回退到前台启动。该桌面不是 Win+Tab 虚拟桌面，切入后没有 Explorer 任务栏。
+
+独立桌面不能隔离 Win32 的共享光标裁剪状态。smoke 在 Java 恢复执行前建立输入守护线程，只枚举本次 Java PID 的窗口：后台使用 `EnableWindow(false)` 阻止其获得输入焦点，并发送失焦消息清除 GLFW 记录的鼠标捕获；用户切入 smoke 桌面后恢复被守护线程禁用的窗口。守护线程、返回桌面和退出清理只在裁剪矩形匹配 smoke 窗口时尝试 `ClipCursor(NULL)`，并避开前台其他窗口正在使用的同尺寸客户区裁剪。窗口客户区、裁剪和虚拟屏幕边界统一按线程的 Per-Monitor DPI 坐标处理。守护失败会使 smoke 失败并清理客户端。此处理不改变普通启动，也不跳过图形初始化或暂停世界。API 依据：[ClipCursor 的共享资源及释放要求](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-clipcursor)、[EnableWindow 输入及激活规则](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enablewindow)。
+
+后台 smoke 仅临时将实例 `options.txt` 的 `pauseOnLostFocus` 和 `fullscreen` 设为 `false`，保留分辨率、帧率及正常图形初始化。成功、超时、启动失败或键盘中断均通过 `finally` 关闭客户端进程树、恢复这两项设置并移除托盘及返回控件；若用户正在查看 smoke 桌面，清理时返回原桌面。Windows 客户端放在设置了 `KILL_ON_JOB_CLOSE` 的 Job Object 中，避免启动器退出后遗留游戏进程。`--dry-run` 不创建桌面、图标或修改实例配置；普通 `test.py`、手动 quickplay 及非 Windows 路径不启用上述桌面和配置处理。
+
+2026-11-14 后台运行验证：`./gradlew.bat quickPlaySmoke -PskipBuild -PnoCopy -PsmokeTimeout=120 --offline --no-daemon --console=plain` 首轮 Fabric、NeoForge 均实际入世界，两个托盘均创建成功，两端 `options.txt` 与运行前内容一致，见 [首轮日志](../build/smoke-windows-desktop/smoke.log)。随后修正重复注册返回快捷键的问题并串行化切换与清理；同命令重跑 Fabric 通过，另一次 `-PsmokeTimeout=1` 验证超时失败及进程清理，配置均恢复，见 [重跑日志](../build/smoke-windows-desktop/smoke-final.log) 和 [超时日志](../build/smoke-windows-desktop/timeout.log)。这两次 NeoForge 因存档正被其他客户端占用而跳过，不算最终版本的 NeoForge 运行验证；未关闭该客户端。普通启动和 smoke 的双端 dry-run、Python 语法和 diff 空白检查通过。未自动操作桌面，托盘点击切入、按钮/快捷键返回以及查看时退出的交互仍待人工验证。
+
+2026-11-14 鼠标限制回归修复后，同一现有命令下 Fabric 实际入世界通过，四个本次 Java 窗口的后台输入被禁用；`-PsmokeTimeout=1` 按预期失败并清理。两次均以 480 秒为外层期限，配置与运行前内容一致。只读以 50ms 间隔观察 Win32 光标裁剪，最终正常及超时运行期间和结束时均保持 `(0, 0, 3840, 2160)` 的完整屏幕范围，未发生范围变化。见 [运行日志](../build/smoke-windows-desktop/smoke-cursor-final.log)、[光标观察](../build/smoke-windows-desktop/smoke-cursor-final-cursor.log)、[超时清理](../build/smoke-windows-desktop/cursor-timeout.log)。NeoForge 本轮仍因其他客户端占用存档跳过；其重验命令与上文相同，待实例空闲后执行。未自动点击托盘或切换桌面，切换交互仍待人工验证；该有限时长的观察不能证明所有桌面、DPI 或其他应用组合都无干扰。
 
 执行时须区分以下情况：
 

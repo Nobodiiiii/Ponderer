@@ -3,6 +3,8 @@ plugins {
     id "com.nododiiiii.ponderer.gradle"
 }
 
+evaluationDependsOn(":RuntimeNeoForge")
+
 def commonProject = project(":Common")
 
 base {
@@ -20,16 +22,10 @@ neoForge {
     runs {
         client {
             client()
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
         server {
             server()
             programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-        }
-        gameTestServer {
-            type = "gameTestServer"
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
         data {
             data()
@@ -45,6 +41,7 @@ neoForge {
     }
 
     mods {
+        pondererlib { sourceSet(project(":RuntimeNeoForge").sourceSets.main) }
         "${mod_id}" {
             sourceSet(sourceSets.main)
             sourceSet(commonProject.sourceSets.main)
@@ -56,12 +53,14 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 dependencies {
     compileOnly(commonProject)
+    implementation project(":RuntimeNeoForge")
+    jarJar project(":RuntimeNeoForge")
 
     implementation("net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:${ponder_version}")
-    jarJar("net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:[${ponder_version},)")
+
 
     compileOnly("dev.engine-room.flywheel:flywheel-neoforge-api-${flywheel_minecraft_version}:${flywheel_version}")
-    jarJar("dev.engine-room.flywheel:flywheel-neoforge-${flywheel_minecraft_version}:[${flywheel_version},)")
+
 
     compileOnly("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}")
     compileOnly("mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}")
@@ -69,39 +68,6 @@ dependencies {
 
     // Resourcify (optional)
     compileOnly("maven.modrinth:resourcify:${resourcify_version}")
-}
-
-// Ponder switched NeoForge Maven coordinates from Ponder-NeoForge-<mc> to
-// ponder-neoforge while keeping the same runtime mod id. Normalize our
-// embedded fallback metadata so NeoForge JarJar compares it with newer
-// Create-provided Ponder jars instead of selecting our older fallback first.
-tasks.named("jarJar").configure {
-    outputs.upToDateWhen { false }
-    doLast {
-        def metadataFiles = [
-            layout.buildDirectory.file("tmp/jarJar/metadata.json").get().asFile,
-            layout.buildDirectory.file("generated/jarJar/META-INF/jarjar/metadata.json").get().asFile
-        ]
-
-        metadataFiles.findAll { it.isFile() }.each { metadataFile ->
-            def metadata = new groovy.json.JsonSlurper().parse(metadataFile)
-            def changed = false
-
-            metadata.jars?.each { embedded ->
-                if (embedded.identifier?.group == "net.createmod.ponder"
-                    && embedded.identifier?.artifact == "Ponder-NeoForge-${minecraft_version}") {
-                    embedded.identifier.artifact = "ponder-neoforge"
-                    changed = true
-                }
-            }
-
-            if (changed) {
-                metadataFile.text = groovy.json.JsonOutput.prettyPrint(
-                    groovy.json.JsonOutput.toJson(metadata)
-                )
-            }
-        }
-    }
 }
 
 // Merge Common source into NeoForge compilation
@@ -130,6 +96,7 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
         mod_name               : mod_name,
         mod_license            : mod_license,
         mod_version            : mod_version,
+        lib_version            : lib_version,
         mod_authors            : mod_authors,
         mod_description        : mod_description
     ]

@@ -9,7 +9,7 @@ public final class ClientCatalogBindings {
     private static com.nododiiiii.ponderer.sync.client.SyncClientModule sync;
     private static AutoCloseable feedback;
     private static AutoCloseable input;
-    private static AutoCloseable sandbox;
+    private static AutoCloseable player;
     private static AutoCloseable menus;
     private static AutoCloseable preferences;
     private static com.nododiiiii.ponderer.editor.api.EditorModule editor;
@@ -19,9 +19,8 @@ public final class ClientCatalogBindings {
         com.nododiiiii.ponderer.application.ai.AiSceneGenerator.startModule();
         if (sync == null) sync = new com.nododiiiii.ponderer.sync.client.SyncClientModule(
             com.nododiiiii.ponderer.application.SceneRefreshCoordinator::refresh);
-        if (sandbox == null) sandbox = com.nododiiiii.ponderer.runtime.interfaces.platform.InterfacePlatform.install(
-            com.nododiiiii.ponderer.platform.PondererServices.load(com.nododiiiii.ponderer.runtime.interfaces.platform.InterfaceSandboxPlatform.class));
-        if (menus == null) menus = com.nododiiiii.ponderer.runtime.interfaces.InterfaceExtensions.installMenus(
+        if (player == null) player = com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.requestPlayerEnhancements("ponderer");
+        if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled() && menus == null) menus = com.nododiiiii.ponderer.runtime.interfaces.InterfaceExtensions.installMenus(
             new com.nododiiiii.ponderer.compat.ae2.RuntimeAe2Menus());
         if (editor == null) editor = new com.nododiiiii.ponderer.editor.api.EditorModule(new com.nododiiiii.ponderer.compat.jei.EditorJeiIngredients());
         if (preferences == null) preferences = com.nododiiiii.ponderer.runtime.api.PlaybackPreferences.install(
@@ -43,7 +42,7 @@ public final class ClientCatalogBindings {
     }
 
     public static void stopAi() {
-        com.nododiiiii.ponderer.support.lifecycle.Cleanup.all(
+        com.nododiiiii.ponderer.runtime.support.lifecycle.Cleanup.all(
             com.nododiiiii.ponderer.application.ai.AiSceneGenerator::stopModule,
             com.nododiiiii.ponderer.application.ui.AiGenerateScreen::resetGenerationScope);
     }
@@ -65,14 +64,14 @@ public final class ClientCatalogBindings {
         stopSync();
         RuntimeException failure = null;
         try { stopEditor(); } catch (RuntimeException error) { failure = error; }
-        for (AutoCloseable binding : new AutoCloseable[]{projector, input, sandbox, menus, preferences, syncUpdates, feedback}) {
+        for (AutoCloseable binding : new AutoCloseable[]{projector, input, player, menus, preferences, syncUpdates, feedback}) {
             if (binding == null) continue;
             try { binding.close(); } catch (Exception error) {
                 if (failure == null) failure = new IllegalStateException("Failed to close client binding");
                 failure.addSuppressed(error);
             }
         }
-        projector = input = sandbox = menus = preferences = syncUpdates = feedback = null;
+        projector = input = player = menus = preferences = syncUpdates = feedback = null;
         com.nododiiiii.ponderer.features.blueprint.BlueprintHandler.installPrompt(() -> {});
         try { resetConnection(); } catch (RuntimeException error) {
             if (failure == null) failure = error;
@@ -82,7 +81,7 @@ public final class ClientCatalogBindings {
     }
     /** End connection-owned state as well as any world-owned tools and playback. */
     public static void resetConnection() {
-        com.nododiiiii.ponderer.support.lifecycle.Cleanup.all(
+        com.nododiiiii.ponderer.runtime.support.lifecycle.Cleanup.all(
             () -> com.nododiiiii.ponderer.sync.client.AutoRemoteSyncClient.resetConnection(),
             () -> com.nododiiiii.ponderer.feedback.ClientFeedback.resetConnection(),
             ClientCatalogBindings::resetWorld
@@ -90,10 +89,10 @@ public final class ClientCatalogBindings {
     }
     /** Dimension changes end world-owned state while preserving requests on the same connection. */
     public static void resetWorld() {
-        com.nododiiiii.ponderer.support.lifecycle.Cleanup.all(
+        com.nododiiiii.ponderer.runtime.support.lifecycle.Cleanup.all(
             () -> com.nododiiiii.ponderer.application.ai.AiSceneGenerator.cancelAll(),
             () -> com.nododiiiii.ponderer.application.ui.AiGenerateScreen.resetGenerationScope(),
-            () -> com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost.closeAll("world changed"),
+            () -> { if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled()) com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost.closeAll("world changed"); },
             () -> com.nododiiiii.ponderer.editor.api.EditorModule.resetSession(),
             () -> com.nododiiiii.ponderer.application.ui.SceneEditorScreen.resetSession(),
             () -> com.nododiiiii.ponderer.application.ui.PonderScreenNavigation.resetSession(),

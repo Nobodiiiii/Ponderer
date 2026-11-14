@@ -6,8 +6,8 @@ import com.google.gson.JsonObject;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.JsonOps;
-import com.nododiiiii.ponderer.support.nbt.DataSanitizer;
-import com.nododiiiii.ponderer.support.nbt.IdentityRemapper;
+import com.nododiiiii.ponderer.runtime.support.nbt.DataSanitizer;
+import com.nododiiiii.ponderer.runtime.support.nbt.IdentityRemapper;
 import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SandboxScope;
 import com.nododiiiii.ponderer.editor.api.SnapshotReturnContext;
 import net.minecraft.client.Minecraft;
@@ -65,6 +65,7 @@ public final class InterfaceCapture {
     private InterfaceCapture() {}
 
     public static void start(Map<String, String> snapshot, SnapshotReturnContext context) {
+        com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.requireInterfaces("interface capture");
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null || SandboxScope.isActive()) return;
         active = new Capture(snapshot, context);

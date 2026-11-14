@@ -1,5 +1,7 @@
 # Ponderer 界面型思索重构方案：客户端本地沙箱中的“真实界面”
 
+> 2026-11-14 测试策略更新：本文中的自动界面、思索播放与捕获自检仅作历史方案保留，相关实现与启动参数已按用户要求删除，不再实施或恢复。`quickPlaySmoke` 仅检查普通入世界、超时及进程清理；界面功能使用手动检查。
+
 > 状态：提案（Proposed）  
 > 基线：Minecraft 1.21.1 分支 HEAD `6488a955`；活动模块以 `settings.gradle` 为准：`Common`、`NeoForge`、`Fabric`  
 > 适用范围：`show_interface` / `change_interface_slot` / `click_interface` 的运行时、编辑器、JEI 集成与投影仪呈现；核心实现位于 `Common/`，加载器差异收敛到薄桥接层  

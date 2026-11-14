@@ -70,9 +70,14 @@ not part of this capture flow. Existing manual sources remain available.
 
 Validation:
 
+Automatic interface opening, Ponder playback and capture self-tests were removed
+on 2026-11-14. `quickPlaySmoke` now checks ordinary world entry with timeout and
+process cleanup. Interface/capture cases below are historical coverage; current
+interface validation uses manual checks.
+
 - `:Common:test`, `:NeoForge:build`, `:Fabric:build`.
-- `quickPlaySmoke -PskipBuild -PsmokeInterfaces=true -PsmokeTimeout=180` exercises
-  both clients with automatic timeout and process cleanup.
+- `quickPlaySmoke -PskipBuild -PsmokeTimeout=180` checks world entry on both clients
+  with automatic timeout and process cleanup.
 - Runtime cases cover world/chunk aliases, isolated writes, thread/exception
   scoping, real vanilla menu open/sync/capture/replay, and optional installed
   Mekanism metallurgic infuser / energized smelter client factories. If an infuser is

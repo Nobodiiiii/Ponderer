@@ -9,12 +9,8 @@
   "mixins": [],
   "client": [
     "PonderSceneRegistryMixin",
-    "PonderSceneRegistryNbtMixin",
-    "PonderLevelModelDataMixin",
-    "SandboxContainerRenderEventsMixin",
-    "InterfaceExtendedCaptureMixin",
-    "PonderUINbtMixin",
-    "PonderTooltipNbtMixin"
+    "InterfaceExtendedCaptureMixin"
   ],
-  "server": []
+  "server": [],
+  "plugin": "com.nododiiiii.ponderer.runtime.launch.RuntimeMixinPlugin"
 }

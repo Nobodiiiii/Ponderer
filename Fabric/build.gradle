@@ -16,9 +16,9 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
 
     // Ponder + Flywheel
-    modApi(include("net.createmod.ponder:Ponder-Fabric-${minecraft_version}:${ponder_version}"))
+    modApi("net.createmod.ponder:Ponder-Fabric-${minecraft_version}:${ponder_version}")
     modApi("dev.engine-room.flywheel:flywheel-fabric-api-${minecraft_version}:${flywheel_version}")
-    modImplementation(include("dev.engine-room.flywheel:flywheel-fabric-${minecraft_version}:${flywheel_version}"))
+    modImplementation("dev.engine-room.flywheel:flywheel-fabric-${minecraft_version}:${flywheel_version}")
 
     // ForgeConfigAPIPort — provides ModConfigSpec on Fabric
     modApi(include("fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forgeconfigapiport_version}"))
@@ -35,6 +35,8 @@ dependencies {
     modCompileOnly("maven.modrinth:resourcify:${resourcify_version}")
 
     implementation(commonProject)
+    implementation project(path: ":RuntimeFabric", configuration: "namedElements")
+    include project(":RuntimeFabric")
 }
 
 loom {
@@ -54,7 +56,6 @@ loom {
     }
 
     mixin.setDefaultRefmapName("${mod_id}.refmap.json")
-    accessWidenerPath = file("src/main/resources/ponderer.accesswidener")
 }
 
 // Merge Common source into Fabric compilation

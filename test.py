@@ -19,7 +19,9 @@ import sys
 import tempfile
 import threading
 import time
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 UTF8_JVM_ARGS = (
@@ -101,6 +103,7 @@ DEFAULT_PLAYER_UUID = "380df991f603344ca090369bad2a924a"
 DEFAULT_SMOKE_TIMEOUT = 40
 DEFAULT_SMOKE_LOG_LINES = 160
 POST_ENTRY_SETTLE_SECONDS = 2.0
+LAUNCH_STARTUP_CHECK_SECONDS = 3.0
 
 SUCCESS_PATTERNS = (
     re.compile(r"\[Server thread/INFO\](?: \[[^\]]+\])?: .+ logged in with entity id "),
@@ -108,12 +111,7 @@ SUCCESS_PATTERNS = (
     re.compile(r"\[Server thread/INFO\](?: \[[^\]]+\])?: .+加入了游戏"),
 )
 
-INTERFACE_SMOKE_PASS = re.compile(r"\[PondererSmoke\] interfaces PASS")
-INTERFACE_SMOKE_FAIL = re.compile(r"\[PondererSmoke\] interfaces FAIL")
 WORLD_LOCKED_PATTERN = re.compile(r"session\.lock: already locked \(possibly by other Minecraft instance\?\)")
-
-# Extra JVM system properties for the launched client (set from command-line flags).
-EXTRA_JVM_ARGS: list[str] = []
 
 ERROR_PATTERN = re.compile(
     r"\b(ERROR|FATAL)\b|Exception|Caused by:|Mixin apply failed|Crash|Failed to|Unable to",
@@ -195,14 +193,66 @@ def resolve_targets(target: str) -> list[PlatformSpec]:
     return selected
 
 
-def find_java() -> str:
-    java_home = os.environ.get("JAVA_HOME")
-    if java_home:
-        executable = "java.exe" if platform.system() == "Windows" else "java"
-        candidate = Path(java_home) / "bin" / executable
-        if candidate.exists():
+@lru_cache(maxsize=None)
+def find_java(required_major: int) -> str:
+    executable = "java.exe" if os.name == "nt" else "java"
+    candidates: list[Path] = []
+    for java_home in (os.environ.get("JAVA_HOME"), read_gradle_properties().get("org.gradle.java.home")):
+        if java_home:
+            candidates.append(Path(java_home) / "bin" / executable)
+    path_java = shutil.which("java")
+    if path_java:
+        candidates.append(Path(path_java))
+
+    # IntelliJ and Gradle toolchains can use a different JDK from JAVA_HOME.
+    gradle_home = Path(os.environ.get("GRADLE_USER_HOME", str(Path.home() / ".gradle")))
+    jdk_roots = [Path.home() / ".jdks", gradle_home / "jdks"]
+    if os.name == "nt":
+        program_files = Path(os.environ.get("ProgramFiles", "C:/Program Files"))
+        jdk_roots.extend(program_files / name for name in ("Java", "Microsoft", "Eclipse Adoptium"))
+    elif sys.platform == "darwin":
+        jdk_roots.extend((Path("/Library/Java/JavaVirtualMachines"), Path.home() / "Library/Java/JavaVirtualMachines"))
+    else:
+        jdk_roots.append(Path("/usr/lib/jvm"))
+    for root in jdk_roots:
+        if root.is_dir():
+            candidates.extend(sorted(root.glob(f"*/bin/{executable}")))
+            candidates.extend(sorted(root.glob(f"*/*/bin/{executable}")))
+            candidates.extend(sorted(root.glob(f"*/Contents/Home/bin/{executable}")))
+
+    checked: list[str] = []
+    fallback: tuple[Path, int] | None = None
+    for candidate in dict.fromkeys(path.resolve() for path in candidates):
+        if not candidate.is_file():
+            continue
+        try:
+            result = subprocess.run(
+                [str(candidate), "-version"], capture_output=True,
+                text=True, encoding="utf-8", errors="replace", timeout=5,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            checked.append(f"{candidate}: {exc}")
+            continue
+        match = re.search(r'\bversion\s+"(?:1\.)?(\d+)', result.stderr + result.stdout)
+        if result.returncode != 0 or not match:
+            checked.append(f"{candidate}: could not determine Java version")
+            continue
+        major = int(match.group(1))
+        checked.append(f"{candidate}: Java {major}")
+        if major == required_major:
+            print(f"[JAVA] Java {major}: {candidate}")
             return str(candidate)
-    return "java"
+        if major > required_major and (fallback is None or major < fallback[1]):
+            fallback = (candidate, major)
+
+    if fallback:
+        candidate, major = fallback
+        print(f"[JAVA] Java {major}: {candidate}")
+        return str(candidate)
+    details = "\n  ".join(checked) or "No Java executables found."
+    raise RuntimeError(
+        f"This client requires Java {required_major} or newer. Set JAVA_HOME to a compatible JDK.\n  {details}"
+    )
 
 
 def maven_to_path(coords: str) -> Path | None:
@@ -323,7 +373,7 @@ def build_jvm_args(version_data: dict, instance: Path, classpath: str) -> list[s
         "${primary_jar_name}": f"{version_id}.jar",
     }
 
-    args = ["-Xmx4G", "-Xms512M"]
+    args = ["-Xmx4G", "-Xms512M", *UTF8_JVM_ARGS]
     if platform.system() == "Windows":
         args.append(windows_java_ipc_arg())
     for entry in version_data.get("arguments", {}).get("jvm", []):
@@ -544,15 +594,9 @@ def entered_world(log_text: str) -> bool:
     return any(pattern.search(log_text) for pattern in SUCCESS_PATTERNS)
 
 
-def smoke_outcome(log_text: str, interfaces: bool) -> bool | None:
-    """True/False once the smoke outcome is known from the log, None while still pending."""
-    if interfaces and INTERFACE_SMOKE_FAIL.search(log_text):
-        return False
-    if WORLD_LOCKED_PATTERN.search(log_text):
-        return True
-    if not interfaces:
-        return True if entered_world(log_text) else None
-    if INTERFACE_SMOKE_PASS.search(log_text):
+def smoke_outcome(log_text: str) -> bool | None:
+    """True once world entry or an occupied world is logged, None while pending."""
+    if WORLD_LOCKED_PATTERN.search(log_text) or entered_world(log_text):
         return True
     return None
 
@@ -593,7 +637,543 @@ def extract_error_excerpt(log_text: str, max_lines: int) -> str:
     return "\n".join(lines[-max_lines:])
 
 
-def stop_process_tree(process: subprocess.Popen) -> None:
+class WindowsSmokeProcess:
+    """A native child whose job also kills descendants if the launcher exits."""
+
+    def __init__(self, api, handle, job, pid: int):
+        self.api, self.handle, self.job, self.pid = api, handle, job, pid
+
+    def poll(self) -> int | None:
+        import ctypes
+        from ctypes import wintypes as w
+
+        status = self.api.WaitForSingleObject(self.handle, 0)
+        if status == 0xFFFFFFFF:  # WAIT_FAILED
+            raise ctypes.WinError(ctypes.get_last_error())
+        if status == 258:  # WAIT_TIMEOUT
+            return None
+        code = w.DWORD()
+        if not self.api.GetExitCodeProcess(self.handle, ctypes.byref(code)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return code.value
+
+    def wait(self, timeout: float = 5) -> int:
+        deadline = time.monotonic() + timeout
+        while (code := self.poll()) is None:
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(str(self.pid), timeout)
+            time.sleep(0.05)
+        return code
+
+    def close(self) -> None:
+        # KILL_ON_JOB_CLOSE covers children even when the root already exited.
+        if self.job:
+            self.api.CloseHandle(self.job)
+            self.job = None
+        if self.handle:
+            try:
+                self.wait()
+            finally:
+                self.api.CloseHandle(self.handle)
+                self.handle = None
+
+
+class WindowsSmokeDesktop:
+    """Smoke-only Win32 desktop, with a tray entry and a safe return control.
+
+    Native desktops: https://learn.microsoft.com/windows/win32/winstation/desktops
+    No SwitchDesktop call is made until the user clicks or presses the hotkey.
+    """
+
+    def __init__(self, label: str):
+        import ctypes as c
+        from ctypes import wintypes as w
+
+        self.c, self.w = c, w
+        self.user = c.WinDLL("user32", use_last_error=True)
+        self.kernel = c.WinDLL("kernel32", use_last_error=True)
+        self.shell = c.WinDLL("shell32", use_last_error=True)
+        self.label = label
+        self.name = f"PondererSmoke-{os.getpid()}-{time.monotonic_ns()}"
+        self.home = self.desktop = None
+        self.stopping = threading.Event()
+        self.switch_lock = threading.Lock()
+        self.threads: list[threading.Thread] = []
+        self.windows: dict[str, int] = {}
+        self.callbacks = []
+        self.process_pid: int | None = None
+        self.input_error: Exception | None = None
+        self.input_wake = threading.Event()
+        self.disabled_windows: set[int] = set()
+        self.game_rects: dict[int, tuple[int, int, int, int]] = {}
+
+        self.WndProc = c.WINFUNCTYPE(c.c_ssize_t, w.HWND, w.UINT, w.WPARAM, w.LPARAM)
+        self.EnumWindowProc = c.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+
+        class WindowClass(c.Structure):
+            _fields_ = [("style", w.UINT), ("lpfnWndProc", self.WndProc),
+                        ("cbClsExtra", c.c_int), ("cbWndExtra", c.c_int),
+                        ("hInstance", w.HINSTANCE), ("hIcon", w.HICON),
+                        ("hCursor", w.HANDLE), ("hbrBackground", w.HANDLE),
+                        ("lpszMenuName", w.LPCWSTR), ("lpszClassName", w.LPCWSTR)]
+
+        class NotifyIcon(c.Structure):
+            _fields_ = [("cbSize", w.DWORD), ("hWnd", w.HWND), ("uID", w.UINT),
+                        ("uFlags", w.UINT), ("uCallbackMessage", w.UINT),
+                        ("hIcon", w.HICON), ("szTip", w.WCHAR * 128),
+                        ("dwState", w.DWORD), ("dwStateMask", w.DWORD),
+                        ("szInfo", w.WCHAR * 256), ("uVersion", w.UINT),
+                        ("szInfoTitle", w.WCHAR * 64), ("dwInfoFlags", w.DWORD),
+                        ("guidItem", c.c_byte * 16), ("hBalloonIcon", w.HICON)]
+
+        class StartupInfo(c.Structure):
+            _fields_ = [("cb", w.DWORD), ("lpReserved", w.LPWSTR),
+                        ("lpDesktop", w.LPWSTR), ("lpTitle", w.LPWSTR),
+                        *[(name, w.DWORD) for name in ("dwX", "dwY", "dwXSize", "dwYSize",
+                            "dwXCountChars", "dwYCountChars", "dwFillAttribute", "dwFlags")],
+                        ("wShowWindow", w.WORD), ("cbReserved2", w.WORD),
+                        ("lpReserved2", c.c_void_p), ("hStdInput", w.HANDLE),
+                        ("hStdOutput", w.HANDLE), ("hStdError", w.HANDLE)]
+
+        class ProcessInfo(c.Structure):
+            _fields_ = [("hProcess", w.HANDLE), ("hThread", w.HANDLE),
+                        ("dwProcessId", w.DWORD), ("dwThreadId", w.DWORD)]
+
+        class JobBasicLimits(c.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", c.c_int64), ("PerJobUserTimeLimit", c.c_int64),
+                        ("LimitFlags", w.DWORD), ("MinimumWorkingSetSize", c.c_size_t),
+                        ("MaximumWorkingSetSize", c.c_size_t), ("ActiveProcessLimit", w.DWORD),
+                        ("Affinity", c.c_size_t), ("PriorityClass", w.DWORD),
+                        ("SchedulingClass", w.DWORD)]
+
+        class JobLimits(c.Structure):
+            _fields_ = [("BasicLimitInformation", JobBasicLimits), ("IoInfo", c.c_uint64 * 6),
+                        ("ProcessMemoryLimit", c.c_size_t), ("JobMemoryLimit", c.c_size_t),
+                        ("PeakProcessMemoryUsed", c.c_size_t), ("PeakJobMemoryUsed", c.c_size_t)]
+
+        self.WindowClass, self.NotifyIcon = WindowClass, NotifyIcon
+        self.StartupInfo, self.ProcessInfo, self.JobLimits = StartupInfo, ProcessInfo, JobLimits
+
+        def bind(dll, name, result, *args):
+            fn = getattr(dll, name)
+            fn.restype, fn.argtypes = result, args
+            return fn
+
+        u, k, s = self.user, self.kernel, self.shell
+        bind(u, "OpenInputDesktop", w.HANDLE, w.DWORD, w.BOOL, w.DWORD)
+        bind(u, "CreateDesktopW", w.HANDLE, w.LPCWSTR, c.c_void_p, c.c_void_p,
+             w.DWORD, w.DWORD, c.c_void_p)
+        bind(u, "CloseDesktop", w.BOOL, w.HANDLE)
+        bind(u, "SwitchDesktop", w.BOOL, w.HANDLE)
+        bind(u, "SetThreadDesktop", w.BOOL, w.HANDLE)
+        bind(u, "GetUserObjectInformationW", w.BOOL, w.HANDLE, c.c_int,
+             c.c_void_p, w.DWORD, c.POINTER(w.DWORD))
+        bind(u, "RegisterClassW", w.WORD, c.POINTER(WindowClass))
+        bind(u, "UnregisterClassW", w.BOOL, w.LPCWSTR, w.HINSTANCE)
+        bind(u, "CreateWindowExW", w.HWND, w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD,
+             c.c_int, c.c_int, c.c_int, c.c_int, w.HWND, w.HMENU, w.HINSTANCE, c.c_void_p)
+        bind(u, "DefWindowProcW", c.c_ssize_t, w.HWND, w.UINT, w.WPARAM, w.LPARAM)
+        bind(u, "DestroyWindow", w.BOOL, w.HWND)
+        bind(u, "PostMessageW", w.BOOL, w.HWND, w.UINT, w.WPARAM, w.LPARAM)
+        bind(u, "PostQuitMessage", None, c.c_int)
+        bind(u, "GetMessageW", c.c_int, c.POINTER(w.MSG), w.HWND, w.UINT, w.UINT)
+        bind(u, "TranslateMessage", w.BOOL, c.POINTER(w.MSG))
+        bind(u, "DispatchMessageW", c.c_ssize_t, c.POINTER(w.MSG))
+        bind(u, "LoadIconW", w.HICON, w.HINSTANCE, c.c_void_p)
+        bind(u, "LoadCursorW", w.HANDLE, w.HINSTANCE, c.c_void_p)
+        bind(u, "RegisterHotKey", w.BOOL, w.HWND, c.c_int, w.UINT, w.UINT)
+        bind(u, "UnregisterHotKey", w.BOOL, w.HWND, c.c_int)
+        bind(u, "RegisterWindowMessageW", w.UINT, w.LPCWSTR)
+        bind(u, "EnumDesktopWindows", w.BOOL, w.HANDLE, self.EnumWindowProc, w.LPARAM)
+        bind(u, "GetWindowThreadProcessId", w.DWORD, w.HWND, c.POINTER(w.DWORD))
+        bind(u, "GetForegroundWindow", w.HWND)
+        bind(u, "GetClientRect", w.BOOL, w.HWND, c.POINTER(w.RECT))
+        bind(u, "ClientToScreen", w.BOOL, w.HWND, c.POINTER(w.POINT))
+        bind(u, "GetSystemMetrics", c.c_int, c.c_int)
+        bind(u, "IsWindowEnabled", w.BOOL, w.HWND)
+        bind(u, "EnableWindow", w.BOOL, w.HWND, w.BOOL)
+        bind(u, "GetClipCursor", w.BOOL, c.POINTER(w.RECT))
+        bind(u, "ClipCursor", w.BOOL, c.POINTER(w.RECT))
+        bind(u, "SetThreadDpiAwarenessContext", w.HANDLE, w.HANDLE)
+        bind(s, "Shell_NotifyIconW", w.BOOL, w.DWORD, c.POINTER(NotifyIcon))
+        bind(k, "GetModuleHandleW", w.HINSTANCE, w.LPCWSTR)
+        bind(k, "GetCurrentProcess", w.HANDLE)
+        bind(k, "DuplicateHandle", w.BOOL, w.HANDLE, w.HANDLE, w.HANDLE,
+             c.POINTER(w.HANDLE), w.DWORD, w.BOOL, w.DWORD)
+        bind(k, "CloseHandle", w.BOOL, w.HANDLE)
+        bind(k, "CreateProcessW", w.BOOL, w.LPCWSTR, w.LPWSTR, c.c_void_p,
+             c.c_void_p, w.BOOL, w.DWORD, c.c_void_p, w.LPCWSTR,
+             c.POINTER(StartupInfo), c.POINTER(ProcessInfo))
+        bind(k, "CreateJobObjectW", w.HANDLE, c.c_void_p, w.LPCWSTR)
+        bind(k, "SetInformationJobObject", w.BOOL, w.HANDLE, c.c_int, c.c_void_p, w.DWORD)
+        bind(k, "AssignProcessToJobObject", w.BOOL, w.HANDLE, w.HANDLE)
+        bind(k, "ResumeThread", w.DWORD, w.HANDLE)
+        bind(k, "TerminateProcess", w.BOOL, w.HANDLE, w.UINT)
+        bind(k, "WaitForSingleObject", w.DWORD, w.HANDLE, w.DWORD)
+        bind(k, "GetExitCodeProcess", w.BOOL, w.HANDLE, c.POINTER(w.DWORD))
+
+        try:
+            self.home = self.checked(u.OpenInputDesktop(0, False, 0x0103))
+            self.desktop = self.checked(u.CreateDesktopW(self.name, None, None, 0, 0x01FF, None))
+        except BaseException:
+            self.close()
+            raise
+
+    def checked(self, value):
+        if not value:
+            raise self.c.WinError(self.c.get_last_error())
+        return value
+
+    def desktop_name(self, handle) -> str:
+        buffer = self.c.create_unicode_buffer(256)
+        needed = self.w.DWORD()
+        self.checked(self.user.GetUserObjectInformationW(
+            handle, 2, buffer, self.c.sizeof(buffer), self.c.byref(needed)))  # UOI_NAME
+        return buffer.value
+
+    def viewing_smoke(self) -> bool:
+        current = self.user.OpenInputDesktop(0, False, 0x0001)
+        if not current:  # For example, the workstation is locked; do not switch it.
+            return False
+        try:
+            return self.desktop_name(current) == self.name
+        finally:
+            self.user.CloseDesktop(current)
+
+    def switch(self, show_smoke: bool) -> None:
+        with self.switch_lock:
+            if self.stopping.is_set():
+                return
+            if not self.user.SwitchDesktop(self.desktop if show_smoke else self.home):
+                print(f"[SMOKE][WINDOW] Desktop switch failed: {self.c.WinError(self.c.get_last_error())}")
+            elif not show_smoke:
+                self.release_mouse_clip()
+            self.input_wake.set()
+
+    def release_mouse_clip(self) -> None:
+        # ClipCursor is shared by the window station, not isolated by a private
+        # desktop. Only release a rectangle belonging to this smoke's windows;
+        # never repeatedly clear another foreground application's mouse grab.
+        # https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-clipcursor
+        u, c, w = self.user, self.c, self.w
+        previous_dpi = u.SetThreadDpiAwarenessContext(w.HANDLE(-4))  # PER_MONITOR_AWARE_V2
+        try:
+            rect = w.RECT()
+            if u.GetClipCursor(c.byref(rect)):
+                clip = (rect.left, rect.top, rect.right, rect.bottom)
+                if clip in tuple(self.game_rects.values()):
+                    foreground = u.GetForegroundWindow()
+                    pid = w.DWORD()
+                    u.GetWindowThreadProcessId(foreground, c.byref(pid))
+                    if pid.value != self.process_pid and self.client_clip_rect(foreground) == clip:
+                        # Another visible game can legitimately clip to the
+                        # same-sized client area; preserve its input ownership.
+                        return
+                    self.checked(u.ClipCursor(None))
+                    print(f"[SMOKE][INPUT] Released smoke mouse clip: {clip}")
+        finally:
+            if previous_dpi:
+                u.SetThreadDpiAwarenessContext(previous_dpi)
+
+    def client_clip_rect(self, hwnd) -> tuple[int, int, int, int] | None:
+        u, c, w = self.user, self.c, self.w
+        rect = w.RECT()
+        if not u.GetClientRect(hwnd, c.byref(rect)):
+            return None
+        start, end = w.POINT(rect.left, rect.top), w.POINT(rect.right, rect.bottom)
+        if not u.ClientToScreen(hwnd, c.byref(start)) or not u.ClientToScreen(hwnd, c.byref(end)):
+            return None
+        x, y, width, height = (u.GetSystemMetrics(n) for n in (76, 77, 78, 79))
+        return (max(start.x, x), max(start.y, y), min(end.x, x + width), min(end.y, y + height))
+
+    def guard_input(self, ready: threading.Event) -> None:
+        """Keep inactive smoke windows from owning focus/capture in their desktop."""
+        u, c, w = self.user, self.c, self.w
+        previous_dpi = None
+        try:
+            self.checked(u.SetThreadDesktop(self.desktop))
+            previous_dpi = u.SetThreadDpiAwarenessContext(w.HANDLE(-4))
+            ready.set()
+            while not self.stopping.is_set():
+                owned = []
+
+                @self.EnumWindowProc
+                def collect(hwnd, _):
+                    pid = w.DWORD()
+                    u.GetWindowThreadProcessId(hwnd, c.byref(pid))
+                    if pid.value == self.process_pid:
+                        owned.append(hwnd)
+                    return True
+
+                c.set_last_error(0)
+                enumerated = u.EnumDesktopWindows(self.desktop, collect, 0)
+                if not enumerated and c.get_last_error():
+                    raise c.WinError(c.get_last_error())
+                # A new desktop can return zero with no error before Java has
+                # created its first window; that is an empty enumeration.
+                interactive = self.viewing_smoke()
+                for hwnd in owned:
+                    bounds = self.client_clip_rect(hwnd)
+                    x, y, width, height = (u.GetSystemMetrics(n) for n in (76, 77, 78, 79))
+                    # A full-screen rectangle imposes no restriction.
+                    if (bounds is not None and bounds[0] < bounds[2] and bounds[1] < bounds[3]
+                            and bounds != (x, y, x + width, y + height)):
+                        self.game_rects[hwnd] = bounds
+                    if interactive:
+                        if hwnd in self.disabled_windows:
+                            u.EnableWindow(hwnd, True)
+                            self.disabled_windows.discard(hwnd)
+                    elif u.IsWindowEnabled(hwnd):
+                        # Disabling removes native focus and prevents GLFW from
+                        # reacquiring it while Minecraft enters the world. This
+                        # leaves rendering and the unpaused world running.
+                        u.EnableWindow(hwnd, False)
+                        self.disabled_windows.add(hwnd)
+                        # Also clear GLFW's remembered disabled-cursor state.
+                        u.PostMessageW(hwnd, 0x0008, 0, 0)  # WM_KILLFOCUS
+                        print(f"[SMOKE][INPUT] Background input disabled: PID {self.process_pid}, HWND {hwnd}")
+                if not interactive:
+                    self.release_mouse_clip()
+                self.input_wake.wait(0.05)
+                self.input_wake.clear()
+        except Exception as exc:
+            self.input_error = exc
+        finally:
+            if previous_dpi:
+                u.SetThreadDpiAwarenessContext(previous_dpi)
+            ready.set()
+
+    def show_controls(self, pid: int) -> None:
+        # A private desktop has no Explorer/tray. Always create a return button
+        # there before enabling the tray entry on the user's original desktop.
+        for role in ("return", "tray"):
+            ready = threading.Event()
+            errors = []
+            thread = threading.Thread(target=self.control_loop, args=(role, pid, ready, errors),
+                                      name=f"smoke-{role}", daemon=True)
+            self.threads.append(thread)
+            thread.start()
+            if not ready.wait(5):
+                raise RuntimeError(f"Timed out creating smoke {role} control")
+            if errors:
+                if role == "return":
+                    raise RuntimeError(f"Cannot create smoke return control: {errors[0]}")
+                print(f"[SMOKE][TRAY] Unavailable; continuing silently: {errors[0]}")
+
+    def control_loop(self, role: str, pid: int, ready: threading.Event, errors: list) -> None:
+        c, w, u = self.c, self.w, self.user
+        hwnd = None
+        registered = hotkey = icon_added = False
+        instance = self.kernel.GetModuleHandleW(None)
+        class_name = f"{self.name}-{role}"
+        icon = self.NotifyIcon()
+        taskbar_created = u.RegisterWindowMessageW("TaskbarCreated")
+
+        def wndproc(window, message, wp, lp):
+            try:
+                if message == 0x8001 and (lp & 0xFFFF) in (0x0202, 0x0400, 0x0401):
+                    self.switch(True)  # Tray click / keyboard activation.
+                elif message == 0x0312:  # WM_HOTKEY: Ctrl+Alt+F10 returns to work.
+                    self.switch(False)
+                elif message == 0x0111 and (wp & 0xFFFF) == 1:  # Return button.
+                    self.switch(False)
+                elif message == 0x0010:  # Closing the return panel returns too.
+                    if not self.stopping.is_set():
+                        self.switch(False)
+                    else:
+                        u.DestroyWindow(window)
+                elif message == 0x0002:
+                    u.PostQuitMessage(0)
+                elif message == taskbar_created and role == "tray":
+                    self.shell.Shell_NotifyIconW(0, c.byref(icon))
+                else:
+                    return u.DefWindowProcW(window, message, wp, lp)
+            except Exception as exc:
+                print(f"[SMOKE][WINDOW] {exc}")
+            return 0
+
+        callback = self.WndProc(wndproc)
+        self.callbacks.append(callback)  # Keep native callbacks alive through window destruction.
+        try:
+            self.checked(u.SetThreadDesktop(self.home if role == "tray" else self.desktop))
+            window_class = self.WindowClass()
+            window_class.lpfnWndProc = callback
+            window_class.hInstance = instance
+            window_class.hIcon = u.LoadIconW(None, 32512)  # Shared application icon.
+            window_class.hCursor = u.LoadCursorW(None, 32512)
+            window_class.hbrBackground = 16  # COLOR_BTNFACE + 1
+            window_class.lpszClassName = class_name
+            self.checked(u.RegisterClassW(c.byref(window_class)))
+            registered = True
+            # Return panel stays above the game without activating it. The tray
+            # owner is invisible and never takes focus on the original desktop.
+            hwnd = self.checked(u.CreateWindowExW(
+                0x08000088 if role == "return" else 0x80, class_name, "Ponderer smoke",
+                0x90800000 if role == "return" else 0, 16, 16, 440, 44,
+                None, None, instance, None))
+            self.windows[role] = hwnd
+            if role == "return":
+                self.checked(u.CreateWindowExW(0, "BUTTON",
+                    "返回工作桌面 / Return (Ctrl+Alt+F10)", 0x50000000,
+                    0, 0, 438, 42, hwnd, 1, instance, None))
+            else:
+                icon.cbSize, icon.hWnd, icon.uID = c.sizeof(icon), hwnd, 1
+                icon.uFlags, icon.uCallbackMessage = 7, 0x8001  # MESSAGE | ICON | TIP
+                icon.hIcon = window_class.hIcon
+                icon.szTip = f"Ponderer smoke: {self.label} (PID {pid}) — 点击查看；Ctrl+Alt+F10 返回"[:127]
+                self.checked(self.shell.Shell_NotifyIconW(0, c.byref(icon)))  # NIM_ADD
+                icon_added = True
+                print(f"[SMOKE][TRAY] {self.label}: click to view; return button / Ctrl+Alt+F10 to go back")
+            if role == "return":
+                hotkey = bool(u.RegisterHotKey(hwnd, 1, 0x4003, 0x79))  # NOREPEAT | CTRL | ALT, F10
+                if not hotkey:
+                    print("[SMOKE][WINDOW] Ctrl+Alt+F10 unavailable; return button remains available")
+            ready.set()
+            message = w.MSG()
+            while not self.stopping.is_set():
+                result = u.GetMessageW(c.byref(message), None, 0, 0)
+                if result == -1:
+                    raise c.WinError(c.get_last_error())
+                if result == 0:
+                    break
+                u.TranslateMessage(c.byref(message))
+                u.DispatchMessageW(c.byref(message))
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            if icon_added:
+                self.shell.Shell_NotifyIconW(2, c.byref(icon))  # NIM_DELETE
+            if hotkey:
+                u.UnregisterHotKey(hwnd, 1)
+            if hwnd:
+                u.DestroyWindow(hwnd)
+                self.windows.pop(role, None)
+            if registered:
+                u.UnregisterClassW(class_name, instance)
+            ready.set()
+
+    def launch(self, command: list[str], instance: Path, output) -> WindowsSmokeProcess:
+        import msvcrt
+
+        c, w, k = self.c, self.w, self.kernel
+        handles = []
+        info = self.ProcessInfo()
+        job = self.checked(k.CreateJobObjectW(None, None))
+        try:
+            limits = self.JobLimits()
+            limits.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            self.checked(k.SetInformationJobObject(job, 9, c.byref(limits), c.sizeof(limits)))
+
+            def duplicate(file):
+                handle = w.HANDLE()
+                current = k.GetCurrentProcess()
+                self.checked(k.DuplicateHandle(current, msvcrt.get_osfhandle(file.fileno()),
+                                               current, c.byref(handle), 0, True, 2))
+                handles.append(handle)
+                return handle.value
+
+            startup = self.StartupInfo()
+            startup.cb, startup.lpDesktop, startup.dwFlags = c.sizeof(startup), self.name, 0x0100
+            with open(os.devnull, "rb") as null_input:
+                startup.hStdInput = duplicate(null_input)
+            startup.hStdOutput = startup.hStdError = duplicate(output)
+            # Suspended creation allows job assignment before any child can escape.
+            flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP | 0x0004
+            self.checked(k.CreateProcessW(command[0], c.create_unicode_buffer(subprocess.list2cmdline(command)),
+                None, None, True, flags, None, str(instance), c.byref(startup), c.byref(info)))
+            self.checked(k.AssignProcessToJobObject(job, info.hProcess))
+            # Start before Java can create or focus an early/game window.
+            self.process_pid = info.dwProcessId
+            ready = threading.Event()
+            guard = threading.Thread(target=self.guard_input, args=(ready,),
+                                     name="smoke-input", daemon=True)
+            self.threads.append(guard)
+            guard.start()
+            if not ready.wait(5):
+                raise RuntimeError("Timed out starting smoke input guard")
+            if self.input_error is not None:
+                raise RuntimeError(f"Cannot guard smoke input: {self.input_error}")
+            if k.ResumeThread(info.hThread) == 0xFFFFFFFF:
+                raise c.WinError(c.get_last_error())
+            process = WindowsSmokeProcess(k, info.hProcess, job, info.dwProcessId)
+            info.hProcess = job = None  # Ownership transferred to process.
+            return process
+        finally:
+            if info.hProcess:
+                k.TerminateProcess(info.hProcess, 1)
+                k.WaitForSingleObject(info.hProcess, 5000)
+                k.CloseHandle(info.hProcess)
+            if info.hThread:
+                k.CloseHandle(info.hThread)
+            if job:
+                k.CloseHandle(job)
+            for handle in handles:
+                k.CloseHandle(handle)
+
+    def close(self) -> None:
+        try:
+            # Serialize shutdown with tray callbacks so a late click cannot
+            # switch into a desktop after its return controls have been removed.
+            with self.switch_lock:
+                self.stopping.set()
+                self.input_wake.set()
+                if self.desktop and self.home and self.viewing_smoke():
+                    self.checked(self.user.SwitchDesktop(self.home))
+                self.release_mouse_clip()
+        finally:
+            for hwnd in list(self.windows.values()):
+                self.user.PostMessageW(hwnd, 0x0010, 0, 0)
+            for thread in self.threads:
+                thread.join(timeout=5)
+            for handle in (self.desktop, self.home):
+                if handle:
+                    self.user.CloseDesktop(handle)
+            self.desktop = self.home = None
+
+
+@contextmanager
+def smoke_options(instance: Path):
+    """Restore only our temporary keys; retain any other settings saved by the game."""
+    path = instance / "options.txt"
+    existed = path.exists()
+    original = path.read_bytes() if existed else b""
+    changed = original
+    previous = {}
+    for key in (b"pauseOnLostFocus", b"fullscreen"):
+        pattern = rb"(?m)^" + key + rb":[^\r\n]*"
+        match = re.search(pattern, original)
+        previous[key] = match.group() if match else None
+        if match:
+            changed = re.sub(pattern, key + b":false", changed)
+        else:
+            changed += (b"" if not changed or changed.endswith(b"\n") else b"\n") + key + b":false\n"
+    path.write_bytes(changed)
+    try:
+        yield
+    finally:
+        current = path.read_bytes() if path.exists() else b""
+        if current == changed:
+            if existed:
+                path.write_bytes(original)
+            else:
+                path.unlink(missing_ok=True)
+        else:
+            for key, value in previous.items():
+                pattern = rb"(?m)^" + key + rb":[^\r\n]*"
+                if value is None:
+                    current = re.sub(pattern + rb"\r?\n?", b"", current)
+                elif re.search(pattern, current):
+                    current = re.sub(pattern, lambda _match: value, current)
+                else:
+                    current += (b"" if not current or current.endswith(b"\n") else b"\n") + value + b"\n"
+            path.write_bytes(current)
+
+
+def stop_process_tree(process: subprocess.Popen | WindowsSmokeProcess) -> None:
+    if isinstance(process, WindowsSmokeProcess):
+        process.close()
+        print(f"[SMOKE][CLEANUP] PID {process.pid}: process exited; job closed")
+        return
     if process.poll() is not None:
         return
 
@@ -620,30 +1200,38 @@ def build_launch_command(spec: PlatformSpec, mc_version: str, world: str, width:
     version_data = json.loads(version_json.read_text(encoding="utf-8"))
     classpath = os.pathsep.join(build_classpath(version_data, instance))
     command = [
-        find_java(),
+        find_java(int(version_data.get("javaVersion", {}).get("majorVersion", 17))),
         *build_jvm_args(version_data, instance, classpath),
-        *EXTRA_JVM_ARGS,
         version_data["mainClass"],
         *build_game_args(version_data, instance, world, width, height),
     ]
     return command, instance
 
 
-def start_client(spec: PlatformSpec, mc_version: str, world: str, width: int, height: int) -> tuple[subprocess.Popen, Path]:
+def start_client(
+    spec: PlatformSpec, mc_version: str, world: str, width: int, height: int,
+    smoke_desktop: WindowsSmokeDesktop | None = None,
+) -> tuple[subprocess.Popen | WindowsSmokeProcess, Path]:
     command, instance = build_launch_command(spec, mc_version, world, width, height)
-    process = subprocess.Popen(
-        command,
-        cwd=instance,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0,
-    )
+    console_log = instance / "logs" / "quickplay-launcher.log"
+    console_log.parent.mkdir(parents=True, exist_ok=True)
+    with console_log.open("wb") as output:
+        if smoke_desktop is not None:
+            return smoke_desktop.launch(command, instance, output), instance
+        process = subprocess.Popen(
+            command,
+            cwd=instance,
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0,
+        )
     return process, instance
 
 
 def launch(spec: PlatformSpec, mc_version: str, world: str, width: int, height: int, dry_run: bool) -> None:
-    command, instance = build_launch_command(spec, mc_version, world, width, height)
     if dry_run:
+        command, instance = build_launch_command(spec, mc_version, world, width, height)
         print(f"[DRY] {instance.name}")
         print(f"  world: {world}")
         print(f"  args: {len(command)}")
@@ -653,6 +1241,17 @@ def launch(spec: PlatformSpec, mc_version: str, world: str, width: int, height: 
     print(f"[LAUNCH] {instance.name}")
     print(f"  world: {world}")
     print(f"  pid: {process.pid}")
+    console_log = instance / "logs" / "quickplay-launcher.log"
+    print(f"  console: {console_log}")
+    try:
+        exit_code = process.wait(timeout=LAUNCH_STARTUP_CHECK_SECONDS)
+    except subprocess.TimeoutExpired:
+        return
+    excerpt = console_log.read_text(encoding="utf-8", errors="replace")
+    raise RuntimeError(
+        f"{instance.name} exited during startup (code={exit_code}). See {console_log}\n"
+        f"{extract_error_excerpt(excerpt, DEFAULT_SMOKE_LOG_LINES)}"
+    )
 
 
 def smoke_target(
@@ -664,7 +1263,6 @@ def smoke_target(
     timeout: int,
     max_log_lines: int,
     dry_run: bool,
-    interfaces: bool = False,
 ) -> SmokeResult:
     instance = instance_dir(spec, mc_version)
     cursors = {path: capture_log_cursor(path) for path in latest_log_candidates(instance)}
@@ -675,103 +1273,71 @@ def smoke_target(
         print(f"  world: {world}")
         print(f"  timeout: {timeout}s")
         print(f"  args: {len(command)}")
+        if os.name == "nt":
+            print("  smoke window: private Win32 desktop + optional tray; temporary unpaused/windowed settings")
         return SmokeResult(spec.target, True, latest_log_candidates(instance)[0])
 
     if world_is_locked(instance, world):
         print(f"[SMOKE][SKIP] {instance.name}: world '{world}' is in use; treating as success")
         return SmokeResult(spec.target, True, latest_log_candidates(instance)[0])
 
-    timer_done = threading.Event()
-    stop_timer = threading.Event()
-    launched = threading.Event()
-    process_holder: dict[str, subprocess.Popen] = {}
-    launch_error: dict[str, Exception] = {}
-
-    def timer_thread() -> None:
-        stop_timer.wait(timeout)
-        timer_done.set()
-
-    def quickplay_thread() -> None:
-        try:
-            process, _instance = start_client(spec, mc_version, world, width, height)
-            process_holder["process"] = process
-            print(f"[SMOKE][LAUNCH] {_instance.name}")
-            print(f"  world: {world}")
-            print(f"  pid: {process.pid}")
-        except Exception as exc:
-            launch_error["error"] = exc
-            timer_done.set()
-        finally:
-            launched.set()
-
-    goal = "the interface self-test result" if interfaces else "quickplay world entry"
+    goal = "quickplay world entry"
     print(f"[SMOKE] {instance.name}: waiting {timeout}s for {goal}")
-    timer = threading.Thread(target=timer_thread, name=f"smoke-timer-{spec.target}")
-    quickplay = threading.Thread(target=quickplay_thread, name=f"smoke-quickplay-{spec.target}")
-    timer.start()
-    quickplay.start()
-
+    deadline = time.monotonic() + timeout
+    desktop = None
+    process = None
+    log_path = latest_log_candidates(instance)[0]
+    log_text = ""
     try:
-        log_path = latest_log_candidates(instance)[0]
-        log_text = ""
-        outcome: bool | None = None
-        while not timer_done.wait(0.1):
-            log_path, log_text = read_smoke_log(instance, cursors)
-            if log_text:
-                outcome = smoke_outcome(log_text, interfaces)
-                if outcome is not None:
-                    break
-            if "error" in launch_error:
-                break
+        if os.name == "nt":
+            desktop = WindowsSmokeDesktop(instance.name)
+        with smoke_options(instance) if desktop is not None else nullcontext():
+            try:
+                # Launch synchronously: no worker can spawn a late, orphaned client
+                # after the timeout/desktop/configuration cleanup has already run.
+                process, _ = start_client(spec, mc_version, world, width, height, desktop)
+                print(f"[SMOKE][LAUNCH] {instance.name}\n  world: {world}\n  pid: {process.pid}")
+                if desktop is not None:
+                    print(f"[SMOKE][DESKTOP] {desktop.name}: background; no automatic switch")
+                    desktop.show_controls(process.pid)
+                while time.monotonic() < deadline:
+                    if desktop is not None and desktop.input_error is not None:
+                        raise RuntimeError(f"Smoke input guard failed: {desktop.input_error}")
+                    log_path, log_text = read_smoke_log(instance, cursors)
+                    if smoke_outcome(log_text) is not None or process.poll() is not None:
+                        break
+                    time.sleep(0.1)
 
-        final_log_path, final_log_text = read_smoke_log(instance, cursors)
-        if final_log_text.strip():
-            log_path = final_log_path
-            log_text = final_log_text
-        if outcome is None and log_text:
-            outcome = smoke_outcome(log_text, interfaces)
-        ok = outcome is True
-
-        launched.wait(timeout=1)
-        process = process_holder.get("process")
-        exit_code = process.poll() if process else None
-
-        if ok and WORLD_LOCKED_PATTERN.search(log_text):
-            print(f"[SMOKE][SKIP] {instance.name}: world '{world}' is in use; treating as success")
-        elif ok:
-            print(
-                f"[SMOKE][PASS] {instance.name}: {goal} reached within {timeout}s; "
-                f"waiting {POST_ENTRY_SETTLE_SECONDS:g}s before cleanup"
-            )
-            if interfaces:
-                for line in log_text.splitlines():
-                    if "[PondererSmoke]" in line:
-                        print(f"  {line.strip()}")
-            time.sleep(POST_ENTRY_SETTLE_SECONDS)
-        else:
-            if outcome is False:
-                print(f"[SMOKE][FAIL] {instance.name}: interface self-test reported FAIL")
-                for line in log_text.splitlines():
-                    if "[PondererSmoke]" in line:
-                        print(f"  {line.strip()}")
-            else:
-                print(f"[SMOKE][FAIL] {instance.name}: {goal} not reached within {timeout}s")
-            if "error" in launch_error:
-                print(f"[SMOKE][LAUNCH ERROR] {launch_error['error']}")
-            if exit_code is not None:
-                print(f"[SMOKE][PROCESS EXIT] code={exit_code}")
-            print(f"[SMOKE][LOG] {log_path}")
-            print(extract_error_excerpt(log_text, max_log_lines))
-
-        return SmokeResult(spec.target, ok, log_path, exit_code)
+                log_path, log_text = read_smoke_log(instance, cursors)
+                exit_code = process.poll()
+                ok = smoke_outcome(log_text) is True
+                if ok and WORLD_LOCKED_PATTERN.search(log_text):
+                    print(f"[SMOKE][SKIP] {instance.name}: world '{world}' is in use; treating as success")
+                elif ok:
+                    print(f"[SMOKE][PASS] {instance.name}: {goal} reached within {timeout}s; "
+                          f"waiting {POST_ENTRY_SETTLE_SECONDS:g}s before cleanup")
+                    time.sleep(POST_ENTRY_SETTLE_SECONDS)
+                    if desktop is not None and desktop.input_error is not None:
+                        raise RuntimeError(f"Smoke input guard failed: {desktop.input_error}")
+                else:
+                    print(f"[SMOKE][FAIL] {instance.name}: {goal} not reached within {timeout}s")
+                    if exit_code is not None:
+                        print(f"[SMOKE][PROCESS EXIT] code={exit_code}")
+                    print(f"[SMOKE][LOG] {log_path}\n{extract_error_excerpt(log_text, max_log_lines)}")
+                    console_log = instance / "logs" / "quickplay-launcher.log"
+                    if not log_text.strip() and console_log.exists():
+                        print(extract_error_excerpt(console_log.read_text(encoding="utf-8", errors="replace"),
+                                                    max_log_lines))
+                return SmokeResult(spec.target, ok, log_path, exit_code)
+            finally:
+                if process is not None:
+                    stop_process_tree(process)
+    except (OSError, RuntimeError) as exc:
+        print(f"[SMOKE][FAIL] {instance.name}: {exc}")
+        return SmokeResult(spec.target, False, log_path)
     finally:
-        process = process_holder.get("process")
-        if process:
-            stop_process_tree(process)
-
-        stop_timer.set()
-        timer.join(timeout=1)
-        quickplay.join(timeout=1)
+        if desktop is not None:
+            desktop.close()
 
 
 def run_smoke(
@@ -814,7 +1380,6 @@ def run_smoke(
             args.smoke_timeout,
             args.smoke_log_lines,
             args.dry_run,
-            args.smoke_interfaces,
         )
         for target in launch_targets
     ]
@@ -832,9 +1397,6 @@ def main() -> int:
     parser.add_argument("--smoke", action="store_true", help="Build, quickplay, wait for a world-entry log marker, then clean up; occupied worlds count as success.")
     parser.add_argument("--smoke-timeout", type=int, default=DEFAULT_SMOKE_TIMEOUT)
     parser.add_argument("--smoke-log-lines", type=int, default=DEFAULT_SMOKE_LOG_LINES)
-    parser.add_argument("--smoke-interfaces", action="store_true",
-                        help="With --smoke: run the in-game interface sandbox self-test and wait for its PASS/FAIL marker.")
-    parser.add_argument("--smoke-ponder-item", help="With --smoke-interfaces: also open PonderUI for this item id and screenshot it.")
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH)
     parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
     args = parser.parse_args()
@@ -842,11 +1404,6 @@ def main() -> int:
         parser.error("--smoke-timeout must be greater than 0")
     if args.smoke_log_lines <= 0:
         parser.error("--smoke-log-lines must be greater than 0")
-
-    if args.smoke_interfaces:
-        EXTRA_JVM_ARGS.append("-Dponderer.smoke.interfaces=true")
-        if args.smoke_ponder_item:
-            EXTRA_JVM_ARGS.append(f"-Dponderer.smoke.interfaces.ponder={args.smoke_ponder_item}")
 
     props = read_gradle_properties()
     mc_version = props["minecraft_version"]

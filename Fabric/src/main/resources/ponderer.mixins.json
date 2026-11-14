@@ -10,11 +10,8 @@
   "mixins": [],
   "client": [
     "PonderSceneRegistryMixinFabric",
-    "PonderSceneRegistryNbtMixinFabric",
-    "InterfaceExtendedCaptureMixin",
-    "AnimationTickHolderMixin",
-    "PonderUINbtMixinFabric",
-    "PonderTooltipNbtMixinFabric"
+    "InterfaceExtendedCaptureMixin"
   ],
-  "server": []
+  "server": [],
+  "plugin": "com.nododiiiii.ponderer.runtime.launch.RuntimeMixinPlugin"
 }

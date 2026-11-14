@@ -17,3 +17,8 @@ rootProject.name = "ponderer"
 include "Common"
 include "NeoForge"
 include "Fabric"
+include "SceneModel", "RuntimeCommon", "RuntimeNeoForge", "RuntimeFabric"
+project(":SceneModel").projectDir = file("Common/scene-model")
+project(":RuntimeCommon").projectDir = file("Common/runtime")
+project(":RuntimeNeoForge").projectDir = file("NeoForge/runtime")
+project(":RuntimeFabric").projectDir = file("Fabric/runtime")

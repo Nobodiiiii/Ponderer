@@ -1,0 +1,44 @@
+plugins {
+    id "org.spongepowered.gradle.vanilla" version "0.2.1-SNAPSHOT"
+}
+base { archivesName = "pondererlib-common-${minecraft_version}" }
+version = lib_version
+minecraft { version(minecraft_version) }
+dependencies {
+    api project(":SceneModel")
+    compileOnly "org.spongepowered:mixin:0.8.7"
+    compileOnly "org.ow2.asm:asm-tree:9.7.1"
+    compileOnly "net.createmod.ponder:Ponder-Common-${minecraft_version}:${ponder_version}"
+    compileOnly "dev.engine-room.flywheel:flywheel-common-mojmap-api-${minecraft_version}:${flywheel_version}"
+}
+java { withSourcesJar() }
+
+// Compile the same portable action source that the source-only exporter ships.
+// Keep section ownership in its existing runtime class as the single algorithm source.
+def portableOutput = layout.buildDirectory.dir("generated/portableSupport")
+def portableTemplate = file("src/main/templates/ponderer/generated_ponder_support.java.template")
+def ownershipSource = file("src/main/java/com/nododiiiii/ponderer/runtime/core/SceneSectionOwnership.java")
+def plannerSource = file("src/main/java/com/nododiiiii/ponderer/runtime/support/structure/ExtraStructurePlanner.java")
+
+def generatePortableSupport = tasks.register("generatePortableSupport") {
+    inputs.files(portableTemplate, ownershipSource, plannerSource)
+    outputs.dir(portableOutput)
+    doLast {
+        def ownership = ownershipSource.getText("UTF-8")
+        def declaration = ownership.substring(ownership.indexOf("final class SceneSectionOwnership"))
+            .replaceFirst("final class SceneSectionOwnership", "private static final class SceneSectionOwnership")
+        def planner = plannerSource.getText("UTF-8")
+        def plannerDeclaration = planner.substring(planner.indexOf("public final class ExtraStructurePlanner"))
+            .replaceFirst("public final class ExtraStructurePlanner", "private static final class ExtraStructurePlanner")
+        def template = portableTemplate.getText("UTF-8").replace('${SECTION_OWNERSHIP}', declaration).replace('${EXTRA_STRUCTURE_PLANNER}', plannerDeclaration)
+        def resource = portableOutput.get().file("resources/ponderer/generated_ponder_support.java.template").asFile
+        resource.parentFile.mkdirs()
+        resource.setText(template, "UTF-8")
+        def source = portableOutput.get().file("java/com/nododiiiii/ponderer/runtime/api/PonderActions.java").asFile
+        source.parentFile.mkdirs()
+        source.setText(template.replace('${PACKAGE}', 'com.nododiiiii.ponderer.runtime.api')
+            .replace('GeneratedPonderSupport', 'PonderActions'), "UTF-8")
+    }
+}
+sourceSets.main.java.srcDir(files(portableOutput.map { it.dir("java") }).builtBy(generatePortableSupport))
+sourceSets.main.resources.srcDir(files(portableOutput.map { it.dir("resources") }).builtBy(generatePortableSupport))

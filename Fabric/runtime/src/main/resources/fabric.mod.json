@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "pondererlib",
+  "version": "${lib_version}",
+  "name": "Ponderer Lib",
+  "description": "Shared scene runtime and Ponder enhancements.",
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "com.nododiiiii.ponderer.fabric.runtime.PondererLibFabricClient"
+    ]
+  },
+  "mixins": [
+    "pondererlib.runtime.mixins.json",
+    "pondererlib.platform.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "fabric-api": ">=${fabric_version}",
+    "minecraft": "${minecraft_version}",
+    "java": ">=21",
+    "ponder": ">=${ponder_version}"
+  },
+  "suggests": {
+    "flywheel": ">=${flywheel_version}"
+  }
+}

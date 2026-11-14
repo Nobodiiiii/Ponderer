@@ -563,7 +563,9 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private static DslScene.DslStep deepCopy(DslScene.DslStep step) {
-        return STEP_GSON.fromJson(STEP_GSON.toJson(step), DslScene.DslStep.class);
+        DslScene.DslStep copy = STEP_GSON.fromJson(STEP_GSON.toJson(step), DslScene.DslStep.class);
+        copy.id = java.util.UUID.randomUUID().toString();
+        return copy;
     }
 
     private boolean isActionDisabled(int actionId, int rowIndex) {
@@ -736,6 +738,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         if (index >= 0 && index < steps.size()) {
             session.execute(mutable -> {
                 DslScene.DslStep oldStep = mutable.get(index);
+                newStep.id = oldStep.id;
+                newStep.extensionData = oldStep.extensionData == null ? null : oldStep.extensionData.deepCopy();
                 mutable.set(index, newStep);
                 if (didShowInterfaceContextChange(oldStep, newStep)) {
                     pruneFollowingInterfaceSlotSteps(mutable, index);

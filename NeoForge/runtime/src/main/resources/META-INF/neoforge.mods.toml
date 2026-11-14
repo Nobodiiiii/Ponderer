@@ -1,0 +1,36 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="MIT"
+[[mods]]
+modId="pondererlib"
+version="${lib_version}"
+displayName="Ponderer Lib"
+description='''Shared scene runtime and Ponder enhancements.'''
+[[mixins]]
+config="pondererlib.runtime.mixins.json"
+[[mixins]]
+config="pondererlib.platform.mixins.json"
+[[dependencies.pondererlib]]
+modId="neoforge"
+type="required"
+versionRange="${neo_version_range}"
+ordering="NONE"
+side="BOTH"
+[[dependencies.pondererlib]]
+modId="minecraft"
+type="required"
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
+[[dependencies.pondererlib]]
+modId="ponder"
+type="required"
+versionRange="[${ponder_version},)"
+ordering="AFTER"
+side="CLIENT"
+[[dependencies.pondererlib]]
+modId="flywheel"
+type="required"
+versionRange="[${flywheel_version},)"
+ordering="AFTER"
+side="CLIENT"

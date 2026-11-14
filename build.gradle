@@ -78,6 +78,9 @@ subprojects {
             "mod_description"           : mod_description,
             "mod_license"               : mod_license,
             "mod_version"               : mod_version,
+            "lib_version"               : lib_version,
+            "ponder_version"            : ponder_version,
+            "flywheel_version"          : flywheel_version,
             "jei_version"               : jei_version
         ]
 
@@ -128,12 +131,6 @@ def configureQuickPlayTask = { Exec task, String targetName, boolean onlineBuild
     }
     if (smokeRun && project.hasProperty('smokeTimeout')) {
         command += ['--smoke-timeout', project.property('smokeTimeout').toString()]
-    }
-    if (smokeRun && project.hasProperty('smokeInterfaces')) {
-        command += ['--smoke-interfaces']
-    }
-    if (smokeRun && project.hasProperty('smokePonderItem')) {
-        command += ['--smoke-ponder-item', project.property('smokePonderItem').toString()]
     }
     if (smokeRun && project.hasProperty('smokeLogLines')) {
         command += ['--smoke-log-lines', project.property('smokeLogLines').toString()]

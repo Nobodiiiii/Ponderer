@@ -65,6 +65,7 @@ public class PondererJeiPlugin implements IModPlugin {
 
         // PonderUI: public API only (design doc 14.6). JEI sits beside the embedded interface
         // while slots are edited or the player is trying it; drops target sandbox slots.
+        if (!com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled()) return;
         registration.addGuiScreenHandler(PonderUI.class, screen -> {
             UiAnchorViewport.Rect viewport = resolvePonderUiViewport(screen);
             return viewport == null ? null : new PonderUiGuiProperties(screen, viewport);

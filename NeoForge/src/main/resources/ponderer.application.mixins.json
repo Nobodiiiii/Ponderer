@@ -14,5 +14,6 @@
     "MultilineTextFieldAccessor",
     "PonderEditorMixin"
   ],
-  "server": []
+  "server": [],
+  "plugin": "com.nododiiiii.ponderer.runtime.launch.RuntimeMixinPlugin"
 }

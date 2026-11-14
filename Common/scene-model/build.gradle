@@ -1,0 +1,6 @@
+base { archivesName = "pondererlib-scene-model" }
+version = lib_version
+dependencies {
+    api "com.google.code.gson:gson:2.10.1"
+}
+java { withSourcesJar() }

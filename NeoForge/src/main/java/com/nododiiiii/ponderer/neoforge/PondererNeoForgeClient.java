@@ -65,23 +65,11 @@ public class PondererNeoForgeClient {
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseScrolled);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseInput);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onPlayerLoggedIn);
-        NeoForge.EVENT_BUS.addListener((ScreenEvent.Init.Post event) -> {
-            PonderPreviewTooltip tooltip = PonderPreviewTooltip.create(event.getScreen());
-            if (tooltip != null) event.addListener(tooltip);
-        });
-        NeoForge.EVENT_BUS.addListener((ScreenEvent.Render.Pre event) ->
-            PonderSceneTextLayer.beforeRender(event.getScreen()));
-        NeoForge.EVENT_BUS.addListener((ScreenEvent.Render.Post event) -> {
-            PonderSceneTextLayer.afterRender(event.getScreen(), event.getGuiGraphics());
-            PonderPreviewTooltip.render(event.getScreen(), event.getGuiGraphics(), event.getMouseX(), event.getMouseY());
-        });
-        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Pre event) -> PonderSceneTextLayer.cancelPending());
         NeoForge.EVENT_BUS.addListener((TagsUpdatedEvent event) -> {
             if (event.getUpdateCause() == TagsUpdatedEvent.UpdateCause.CLIENT_PACKET_RECEIVED) {
                 Minecraft.getInstance().execute(com.nododiiiii.ponderer.application.SceneRefreshCoordinator::onItemTagsUpdated);
             }
         });
-        NeoForgeInterfaceEvents.register();
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {

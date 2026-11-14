@@ -86,19 +86,6 @@ public class PondererFabricClient implements ClientModInitializer {
 
         BlockEntityRendererRegistry.register(ModBlockEntities.PROJECTOR.get(), ctx -> new ProjectorBlockEntityRenderer());
         MenuScreens.register(ModMenuTypes.PROJECTOR.get(), ProjectorConfigScreen::new);
-        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-            PonderPreviewTooltip tooltip = PonderPreviewTooltip.create(screen);
-            if (tooltip == null) return;
-            Screens.getButtons(screen).add(tooltip);
-            ScreenEvents.beforeRender(screen).register((scr, graphics, mouseX, mouseY, partialTick) ->
-                PonderSceneTextLayer.beforeRender(scr));
-            ScreenEvents.afterRender(screen).register((scr, graphics, mouseX, mouseY, partialTick) -> {
-                PonderSceneTextLayer.afterRender(scr, graphics);
-                tooltip.renderTooltip(graphics, mouseX, mouseY);
-            });
-            ScreenEvents.remove(screen).register(scr -> PonderSceneTextLayer.cancelPending());
-        });
-        ClientTickEvents.START_CLIENT_TICK.register(client -> PonderSceneTextLayer.cancelPending());
         WorldRenderEvents.START.register(context -> ProjectorWorldOverlayQueue.beginFrame());
         WorldRenderEvents.LAST.register(context -> {
             ProjectorWorldOverlayQueue.render();
@@ -163,7 +150,7 @@ public class PondererFabricClient implements ClientModInitializer {
 
         });
 
-        FabricInterfaceEvents.register();
+
 
         // Blueprint mouse events are handled via the tick method and client input directly
         // Fabric doesn't have direct mouse scroll/click events at the same level as Forge's InputEvent

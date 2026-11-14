@@ -2,7 +2,7 @@ package com.nododiiiii.ponderer.features.projector;
 
 import com.nododiiiii.ponderer.support.structure.StructureDescriber;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.support.structure.ExtraStructurePlanner;
+import com.nododiiiii.ponderer.runtime.support.structure.ExtraStructurePlanner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;

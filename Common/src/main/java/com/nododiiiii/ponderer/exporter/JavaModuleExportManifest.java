@@ -6,7 +6,10 @@ import java.util.List;
 import java.util.Map;
 
 public class JavaModuleExportManifest {
-    public int version = 2;
+    public int version = 3;
+    public Map<String, String> generatedSources = new LinkedHashMap<>();
+    public String mode;
+    public boolean ownsLibDependency;
     public String loader;
     public String modId;
     public String basePackage;

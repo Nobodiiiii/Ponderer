@@ -4,7 +4,7 @@ import com.nododiiiii.ponderer.support.ui.UIText;
 import com.nododiiiii.ponderer.editor.capture.PickState;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.scene.step.ParticleEffectSpec;
-import com.nododiiiii.ponderer.support.effects.ParticleEffects;
+import com.nododiiiii.ponderer.runtime.support.effects.ParticleEffects;
 import com.nododiiiii.ponderer.application.ui.widgets.DeclarativeFormEntry;
 import net.minecraft.network.chat.Component;
 

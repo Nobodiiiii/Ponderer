@@ -1,0 +1,57 @@
+plugins {
+    id "net.neoforged.moddev" version "2.0.140"
+}
+evaluationDependsOn(":RuntimeCommon")
+evaluationDependsOn(":SceneModel")
+def shared = project(":RuntimeCommon")
+def model = project(":SceneModel")
+base { archivesName = "pondererlib-${minecraft_version}-neoforge" }
+version = lib_version
+neoForge {
+    version = project.neo_version
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+    mods {
+        pondererlib { sourceSet(sourceSets.main) }
+    }
+}
+dependencies {
+    compileOnly shared
+    compileOnly model
+    api "net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:${ponder_version}"
+    jarJar "net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:[${ponder_version},)"
+    compileOnly "dev.engine-room.flywheel:flywheel-neoforge-api-${flywheel_minecraft_version}:${flywheel_version}"
+    jarJar "dev.engine-room.flywheel:flywheel-neoforge-${flywheel_minecraft_version}:[${flywheel_version},)"
+}
+tasks.named("compileJava", JavaCompile) {
+    source(shared.sourceSets.main.allJava, model.sourceSets.main.allJava)
+}
+processResources { from shared.sourceSets.main.resources }
+java { withSourcesJar() }
+tasks.named("sourcesJar", Jar) { from(shared.sourceSets.main.allSource, model.sourceSets.main.allSource) }
+
+// Match modern Create-provided Ponder under its current Maven identity.
+tasks.named("jarJar") {
+    outputs.upToDateWhen { false }
+    doLast {
+        ["tmp/jarJar/metadata.json", "generated/jarJar/META-INF/jarjar/metadata.json"].each { path ->
+            def metadataFile = layout.buildDirectory.file(path).get().asFile
+            if (metadataFile.isFile()) {
+                def metadata = new groovy.json.JsonSlurper().parse(metadataFile)
+                metadata.jars?.each { embedded ->
+                    if (embedded.identifier?.group == "net.createmod.ponder"
+                        && embedded.identifier?.artifact == "Ponder-NeoForge-${minecraft_version}") {
+                        embedded.identifier.artifact = "ponder-neoforge"
+                    }
+                }
+                metadataFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(metadata))
+            }
+        }
+    }
+}
+publishing {
+    publications { mavenJava(MavenPublication) { from components.java } }
+    repositories { maven { name = "libStaging"; url = rootProject.layout.buildDirectory.dir("lib-repository") } }
+}

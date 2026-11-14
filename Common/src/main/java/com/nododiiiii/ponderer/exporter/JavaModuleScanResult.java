@@ -11,6 +11,7 @@ import java.util.Map;
 public class JavaModuleScanResult {
 
     public static class TargetProject {
+        public JavaModuleExportRequest.Mode mode = JavaModuleExportRequest.Mode.JAVA_SUPPORT;
         public String loader;
         public String modId;
         public String basePackage;

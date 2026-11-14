@@ -1,5 +1,7 @@
 # Ponderer 界面型思索重构方案 v2：上下文完备的客户端界面沙箱
 
+> 2026-11-14 测试策略更新：本文中的自动界面、思索播放与捕获自检仅作历史方案保留，相关实现与启动参数已按用户要求删除，不再实施或恢复。`quickPlaySmoke` 仅检查普通入世界、超时及进程清理；界面功能使用手动检查。
+
 > 状态：提案 v2（Proposed）。本文自成一体，取代 `INTERFACE_PONDER_SANDBOX_PROPOSAL.md`（v1）；v1 保留作历史记录。  
 > 基线：1.21.1 分支 `6488a955`（活动模块 `Common`、`NeoForge`、`Fabric`）；1.20.1 分支 `1141b04d`（`Common`、`Forge`、`Fabric`）。  
 > 范围：`show_interface` / `change_interface_slot` / `click_interface` 的运行时、编辑器、捕获、JEI 集成与投影仪呈现。  

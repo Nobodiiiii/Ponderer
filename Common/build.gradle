@@ -11,6 +11,7 @@ minecraft {
 }
 
 dependencies {
+    api project(":RuntimeCommon")
     compileOnly group: "org.spongepowered", name: "mixin", version: "0.8.7"
 
     // NeoForge config spec (ForgeConfigAPIPort provides it on both platforms)
@@ -33,6 +34,15 @@ dependencies {
 java {
     withSourcesJar()
 }
+
+// Make the repository license available to the exporter and both loader jars.
+def generateLicenseResources = tasks.register("generateLicenseResources", Sync) {
+    from(rootProject.file("LICENSE")) {
+        into "META-INF/licenses/ponderer"
+    }
+    into layout.buildDirectory.dir("generated/licenseResources")
+}
+sourceSets.main.resources.srcDir(generateLicenseResources)
 
 tasks.withType(Test).configureEach {
     enabled = true

@@ -21,7 +21,7 @@ public final class EditorModule implements AutoCloseable {
         bindings.add(PlaybackInputLocks.register(() -> PickState.isActive() || NbtExpandedPickState.isActive() || InterfaceSlotEditState.isActive()));
     }
     public static void resetSession() {
-        com.nododiiiii.ponderer.support.lifecycle.Cleanup.all(
+        com.nododiiiii.ponderer.runtime.support.lifecycle.Cleanup.all(
             PickState::reset, NbtPickState::reset, CoordPickState::reset,
             NbtExpandedPickState::reset, InterfaceSlotEditState::reset,
             InterfaceCapture::reset, EditorResources::closePreviews);

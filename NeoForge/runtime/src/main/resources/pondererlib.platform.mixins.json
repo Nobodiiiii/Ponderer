@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.nododiiiii.ponderer.runtime.platform.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [],
+  "client": [
+    "PonderSceneRegistryNbtMixin",
+    "PonderLevelModelDataMixin",
+    "SandboxContainerRenderEventsMixin",
+    "PonderUINbtMixin",
+    "PonderTooltipNbtMixin"
+  ],
+  "server": [],
+  "plugin": "com.nododiiiii.ponderer.runtime.launch.RuntimeMixinPlugin"
+}

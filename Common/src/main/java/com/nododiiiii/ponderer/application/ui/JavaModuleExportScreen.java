@@ -23,6 +23,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScreen {
 
+    private int exportMode = JavaModuleExportRequest.Mode.JAVA_SUPPORT.ordinal();
     private String draftTargetRoot = "";
     private Set<String> selectedSceneKeys = new HashSet<>();
 
@@ -39,6 +40,13 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        entries.add(FieldSpecs.cycle(FieldBindings.transientInteger(() -> exportMode, value -> exportMode = value),
+            "ponderer.ui.export_java.mode", null, 180, JavaModuleExportRequest.Mode.values().length,
+            this::clearStatusMessages, () -> switch (JavaModuleExportRequest.Mode.values()[exportMode]) {
+                case JSON_LIB -> "JSON + Java + Lib";
+                case JAVA_LIB -> "Java + Lib";
+                case JAVA_SUPPORT -> "Java + Support";
+            }, () -> 0xFFFFFF));
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> draftTargetRoot, value -> {
                 draftTargetRoot = value;
@@ -76,7 +84,8 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
             return false;
         }
 
-        JavaModuleExportRequest request = com.nododiiiii.ponderer.bootstrap.ProductExport.request(targetPath, selectedSceneKeys);
+        JavaModuleExportRequest base = com.nododiiiii.ponderer.bootstrap.ProductExport.request(targetPath, selectedSceneKeys);
+        JavaModuleExportRequest request = new JavaModuleExportRequest(base.targetRoot(), base.selectedSceneKeys(), base.scenes(), JavaModuleExportRequest.Mode.values()[exportMode]);
         JavaModuleScanResult scanResult = com.nododiiiii.ponderer.bootstrap.ProductExport.service().scan(request);
         if (scanResult.hasFatalFindings()) {
             setErrorMessage(scanResult.fatalFindings.get(0).message);
@@ -99,6 +108,7 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
     @Override
     protected Map<String, String> snapshotState() {
         Map<String, String> snapshot = new LinkedHashMap<>();
+        snapshot.put("export_mode", Integer.toString(exportMode));
         snapshot.put("target_root", draftTargetRoot);
         TreeSet<String> ordered = new TreeSet<>(selectedSceneKeys);
         snapshot.put("scene_count", String.valueOf(ordered.size()));
@@ -112,6 +122,7 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
 
     @Override
     protected void restoreSnapshot(Map<String, String> snapshot) {
+        try { exportMode = Math.floorMod(Integer.parseInt(snapshot.getOrDefault("export_mode", "2")), 3); } catch (NumberFormatException ignored) { exportMode = 2; }
         draftTargetRoot = snapshot.getOrDefault("target_root", "");
         selectedSceneKeys = new HashSet<>();
         int count;
