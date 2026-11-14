@@ -43,7 +43,7 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
         entries.add(FieldSpecs.cycle(FieldBindings.transientInteger(() -> exportMode, value -> exportMode = value),
             "ponderer.ui.export_java.mode", null, 180, JavaModuleExportRequest.Mode.values().length,
             this::clearStatusMessages, () -> switch (JavaModuleExportRequest.Mode.values()[exportMode]) {
-                case JSON_LIB -> "JSON + Java + Lib";
+                case JSON_LIB -> "JSON + Lib";
                 case JAVA_LIB -> "Java + Lib";
                 case JAVA_SUPPORT -> "Java + Support";
             }, () -> 0xFFFFFF));

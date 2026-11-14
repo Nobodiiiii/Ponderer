@@ -1358,7 +1358,7 @@
   "ponderer.ui.export.failed": "Export failed",
   "ponderer.ui.export_java.mode": "Export mode",
   "ponderer.ui.export_java.target_root": "Target Mod Root",
-  "ponderer.ui.export_java.target_root.tooltip": "Choose the specific Fabric, Forge, or NeoForge module root that contains src/main/java and src/main/resources",
+  "ponderer.ui.export_java.target_root.tooltip": "JSON + Lib only requires src/main/resources; Java modes also require src/main/java. Select a Fabric, Forge, or NeoForge module root.",
   "ponderer.ui.export_java.target_root.hint": "e.g. D:/work/MyMod/NeoForge",
   "ponderer.ui.export_java.target_root.empty": "Target mod root cannot be empty",
   "ponderer.ui.export_java.browse": "Select Target Mod Root",

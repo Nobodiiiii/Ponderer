@@ -1139,16 +1139,23 @@ def smoke_options(instance: Path):
     original = path.read_bytes() if existed else b""
     changed = original
     previous = {}
-    for key in (b"pauseOnLostFocus", b"fullscreen"):
+    overrides = {
+        b"pauseOnLostFocus": b"false",
+        b"fullscreen": b"false",
+        b"soundCategory_master": b"0.0",
+    }
+    for key, value in overrides.items():
         pattern = rb"(?m)^" + key + rb":[^\r\n]*"
         match = re.search(pattern, original)
         previous[key] = match.group() if match else None
+        replacement = key + b":" + value
         if match:
-            changed = re.sub(pattern, key + b":false", changed)
+            changed = re.sub(pattern, replacement, changed)
         else:
-            changed += (b"" if not changed or changed.endswith(b"\n") else b"\n") + key + b":false\n"
+            changed += (b"" if not changed or changed.endswith(b"\n") else b"\n") + replacement + b"\n"
     path.write_bytes(changed)
     try:
+        print(f"[SMOKE][AUDIO] {instance.name}: master volume temporarily muted")
         yield
     finally:
         current = path.read_bytes() if path.exists() else b""
@@ -1274,7 +1281,7 @@ def smoke_target(
         print(f"  timeout: {timeout}s")
         print(f"  args: {len(command)}")
         if os.name == "nt":
-            print("  smoke window: private Win32 desktop + optional tray; temporary unpaused/windowed settings")
+            print("  smoke window: private Win32 desktop + optional tray; temporary unpaused/windowed/muted settings")
         return SmokeResult(spec.target, True, latest_log_candidates(instance)[0])
 
     if world_is_locked(instance, world):

@@ -139,7 +139,7 @@ public final class InterfaceHost {
         if (!(mc.screen instanceof PonderUI ui) || ui.getActiveScene() != element.scene()) {
             return;
         }
-        if (((PonderUiPreviewAccess) ui).ponderer$getFreePreview().isActive()) {
+        if (ui instanceof PonderUiPreviewAccess previewAccess && previewAccess.ponderer$getFreePreview().isActive()) {
             return;
         }
         SandboxSession session = element.session();
@@ -292,7 +292,7 @@ public final class InterfaceHost {
         if (!(screen instanceof PonderUI ui) || ui.getActiveScene() != element.scene()) {
             return null;
         }
-        if (((PonderUiPreviewAccess) ui).ponderer$getFreePreview().isActive()) {
+        if (ui instanceof PonderUiPreviewAccess previewAccess && previewAccess.ponderer$getFreePreview().isActive()) {
             return null;
         }
         return element.session();

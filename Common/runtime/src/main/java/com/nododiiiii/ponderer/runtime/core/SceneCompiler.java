@@ -55,6 +55,7 @@ public final class SceneCompiler {
     }
 
     com.nododiiiii.ponderer.runtime.api.SceneProgram program(String sceneId, String segmentId, net.createmod.ponder.api.scene.SceneBuilder builder, net.createmod.ponder.api.scene.SceneBuildingUtil util) {
+        com.nododiiiii.ponderer.runtime.api.RuntimeScenes.adopt(builder.getScene());
         DslScene document = new DslScene();
         document.id = sceneId;
         SceneStepExecutor.StepContext context = new SceneStepExecutor.StepContext();
@@ -67,6 +68,8 @@ public final class SceneCompiler {
             @Override public void step(DslScene.DslStep step) {
                 if (step == null || step.type == null) throw new IllegalArgumentException(sceneId + "/" + segmentId + ": missing step type");
                 String location = sceneId + "/" + segmentId + "/" + step.id;
+                for (String feature : com.nododiiiii.ponderer.scene.SceneRuntimeRequirements.stepFeatures(step.type))
+                    com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.require(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.parse(feature), location);
                 if (com.nododiiiii.ponderer.scene.SceneStepTypes.INTERFACES.contains(step.type.toLowerCase(Locale.ROOT))) com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.requireInterfaces(location);
                 var buildContext = context(step.id);
                 fragments.build(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE, buildContext);
@@ -294,6 +297,7 @@ public final class SceneCompiler {
         BoundingBox scanBox = preScanSegmentBounds(sc);
         return (builder, util) -> {
             try {
+                com.nododiiiii.ponderer.runtime.api.RuntimeScenes.adopt(builder.getScene());
                 if (scanBox != null) {
                     builder.getScene().getWorld().getBounds().encapsulate(scanBox);
                 }

@@ -13,5 +13,5 @@
     "InterfaceExtendedCaptureMixin"
   ],
   "server": [],
-  "plugin": "com.nododiiiii.ponderer.runtime.launch.RuntimeMixinPlugin"
+  "plugin": "com.nododiiiii.ponderer.fabric.runtime.FabricRuntimeMixinPlugin"
 }

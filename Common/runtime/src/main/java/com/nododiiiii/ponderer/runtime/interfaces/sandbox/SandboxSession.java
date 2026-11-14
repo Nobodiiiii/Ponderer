@@ -462,6 +462,7 @@ public final class SandboxSession {
     }
 
     int nextWindowId() {
+        SandboxNetworkFirewall.markWindowIssued();
         int id = SandboxNetworkFirewall.WINDOW_ID_MIN + windowCounter;
         windowCounter = (windowCounter + 1) % (SandboxNetworkFirewall.WINDOW_ID_MAX - SandboxNetworkFirewall.WINDOW_ID_MIN + 1);
         return id;

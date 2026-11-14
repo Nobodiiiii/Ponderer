@@ -4,13 +4,13 @@ import com.nododiiiii.ponderer.scene.*;
 import java.util.Map;
 import java.util.LinkedHashMap;
 
-/** The two Lib modes share document relocation, host assembly and extension ownership. */
+/** The Lib modes share document relocation; only native Java exports assemble a host. */
 final class LibExportSources {
     private LibExportSources() {}
     static boolean usesLib(JavaModuleScanResult.TargetProject target) { return target.mode != JavaModuleExportRequest.Mode.JAVA_SUPPORT; }
     static String extensionPackage(JavaModuleScanResult.TargetProject target) { return target.basePackage + ".ponderext"; }
     static String jsonPath(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
-        return "/assets/" + target.modId + "/ponderer/scenes/" + plan.className + ".json";
+        return "/assets/" + target.modId + "/ponderer/scenes/" + plan.className.toLowerCase(java.util.Locale.ROOT) + ".json";
     }
     static DslScene document(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
         DslScene result = SceneCodec.copy(plan.sourceScene);
@@ -20,7 +20,12 @@ final class LibExportSources {
         for (var asset : plan.structures) relocated.put(asset.sourceId, asset.targetResourceId);
         result.structures = result.structures == null ? java.util.List.of() : result.structures.stream().map(id -> relocate(id, relocated)).toList();
         result.structure = relocate(result.structure, relocated);
-        result.tags = plan.tags.stream().map(id -> plan.customTags.containsKey(id) ? target.modId + ":" + id.substring(id.indexOf(':') + 1) : id).toList();
+        var tags = new java.util.LinkedHashSet<String>();
+        for (String id : plan.tags) tags.add(plan.customTags.containsKey(id) ? target.modId + ":" + id.substring(id.indexOf(':') + 1) : id);
+        tags.add(target.modId + ":ponderer_exported");
+        result.tags = java.util.List.copyOf(tags);
+        result.customTags = new LinkedHashMap<>();
+        plan.customTags.forEach((id, definition) -> result.customTags.put(target.modId + ":" + id.substring(id.indexOf(':') + 1), definition));
         if (result.scenes != null) for (int i = 0; i < result.scenes.size(); i++) {
             var segment = result.scenes.get(i);
             if (segment.steps == null) continue;
@@ -33,19 +38,10 @@ final class LibExportSources {
         return relocated.getOrDefault(id.contains(":") ? id : "ponderer:" + id, id);
     }
     static String members(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
-        String load;
-        if (target.mode == JavaModuleExportRequest.Mode.JSON_LIB) {
-            load = """
-                        try (var input = %s.class.getResourceAsStream(%s)) {
-                            if (input == null) throw new IllegalArgumentException("Missing scene resource " + %s);
-                            return com.nododiiiii.ponderer.scene.SceneCodec.decode(new java.io.InputStreamReader(input, java.nio.charset.StandardCharsets.UTF_8));
-                        } catch (java.io.IOException error) { throw new IllegalStateException(error); }
-                """.formatted(plan.className, quote(jsonPath(target, plan)), quote(jsonPath(target, plan)));
-        } else {
-            JavaValueEmitter emitter = new JavaValueEmitter();
-            String value = emitter.value(document(target, plan));
-            load = emitter.statements() + "        return " + value + ";\n";
-        }
+        if (target.mode == JavaModuleExportRequest.Mode.JSON_LIB) throw new IllegalArgumentException("JSON content has no generated Java members");
+        JavaValueEmitter emitter = new JavaValueEmitter();
+        String value = emitter.value(document(target, plan));
+        String load = emitter.statements() + "        return " + value + ";\n";
         return """
                 private static final com.nododiiiii.ponderer.runtime.api.RuntimeEngine RUNTIME = createRuntime();
                 private static com.nododiiiii.ponderer.scene.DslScene DOCUMENT;

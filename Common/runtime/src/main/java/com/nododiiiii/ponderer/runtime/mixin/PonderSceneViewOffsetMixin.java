@@ -13,16 +13,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class PonderSceneViewOffsetMixin implements PonderSceneViewOffsetAccess {
 
     @Unique
-    private final LerpedFloat ponderer$viewOffsetX = LerpedFloat.linear().startWithValue(0);
+    private LerpedFloat ponderer$viewOffsetX;
 
     @Unique
-    private final LerpedFloat ponderer$viewOffsetY = LerpedFloat.linear().startWithValue(0);
+    private LerpedFloat ponderer$viewOffsetY;
 
     @Unique
-    private final LerpedFloat ponderer$viewOffsetZ = LerpedFloat.linear().startWithValue(0);
+    private LerpedFloat ponderer$viewOffsetZ;
 
     @Unique
-    private final LerpedFloat ponderer$scaleOverride = LerpedFloat.linear().startWithValue(1);
+    private LerpedFloat ponderer$scaleOverride;
+
+    @Override public boolean ponderer$hasViewState() { return ponderer$viewOffsetX != null; }
+    @Unique private void ponderer$initializeView() {
+        if (ponderer$hasViewState()) return;
+        ponderer$viewOffsetX = LerpedFloat.linear().startWithValue(0);
+        ponderer$viewOffsetY = LerpedFloat.linear().startWithValue(0);
+        ponderer$viewOffsetZ = LerpedFloat.linear().startWithValue(0);
+        ponderer$scaleOverride = LerpedFloat.linear().startWithValue(1);
+    }
 
     @Unique
     private boolean ponderer$scaleOverrideActive = false;
@@ -32,21 +41,25 @@ public class PonderSceneViewOffsetMixin implements PonderSceneViewOffsetAccess {
 
     @Override
     public LerpedFloat ponderer$getViewOffsetX() {
+        ponderer$initializeView();
         return ponderer$viewOffsetX;
     }
 
     @Override
     public LerpedFloat ponderer$getViewOffsetY() {
+        ponderer$initializeView();
         return ponderer$viewOffsetY;
     }
 
     @Override
     public LerpedFloat ponderer$getViewOffsetZ() {
+        ponderer$initializeView();
         return ponderer$viewOffsetZ;
     }
 
     @Override
     public LerpedFloat ponderer$getScaleOverride() {
+        ponderer$initializeView();
         return ponderer$scaleOverride;
     }
 
@@ -57,11 +70,13 @@ public class PonderSceneViewOffsetMixin implements PonderSceneViewOffsetAccess {
 
     @Override
     public void ponderer$setScaleOverrideActive(boolean active) {
+        if (active) ponderer$initializeView();
         this.ponderer$scaleOverrideActive = active;
     }
 
     @Override
     public void ponderer$resetViewOffset() {
+        if (!ponderer$hasViewState()) return;
         ponderer$viewOffsetX.startWithValue(0);
         ponderer$viewOffsetY.startWithValue(0);
         ponderer$viewOffsetZ.startWithValue(0);
@@ -81,6 +96,7 @@ public class PonderSceneViewOffsetMixin implements PonderSceneViewOffsetAccess {
 
     @Inject(method = "tick", at = @At("HEAD"), remap = false)
     private void ponderer$tickViewOffset(CallbackInfo ci) {
+        if (!ponderer$hasViewState()) return;
         ponderer$viewOffsetX.tickChaser();
         ponderer$viewOffsetY.tickChaser();
         ponderer$viewOffsetZ.tickChaser();

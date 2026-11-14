@@ -37,6 +37,8 @@ public final class PonderRenderCache {
     }
 
     public static void record(PonderLevel world, WorldSectionElementImpl section, RenderType layer) {
+        if (!com.nododiiiii.ponderer.runtime.api.RuntimeScenes.owns(world)
+            && !com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext.isActive()) return;
         // Matches WorldSectionElementImpl.renderLayer in Ponder 1.0.69 and 1.0.82.
         Pair<Integer, Integer> key = Pair.of(section.hashCode() ^ world.hashCode(),
             RenderType.chunkBufferLayers().indexOf(layer));

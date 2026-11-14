@@ -16,6 +16,8 @@
     "SandboxClientLevelMixin",
     "SandboxChunkCacheMixin",
     "WorldSectionElementImplMixin",
+    "WorldSectionRenderCacheMixin",
+    "PlaybackUiExtensionMixin",
     "LerpedFloatInterpolationMixin",
     "WorldSectionInterpolationMixin",
     "PonderSceneAccessor",
@@ -33,5 +35,5 @@
     "PonderPlaybackMixin"
   ],
   "server": [],
-  "plugin": "com.nododiiiii.ponderer.runtime.launch.RuntimeMixinPlugin"
+  "plugin": "com.nododiiiii.ponderer.neoforge.runtime.NeoForgeRuntimeMixinPlugin"
 }

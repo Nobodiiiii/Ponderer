@@ -49,6 +49,7 @@ public final class NbtSceneFilter {
         private final Map<ResourceLocation, Set<String>> scenes = new ConcurrentHashMap<>();
         public Registration() { REGISTRATIONS.add(this); }
         public void registerScene(ResourceLocation itemId, String sceneId, @Nullable CompoundTag nbtFilter) {
+            if (nbtFilter != null && !nbtFilter.isEmpty()) RuntimeFeatures.require(RuntimeFeature.NBT_BINDINGS, sceneId);
             scenes.computeIfAbsent(itemId, ignored -> ConcurrentHashMap.newKeySet()).add(sceneId);
             filters.compute(sceneId, (key, existing) -> {
                 List<BindingFilter> next = existing == null ? new ArrayList<>() : new ArrayList<>(existing);

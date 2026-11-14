@@ -152,6 +152,7 @@ public class ProjectorBlockEntityRenderer implements BlockEntityRenderer<Project
     @Override
     public void render(ProjectorBlockEntity blockEntity, float partialTick, PoseStack poseStack,
                        MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
+        if (!com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.enabled(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.DETACHED_RENDERING)) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) {
             return;

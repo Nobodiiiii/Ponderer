@@ -22,7 +22,8 @@ public final class ClientCatalogBindings {
         if (player == null) player = com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.requestPlayerEnhancements("ponderer");
         if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled() && menus == null) menus = com.nododiiiii.ponderer.runtime.interfaces.InterfaceExtensions.installMenus(
             new com.nododiiiii.ponderer.compat.ae2.RuntimeAe2Menus());
-        if (editor == null) editor = new com.nododiiiii.ponderer.editor.api.EditorModule(new com.nododiiiii.ponderer.compat.jei.EditorJeiIngredients());
+        if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.enabled(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.EDITOR) && editor == null)
+            editor = new com.nododiiiii.ponderer.editor.api.EditorModule(new com.nododiiiii.ponderer.compat.jei.EditorJeiIngredients());
         if (preferences == null) preferences = com.nododiiiii.ponderer.runtime.api.PlaybackPreferences.install(
             () -> com.nododiiiii.ponderer.Config.DEFAULT_TEXT_PROGRESS.get(), value -> {
                 com.nododiiiii.ponderer.Config.DEFAULT_TEXT_PROGRESS.set(value);
@@ -37,7 +38,7 @@ public final class ClientCatalogBindings {
             com.nododiiiii.ponderer.application.network.FeedbackResponseDispatch::handleResponse);
         com.nododiiiii.ponderer.features.blueprint.BlueprintHandler.installPrompt(() ->
             net.minecraft.client.Minecraft.getInstance().setScreen(new com.nododiiiii.ponderer.application.ui.BlueprintPromptScreen()));
-        if (projector == null) projector = new com.nododiiiii.ponderer.features.projector.client.ProjectorClientModule(
+        if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.enabled(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.DETACHED_RENDERING) && projector == null) projector = new com.nododiiiii.ponderer.features.projector.client.ProjectorClientModule(
             com.nododiiiii.ponderer.application.SceneRefreshCoordinator::subscribe);
     }
 

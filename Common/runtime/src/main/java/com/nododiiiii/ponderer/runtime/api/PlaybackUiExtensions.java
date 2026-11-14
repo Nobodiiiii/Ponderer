@@ -8,6 +8,7 @@ public final class PlaybackUiExtensions {
     private static final CopyOnWriteArrayList<PlaybackUiExtension> EXTENSIONS = new CopyOnWriteArrayList<>();
     private PlaybackUiExtensions() {}
     public static AutoCloseable install(PlaybackUiExtension extension) {
+        RuntimeFeatures.require(RuntimeFeature.UI_EXTENSIONS, "PlaybackUiExtensions.install");
         EXTENSIONS.add(extension);
         return () -> EXTENSIONS.remove(extension);
     }

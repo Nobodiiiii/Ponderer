@@ -10,10 +10,15 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 /** Resource-pack-aware default for content mods. It never needs Ponderer's workspace. */
 public final class AssetStructureSource implements StructureSource {
     private final String namespace;
-    public AssetStructureSource(String namespace) { this.namespace = namespace; }
+    private final java.util.function.Supplier<net.minecraft.server.packs.resources.ResourceManager> resources;
+    public AssetStructureSource(String namespace) { this(namespace, () -> Minecraft.getInstance().getResourceManager()); }
+    public AssetStructureSource(String namespace, java.util.function.Supplier<net.minecraft.server.packs.resources.ResourceManager> resources) {
+        this.namespace = namespace;
+        this.resources = java.util.Objects.requireNonNull(resources);
+    }
     @Override public StructureTemplate loadSchematic(ResourceLocation id) {
         ResourceLocation asset = ResourceLocation.fromNamespaceAndPath(id.getNamespace(), "ponder/" + id.getPath() + ".nbt");
-        try (InputStream input = Minecraft.getInstance().getResourceManager().getResourceOrThrow(asset).open()) {
+        try (InputStream input = resources.get().getResourceOrThrow(asset).open()) {
             return PonderSceneRegistry.loadSchematic(input);
         } catch (IOException error) { throw new IllegalArgumentException("Cannot load structure " + id + " (" + asset + ")", error); }
     }
@@ -23,6 +28,6 @@ public final class AssetStructureSource implements StructureSource {
         String name = slash < 0 ? path : path.substring(slash + 1);
         if (!name.endsWith(".nbt")) name += ".nbt";
         if (!name.startsWith("ponder/")) name = "ponder/" + name;
-        return Minecraft.getInstance().getResourceManager().getResourceOrThrow(ResourceLocation.fromNamespaceAndPath(owner, name)).open();
+        return resources.get().getResourceOrThrow(ResourceLocation.fromNamespaceAndPath(owner, name)).open();
     }
 }

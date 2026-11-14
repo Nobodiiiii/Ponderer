@@ -122,7 +122,7 @@ public final class JavaModuleExportService {
             return result;
         }
 
-        JavaModuleScanResult.TargetProject targetProject = detectTargetProject(request.targetRoot(), result.fatalFindings);
+        JavaModuleScanResult.TargetProject targetProject = detectTargetProject(request.targetRoot(), request.mode(), result.fatalFindings);
         result.targetProject = targetProject;
         if (targetProject != null) targetProject.mode = request.mode();
         if (targetProject == null) {
@@ -167,11 +167,14 @@ public final class JavaModuleExportService {
 
         JavaModuleExportManifest manifest = readManifest(scanResult.targetProject.targetRoot);
         String previousMode = manifest.mode;
-        if (manifest.mode != null && !manifest.mode.equals(request.mode().name())
+        boolean migratingJson = request.mode() == JavaModuleExportRequest.Mode.JSON_LIB
+            && manifest.scenes.values().stream().anyMatch(entry -> entry.resourceId == null || entry.javaFiles != null && !entry.javaFiles.isEmpty());
+        if ((migratingJson || manifest.mode != null && !manifest.mode.equals(request.mode().name()))
             && !scanResult.scenePlans.stream().map(plan -> plan.sceneId).collect(java.util.stream.Collectors.toSet()).containsAll(manifest.scenes.keySet()))
-            return JavaModuleExportResult.failure("Changing export mode requires selecting every previously exported scene.");
+            return JavaModuleExportResult.failure("Changing export mode or migrating to resource-only JSON requires selecting every previously exported scene.");
         if (manifest.generatedSources == null) manifest.generatedSources = new LinkedHashMap<>();
         Map<String, String> previousSources = new LinkedHashMap<>(manifest.generatedSources);
+        manifest.ownsClientEntrypoint |= previousSources.containsKey("src/main/java/" + packageToPath(scanResult.targetProject.generatedPackage) + "/GeneratedPonderFabricClient.java");
         manifest.mode = request.mode().name();
         applyTargetDefaults(manifest, scanResult.targetProject);
 
@@ -182,6 +185,7 @@ public final class JavaModuleExportService {
             return JavaModuleExportResult.failure("Failed to read Ponderer license: " + e.getMessage());
         }
         List<BinaryFile> binaryWrites = new ArrayList<>();
+        if (request.mode() != JavaModuleExportRequest.Mode.JSON_LIB)
         for (String iconPath : List.of(PondererAttribution.ICON_TEXTURE_PATH, PondererAttribution.ICON_MODEL_RESOURCE_PATH)) {
             try (InputStream icon = JavaModuleExportService.class.getResourceAsStream("/assets/ponderer/" + iconPath)) {
                 if (icon == null) {
@@ -213,7 +217,7 @@ public final class JavaModuleExportService {
             SceneExportOutcome outcome = new SceneExportOutcome();
             outcome.sceneId = scenePlan.sceneId;
             outcome.sceneKey = scenePlan.sceneKey;
-            outcome.className = scenePlan.className;
+            outcome.className = request.mode() == JavaModuleExportRequest.Mode.JSON_LIB ? null : scenePlan.className;
             outcome.replaced = existing != null;
             outcome.messages.addAll(scenePlan.messages);
             outcome.blankSegments = (int) scenePlan.segments.stream().filter(seg -> seg.blankSegment).count();
@@ -229,10 +233,10 @@ public final class JavaModuleExportService {
             RenderedScene rendered;
             try { rendered = renderScene(scanResult.targetProject, scenePlan, outcome); }
             catch (RuntimeException error) { return JavaModuleExportResult.failure("Cannot render " + scenePlan.sceneId + ": " + error.getMessage()); }
-            textWrites.add(rendered.sceneJava());
+            textWrites.add(rendered.sceneFile());
             binaryWrites.addAll(rendered.structureFiles());
             manifest.scenes.put(scenePlan.sceneId, rendered.manifestEntry());
-            outcome.ownedFiles.add(rendered.sceneJava().relativePath());
+            outcome.ownedFiles.add(rendered.sceneFile().relativePath());
             rendered.structureFiles().forEach(file -> outcome.ownedFiles.add(file.relativePath()));
             outcomes.add(outcome);
         }
@@ -243,22 +247,33 @@ public final class JavaModuleExportService {
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        List<TextFile> globalWrites = buildGlobalWrites(scanResult.targetProject, manifest, currentSceneIds, staleManagedLangKeys);
-        textWrites.addAll(globalWrites);
+        try { textWrites.addAll(buildGlobalWrites(scanResult.targetProject, manifest, currentSceneIds, staleManagedLangKeys)); }
+        catch (RuntimeException error) { return JavaModuleExportResult.failure("Cannot prepare export resources: " + error.getMessage()); }
 
         Path exportDir = scanResult.targetProject.targetRoot.resolve(GENERATED_DIR).normalize();
         Path manifestPath = exportDir.resolve(MANIFEST_NAME).normalize();
         Path reportPath = exportDir.resolve(REPORT_NAME).normalize();
+        if (!LibExportSources.usesLib(scanResult.targetProject) && previousMode != null
+            && !previousMode.equals(JavaModuleExportRequest.Mode.JAVA_SUPPORT.name()))
+            deletions.add(scanResult.targetProject.resourcesRoot.resolve("META-INF/pondererlib.features/ponderer_export.properties"));
+        if (request.mode() == JavaModuleExportRequest.Mode.JSON_LIB) {
+            previousSources.keySet().stream().filter(path -> path.endsWith(".java"))
+                .forEach(path -> deletions.add(resolveTargetPath(scanResult.targetProject.targetRoot, path)));
+        } else if (JavaModuleExportRequest.Mode.JSON_LIB.name().equals(previousMode)) {
+            deletions.add(scanResult.targetProject.resourcesRoot.resolve("assets/" + scanResult.targetProject.modId + "/ponderer/content/ponderer_export.json"));
+        }
         if (LibExportSources.usesLib(scanResult.targetProject)) {
             String support = "src/main/java/" + packageToPath(scanResult.targetProject.generatedPackage) + "/GeneratedPonderSupport.java";
             if (previousSources.containsKey(support)) deletions.add(resolveTargetPath(scanResult.targetProject.targetRoot, support));
-        } else if (previousMode != null && !previousMode.equals(JavaModuleExportRequest.Mode.JAVA_SUPPORT.name())) {
+        }
+        if (request.mode() == JavaModuleExportRequest.Mode.JSON_LIB
+            || previousMode != null && !previousMode.equals(JavaModuleExportRequest.Mode.JAVA_SUPPORT.name()) && !LibExportSources.usesLib(scanResult.targetProject)) {
             Path extension = resolveTargetPath(scanResult.targetProject.targetRoot, "src/main/java/"
                 + packageToPath(LibExportSources.extensionPackage(scanResult.targetProject)) + "/PonderExtensions.java");
             try {
                 if (Files.exists(extension)) {
                     if (!Files.readString(extension, StandardCharsets.UTF_8).equals(LibExportSources.extension(scanResult.targetProject)))
-                        return JavaModuleExportResult.failure("Handwritten Lib extension preserved: " + extension + ". Port or move it before switching to Java + Support.");
+                        return JavaModuleExportResult.failure("Handwritten Lib extension preserved: " + extension + ". Register it with ResourceSceneContents.registerExtension and reference its ID in the content manifest, or move it before changing mode.");
                     deletions.add(extension);
                 }
             } catch (IOException error) { return JavaModuleExportResult.failure("Cannot inspect " + extension + ": " + error.getMessage()); }
@@ -382,7 +397,7 @@ public final class JavaModuleExportService {
     }
 
     @Nullable
-    private JavaModuleScanResult.TargetProject detectTargetProject(Path targetRoot,
+    private JavaModuleScanResult.TargetProject detectTargetProject(Path targetRoot, JavaModuleExportRequest.Mode mode,
                                                                           List<JavaModuleScanResult.Finding> fatals) {
         Path normalizedRoot = targetRoot.toAbsolutePath().normalize();
         if (!Files.isDirectory(normalizedRoot)) {
@@ -392,7 +407,7 @@ public final class JavaModuleExportService {
 
         Path javaRoot = normalizedRoot.resolve("src/main/java").normalize();
         Path resourcesRoot = normalizedRoot.resolve("src/main/resources").normalize();
-        if (!Files.isDirectory(javaRoot)) {
+        if (mode != JavaModuleExportRequest.Mode.JSON_LIB && !Files.isDirectory(javaRoot)) {
             addFinding(fatals, "fatal", null, null, null, null, "Missing src/main/java in target module.");
         }
         if (!Files.isDirectory(resourcesRoot)) {
@@ -438,6 +453,10 @@ public final class JavaModuleExportService {
             : parseForgeBasePackage(javaRoot);
         if (basePackage == null || basePackage.isBlank()) {
             basePackage = findFirstPackage(javaRoot);
+        }
+        if ((basePackage == null || basePackage.isBlank()) && mode == JavaModuleExportRequest.Mode.JSON_LIB) {
+            basePackage = readManifest(normalizedRoot).basePackage;
+            if (basePackage == null || basePackage.isBlank()) basePackage = modId.replace('-', '_');
         }
         if (basePackage == null || basePackage.isBlank()) {
             addFinding(fatals, "fatal", null, null, null, null, "Unable to detect the target base package.");
@@ -825,8 +844,10 @@ public final class JavaModuleExportService {
     private RenderedScene renderScene(JavaModuleScanResult.TargetProject target,
                                              JavaModuleScanResult.ScenePlan scenePlan,
                                              SceneExportOutcome outcome) {
-        String sceneSource = buildSceneSource(target, scenePlan);
-        String sceneRelativePath = "src/main/java/" + packageToPath(target.scenePackage) + "/" + scenePlan.className + ".java";
+        boolean resourceOnly = target.mode == JavaModuleExportRequest.Mode.JSON_LIB;
+        String sceneSource = resourceOnly ? com.nododiiiii.ponderer.scene.SceneCodec.pretty(LibExportSources.document(target, scenePlan)) : buildSceneSource(target, scenePlan);
+        String sceneRelativePath = resourceOnly ? "src/main/resources" + LibExportSources.jsonPath(target, scenePlan)
+            : "src/main/java/" + packageToPath(target.scenePackage) + "/" + scenePlan.className + ".java";
         Map<String, Map<String, String>> langEntries = buildSceneLangEntries(target, scenePlan);
 
         List<BinaryFile> structureFiles = new ArrayList<>();
@@ -840,19 +861,17 @@ public final class JavaModuleExportService {
                 throw new UncheckedIOException("Cannot copy structure " + asset.sourceId, error);
             }
         }
-        if (target.mode == JavaModuleExportRequest.Mode.JSON_LIB) {
-            structureFiles.add(new BinaryFile("src/main/resources" + LibExportSources.jsonPath(target, scenePlan),
-                com.nododiiiii.ponderer.scene.SceneCodec.pretty(LibExportSources.document(target, scenePlan)).getBytes(StandardCharsets.UTF_8)));
-        }
-
         JavaModuleExportManifest.SceneEntry entry = new JavaModuleExportManifest.SceneEntry();
+        entry.runtimeFeatures = com.nododiiiii.ponderer.scene.SceneRuntimeRequirements.features(scenePlan.sourceScene).stream().sorted().toList();
         entry.sceneId = scenePlan.sceneId;
         entry.sceneKey = scenePlan.sceneKey;
-        entry.className = target.scenePackage + "." + scenePlan.className;
+        entry.className = resourceOnly ? null : target.scenePackage + "." + scenePlan.className;
+        if (resourceOnly) entry.resourceId = target.modId + ":ponderer/scenes/" + scenePlan.className.toLowerCase(Locale.ROOT) + ".json";
         entry.status = scenePlan.blank ? SceneExportOutcome.Status.BLANK.name() : scenePlan.partial
             ? SceneExportOutcome.Status.PARTIAL.name()
             : SceneExportOutcome.Status.COMPLETE.name();
-        entry.javaFiles.add(sceneRelativePath);
+        if (resourceOnly) entry.resourceFiles.add(sceneRelativePath);
+        else entry.javaFiles.add(sceneRelativePath);
         structureFiles.forEach(asset -> entry.resourceFiles.add(asset.relativePath()));
         entry.langEntries = copyLangEntries(langEntries);
         entry.contentHash = hashSceneContent(sceneSource, structureFiles, entry.langEntries);
@@ -869,6 +888,34 @@ public final class JavaModuleExportService {
                                                     Set<String> currentSceneIds,
                                                     Map<String, Set<String>> staleManagedLangKeys) {
         List<TextFile> writes = new ArrayList<>();
+        if (LibExportSources.usesLib(target)) {
+            Set<String> features = new java.util.TreeSet<>(Set.of("core", "render_cache"));
+            for (var entry : manifest.scenes.values()) {
+                if (entry.runtimeFeatures != null && !entry.runtimeFeatures.isEmpty()) features.addAll(entry.runtimeFeatures);
+                else features.addAll(Set.of("view", "text", "nbt_bindings", "interfaces")); // Older partial-export manifests.
+            }
+            writes.add(new TextFile("src/main/resources/META-INF/pondererlib.features/ponderer_export.properties",
+                "# Generated startup requirements. Handwritten providers may declare extra features in META-INF/pondererlib.features.properties.\nfeatures="
+                    + String.join(",", features) + "\n"));
+        }
+        if (target.mode == JavaModuleExportRequest.Mode.JSON_LIB) {
+            var content = new com.nododiiiii.ponderer.scene.ResourceContentManifest();
+            Path contentPath = target.resourcesRoot.resolve("assets/" + target.modId + "/ponderer/content/ponderer_export.json");
+            if (Files.exists(contentPath)) {
+                try (Reader reader = Files.newBufferedReader(contentPath, StandardCharsets.UTF_8)) {
+                    var previous = GSON.fromJson(reader, com.nododiiiii.ponderer.scene.ResourceContentManifest.class);
+                    if (previous == null || previous.formatVersion != 1 || previous.extensions == null)
+                        throw new IllegalArgumentException("Unsupported content manifest " + contentPath);
+                    content.extensions = List.copyOf(previous.extensions);
+                } catch (IOException error) { throw new UncheckedIOException(error); }
+            }
+            content.scenes = manifest.scenes.values().stream().map(entry -> entry.resourceId).filter(Objects::nonNull).sorted().toList();
+            content.attribution = true;
+            writes.add(new TextFile("src/main/resources/assets/" + target.modId + "/ponderer/content/ponderer_export.json", GSON.toJson(content)));
+            writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This resource-only export requires pondererlib >= 0.1.0 and upstream Ponder.\nLib discovers assets/<namespace>/ponderer/content/*.json and registers scenes on client resource reload.\nNo generated Java or content entrypoint is required. Embed the loader-specific pondererlib artifact or install it separately.\nThe same assets tree works in a client resource pack.\nOptional compiled providers register with ResourceSceneContents.registerExtension; manifests select provider IDs in extensions.\n"));
+            writes.addAll(buildLangWrites(target, manifest, currentSceneIds, staleManagedLangKeys));
+            return writes;
+        }
         String generatedPackagePath = packageToPath(target.generatedPackage);
         writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderPlugin.java",
             buildPluginSource(target)));
@@ -1826,12 +1873,24 @@ public final class JavaModuleExportService {
                 break;
             }
         }
-        if (!exists) {
+        if (targetProject.mode == JavaModuleExportRequest.Mode.JSON_LIB && manifest.ownsClientEntrypoint) {
+            JsonArray retained = new JsonArray();
+            for (JsonElement element : clientArray) {
+                String name = element.isJsonPrimitive() ? element.getAsString()
+                    : element.isJsonObject() && element.getAsJsonObject().has("value") ? element.getAsJsonObject().get("value").getAsString() : null;
+                if (!clientEntry.equals(name)) retained.add(element);
+            }
+            clientArray = retained;
+            manifest.ownsClientEntrypoint = false;
+        } else if (targetProject.mode != JavaModuleExportRequest.Mode.JSON_LIB && !exists) {
             clientArray.add(clientEntry);
+            manifest.ownsClientEntrypoint = true;
         }
 
-        entrypoints.add("client", clientArray);
-        root.add("entrypoints", entrypoints);
+        if (!clientArray.isEmpty()) entrypoints.add("client", clientArray);
+        else entrypoints.remove("client");
+        if (!entrypoints.isEmpty()) root.add("entrypoints", entrypoints);
+        else root.remove("entrypoints");
         if (LibExportSources.usesLib(targetProject)) {
             JsonObject dependencies = root.has("depends") && root.get("depends").isJsonObject() ? root.getAsJsonObject("depends") : new JsonObject();
             if (!dependencies.has("pondererlib")) {
@@ -1863,6 +1922,7 @@ public final class JavaModuleExportService {
 
     private void applyTargetDefaults(JavaModuleExportManifest manifest,
                                             JavaModuleScanResult.TargetProject targetProject) {
+        manifest.version = 4;
         manifest.loader = targetProject.loader;
         manifest.modId = targetProject.modId;
         manifest.basePackage = targetProject.basePackage;
@@ -2372,7 +2432,7 @@ public final class JavaModuleExportService {
     }
 
     private record RenderedScene(JavaModuleExportManifest.SceneEntry manifestEntry,
-                                 TextFile sceneJava,
+                                 TextFile sceneFile,
                                  List<BinaryFile> structureFiles) {
     }
 

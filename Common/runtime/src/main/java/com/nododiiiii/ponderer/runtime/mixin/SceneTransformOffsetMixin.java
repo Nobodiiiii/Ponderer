@@ -55,8 +55,8 @@ public class SceneTransformOffsetMixin {
 
     @Unique
     private PonderFreePreview ponderer$preview() {
-        if (Minecraft.getInstance().screen instanceof PonderUI ui) {
-            PonderFreePreview preview = ((PonderUiPreviewAccess) ui).ponderer$getFreePreview();
+        if (Minecraft.getInstance().screen instanceof PonderUI ui && ui instanceof PonderUiPreviewAccess access) {
+            PonderFreePreview preview = access.ponderer$getFreePreview();
             if (preview.appliesTo(ponderer$scene)) {
                 return preview;
             }
@@ -119,8 +119,9 @@ public class SceneTransformOffsetMixin {
             : original;
         // Keep the stored script scale untouched, including during seeking and replay.
         if (Minecraft.getInstance().screen instanceof PonderUI ui
+            && ui instanceof PonderUiZoomAccess zoom
             && ((PonderUIAccessor) ui).ponderer$getScenes().contains(scene)) {
-            scale *= ((PonderUiZoomAccess) ui).ponderer$getUserZoom();
+            scale *= zoom.ponderer$getUserZoom();
         }
         return scale;
     }
@@ -128,6 +129,7 @@ public class SceneTransformOffsetMixin {
     @Inject(method = "apply(Lcom/mojang/blaze3d/vertex/PoseStack;F)Lcom/mojang/blaze3d/vertex/PoseStack;", at = @At("TAIL"))
     private void ponderer$applyViewOffset(PoseStack ms, float pt, CallbackInfoReturnable<PoseStack> cir) {
         PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) ponderer$scene;
+        if (!access.ponderer$hasViewState()) return;
         float ox = access.ponderer$getViewOffsetX().getValue(pt);
         float oy = access.ponderer$getViewOffsetY().getValue(pt);
         float oz = access.ponderer$getViewOffsetZ().getValue(pt);
@@ -142,6 +144,7 @@ public class SceneTransformOffsetMixin {
         PonderFreePreview preview = ponderer$preview();
         if (preview != null) {
             PonderSceneViewOffsetAccess access = (PonderSceneViewOffsetAccess) ponderer$scene;
+            if (!access.ponderer$hasViewState()) return;
             float frozenPt = preview.partialTicks();
             cir.setReturnValue(cir.getReturnValue().subtract(
                 access.ponderer$getViewOffsetX().getValue(frozenPt),

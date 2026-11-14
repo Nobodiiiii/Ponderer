@@ -14,6 +14,7 @@ public final class EditorModule implements AutoCloseable {
     private final List<AutoCloseable> bindings = new ArrayList<>();
     public EditorModule() { this(IngredientPresentation.NONE); }
     public EditorModule(IngredientPresentation ingredients) {
+        RuntimeFeatures.require(RuntimeFeature.EDITOR, "EditorModule");
         installations++;
         bindings.add(InterfaceExtensions.installEditing(new SlotDragController(ingredients)));
         bindings.add(InterfaceSessionEvents.onSlotsChanged(InterfaceSlotEditState::invalidatePreview));

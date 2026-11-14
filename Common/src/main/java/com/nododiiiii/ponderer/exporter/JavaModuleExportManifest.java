@@ -6,10 +6,11 @@ import java.util.List;
 import java.util.Map;
 
 public class JavaModuleExportManifest {
-    public int version = 3;
+    public int version = 4;
     public Map<String, String> generatedSources = new LinkedHashMap<>();
     public String mode;
     public boolean ownsLibDependency;
+    public boolean ownsClientEntrypoint;
     public String loader;
     public String modId;
     public String basePackage;
@@ -20,8 +21,10 @@ public class JavaModuleExportManifest {
         public String sceneId;
         public String sceneKey;
         public String className;
+        public String resourceId;
         public String status;
         public String contentHash;
+        public List<String> runtimeFeatures = new ArrayList<>();
         public List<String> javaFiles = new ArrayList<>();
         public List<String> resourceFiles = new ArrayList<>();
         public Map<String, Map<String, String>> langEntries = new LinkedHashMap<>();

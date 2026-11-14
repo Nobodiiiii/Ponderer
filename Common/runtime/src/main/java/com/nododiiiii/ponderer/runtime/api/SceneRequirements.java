@@ -9,14 +9,23 @@ import java.util.Set;
 /** Validation happens before registering or executing a partial storyboard. */
 public final class SceneRequirements {
     public static final int FORMAT_VERSION = 1;
-    private static final Set<String> CORE = Set.of("pondererlib:core", "pondererlib:java_steps", "pondererlib:view", "pondererlib:nbt_bindings");
     private SceneRequirements() {}
     public static List<String> diagnostics(DslScene scene, StepRegistry steps) {
         List<String> result = new ArrayList<>();
+        for (String key : com.nododiiiii.ponderer.scene.SceneRuntimeRequirements.features(scene)) {
+            // Cache reclamation is optional; it does not affect the meaning of scene instructions.
+            if (key.equals("render_cache")) continue;
+            if (!RuntimeFeatures.enabled(RuntimeFeature.parse(key))) result.add(scene.id + ": capability pondererlib:" + key
+                + " unavailable at startup; declare the feature or set pondererlib." + key + "=ON and restart");
+        }
         if (scene.formatVersion != FORMAT_VERSION) result.add(scene.id + ": unsupported format version " + scene.formatVersion + " (supported: " + FORMAT_VERSION + ")");
         if (scene.requiredCapabilities != null) for (String capability : scene.requiredCapabilities) {
-            if (!CORE.contains(capability) && !steps.providesCapability(capability) && !("pondererlib:interfaces".equals(capability) && RuntimeFeatures.interfacesEnabled()))
-                result.add(scene.id + ": missing capability " + capability);
+            try {
+                if (capability == null || !capability.startsWith("pondererlib:")) throw new IllegalArgumentException();
+                if (!RuntimeFeatures.enabled(RuntimeFeature.parse(capability))) result.add(scene.id + ": missing capability " + capability);
+            } catch (IllegalArgumentException error) {
+                if (!steps.providesCapability(capability)) result.add(scene.id + ": missing capability " + capability);
+            }
         }
         if (scene.scenes != null) for (int s = 0; s < scene.scenes.size(); s++) {
             var segment = scene.scenes.get(s);

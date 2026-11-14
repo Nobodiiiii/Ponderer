@@ -840,3 +840,21 @@ spi-provider,RuntimeNeoForge,platform-discovery,NeoForge/runtime/src/main/resour
 spi-provider,NeoForge,platform-discovery,NeoForge/src/main/resources/META-INF/services/com.nododiiiii.ponderer.platform.services.NetworkHelper,com.nododiiiii.ponderer.platform.services.NetworkHelper -> com.nododiiiii.ponderer.neoforge.NeoForgeNetworkHelper
 spi-provider,NeoForge,platform-discovery,NeoForge/src/main/resources/META-INF/services/com.nododiiiii.ponderer.platform.services.PlatformHelper,com.nododiiiii.ponderer.platform.services.PlatformHelper -> com.nododiiiii.ponderer.neoforge.NeoForgePlatformHelper
 spi-provider,NeoForge,platform-discovery,NeoForge/src/main/resources/META-INF/services/com.nododiiiii.ponderer.platform.services.RegistrationHelper,com.nododiiiii.ponderer.platform.services.RegistrationHelper -> com.nododiiiii.ponderer.neoforge.NeoForgeRegistrationHelper
+java,SceneModel,scene,Common/scene-model/src/main/java/com/nododiiiii/ponderer/scene/ResourceContentManifest.java,com.nododiiiii.ponderer.scene.ResourceContentManifest
+java,RuntimeCommon,runtime,Common/runtime/src/main/java/com/nododiiiii/ponderer/runtime/api/ResourceSceneContents.java,com.nododiiiii.ponderer.runtime.api.ResourceSceneContents
+java,RuntimeCommon,runtime,Common/runtime/src/main/java/com/nododiiiii/ponderer/runtime/core/ResourceAttribution.java,com.nododiiiii.ponderer.runtime.core.ResourceAttribution
+resource,RuntimeCommon,runtime,Common/runtime/src/main/resources/assets/pondererlib/textures/block/ponderer_observer_front.png,
+resource,RuntimeCommon,runtime,Common/runtime/src/main/resources/assets/pondererlib/models/block/ponderer_observer.json,
+java,RuntimeCommon,runtime,Common/runtime/src/main/java/com/nododiiiii/ponderer/runtime/api/RuntimeFeature.java,com.nododiiiii.ponderer.runtime.api.RuntimeFeature
+java,RuntimeCommon,runtime,Common/runtime/src/main/java/com/nododiiiii/ponderer/runtime/api/RuntimeScenes.java,com.nododiiiii.ponderer.runtime.api.RuntimeScenes
+java,RuntimeCommon,runtime,Common/runtime/src/main/java/com/nododiiiii/ponderer/runtime/launch/RuntimeFeatureDiscovery.java,com.nododiiiii.ponderer.runtime.launch.RuntimeFeatureDiscovery
+java,RuntimeCommon,runtime,Common/runtime/src/main/java/com/nododiiiii/ponderer/runtime/mixin/PlaybackUiExtensionMixin.java,com.nododiiiii.ponderer.runtime.mixin.PlaybackUiExtensionMixin
+java,RuntimeCommon,runtime,Common/runtime/src/main/java/com/nododiiiii/ponderer/runtime/mixin/WorldSectionRenderCacheMixin.java,com.nododiiiii.ponderer.runtime.mixin.WorldSectionRenderCacheMixin
+java,SceneModel,scene,Common/scene-model/src/main/java/com/nododiiiii/ponderer/scene/SceneRuntimeRequirements.java,com.nododiiiii.ponderer.scene.SceneRuntimeRequirements
+java,RuntimeFabric,runtime,Fabric/runtime/src/main/java/com/nododiiiii/ponderer/fabric/runtime/FabricRuntimeMixinPlugin.java,com.nododiiiii.ponderer.fabric.runtime.FabricRuntimeMixinPlugin
+java,RuntimeNeoForge,runtime,NeoForge/runtime/src/main/java/com/nododiiiii/ponderer/neoforge/runtime/NeoForgeRuntimeMixinPlugin.java,com.nododiiiii.ponderer.neoforge.runtime.NeoForgeRuntimeMixinPlugin
+resource,Common,product-assembly,Common/src/main/resources/META-INF/pondererlib.features.properties,
+mixin-client,RuntimeFabric,runtime,Fabric/runtime/src/main/resources/pondererlib.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PlaybackUiExtensionMixin
+mixin-client,RuntimeFabric,runtime,Fabric/runtime/src/main/resources/pondererlib.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.WorldSectionRenderCacheMixin
+mixin-client,RuntimeNeoForge,runtime,NeoForge/runtime/src/main/resources/pondererlib.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.PlaybackUiExtensionMixin
+mixin-client,RuntimeNeoForge,runtime,NeoForge/runtime/src/main/resources/pondererlib.runtime.mixins.json,com.nododiiiii.ponderer.runtime.mixin.WorldSectionRenderCacheMixin

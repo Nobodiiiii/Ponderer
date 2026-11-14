@@ -1,6 +1,6 @@
 # 阶段 1–6 的实际边界与归属
 
-2026-11-14 更新：运行库物理提取、三档导出与策略 API 已实现，当前活动项目为 `Common / NeoForge / Fabric / SceneModel / RuntimeCommon / RuntimeNeoForge / RuntimeFabric`。CSV 同步 600 个活动主源码文件、70 个资源/模板文件、1 个产品元数据模板、86 个两端 Mixin 配置项、5 个 Fabric 入口及 8 个 SPI 提供项。完整 API、构建和验收边界见 [Ponderer Lib](PONDERER_LIB.md)。下文原三个项目和阶段 7 未实施的描述保留为此前阶段记录。
+2026-11-14 更新：运行库物理提取、三档导出与策略 API 已实现，当前活动项目为 `Common / NeoForge / Fabric / SceneModel / RuntimeCommon / RuntimeNeoForge / RuntimeFabric`。CSV 同步 611 个活动主源码文件、73 个资源/模板文件、1 个产品元数据模板、90 个两端 Mixin 配置项、5 个 Fabric 入口及 8 个 SPI 提供项。全部 Mixin 按启动能力分组，见 [按需加载](MIXIN_LOADING.md)。完整 API、构建和验收边界见 [Ponderer Lib](PONDERER_LIB.md)。下文原三个项目和阶段 7 未实施的描述保留为此前阶段记录。
 
 本清单对应 Minecraft 1.21.1 的 `Common / NeoForge / Fabric`，依据当前 `settings.gradle`。`Forge/`、历史 `ref/`、生成目录及测试代码不计入发布归属。仍沿用原三个 Gradle 项目；没有新增独立运行库 JAR，也未实施阶段 7。
 

@@ -53,6 +53,7 @@ public final class PlaybackExecutionContext {
     }
 
     public static void runWithFrameTime(int localTick, float partialTick, Runnable action) {
+        RuntimeFeatures.require(RuntimeFeature.DETACHED_RENDERING, "PlaybackExecutionContext.runWithFrameTime");
         FrameTime previous = FRAME_TIME.get();
         DEPTH.set(DEPTH.get() + 1);
         FRAME_TIME.set(new FrameTime(Math.max(0, localTick), sanitizePartialTick(partialTick)));

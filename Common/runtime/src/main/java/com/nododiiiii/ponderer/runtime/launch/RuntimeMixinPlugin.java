@@ -1,21 +1,43 @@
 package com.nododiiiii.ponderer.runtime.launch;
 
 import com.nododiiiii.ponderer.runtime.api.RuntimeFeatures;
+import com.nododiiiii.ponderer.runtime.api.RuntimeFeature;
 import java.util.List;
 import java.util.Set;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
-/** Select interface-only hooks before target classes are transformed. Never applies late Mixins. */
-public final class RuntimeMixinPlugin implements IMixinConfigPlugin {
+/** Every configured Mixin has an explicit capability rule. Unknown hooks fail closed. */
+public class RuntimeMixinPlugin implements IMixinConfigPlugin {
     @Override public void onLoad(String mixinPackage) {}
     @Override public String getRefMapperConfig() { return null; }
     @Override public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         String simple = mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1);
-        boolean interfaces = simple.startsWith("Sandbox") || simple.equals("InterfaceExtendedCaptureMixin");
-        return !interfaces || RuntimeFeatures.interfacesEnabled();
+        if (simple.startsWith("Sandbox")) return enabled(RuntimeFeature.INTERFACES);
+        return switch (simple) {
+            case "PonderUIMixin", "PonderPlaybackMixin", "PonderProgressBarMixin",
+                 "LerpedFloatInterpolationMixin", "WorldSectionInterpolationMixin" -> enabled(RuntimeFeature.PLAYER);
+            case "PonderSceneViewOffsetMixin", "SceneTransformOffsetMixin" -> enabled(RuntimeFeature.VIEW);
+            case "PonderSceneTextIndexMixin" -> enabled(RuntimeFeature.TEXT);
+            case "PonderUINbtMixin", "PonderUINbtMixinFabric", "PonderSceneRegistryNbtMixin",
+                 "PonderSceneRegistryNbtMixinFabric", "PonderTooltipNbtMixin", "PonderTooltipNbtMixinFabric" -> enabled(RuntimeFeature.NBT_BINDINGS);
+            case "WorldSectionRenderCacheMixin" -> enabled(RuntimeFeature.RENDER_CACHE);
+            case "AnimationTickHolderMixin", "TextWindowElementAccessor", "InputWindowElementAccessor" -> enabled(RuntimeFeature.DETACHED_RENDERING);
+            case "RenderSystemShaderLightsAccessor" -> enabled(RuntimeFeature.DETACHED_RENDERING) || enabled(RuntimeFeature.APPLICATION);
+            case "PlaybackUiExtensionMixin" -> enabled(RuntimeFeature.UI_EXTENSIONS) && !enabled(RuntimeFeature.PLAYER);
+            case "PonderLevelMixin", "PonderStructureSourceMixin", "WorldSectionElementImplMixin",
+                 "PonderLevelModelDataMixin", "PonderSceneAccessor", "TickingInstructionAccessor", "PonderUIAccessor" -> enabled(RuntimeFeature.CORE);
+            case "InterfaceExtendedCaptureMixin", "InterfaceCaptureMixin", "InterfaceItemCaptureMixin",
+                 "InterfaceBlockCaptureMixin", "InterfaceLevelCaptureMixin", "InterfaceMenuCaptureMixin" -> enabled(RuntimeFeature.EDITOR) && enabled(RuntimeFeature.INTERFACES);
+            case "MinecraftNbtPickMixin", "MinecraftCoordPickScrollMixin", "PonderEditorMixin" -> enabled(RuntimeFeature.EDITOR);
+            case "PonderSceneRegistryMixin", "PonderSceneRegistryMixinFabric", "PonderLocalizationMixin",
+                 "MultiLineEditBoxAccessor", "MultilineTextFieldAccessor", "PonderKeybindsAccessor" -> enabled(RuntimeFeature.APPLICATION);
+            case "GuiFeedbackAccessor" -> enabled(RuntimeFeature.FEEDBACK);
+            default -> throw new IllegalArgumentException("Missing startup feature rule for Mixin " + mixinClassName);
+        };
     }
+    private static boolean enabled(RuntimeFeature feature) { return RuntimeFeatures.enabled(feature); }
     @Override public void acceptTargets(Set<String> myTargets, Set<String> otherTargets) {}
     @Override public List<String> getMixins() { return null; }
     @Override public void preApply(String target, ClassNode node, String name, IMixinInfo info) {}

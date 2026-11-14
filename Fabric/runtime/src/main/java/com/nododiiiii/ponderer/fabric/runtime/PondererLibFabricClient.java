@@ -26,11 +26,27 @@ public final class PondererLibFabricClient implements ClientModInitializer {
                 throw new IllegalStateException("Ponderer Lib client requires " + dependency);
         }
         LocalizedText.useLanguage(() -> Minecraft.getInstance().getLanguageManager().getSelected());
+        com.nododiiiii.ponderer.runtime.api.ResourceSceneContents.install();
+        net.fabricmc.fabric.api.resource.ResourceManagerHelper.get(net.minecraft.server.packs.PackType.CLIENT_RESOURCES)
+            .registerReloadListener(new net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener() {
+                @Override public net.minecraft.resources.ResourceLocation getFabricId() {
+                    return net.minecraft.resources.ResourceLocation.parse("pondererlib:content");
+                }
+                @Override public void onResourceManagerReload(net.minecraft.server.packs.resources.ResourceManager resources) {
+                    com.nododiiiii.ponderer.runtime.api.ResourceSceneContents.reload(resources);
+                }
+            });
+        ClientTickEvents.END_CLIENT_TICK.register(client -> com.nododiiiii.ponderer.runtime.api.ResourceSceneContents.tick());
+        net.fabricmc.fabric.api.event.lifecycle.v1.CommonLifecycleEvents.TAGS_LOADED.register((registries, client) -> {
+            if (client) Minecraft.getInstance().execute(com.nododiiiii.ponderer.runtime.api.ResourceSceneContents::onItemTagsUpdated);
+        });
         if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled()) {
             InterfacePlatform.install(new FabricInterfacePlatform());
             FabricInterfaceEvents.register();
         }
-        ClientTickEvents.END_CLIENT_TICK.register(client -> com.nododiiiii.ponderer.runtime.render.PonderRenderCache.tick());
+        if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.enabled(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.RENDER_CACHE))
+            ClientTickEvents.END_CLIENT_TICK.register(client -> com.nododiiiii.ponderer.runtime.render.PonderRenderCache.tick());
+        if (!com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.enabled(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.PLAYER)) return;
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             PonderPreviewTooltip tooltip = PonderPreviewTooltip.create(screen);
             if (tooltip == null) return;

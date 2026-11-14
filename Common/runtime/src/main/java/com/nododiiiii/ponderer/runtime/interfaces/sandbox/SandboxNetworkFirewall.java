@@ -28,6 +28,7 @@ public final class SandboxNetworkFirewall {
     public static final int WINDOW_ID_MAX = 127;
 
     private static volatile boolean live;
+    private static volatile boolean windowIssued;
     private static final AtomicLong INTERCEPTED = new AtomicLong();
     private static final AtomicLong TAINT_DROPS = new AtomicLong();
 
@@ -43,6 +44,8 @@ public final class SandboxNetworkFirewall {
         return live;
     }
 
+    static void markWindowIssued() { windowIssued = true; }
+
     /** Returns true when {@code packet} must not reach the real connection. */
     public static boolean shouldBlock(Packet<?> packet) {
         if (SandboxScope.isActive() && RenderSystem.isOnRenderThread()) {
@@ -53,7 +56,7 @@ public final class SandboxNetworkFirewall {
             }
             return true;
         }
-        if (isTaintedContainerPacket(packet)) {
+        if (windowIssued && isTaintedContainerPacket(packet)) {
             TAINT_DROPS.incrementAndGet();
             LOGGER.warn("[Ponderer] Dropped deferred sandbox packet {} outside sandbox scope",
                 packet.getClass().getSimpleName());

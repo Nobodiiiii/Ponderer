@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.runtime.api;
 import net.createmod.catnip.animation.LerpedFloat;
 
 public interface PonderSceneViewOffsetAccess {
+    boolean ponderer$hasViewState();
     LerpedFloat ponderer$getViewOffsetX();
     LerpedFloat ponderer$getViewOffsetY();
     LerpedFloat ponderer$getViewOffsetZ();

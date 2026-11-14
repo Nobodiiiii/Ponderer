@@ -396,11 +396,13 @@ Windows 上的 `quickPlaySmoke`（或 `test.py --smoke`）默认在独立 Win32 
 
 独立桌面不能隔离 Win32 的共享光标裁剪状态。smoke 在 Java 恢复执行前建立输入守护线程，只枚举本次 Java PID 的窗口：后台使用 `EnableWindow(false)` 阻止其获得输入焦点，并发送失焦消息清除 GLFW 记录的鼠标捕获；用户切入 smoke 桌面后恢复被守护线程禁用的窗口。守护线程、返回桌面和退出清理只在裁剪矩形匹配 smoke 窗口时尝试 `ClipCursor(NULL)`，并避开前台其他窗口正在使用的同尺寸客户区裁剪。窗口客户区、裁剪和虚拟屏幕边界统一按线程的 Per-Monitor DPI 坐标处理。守护失败会使 smoke 失败并清理客户端。此处理不改变普通启动，也不跳过图形初始化或暂停世界。API 依据：[ClipCursor 的共享资源及释放要求](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-clipcursor)、[EnableWindow 输入及激活规则](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enablewindow)。
 
-后台 smoke 仅临时将实例 `options.txt` 的 `pauseOnLostFocus` 和 `fullscreen` 设为 `false`，保留分辨率、帧率及正常图形初始化。成功、超时、启动失败或键盘中断均通过 `finally` 关闭客户端进程树、恢复这两项设置并移除托盘及返回控件；若用户正在查看 smoke 桌面，清理时返回原桌面。Windows 客户端放在设置了 `KILL_ON_JOB_CLOSE` 的 Job Object 中，避免启动器退出后遗留游戏进程。`--dry-run` 不创建桌面、图标或修改实例配置；普通 `test.py`、手动 quickplay 及非 Windows 路径不启用上述桌面和配置处理。
+后台 smoke 仅临时将实例 `options.txt` 的 `pauseOnLostFocus` 和 `fullscreen` 设为 `false`、`soundCategory_master` 设为 `0.0`（包括点击托盘查看时也保持静音），保留分辨率、帧率及正常图形初始化。成功、超时、启动失败或键盘中断均通过 `finally` 关闭客户端进程树、恢复这三项设置（包含原音量）并移除托盘及返回控件；若用户正在查看 smoke 桌面，清理时返回原桌面。Windows 客户端放在设置了 `KILL_ON_JOB_CLOSE` 的 Job Object 中，避免启动器退出后遗留游戏进程。`--dry-run` 不创建桌面、图标或修改实例配置；普通 `test.py`、手动 quickplay 及非 Windows 路径不启用上述桌面和配置处理。
 
 2026-11-14 后台运行验证：`./gradlew.bat quickPlaySmoke -PskipBuild -PnoCopy -PsmokeTimeout=120 --offline --no-daemon --console=plain` 首轮 Fabric、NeoForge 均实际入世界，两个托盘均创建成功，两端 `options.txt` 与运行前内容一致，见 [首轮日志](../build/smoke-windows-desktop/smoke.log)。随后修正重复注册返回快捷键的问题并串行化切换与清理；同命令重跑 Fabric 通过，另一次 `-PsmokeTimeout=1` 验证超时失败及进程清理，配置均恢复，见 [重跑日志](../build/smoke-windows-desktop/smoke-final.log) 和 [超时日志](../build/smoke-windows-desktop/timeout.log)。这两次 NeoForge 因存档正被其他客户端占用而跳过，不算最终版本的 NeoForge 运行验证；未关闭该客户端。普通启动和 smoke 的双端 dry-run、Python 语法和 diff 空白检查通过。未自动操作桌面，托盘点击切入、按钮/快捷键返回以及查看时退出的交互仍待人工验证。
 
 2026-11-14 鼠标限制回归修复后，同一现有命令下 Fabric 实际入世界通过，四个本次 Java 窗口的后台输入被禁用；`-PsmokeTimeout=1` 按预期失败并清理。两次均以 480 秒为外层期限，配置与运行前内容一致。只读以 50ms 间隔观察 Win32 光标裁剪，最终正常及超时运行期间和结束时均保持 `(0, 0, 3840, 2160)` 的完整屏幕范围，未发生范围变化。见 [运行日志](../build/smoke-windows-desktop/smoke-cursor-final.log)、[光标观察](../build/smoke-windows-desktop/smoke-cursor-final-cursor.log)、[超时清理](../build/smoke-windows-desktop/cursor-timeout.log)。NeoForge 本轮仍因其他客户端占用存档跳过；其重验命令与上文相同，待实例空闲后执行。未自动点击托盘或切换桌面，切换交互仍待人工验证；该有限时长的观察不能证明所有桌面、DPI 或其他应用组合都无干扰。
+
+2026-11-14 自动静音变更后，使用上述 120 秒 smoke 命令及 480 秒外层期限，Fabric、NeoForge 均实际进入现有 `PondererMixinDemand-20261114-232532` 存档并清理成功，补足前次 NeoForge 普通后台入世界的验证。运行时两端均观察到 `soundCategory_master:0.0`，结束后两份 `options.txt` 均与运行前内容完全一致；普通启动和 smoke dry-run、Python 语法及 diff 空白检查通过。见 [静音 smoke 日志](../build/smoke-windows-desktop/smoke-audio.log)。未进行人工试听或托盘切换操作。
 
 执行时须区分以下情况：
 

@@ -16,6 +16,7 @@ public final class PonderRuntimeEngine implements RuntimeEngine {
     public PonderRuntimeEngine(String namespace, StructureSource structures,
                                IngredientResolver ingredients, RegistrationContribution contribution,
                                java.util.function.BooleanSupplier defaultEditable) {
+        RuntimeFeatures.require(RuntimeFeature.CORE, "PonderRuntimeEngine");
         compiler = new SceneCompiler(namespace, structures, ingredients, defaultEditable, steps, fragments);
         plugin = new DynamicPonderPlugin(catalog, compiler, contribution, structures);
     }

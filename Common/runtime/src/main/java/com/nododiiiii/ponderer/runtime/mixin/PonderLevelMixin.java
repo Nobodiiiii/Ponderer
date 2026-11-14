@@ -24,6 +24,7 @@ public class PonderLevelMixin {
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$tickEntitiesSafely(CallbackInfo ci) {
+        if (!com.nododiiiii.ponderer.runtime.api.RuntimeScenes.owns((PonderLevel) (Object) this)) return;
         currentlyTickingEntities = true;
 
         List<Entity> liveEntities = ((SchematicLevel) (Object) this).getEntityList();

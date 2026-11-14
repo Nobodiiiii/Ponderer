@@ -23,6 +23,7 @@ public final class WorldFeedback {
     private WorldFeedback() {}
 
     public static void hint(String owner, Component message, int priority, int duration) {
+        if (!com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.enabled(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.FEEDBACK)) return;
         hints.put(owner, new Hint(message, priority, ticks + duration));
     }
 
@@ -73,8 +74,8 @@ public final class WorldFeedback {
 
     private static void release(Minecraft mc) {
         // Only remove the exact message we own. Another mod or vanilla may have replaced it.
-        GuiFeedbackAccessor gui = (GuiFeedbackAccessor) mc.gui;
-        if (displayed != null && gui.ponderer$getOverlayMessage() == displayed) gui.ponderer$setOverlayMessageTime(0);
+        if (displayed != null && mc.gui instanceof GuiFeedbackAccessor gui && gui.ponderer$getOverlayMessage() == displayed)
+            gui.ponderer$setOverlayMessageTime(0);
         displayed = null;
     }
 }

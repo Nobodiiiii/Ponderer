@@ -8,6 +8,6 @@ import net.neoforged.fml.loading.FMLEnvironment;
 @Mod("pondererlib")
 public final class PondererLibNeoForge {
     public PondererLibNeoForge(IEventBus bus) {
-        if (FMLEnvironment.dist == Dist.CLIENT) PondererLibNeoForgeClient.install();
+        if (FMLEnvironment.dist == Dist.CLIENT) PondererLibNeoForgeClient.install(bus);
     }
 }
