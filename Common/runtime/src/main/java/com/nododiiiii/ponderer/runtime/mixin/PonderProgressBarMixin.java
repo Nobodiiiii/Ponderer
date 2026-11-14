@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.runtime.mixin;
 
 import com.nododiiiii.ponderer.runtime.viewer.PonderSmallHint;
+import com.nododiiiii.ponderer.runtime.viewer.PonderProgressBarAccess;
 import net.createmod.catnip.animation.LerpedFloat;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.widget.AbstractSimiWidget;
@@ -37,7 +38,7 @@ public abstract class PonderProgressBarMixin extends AbstractSimiWidget {
     @Inject(method = "doRender", at = @At("TAIL"))
     private void ponderer$renderDragHint(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks,
             CallbackInfo ci) {
-        if (!com.nododiiiii.ponderer.runtime.viewer.PonderUiFeaturesAccess.enhanced(ponder)) return;
+        if (!PonderProgressBarAccess.enhanced(ponder)) return;
         if (active && visible && isHovered()) {
             int hintTop = getY() + getHeight() + 4;
             PonderSmallHint.render(graphics, Component.translatable("ponderer.ui.playback.drag_hint"),
@@ -49,7 +50,7 @@ public abstract class PonderProgressBarMixin extends AbstractSimiWidget {
     @Inject(method = "clicked(DD)Z", at = @At("HEAD"), cancellable = true)
     private void ponderer$allowClickWithoutKeyframes(double mouseX, double mouseY,
             CallbackInfoReturnable<Boolean> cir) {
-        if (!com.nododiiiii.ponderer.runtime.viewer.PonderUiFeaturesAccess.enhanced(ponder)) return;
+        if (!PonderProgressBarAccess.enhanced(ponder)) return;
         cir.setReturnValue(active && visible && ponder.getActiveScene().getTotalTime() > 0
             && mouseX >= getX() - 2 && mouseX < getX() + getWidth() + 4
             && mouseY >= getY() - 3 && mouseY < getY() + getHeight() + 20);
@@ -57,7 +58,7 @@ public abstract class PonderProgressBarMixin extends AbstractSimiWidget {
 
     @Inject(method = "setFocused(Z)V", at = @At("HEAD"), cancellable = true)
     private void ponderer$retainFocusWhileScrubbing(boolean focused, CallbackInfo ci) {
-        if (!com.nododiiiii.ponderer.runtime.viewer.PonderUiFeaturesAccess.enhanced(ponder)) return;
+        if (!PonderProgressBarAccess.enhanced(ponder)) return;
         // AbstractSimiScreen drops widgets that refuse focus before dispatching drag events.
         super.setFocused(focused);
         ci.cancel();
@@ -65,14 +66,14 @@ public abstract class PonderProgressBarMixin extends AbstractSimiWidget {
 
     @Inject(method = "onClick(DD)V", at = @At("HEAD"), cancellable = true)
     private void ponderer$seekToClickedProgress(double mouseX, double mouseY, CallbackInfo ci) {
-        if (!com.nododiiiii.ponderer.runtime.viewer.PonderUiFeaturesAccess.enhanced(ponder)) return;
+        if (!PonderProgressBarAccess.enhanced(ponder)) return;
         ponderer$seekToMouse(mouseX);
         ci.cancel();
     }
 
     @Override
     protected void onDrag(double mouseX, double mouseY, double dragX, double dragY) {
-        if (!com.nododiiiii.ponderer.runtime.viewer.PonderUiFeaturesAccess.enhanced(ponder)) { super.onDrag(mouseX, mouseY, dragX, dragY); return; }
+        if (!PonderProgressBarAccess.enhanced(ponder)) { super.onDrag(mouseX, mouseY, dragX, dragY); return; }
         ponderer$seekToMouse(mouseX);
     }
 
@@ -102,7 +103,7 @@ public abstract class PonderProgressBarMixin extends AbstractSimiWidget {
     @Inject(method = "getHoveredKeyframeIndex", at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$highlightNearbyKeyframe(PonderScene scene, double mouseX,
             CallbackInfoReturnable<Integer> cir) {
-        if (!com.nododiiiii.ponderer.runtime.viewer.PonderUiFeaturesAccess.enhanced(ponder)) return;
+        if (!PonderProgressBarAccess.enhanced(ponder)) return;
         cir.setReturnValue(ponderer$findNearbyKeyframe(scene, mouseX));
     }
 

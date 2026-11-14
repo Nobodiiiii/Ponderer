@@ -29,17 +29,19 @@ features=core,view,interfaces
 | core | 无 | 实体安全 Tick、结构来源、区块空保护、NeoForge ModelData、场景/UI/指令访问器 |
 | view | core | 场景镜头状态和坐标变换 |
 | text | view | 文字索引/覆盖层重播清理 |
-| player | view、text | 播放界面、播放控制、进度条、倍速插值 |
+| player | view、text | 播放界面、播放控制、进度条（与 editor 共用）、倍速插值 |
 | interfaces | view | Sandbox 系列，包括平台访问器和事件隔离 |
 | nbt_bindings | core | 两端物品 NBT 上下文、场景过滤、悬浮提示 |
 | render_cache | core | 区块渲染缓存记录；与区块空保护分离 |
 | detached_rendering | view、text、render_cache | Fabric 帧时间桥接、文字/输入访问器、灯光访问器 |
 | ui_extensions | core | 独立键盘扩展桥接；有 player 时复用其入口，两种入口不同时应用 |
 | application | core | 产品注册、本地化、文本框和按键访问器；产品结构预览也需要灯光访问器 |
-| editor | application、detached_rendering、ui_extensions | 编辑按钮、坐标/NBT 点选；界面捕获还要求 interfaces |
+| editor | application、detached_rendering、ui_extensions | 编辑按钮、坐标/NBT 点选、离屏预览进度条；界面捕获还要求 interfaces |
 | feedback | 无 | 产品 ActionBar 访问器 |
 
 播放器还有运行时激活层：启动声明让 Mixin 可用，普通客户端初始化时调用 `RuntimeFeatures.requestPlayerEnhancements(owner)` 才激活 AUTO 播放增强；多个申请独立释放。未声明且被裁剪时申请会给出重启提示，显式 OFF 优先。已打开屏幕在初始化时固定激活状态。
+
+编辑器的离屏预览不调用完整 `PonderUI.init()`，通过 `PonderProgressBarAccess` 单独启用进度条的点击、拖动、吸附和提示。进度条 Mixin 在 player 或 editor 启用时加载；player=OFF 不影响编辑器时间线，也不会因此为普通 Ponder 屏幕启用播放器增强。
 
 ## 已加载组的运行范围
 

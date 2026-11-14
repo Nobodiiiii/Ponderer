@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.editor.preview;
 
 import com.nododiiiii.ponderer.runtime.viewer.PonderFreePreview;
+import com.nododiiiii.ponderer.runtime.viewer.PonderProgressBarAccess;
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -749,7 +750,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     }
 
     /** Provides the native progress bar its PonderUI owner without initializing any Ponder UI chrome. */
-    private static final class PreviewPonderUI extends PonderUI {
+    private static final class PreviewPonderUI extends PonderUI implements PonderProgressBarAccess {
         private final float initialScale;
         private final com.nododiiiii.ponderer.runtime.api.PlaybackSession playback;
 
@@ -757,6 +758,10 @@ public final class SceneEditorPreview implements AutoCloseable {
             super(List.of(scene));
             initialScale = scene.getScaleFactor();
             this.playback = playback;
+        }
+
+        @Override public boolean ponderer$progressBarEnhanced() {
+            return true;
         }
 
         @Override public Font getFontRenderer() {

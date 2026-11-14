@@ -16,8 +16,9 @@ public class RuntimeMixinPlugin implements IMixinConfigPlugin {
         String simple = mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1);
         if (simple.startsWith("Sandbox")) return enabled(RuntimeFeature.INTERFACES);
         return switch (simple) {
-            case "PonderUIMixin", "PonderPlaybackMixin", "PonderProgressBarMixin",
+            case "PonderUIMixin", "PonderPlaybackMixin",
                  "LerpedFloatInterpolationMixin", "WorldSectionInterpolationMixin" -> enabled(RuntimeFeature.PLAYER);
+            case "PonderProgressBarMixin" -> enabled(RuntimeFeature.PLAYER) || enabled(RuntimeFeature.EDITOR);
             case "PonderSceneViewOffsetMixin", "SceneTransformOffsetMixin" -> enabled(RuntimeFeature.VIEW);
             case "PonderSceneTextIndexMixin" -> enabled(RuntimeFeature.TEXT);
             case "PonderUINbtMixin", "PonderUINbtMixinFabric", "PonderSceneRegistryNbtMixin",
