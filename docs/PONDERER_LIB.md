@@ -228,8 +228,15 @@ interfaces=AUTO
 - 全量分组、声明方式、资源包发现及重启要求见 [Mixin 按需加载](MIXIN_LOADING.md)。
 - 界面 OFF：Mixin 插件在目标类转换前排除 Sandbox 系列和界面捕获注入；不安装界面平台、不注册界面事件、不执行第三方菜单/屏幕代码。Fabric 已去掉永久生效的界面 Access Widener，改为同组条件访问器。
 - 沙盒打开前要求网络防火墙与屏幕拦截已实际生效，缺失则给不可用占位，不先调用目标代码再降级。渲染缓存维护独立于界面，跟随 render_cache；实体安全 Tick 和缓存记录缩小到接入 Lib 的场景/独立渲染上下文。
+- `core` 包含思索半透明场景区块的绘制顺序修复：`WorldSectionElementImplMixin` 将 `RenderType.translucent()` 输出送入 `SuperRenderTypeBuffer.getLateBuffer()`，其他渲染层和普通缓冲保持原调用。该修复从 Create: Biotech 迁入，启用后覆盖所有思索场景，宿主无需再复制对应 Mixin；NeoForge 与 Fabric 共用实现，Minecraft 调用点保持映射。
 
 ## 验证记录与范围
+
+2026-11-16 半透明场景区块修复从 Biotech 迁入：
+
+- `build/biotech-sync/ponderer.log`、`build/translucent-sections-fabric-build.log`：NeoForge、Fabric 及共享运行时构建通过，Fabric refmap 含 `renderLayer` 和 `MultiBufferSource#getBuffer` 的映射描述符；NeoForge ModDev 不生成 refmap。
+- `build/translucent-sections-smoke.log`：`quickPlaySmoke -PskipBuild -PsmokeTimeout=120 -Pworld=PondererJavaLibEdit-20261115` 两端实际入世界通过并自动清理，NeoForge debug 日志确认 Lib 的 `WorldSectionElementImplMixin` 应用成功。未自动打开思索，具体透明遮挡效果仍需手动查看场景。
+- Biotech 的 `build/translucent-sections-build.log`：`build syncQuickPlayMods` 通过；新 Lib 已同步到开发依赖和暂存目录，Biotech 成品 JAR 不再包含重复类或配置项。用户运行中的 Biotech 实例未替换或重启。
 
 2026-11-15 Java 源码写回与会话重载：
 

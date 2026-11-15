@@ -28,7 +28,7 @@ features=core,view,interfaces
 
 | 能力键 | 直接依赖 | Mixin 范围 |
 | --- | --- | --- |
-| core | 无 | 实体安全 Tick、结构来源、区块空保护、NeoForge ModelData、场景/UI/指令访问器 |
+| core | 无 | 实体安全 Tick、结构来源、区块空保护、半透明区块延后绘制、NeoForge ModelData、场景/UI/指令访问器 |
 | view | core | 场景镜头状态和坐标变换 |
 | text | view | 文字索引/覆盖层重播清理 |
 | timeline | core | 可由嵌入预览独立使用的交互进度条 |

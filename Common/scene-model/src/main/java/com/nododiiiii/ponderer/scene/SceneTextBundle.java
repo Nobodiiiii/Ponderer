@@ -13,19 +13,23 @@ public record SceneTextBundle(DslScene document, Map<String, Map<String, String>
             return text;
         });
         var generated = new HashSet<String>();
+        var assigned = new HashMap<String, Map<String, String>>();
         visit(document, (text, suggested) -> {
             if (text == null) return null;
+            Map<String, String> values = text.getAllTranslations();
+            if (text.isReference() && values.isEmpty())
+                throw new IllegalArgumentException("Missing text resource " + text.resource() + "#" + text.key());
+            if (values.isEmpty()) return text;
             String key;
-            if (text.isReference()) key = text.key();
+            // Older copies can still share a key. Fork it when their translations diverge.
+            if (text.isReference() && (!assigned.containsKey(text.key()) || assigned.get(text.key()).equals(values)))
+                key = text.key();
             else {
                 key = suggested;
                 for (int n = 2; reserved.contains(key) || generated.contains(key); n++) key = suggested + "_" + n;
                 generated.add(key);
             }
-            Map<String, String> values = text.getAllTranslations();
-            if (text.isReference() && values.isEmpty())
-                throw new IllegalArgumentException("Missing text resource " + text.resource() + "#" + text.key());
-            if (values.isEmpty()) return text;
+            assigned.putIfAbsent(key, values);
             for (var entry : values.entrySet()) {
                 String locale = entry.getKey().equals("_plain") ? "en_us" : entry.getKey();
                 if (!locale.matches("[a-z0-9_]+")) throw new IllegalArgumentException("Invalid text locale: " + locale);

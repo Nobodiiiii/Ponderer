@@ -28,7 +28,22 @@ final class StepClipboard {
 
     static DslScene.DslStep copy(DslScene.DslStep step) {
         DslScene.DslStep copy = JSON.fromJson(JSON.toJson(step), DslScene.DslStep.class);
-        copy.id = UUID.randomUUID().toString();
+        detach(copy);
         return copy;
+    }
+
+    private static void detach(DslScene.DslStep copy) {
+        copy.id = UUID.randomUUID().toString();
+        // A pasted step owns its text, including translations supplied by an exported resource.
+        copy.text = detachText(copy.text);
+        copy.hint = detachText(copy.hint);
+        if (copy.steps != null) copy.steps.stream().filter(java.util.Objects::nonNull).forEach(StepClipboard::detach);
+    }
+
+    private static LocalizedText detachText(LocalizedText text) {
+        if (text == null || !text.isReference()) return text;
+        var translations = text.getAllTranslations();
+        // Keep unresolved references so saving reports the missing resource instead of losing text.
+        return translations.isEmpty() ? text : LocalizedText.ofMap(translations);
     }
 }
