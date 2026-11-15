@@ -49,6 +49,8 @@ import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nullable;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -380,8 +382,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         var originalPitch = transform.xRotation;
         var originalYaw = transform.yRotation;
         var view = (PonderSceneViewOffsetAccess) scene;
-        var accessor = (PonderSceneAccessor) scene;
-        float originalScale = scene.getScaleFactor();
+        PreviewScale previewScale = new PreviewScale(scene);
         boolean scaleOverride = view.ponderer$isScaleOverrideActive();
         graphics.flush();
         Vector3f[] lights = RenderSystemShaderLightsAccessor.ponderer$getShaderLightDirections();
@@ -398,7 +399,7 @@ public final class SceneEditorPreview implements AutoCloseable {
             RenderSystem.setupLevelDiffuseLighting(LIGHT_0, LIGHT_1);
             // Temporarily share the native transform with both the structure and text anchors.
             // Restore the scripted chasers and scale afterward so seeking stays deterministic.
-            applyPreviewTransform(scene, partialTick);
+            applyPreviewTransform(scene, partialTick, previewScale);
             pose.translate(x, y, 0);
             pose.pushPose();
             try {
@@ -433,7 +434,7 @@ public final class SceneEditorPreview implements AutoCloseable {
                 pose.translate(offsetX, offsetY, 0);
                 pose.scale(OVERLAY_SCALE, OVERLAY_SCALE, 1);
                 // Compensate the scene projection so scaled text and controls retain their world anchors.
-                accessor.ponderer$setScaleFactor(scene.getScaleFactor() / OVERLAY_SCALE);
+                previewScale.set(scene.getScaleFactor() / OVERLAY_SCALE);
                 transform.updateScreenParams(overlayWidth + (int) Math.round(panX * 2 / OVERLAY_SCALE),
                     overlayHeight + (int) Math.round(panY * 2 / OVERLAY_SCALE), 0);
                 Runnable renderOverlay = () -> PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), partialTick,
@@ -456,7 +457,7 @@ public final class SceneEditorPreview implements AutoCloseable {
             ponder.height = height;
             transform.xRotation = originalPitch;
             transform.yRotation = originalYaw;
-            accessor.ponderer$setScaleFactor(originalScale);
+            previewScale.close();
             view.ponderer$setScaleOverrideActive(scaleOverride);
             transform.updateScreenParams(width, height, 0);
             mc.cameraEntity = previousCamera;
@@ -574,7 +575,7 @@ public final class SceneEditorPreview implements AutoCloseable {
             || previewButton != null && previewButton.isMouseOver(mouseX, mouseY);
     }
 
-    private void applyPreviewTransform(PonderScene scene, float partialTick) {
+    private void applyPreviewTransform(PonderScene scene, float partialTick, PreviewScale previewScale) {
         var transform = scene.getTransform();
         var view = (PonderSceneViewOffsetAccess) scene;
         float scale = view.ponderer$isScaleOverrideActive()
@@ -585,7 +586,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         transform.xRotation = renderPitch.startWithValue(Mth.clamp(transform.xRotation.getValue(partialTick) + pitch, -89, 89));
         transform.yRotation = renderYaw.startWithValue(transform.yRotation.getValue(partialTick) + yaw);
         view.ponderer$setScaleOverrideActive(false);
-        ((PonderSceneAccessor) scene).ponderer$setScaleFactor((float) fit * zoom * scale / 30);
+        previewScale.set((float) fit * zoom * scale / 30);
         transform.updateScreenParams(width + (int) Math.round(panX * 2), height + (int) Math.round(panY * 2), 0);
     }
 
@@ -599,12 +600,12 @@ public final class SceneEditorPreview implements AutoCloseable {
         var transform = scene.getTransform();
         var originalPitch = transform.xRotation;
         var originalYaw = transform.yRotation;
-        float originalScale = scene.getScaleFactor();
+        PreviewScale previewScale = new PreviewScale(scene);
         var view = (PonderSceneViewOffsetAccess) scene;
         boolean scaleOverride = view.ponderer$isScaleOverrideActive();
         PointPickResult[] result = {null};
         try {
-            applyPreviewTransform(scene, renderedPartialTick);
+            applyPreviewTransform(scene, renderedPartialTick, previewScale);
             PoseStack projection = new PoseStack();
             transform.apply(projection, renderedPartialTick);
             // Invert the actual rendering matrix, including scripted view offsets and the free camera.
@@ -659,7 +660,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         } finally {
             transform.xRotation = originalPitch;
             transform.yRotation = originalYaw;
-            ((PonderSceneAccessor) scene).ponderer$setScaleFactor(originalScale);
+            previewScale.close();
             view.ponderer$setScaleOverrideActive(scaleOverride);
             transform.updateScreenParams(width, height, 0);
         }
@@ -669,6 +670,47 @@ public final class SceneEditorPreview implements AutoCloseable {
     private static Vec3 unproject(Matrix4f inverse, double x, double y, float depth) {
         Vector3f point = inverse.transformPosition(new Vector3f((float) x, (float) y, depth));
         return new Vec3(point.x, point.y, point.z);
+    }
+
+    /** Keeps temporary viewport fitting out of Simulated's script-scale interpolation. */
+    private static final class PreviewScale implements AutoCloseable {
+        @Nullable private static final VarHandle SIMULATED_PREVIOUS_SCALE = findPreviousScale();
+        private final PonderScene scene;
+        private final float originalScale;
+        private final float previousScale;
+
+        private PreviewScale(PonderScene scene) {
+            this.scene = scene;
+            originalScale = scene.getScaleFactor();
+            previousScale = SIMULATED_PREVIOUS_SCALE == null ? originalScale
+                : (float) SIMULATED_PREVIOUS_SCALE.get(scene);
+        }
+
+        private void set(float scale) {
+            ((PonderSceneAccessor) scene).ponderer$setScaleFactor(scale);
+            // Simulated redirects SceneTransform's scale read to lerp(previous, current, pt).
+            // Fitting is already sampled at the frame's partial tick: both endpoints must
+            // match, or every game tick replays a zoom from the stored script scale.
+            if (SIMULATED_PREVIOUS_SCALE != null) SIMULATED_PREVIOUS_SCALE.set(scene, scale);
+        }
+
+        @Override public void close() {
+            ((PonderSceneAccessor) scene).ponderer$setScaleFactor(originalScale);
+            if (SIMULATED_PREVIOUS_SCALE != null) SIMULATED_PREVIOUS_SCALE.set(scene, previousScale);
+        }
+
+        @Nullable
+        private static VarHandle findPreviousScale() {
+            try {
+                return MethodHandles.privateLookupIn(PonderScene.class, MethodHandles.lookup())
+                    .findVarHandle(PonderScene.class, "simulated$oldScaleFactor", float.class);
+            } catch (NoSuchFieldException ignored) {
+                return null;
+            } catch (IllegalAccessException e) {
+                LogUtils.getLogger().warn("Unable to access Simulated's scene scale interpolation", e);
+                return null;
+            }
+        }
     }
 
     private void renderPointPick(GuiGraphics graphics, float partialTick) {

@@ -26,6 +26,7 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ServerboundContainerButtonClickPacket;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
@@ -502,6 +503,19 @@ public final class SandboxSession {
 
     void onOutbound(Packet<?> packet) {
         outbound.merge(packet.getClass().getSimpleName(), 1, Integer::sum);
+        // Unlike slot clicks, vanilla menu buttons have no client prediction. Their packet
+        // is still dropped by the firewall; run its menu handler on sandbox state instead.
+        if (packet instanceof ServerboundContainerButtonClickPacket button && player != null) {
+            AbstractContainerMenu currentMenu = player.containerMenu;
+            if (currentMenu == null || currentMenu.containerId != button.containerId()
+                || !SandboxNetworkFirewall.isSandboxWindowId(button.containerId())
+                || player.isSpectator() || !currentMenu.stillValid(player)) {
+                return;
+            }
+            if (currentMenu.clickMenuButton(player, button.buttonId())) {
+                currentMenu.broadcastChanges();
+            }
+        }
     }
 
     public void degradeToReadOnly(String reason) {

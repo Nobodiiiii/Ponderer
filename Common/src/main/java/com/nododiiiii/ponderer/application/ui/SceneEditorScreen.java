@@ -3,11 +3,8 @@ package com.nododiiiii.ponderer.application.ui;
 import com.nododiiiii.ponderer.support.ui.UIText;
 import com.nododiiiii.ponderer.editor.preview.SceneEditorPreview;
 import com.nododiiiii.ponderer.editor.session.UndoManager;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.scene.DslScene;
-import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.application.ui.widgets.AbstractDeclarativeListScreen;
 import com.nododiiiii.ponderer.application.ui.widgets.ActionStripListEntry;
 import com.nododiiiii.ponderer.application.ui.widgets.PonderIconStencils;
@@ -44,16 +41,12 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         HISTORY_SESSION.clear();
         pendingPonderReturnState = null;
     }
-    private static final Gson STEP_GSON = new GsonBuilder()
-        .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter())
-        .create();
     private static final int SIDEBAR_BUTTON_SIZE = 28;
     private static final int SIDEBAR_BUTTON_GAP = 2;
     private static final int STEP_ACTION_ICON_SIZE = 12;
     private static final int SCENE_LIST_WIDTH = 400;
     private static final com.nododiiiii.ponderer.editor.session.EditorHistory HISTORY_SESSION = new com.nododiiiii.ponderer.editor.session.EditorHistory();
 
-    private static List<DslScene.DslStep> clipboard = List.of();
     @Nullable
     private static PonderScreenNavigation.ReturnState pendingPonderReturnState = null;
 
@@ -284,6 +277,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     protected void collectEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries) {
         rowSteps.clear();
         List<DslScene.DslStep> steps = getSteps();
+        if (!StepClipboard.isOwnedBy(copiedSteps)) copiedSteps.clear();
         copiedSteps.keySet().retainAll(steps);
         if (steps.isEmpty()) {
             entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.scene_editor.no_steps")));
@@ -326,7 +320,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                         this::pasteButtonTooltip,
                         () -> pasteAfter(stepIndex),
                         null,
-                        () -> canWrite() && !clipboard.isEmpty()),
+                        () -> canWrite() && !StepClipboard.contents().isEmpty()),
                     SceneStepListEntry.iconButton(
                         PondererGuiIcons.REMOVE,
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.delete"))),
@@ -631,9 +625,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private static DslScene.DslStep deepCopy(DslScene.DslStep step) {
-        DslScene.DslStep copy = STEP_GSON.fromJson(STEP_GSON.toJson(step), DslScene.DslStep.class);
-        copy.id = java.util.UUID.randomUUID().toString();
-        return copy;
+        return StepClipboard.copy(step);
     }
 
     private boolean isActionDisabled(int actionId, int rowIndex) {
@@ -701,10 +693,10 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private void updateClipboardFromSelection() {
         // The list order, rather than the order of right-clicks, determines paste order.
-        clipboard = getSteps().stream()
+        StepClipboard.setContents(copiedSteps, getSteps().stream()
             .filter(copiedSteps::containsKey)
             .map(copiedSteps::get)
-            .toList();
+            .toList());
     }
 
     private void openInsertAfter(int afterIndex) {
@@ -715,13 +707,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private void pasteAfter(int afterIndex) {
         if (!requireWritable()) return;
-        if (!copiedSteps.isEmpty()) {
+        if (StepClipboard.isOwnedBy(copiedSteps) && !copiedSteps.isEmpty()) {
             updateClipboardFromSelection();
         }
-        if (clipboard.isEmpty()) {
+        if (StepClipboard.contents().isEmpty()) {
             return;
         }
-        insertStepsAndSave(afterIndex, clipboard.stream().map(SceneEditorScreen::deepCopy).toList());
+        insertStepsAndSave(afterIndex, StepClipboard.contents().stream().map(SceneEditorScreen::deepCopy).toList());
         rebuildListPreservingScroll();
     }
 

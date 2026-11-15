@@ -57,6 +57,7 @@ features=core,view,interfaces
 ## 已加载组的运行范围
 
 - `PonderLevelMixin` 只接管 Lib 引擎/程序接收的世界；其他模组的普通 Ponder 场景沿用上游 Tick。原生手写场景可用 `RuntimeScenes.adopt(builder.getScene())` 显式接入，需先声明 core。
+- `RuntimeScenes.adopt()` 同时通过 Ponder 的公开 `setChunkSource()` 接口安装场景区块源。区块查询将当前可见方块同步到真实区段，覆盖场景还原、遮罩、锚点和实体 Tick 的可见性变化，兼容锂直接读取区段的碰撞优化；不依赖锂，也不向锂注入 Mixin。仅处理 Lib 接收的场景，其他模组的普通 Ponder 场景不受此修复覆盖。
 - 渲染缓存只记录接入的世界或独立渲染上下文，不持续跟踪其他普通 Ponder 场景；缓存维护事件跟随 render_cache。
 - 镜头的 4 个插值器首次使用时才分配；没有镜头状态时不推进，不因普通场景渲染而分配。
 - 播放器关闭后不安装增强相关屏幕事件；界面/镜头通过可选接口读取播放器状态。

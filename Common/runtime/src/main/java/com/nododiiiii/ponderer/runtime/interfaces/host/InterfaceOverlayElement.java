@@ -32,9 +32,7 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
     InterfaceOverlayElement(PonderScene scene, SandboxSession session) {
         this.scene = scene;
         this.session = session;
-        // Not setFade(1): LerpedFloat.setValue keeps previousValue at 0 and nothing ticks this
-        // element, so getFade(pt) would equal partialTicks forever and the < 1/32 cutoff below
-        // would drop frames at a rate that beats against the frame rate (visible flicker).
+        // Initialize both interpolation samples so standalone interfaces are fully visible immediately.
         fade.startWithValue(1.0f);
     }
 
@@ -46,9 +44,15 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
         return session;
     }
 
-    void setPanel(InterfacePanelLayout panel, boolean blocking) {
+    void setPanel(InterfacePanelLayout panel, boolean blocking, boolean animation) {
         this.panel = panel;
         this.panelBlocking = blocking;
+        fade.startWithValue(animation ? 0 : 1);
+    }
+
+    @Override public void tick(PonderScene scene) {
+        // Settle the previous sample while idle, so interpolation cannot repeat the last movement.
+        fade.tickChaser();
     }
 
     boolean isPanel() { return panel != null; }
@@ -66,8 +70,9 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
             return new int[]{(int) Math.round(start[0]), (int) Math.round(start[1]),
                 Math.max(1, (int) Math.round(end[0] - start[0])), Math.max(1, (int) Math.round(end[1] - start[1]))};
         }
-        panel.update(scene, panel.sourceRect(session), preview == null
-            ? Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false) : preview.partialTicks());
+        float partialTicks = preview == null
+            ? Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false) : preview.partialTicks();
+        panel.update(scene, panel.sourceRect(session), partialTicks, getFade(partialTicks));
         return panel.rect();
     }
 
@@ -135,8 +140,9 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
 
     @Override
     public void render(PonderScene scene, PonderUI screen, GuiGraphics graphics, float partialTicks, float fade) {
-        // Interface code overrides shader colour, so fading is all-or-nothing (scene fade-out hides it).
-        if (fade < 1 / 32f || scene != screen.getActiveScene() || session.isDestroyed() || !InterfaceHost.isCurrent(this)) {
+        // Match InputWindowElement's cutoff; the panel and its native GUI slide as one rectangle.
+        if (fade < (panel == null ? 1 / 32f : 1 / 16f)
+            || scene != screen.getActiveScene() || session.isDestroyed() || !InterfaceHost.isCurrent(this)) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
@@ -165,7 +171,7 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
         try {
             if (panel != null) {
                 int[] source = panel.sourceRect(session);
-                panel.update(scene, source, partialTicks);
+                panel.update(scene, source, partialTicks, fade);
                 panel.renderFrame(graphics);
                 session.renderPanel(graphics, hoverX, hoverY, partialTicks, source, panel.rect());
             } else if (preview != null) {

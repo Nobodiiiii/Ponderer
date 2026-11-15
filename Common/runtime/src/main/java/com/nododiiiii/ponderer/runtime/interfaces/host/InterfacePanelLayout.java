@@ -47,7 +47,7 @@ final class InterfacePanelLayout {
         return x >= display[0] && y >= display[1] && x < display[0] + display[2] && y < display[1] + display[3];
     }
 
-    void update(PonderScene scene, int[] rect, float partialTicks) {
+    void update(PonderScene scene, int[] rect, float partialTicks, float progress) {
         if (rect == null) return;
         source = rect;
         var window = Minecraft.getInstance().getWindow();
@@ -70,6 +70,13 @@ final class InterfacePanelLayout {
         }
         x = Mth.clamp(x + offsetX, left + 4, left + Math.max(4, width - w - 4));
         y = Mth.clamp(y + offsetY, top + 20, top + Math.max(20, height - h - 40));
+        double slide = 10 * (1 - Mth.clamp(progress, 0, 1));
+        switch (direction) {
+            case DOWN -> y -= slide;
+            case UP -> y += slide;
+            case LEFT -> x += slide;
+            case RIGHT -> x -= slide;
+        }
         display = new int[]{(int) Math.round(x), (int) Math.round(y), w, h};
     }
 

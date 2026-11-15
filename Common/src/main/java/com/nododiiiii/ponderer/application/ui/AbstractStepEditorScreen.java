@@ -418,6 +418,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         if (canSwitchSceneStartType()) {
             participants.add(FieldBindings.string(SCENE_START_TYPE_KEY, this::getStepType, value -> {}));
         }
+        if (stepTarget != null) stepTarget.configureFormState(this, participants);
     }
 
     @Override
@@ -431,6 +432,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
                 () -> UIText.of("ponderer.ui.step_editor.first_step_type.tooltip")));
         }
         collectStepEntries(entries);
+        if (stepTarget != null) stepTarget.collectFormEntries(this, entries);
         if (showsKeyFrame()) {
             entries.add(FieldSpecs.toggle(
                 "ponderer.ui.key_frame",

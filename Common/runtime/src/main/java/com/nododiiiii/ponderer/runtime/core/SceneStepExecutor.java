@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.runtime.core;
 import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.interfaces.instruction.ShowInterfaceInstruction;
 import com.nododiiiii.ponderer.runtime.interfaces.instruction.InterfacePanelSequenceInstruction;
+import com.nododiiiii.ponderer.runtime.interfaces.instruction.InterfacePanelTransitionInstruction;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor;
@@ -230,12 +231,14 @@ final class SceneStepExecutor {
 
     private void buildInterfacePanel(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep panel) {
         var descriptor = com.nododiiiii.ponderer.scene.interfaces.LegacyInterfaceMigrator.fromStep(panel.steps.getFirst());
+        boolean animation = !Boolean.FALSE.equals(panel.panelAnimation);
         scene.addInstruction(ps -> {
             if (!InterfaceHost.isPlaybackSuppressed(ps))
                 InterfaceHost.openPanel(ps, descriptor, toPoint(panel.point), parsePointing(panel.direction),
                     panel.panelTransform == null ? com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.DEFAULT_TRANSFORM : panel.panelTransform,
-                    panel.panelCrop, !Boolean.FALSE.equals(panel.panelBackground), !Boolean.FALSE.equals(panel.panelBlocking));
+                    panel.panelCrop, !Boolean.FALSE.equals(panel.panelBackground), !Boolean.FALSE.equals(panel.panelBlocking), animation);
         });
+        if (animation) scene.addInstruction(new InterfacePanelTransitionInstruction(true));
         StepContext nested = new StepContext();
         nested.uiAnchorMode = true;
         int tail = 0;
@@ -257,6 +260,7 @@ final class SceneStepExecutor {
         }
         // Let child overlays finish before destroying their viewport.
         scene.idle(Math.max(1, tail));
+        if (animation) scene.addInstruction(new InterfacePanelTransitionInstruction(false));
         scene.addInstruction(InterfaceHost::hide);
     }
 

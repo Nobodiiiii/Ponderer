@@ -23,7 +23,7 @@ public class RuntimeMixinPlugin implements IMixinConfigPlugin {
             case "PonderSceneTextIndexMixin" -> enabled(RuntimeFeature.TEXT);
             case "PonderUINbtMixin", "PonderUINbtMixinFabric", "PonderSceneRegistryNbtMixin",
                  "PonderSceneRegistryNbtMixinFabric", "PonderTooltipNbtMixin", "PonderTooltipNbtMixinFabric" -> enabled(RuntimeFeature.NBT_BINDINGS);
-            case "WorldSectionRenderCacheMixin" -> enabled(RuntimeFeature.RENDER_CACHE);
+            case "WorldSectionRenderCacheMixin", "TextureAtlasAccessor" -> enabled(RuntimeFeature.RENDER_CACHE);
             case "AnimationTickHolderMixin", "TextWindowElementAccessor", "InputWindowElementAccessor" -> enabled(RuntimeFeature.DETACHED_RENDERING);
             case "RenderSystemShaderLightsAccessor" -> enabled(RuntimeFeature.SHADER_LIGHTS);
             case "PlaybackUiExtensionMixin" -> enabled(RuntimeFeature.UI_EXTENSIONS) && !enabled(RuntimeFeature.PLAYER);

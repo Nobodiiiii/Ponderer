@@ -144,9 +144,24 @@ public final class InterfaceHost {
                                           net.minecraft.world.phys.Vec3 anchor,
                                           net.createmod.catnip.math.Pointing direction, List<Double> transform,
                                           @Nullable List<Double> crop, boolean background, boolean blocking) {
+        return openPanel(scene, descriptor, anchor, direction, transform, crop, background, blocking, false);
+    }
+
+    public static SandboxSession openPanel(PonderScene scene, InterfaceDescriptor descriptor,
+                                          net.minecraft.world.phys.Vec3 anchor,
+                                          net.createmod.catnip.math.Pointing direction, List<Double> transform,
+                                          @Nullable List<Double> crop, boolean background, boolean blocking, boolean animation) {
         SandboxSession session = open(scene, descriptor);
-        current.setPanel(new InterfacePanelLayout(anchor, direction, transform, crop, background), blocking);
+        current.setPanel(new InterfacePanelLayout(anchor, direction, transform, crop, background), blocking, animation);
         return session;
+    }
+
+    /** A transition must never animate a later interface that replaced its own session. */
+    public static void setPanelFade(PonderScene scene, SandboxSession session, float progress) {
+        InterfaceOverlayElement element = current;
+        if (element != null && element.scene() == scene && element.session() == session && element.isPanel()) {
+            element.setFade(progress);
+        }
     }
 
     /** Hides the interface shown by {@code scene}, if any ({@code hide_interface}, a later {@code show_structure}). */

@@ -19,6 +19,7 @@
     "SandboxChunkCacheMixin",
     "WorldSectionElementImplMixin",
     "WorldSectionRenderCacheMixin",
+    "TextureAtlasAccessor",
     "PlaybackUiExtensionMixin",
     "LerpedFloatInterpolationMixin",
     "WorldSectionInterpolationMixin",

@@ -202,6 +202,8 @@ public class DslScene {
         public List<Double> panelTransform;
         /** interface_panel: show the controls-style background, border and pointer; defaults to true. */
         public Boolean panelBackground;
+        /** interface_panel: animate the whole panel in and out like show_controls; defaults to true. */
+        public Boolean panelAnimation;
         /** interface_panel: wait for the nested tutorial before continuing; defaults to true. */
         public Boolean panelBlocking;
         public LocalizedText text;
