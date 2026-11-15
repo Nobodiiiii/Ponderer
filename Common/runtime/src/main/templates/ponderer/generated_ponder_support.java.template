@@ -2,8 +2,10 @@
 // 由思索者自动生成 — 请勿手动修改；下次导出时会被覆盖。
 package ${PACKAGE};
 
+import com.mojang.authlib.GameProfile;
 import com.mojang.logging.LogUtils;
 import com.mojang.brigadier.StringReader;
+import net.createmod.catnip.levelWrappers.WrappedClientLevel;
 import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.ElementLink;
@@ -19,6 +21,7 @@ import net.createmod.ponder.foundation.instruction.FadeOutOfSceneInstruction;
 import net.createmod.ponder.foundation.instruction.RotateSceneInstruction;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
@@ -65,6 +68,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -359,6 +363,20 @@ ${SECTION_OWNERSHIP}
         }
     }
 
+    /** Creates a scene player using the supplied profile, or the current viewer's profile by default. */
+    public static RemotePlayer createPlayer(Level level, @Nullable GameProfile profile) {
+        if (profile == null) {
+            var localPlayer = Minecraft.getInstance().player;
+            profile = localPlayer == null
+                ? new GameProfile(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Player")
+                : localPlayer.getGameProfile();
+        }
+        RemotePlayer player = new RemotePlayer(WrappedClientLevel.of(level), profile);
+        player.setOnGround(true);
+        player.noPhysics = true;
+        return player;
+    }
+
     public static void createEntity(SceneBuilder scene, String entityId, Vec3 pos, Vec3 lookAt,
                                     Float yaw, Float pitch, String nbt) {
         createEntity(scene, null, entityId, pos, lookAt, yaw, pitch, nbt, null, null, null, null);
@@ -392,7 +410,7 @@ ${SECTION_OWNERSHIP}
             if (type == null) {
                 return null;
             }
-            Entity entity = type.create(level);
+            Entity entity = type == EntityType.PLAYER ? createPlayer(level, null) : type.create(level);
             if (entity == null) {
                 return null;
             }

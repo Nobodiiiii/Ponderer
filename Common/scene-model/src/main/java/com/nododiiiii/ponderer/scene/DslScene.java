@@ -9,6 +9,9 @@ public class DslScene {
     public int formatVersion = 1;
     public List<String> requiredCapabilities = List.of();
     public String id;
+    /** Stable across export relocation, independently of the public scene ID and pack name. */
+    public String internalId;
+    public boolean exported;
     /** Java host identity for local editor overrides; these are registered by their owning engine. */
     @Nullable
     public String runtimeSource;
@@ -153,6 +156,10 @@ public class DslScene {
         return id;
     }
 
+    public String identity() {
+        return internalId == null || internalId.isBlank() ? sceneKey() : internalId;
+    }
+
     public boolean isEditable() {
         return !Boolean.FALSE.equals(editable);
     }
@@ -162,6 +169,8 @@ public class DslScene {
     }
 
     public static class CustomTag {
+        /** Original category ID, retained when an export relocates its namespace. */
+        public String internalId;
         public LocalizedText title = LocalizedText.of("");
         public LocalizedText description = LocalizedText.of("");
         public String icon = "minecraft:book";

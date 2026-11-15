@@ -38,6 +38,12 @@ public final class SceneCatalog {
         return scenes.stream().map(SceneCodec::snapshot).toList();
     }
 
+    List<DslScene> documents() { return scenes; }
+
+    public List<DslScene> getActiveScenes() {
+        return scenes.stream().filter(scene -> SceneVariants.isActive(this, scene)).map(SceneCodec::snapshot).toList();
+    }
+
     public void setScenes(List<DslScene> newScenes) {
         scenes = newScenes.stream().map(SceneCodec::snapshot).toList();
     }
@@ -71,7 +77,8 @@ public final class SceneCatalog {
      *         paired with the occurrence index for each
      */
     public Set<PonderSceneRef> resolvePonderSceneRefs(Collection<String> sceneKeys) {
-        Set<String> keySet = sceneKeys instanceof Set ? (Set<String>) sceneKeys : new HashSet<>(sceneKeys);
+        Set<String> keySet = new HashSet<>(sceneKeys);
+        keySet.retainAll(scenes.stream().filter(scene -> SceneVariants.isActive(this, scene)).map(DslScene::sceneKey).toList());
         Set<PonderSceneRef> result = new HashSet<>();
         for (var entry : ids.entries.entrySet()) {
             String ponderSceneId = entry.getKey();
@@ -153,7 +160,7 @@ public final class SceneCatalog {
                 entry = entries.get(0);
             }
             DslScene found = findByKey(entry.sceneKey());
-            if (found != null) {
+            if (found != null && SceneVariants.isActive(this, found)) {
                 return new SceneMatch(found, entry.sceneIndex());
             }
         }
@@ -168,9 +175,10 @@ public final class SceneCatalog {
     @Nullable
     private SceneMatch findBySceneIdLegacy(ResourceLocation ponderSceneId) {
         String path = ponderSceneId.getPath();
+        List<DslScene> active = scenes.stream().filter(scene -> SceneVariants.isActive(this, scene)).toList();
 
         // First: try exact match
-        for (DslScene scene : scenes) {
+        for (DslScene scene : active) {
             if (scene.id == null) continue;
             ResourceLocation sceneId = ResourceLocation.tryParse(scene.id);
             if (sceneId == null) continue;
@@ -191,7 +199,7 @@ public final class SceneCatalog {
             } catch (NumberFormatException ignored) {}
 
             ResourceLocation baseId = ResourceLocation.fromNamespaceAndPath(ponderSceneId.getNamespace(), basePath);
-            for (DslScene scene : scenes) {
+            for (DslScene scene : active) {
                 if (scene.id == null) continue;
                 ResourceLocation sceneId = ResourceLocation.tryParse(scene.id);
                 if (sceneId == null) continue;
@@ -204,7 +212,7 @@ public final class SceneCatalog {
 
         // Third: try prefix match (DslScene.id path is a prefix of ponderSceneId path)
             // Also check named scene IDs (e.g. scene id "example" + scene id "structure" -> "example_structure")
-        for (DslScene scene : scenes) {
+        for (DslScene scene : active) {
             if (scene.id == null) continue;
             ResourceLocation sceneId = ResourceLocation.tryParse(scene.id);
             if (sceneId == null) continue;

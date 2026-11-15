@@ -12,6 +12,8 @@
     "PonderLevelMixin",
     "PonderStructureSourceMixin",
     "SandboxScreenGateMixin",
+    "SandboxScreenWidgetsMixin",
+    "SandboxWidgetRenderMixin",
     "SandboxNetworkFirewallMixin",
     "SandboxWorldBridgeMixin",
     "SandboxClientLevelMixin",

@@ -241,6 +241,9 @@ public final class SandboxSession {
             return fallback;
         }
         try (SandboxScope ignored = SandboxScope.enter(this)) {
+            Screen screen = currentScreen();
+            if (screen != null && screen.getFocused() != null
+                && InterfaceExclusions.isExcluded(screen.getFocused(), screen)) screen.setFocused(null);
             return call.get();
         } catch (Throwable t) {
             LOGGER.warn("[Ponderer] Interface sandbox '{}' threw during {}", describe(), phase, t);

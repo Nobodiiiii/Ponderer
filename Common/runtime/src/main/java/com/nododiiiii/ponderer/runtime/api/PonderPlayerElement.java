@@ -1,30 +1,22 @@
 package com.nododiiiii.ponderer.runtime.api;
 
-import java.util.UUID;
-
 import javax.annotation.Nullable;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.vertex.PoseStack;
 
-import net.createmod.catnip.levelWrappers.WrappedClientLevel;
 import net.createmod.ponder.api.level.PonderLevel;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.element.AnimatedSceneElementBase;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 public class PonderPlayerElement extends AnimatedSceneElementBase {
-
-	private static final UUID DEFAULT_UUID = UUID.fromString("00000000-0000-0000-0000-000000000001");
-	private static final String DEFAULT_NAME = "Player";
 
 	private final Vec3 location;
 	private float bodyYaw = 180f;
@@ -69,9 +61,7 @@ public class PonderPlayerElement extends AnimatedSceneElementBase {
 	private void ensurePuppet(PonderLevel world) {
 		if (puppet != null)
 			return;
-		GameProfile resolved = resolveProfile();
-		ClientLevel clientLevel = WrappedClientLevel.of(world);
-		puppet = new RemotePlayer(clientLevel, resolved);
+		puppet = PonderActions.createPlayer(world, profile);
 		puppet.setPosRaw(0, 0, 0);
 		puppet.xo = 0;
 		puppet.yo = 0;
@@ -79,18 +69,7 @@ public class PonderPlayerElement extends AnimatedSceneElementBase {
 		puppet.xOld = 0;
 		puppet.yOld = 0;
 		puppet.zOld = 0;
-		puppet.setOnGround(true);
-		puppet.noPhysics = true;
 		applyFacingToPuppet();
-	}
-
-	private GameProfile resolveProfile() {
-		if (profile != null)
-			return profile;
-		var localPlayer = Minecraft.getInstance().player;
-		if (localPlayer != null)
-			return localPlayer.getGameProfile();
-		return new GameProfile(DEFAULT_UUID, DEFAULT_NAME);
 	}
 
 	@Override

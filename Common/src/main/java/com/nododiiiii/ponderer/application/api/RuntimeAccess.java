@@ -14,13 +14,11 @@ public final class RuntimeAccess {
     }
     public static RuntimeEngine engineFor(com.nododiiiii.ponderer.scene.DslScene scene) {
         var owner = com.nododiiiii.ponderer.runtime.api.EditableScenes.owner(scene);
+        if (owner == null) owner = com.nododiiiii.ponderer.runtime.api.SceneVariants.owner(scene);
         return owner == null ? engine() : owner;
     }
     public static java.util.List<com.nododiiiii.ponderer.scene.DslScene> scenes() {
-        var scenes = new java.util.LinkedHashMap<String, com.nododiiiii.ponderer.scene.DslScene>();
-        for (var scene : engine().catalog().getScenes()) scenes.put(scene.sceneKey(), scene);
-        for (var scene : com.nododiiiii.ponderer.runtime.api.EditableScenes.scenes()) scenes.put(scene.sceneKey(), scene);
-        return java.util.List.copyOf(scenes.values());
+        return com.nododiiiii.ponderer.runtime.api.SceneVariants.activeScenes();
     }
     public static java.util.Set<com.nododiiiii.ponderer.runtime.api.SceneCatalog.PonderSceneRef> resolvePonderSceneRefs(
             java.util.Collection<String> keys) {
@@ -31,7 +29,6 @@ public final class RuntimeAccess {
     }
     public static com.nododiiiii.ponderer.runtime.api.SceneCatalog.SceneMatch findBySceneId(
             net.minecraft.resources.ResourceLocation id, int occurrence) {
-        var match = engine().catalog().findBySceneId(id, occurrence);
-        return match != null ? match : com.nododiiiii.ponderer.runtime.api.EditableScenes.findBySceneId(id, occurrence);
+        return com.nododiiiii.ponderer.runtime.api.SceneVariants.findBySceneId(id, occurrence);
     }
 }

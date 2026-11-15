@@ -124,9 +124,11 @@ public final class CustomPonderTags {
     public static void register(Collection<DslScene> scenes) {
         PonderTagRegistry registry = (PonderTagRegistry) PonderIndex.getTagAccess();
         collect(scenes).forEach((id, definition) -> {
+            String canonicalId = definition.internalId == null ? id : definition.internalId;
+            if (registry.getListedTags().stream().anyMatch(tag -> tag.getId().toString().equals(canonicalId))) return;
             // PonderTag's default getters read static lang files outside editing mode.
             // Register an instance with dynamic getters so scene text also follows language changes.
-            PonderTag tag = preview(id, definition);
+            PonderTag tag = preview(canonicalId, definition);
             registry.registerTag(tag);
             registry.listTag(tag);
         });

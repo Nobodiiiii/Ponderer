@@ -64,6 +64,8 @@ Java + Lib 的 `<basePackage>.ponderext.PonderExtensions` 只创建一次。再�
 
 `runtime.api.PonderPlayerElement` / `PonderPlayerSupport` 提供玩家皮肤展示、朝向及淡出，宿主无需复制元素渲染类。`PonderEntityAnimations` 为原生 Java 提供入场、退场和原地行走便捷方法，底层使用同一 `PonderActions.Context` 的实体创建、链接、位移与清理；这些方法按传入时长推进场景时间。宿主方块、物品和专属动画留在宿主。Create: Biotech 已使用这些接口，并自行声明和申请播放器增强；普通导出内容仍按下述启动策略运行。
 
+编辑器的“放置实体”、JSON `create_entity` 和 `PonderActions.createEntity` 均接受 `player` / `minecraft:player`，展示当前观看者的玩家模型。玩家通过 `PonderActions.createPlayer(level, profile)` 创建，与 `PonderPlayerElement` 共用玩家身份解析和客户端模型创建；传入空 profile 时优先使用当前玩家身份，无当前玩家时使用默认身份。玩家仍加入普通场景实体与链接流程，支持位置、朝向、NBT、入场动画，以及后续按类型、区域或 `linkId` 移动和清除。Java + Support 导出携带同一实现。
+
 ## 纯资源接入
 
 单独安装 Lib 后，在模组资源目录或客户端资源包中放置：
@@ -198,6 +200,10 @@ EditableScenes.customize(engine, document -> {
 每个 engine 独占目录、步骤、片段、NBT 绑定、结构路由和直接编译会话。`replaceCatalog` 关闭本实例会话；`close()` 释放本实例拥有的注册和资源，不清空其他实例。生成的 `GeneratedPonderIndex.close()` 汇总关闭生成场景；关闭是终止操作，正常资源重载使用原有插件注册流程。上游 Ponder 没有插件移除 API，关闭后的插件保持为空，不能宣称热卸载整个模组。
 
 `formatVersion` 和 `requiredCapabilities` 是内容声明。内建能力为 core、java_steps、view、nbt_bindings、interfaces（均带 `pondererlib:` 前缀）。第三方能力由 `engine.steps().provideCapability(id)` 申明。未知格式、缺步骤提供者、重复锚点、启动时禁用界面均给出位置诊断；依赖界面的整个场景不可用，数据继续保留。
+
+场景的 `internalId` 在导出改写公开 ID、包名时保持不变，`exported` 标记导出版本。旧原稿首次读写时以原场景键补齐内部标识；已有 Java 导出需要重新导出才能带上该关联。原稿与导出版本同时存在时，目录和原生 Ponder 注册默认只使用导出版本，步骤编辑列表标题栏的“切换”可选择另一版本，原稿仍保留。复制为新思索会分配新的内部标识。Java + Support 在存在 Lib 时通过可选桥接参与版本选择，独立运行仍无需 Lib。
+
+自定义标签保留原始标签 ID 作为内部标识，导出后的命名空间别名在注册时合并；归属标签统一使用 `ponderer:ponderer_exported`。Java 编辑列表不显示场景开始片段的额外提示行，自定义行的灰色文本统一为“自定义步骤”。
 
 ## 启动策略
 

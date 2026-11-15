@@ -21,6 +21,13 @@ import javax.annotation.Nullable;
  */
 public class NeoForgeInterfacePlatform implements InterfaceSandboxPlatform {
 
+    @Override
+    public boolean isClassFromMod(String modId, Class<?> type) {
+        var file = net.neoforged.fml.ModList.get().getModFileById(modId);
+        return file != null && java.nio.file.Files.isRegularFile(file.getFile().findResource(
+            type.getName().replace('.', '/') + ".class"));
+    }
+
     @Nullable
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})

@@ -22,7 +22,7 @@ public final class ResourceAttribution {
     public static void initialize() {}
     public static ResourceLocation modelLocation() { return MODEL.modelLocation(); }
     public static ResourceLocation tag(String namespace) {
-        return ResourceLocation.fromNamespaceAndPath(namespace, PonderAttribution.TAG_PATH);
+        return ResourceLocation.fromNamespaceAndPath("ponderer", PonderAttribution.TAG_PATH);
     }
     public static void register(String namespace, PonderTagRegistrationHelper<ResourceLocation> helper) {
         ResourceLocation id = tag(namespace);

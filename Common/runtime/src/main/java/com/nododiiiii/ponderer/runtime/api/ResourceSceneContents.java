@@ -84,6 +84,7 @@ public final class ResourceSceneContents {
                             throw new IllegalArgumentException("Incomplete scene document");
                         scene.id = ResourceLocation.fromNamespaceAndPath(namespace, ResourceLocation.parse(scene.id).getPath()).toString();
                         scene.pack = null;
+                        scene.exported = true;
                         scene.editable = false;
                         SceneRequirements.require(scene, engine.steps());
                         if (scene.scenes.stream().anyMatch(segment -> segment == null || segment.steps == null))
@@ -165,9 +166,10 @@ public final class ResourceSceneContents {
             for (Loaded content : CONTENTS) {
                 var helper = new DefaultPonderTagRegistrationHelper(content.namespace,
                     (PonderTagRegistry) PonderIndex.getTagAccess(), (PonderLocalization) PonderIndex.getLangAccess());
-                for (DslScene scene : content.engine.catalog().getScenes()) for (var entry : scene.customTags.entrySet()) {
-                    ResourceLocation id = ResourceLocation.parse(entry.getKey());
+                for (DslScene scene : content.engine.catalog().getActiveScenes()) for (var entry : scene.customTags.entrySet()) {
+                    ResourceLocation id = SceneVariants.tagId(scene, entry.getKey());
                     if (!registered.add(id)) continue;
+                    if (PonderIndex.getTagAccess().getListedTags().stream().anyMatch(tag -> tag.getId().equals(id))) continue;
                     var tag = entry.getValue();
                     ResourceLocation icon = ResourceLocation.tryParse(tag.icon == null ? "minecraft:book" : tag.icon);
                     helper.registerTag(id).title(tag.title == null ? id.getPath() : tag.title.resolve())

@@ -22,7 +22,7 @@ import com.nododiiiii.ponderer.runtime.spi.RegistrationContribution;
 public final class ProductRegistration implements RegistrationContribution {
     @Override public void beforeTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
         PondererAttribution.register();
-        CustomPonderTags.register(com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().getScenes());
+        CustomPonderTags.register(com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().getActiveScenes());
     }
     @Override public void afterTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
         Item carrierItem = BlueprintFeature.resolveCarrierItem();

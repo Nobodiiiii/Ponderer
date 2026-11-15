@@ -304,6 +304,9 @@ public final class LocalPackService implements PackService {
             String rawJson = Files.readString(path, StandardCharsets.UTF_8);
             DslScene scene = SceneCodec.decode(rawJson);
             if (scene == null) return null;
+            scene.internalId = scene.identity();
+            scene.exported = true;
+            scene.runtimeSource = null;
             scene.pack = packName;
             return SceneCodec.pretty(scene);
         } catch (Exception e) {

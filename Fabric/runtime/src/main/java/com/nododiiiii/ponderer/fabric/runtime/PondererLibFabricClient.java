@@ -43,6 +43,15 @@ public final class PondererLibFabricClient implements ClientModInitializer {
         if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled()) {
             InterfacePlatform.install(new FabricInterfacePlatform());
             FabricInterfaceEvents.register();
+            net.fabricmc.fabric.api.resource.ResourceManagerHelper.get(net.minecraft.server.packs.PackType.CLIENT_RESOURCES)
+                .registerReloadListener(new net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener() {
+                    @Override public net.minecraft.resources.ResourceLocation getFabricId() {
+                        return net.minecraft.resources.ResourceLocation.parse("pondererlib:interface_exclusions");
+                    }
+                    @Override public void onResourceManagerReload(net.minecraft.server.packs.resources.ResourceManager resources) {
+                        com.nododiiiii.ponderer.runtime.interfaces.sandbox.InterfaceExclusions.reload(resources);
+                    }
+                });
         }
         if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.enabled(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.RENDER_CACHE))
             ClientTickEvents.END_CLIENT_TICK.register(client -> com.nododiiiii.ponderer.runtime.render.PonderRenderCache.tick());

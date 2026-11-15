@@ -21,6 +21,9 @@ final class PondererLibNeoForgeClient {
         bus.addListener((net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent event) ->
             event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener)
                 com.nododiiiii.ponderer.runtime.api.ResourceSceneContents::reload));
+        bus.addListener((net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent event) ->
+            event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener)
+                com.nododiiiii.ponderer.runtime.interfaces.sandbox.InterfaceExclusions::reload));
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> com.nododiiiii.ponderer.runtime.api.ResourceSceneContents.tick());
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.TagsUpdatedEvent event) -> {
             if (event.getUpdateCause() == net.neoforged.neoforge.event.TagsUpdatedEvent.UpdateCause.CLIENT_PACKET_RECEIVED)

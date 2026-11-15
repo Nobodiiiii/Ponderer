@@ -758,6 +758,9 @@ public final class PondererClientCommands {
         }
 
         copy.id = newId;
+        copy.internalId = newId;
+        copy.exported = false;
+        copy.runtimeSource = null;
         copy.items = List.of(targetItem.toString());
         copy.nbtFilter = SceneItemBindings.nbtFilter(original, 0);
         copy.itemNbtFilters = null;

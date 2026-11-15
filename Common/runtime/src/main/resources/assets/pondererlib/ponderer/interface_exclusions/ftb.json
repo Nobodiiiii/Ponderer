@@ -1,0 +1,5 @@
+{
+  "format_version": 1,
+  "mod_id": "ftblibrary",
+  "classes": ["dev.ftb.mods.ftblibrary.sidebar.SidebarGroupGuiButton"]
+}

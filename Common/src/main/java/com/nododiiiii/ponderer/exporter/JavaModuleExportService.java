@@ -1093,8 +1093,8 @@ public final class JavaModuleExportService {
 
     private Map<String, Map<String, String>> buildAttributionLangEntries(String modId) {
         Map<String, Map<String, String>> langEntries = new LinkedHashMap<>();
-        String titleKey = tagTitleLangKey(modId, ATTRIBUTION_TAG_PATH);
-        String descriptionKey = tagDescriptionLangKey(modId, ATTRIBUTION_TAG_PATH);
+        String titleKey = tagTitleLangKey("ponderer", ATTRIBUTION_TAG_PATH);
+        String descriptionKey = tagDescriptionLangKey("ponderer", ATTRIBUTION_TAG_PATH);
 
         langEntries.computeIfAbsent("en_us", unused -> new LinkedHashMap<>()).put(titleKey, ATTRIBUTION_TITLE_EN_US);
         langEntries.get("en_us").put(descriptionKey, ATTRIBUTION_DESCRIPTION_EN_US);
@@ -1169,14 +1169,18 @@ public final class JavaModuleExportService {
     }
 
     private String generatedAttributionTagId(String modId) {
-        return modId + ":" + ATTRIBUTION_TAG_PATH;
+        return "ponderer:" + ATTRIBUTION_TAG_PATH;
     }
 
-    /** Generated custom categories belong to the destination mod; external categories keep their IDs. */
+    /** Source-only categories keep their internal IDs, sharing registrations with the editor. */
     private String exportedTagId(JavaModuleScanResult.TargetProject target,
                                          JavaModuleScanResult.ScenePlan plan, String id) {
         if (!plan.customTags.containsKey(id)) {
             return id;
+        }
+        if (!LibExportSources.usesLib(target)) {
+            var definition = plan.customTags.get(id);
+            return definition.internalId == null ? id : definition.internalId;
         }
         return ResourceLocation.fromNamespaceAndPath(target.modId, ResourceLocation.parse(id).getPath()).toString();
     }
@@ -1228,7 +1232,7 @@ public final class JavaModuleExportService {
         GENERATED_NOTICE_LINE_EN + "\n" + GENERATED_NOTICE_LINE_ZH + "\n";
 
     private String buildPluginSource(JavaModuleScanResult.TargetProject target) {
-        return GENERATED_NOTICE_BLOCK + """
+        return (GENERATED_NOTICE_BLOCK + """
             package %s;
 
             import net.createmod.ponder.api.registration.PonderPlugin;
@@ -1237,6 +1241,7 @@ public final class JavaModuleExportService {
             import net.minecraft.resources.ResourceLocation;
 
             public final class GeneratedPonderPlugin implements PonderPlugin {
+                %s
                 @Override
                 public String getModId() {
                     return "%s";
@@ -1258,7 +1263,9 @@ public final class JavaModuleExportService {
                     GeneratedPonderIndex.registerTags(helper);
                 }
             }
-            """.formatted(target.generatedPackage, escapeJava(target.modId));
+            """).formatted(target.generatedPackage,
+                "public GeneratedPonderPlugin() { GeneratedPonderIndex.prepare(); }",
+                escapeJava(target.modId));
     }
 
     private String buildIndexSource(JavaModuleScanResult.TargetProject target,
@@ -1268,6 +1275,7 @@ public final class JavaModuleExportService {
         StringBuilder tagBody = new StringBuilder();
         StringBuilder sharedBody = new StringBuilder();
         StringBuilder closeBody = new StringBuilder();
+        StringBuilder prepareBody = new StringBuilder();
         for (JavaModuleExportManifest.SceneEntry entry : manifest.scenes.values()) {
             if (entry.className == null || entry.className.isBlank()) {
                 continue;
@@ -1278,6 +1286,7 @@ public final class JavaModuleExportService {
             tagBody.append("        ").append(simpleName).append(".registerTags(helper);\n");
             if (LibExportSources.usesLib(target)) sharedBody.append("        ").append(simpleName).append(".registerSharedText(helper);\n");
             if (LibExportSources.usesLib(target)) closeBody.append("        ").append(simpleName).append(".close();\n");
+            prepareBody.append("        ").append(simpleName).append(".prepare();\n");
         }
 
         return GENERATED_NOTICE_BLOCK + """
@@ -1301,8 +1310,10 @@ public final class JavaModuleExportService {
             %s    }
                 public static void close() {
             %s    }
+                public static void prepare() {
+            %s    }
             }
-            """.formatted(target.generatedPackage, imports, sceneBody, tagBody, sharedBody, closeBody);
+            """.formatted(target.generatedPackage, imports, sceneBody, tagBody, sharedBody, closeBody, prepareBody);
     }
 
     private String buildFabricClientSource(JavaModuleScanResult.TargetProject target) {
@@ -1425,11 +1436,11 @@ public final class JavaModuleExportService {
 
             public final class GeneratedPonderAttribution {
                 private static final int ICON_ROTATION_TICKS = 20 * 30;
-                private static final ResourceLocation TAG = ResourceLocation.fromNamespaceAndPath(%s, %s);
+                private static final ResourceLocation TAG = ResourceLocation.fromNamespaceAndPath("ponderer", %s);
 
                 private static final class Icon {
                     private static final PartialModel MODEL = PartialModel.of(
-                        ResourceLocation.fromNamespaceAndPath(TAG.getNamespace(), %s));
+                        ResourceLocation.fromNamespaceAndPath(%s, %s));
                 }
 
                 private GeneratedPonderAttribution() {
@@ -1468,8 +1479,8 @@ public final class JavaModuleExportService {
             }
             """.formatted(
             target.generatedPackage,
-            stringExpr(target.modId),
             stringExpr(ATTRIBUTION_TAG_PATH),
+            stringExpr(target.modId),
             stringExpr(PondererAttribution.ICON_MODEL_PATH),
             stringExpr(ATTRIBUTION_TITLE_EN_US),
             stringExpr(ATTRIBUTION_DESCRIPTION_EN_US));
@@ -1494,7 +1505,9 @@ public final class JavaModuleExportService {
         sb.append("public final class ").append(plan.className).append(" {\n");
         sb.append("    private ").append(plan.className).append("() {\n");
         sb.append("    }\n\n");
+        sb.append(standaloneVariantMembers(target, plan));
         sb.append("    public static void register(PonderSceneRegistrationHelper<ResourceLocation> helper) {\n");
+        sb.append("        if (!active()) return;\n");
         sb.append("        ResourceLocation[] tags = ")
             .append(resourceLocationArrayExpr(plan.tags.stream().map(id -> exportedTagId(target, plan, id)).toList(),
                 generatedAttributionTagId(target.modId))).append(";\n");
@@ -1513,6 +1526,7 @@ public final class JavaModuleExportService {
         }
         sb.append("    }\n\n");
         sb.append("    public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {\n");
+        sb.append("        if (!active()) return;\n");
         plan.customTags.forEach((id, definition) -> {
             String exportedId = exportedTagId(target, plan, id);
             sb.append("        if (net.createmod.ponder.foundation.PonderIndex.getTagAccess().getListedTags().stream()\n")
@@ -1827,6 +1841,37 @@ public final class JavaModuleExportService {
         }
     }
 
+    private String standaloneVariantMembers(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
+        DslScene metadata = LibExportSources.document(target, plan);
+        metadata.id = target.modId + ":" + storyboardBasePath(plan.sceneId);
+        metadata.requiredCapabilities = List.of();
+        com.nododiiiii.ponderer.scene.SceneTextBundle.visit(metadata, (text, key) ->
+            text != null && text.isReference() ? LocalizedText.ofMap(text.getAllTranslations()) : text);
+        for (var segment : metadata.scenes) if (segment.steps != null)
+            segment.steps = segment.steps.stream().filter(step -> step != null && step.type != null
+                && SUPPORTED_STEP_TYPES.contains(step.type.toLowerCase(Locale.ROOT))).toList();
+        String json = com.nododiiiii.ponderer.scene.SceneCodec.encode(metadata);
+        List<String> chunks = new ArrayList<>();
+        for (int start = 0; start < json.length(); start += 8000)
+            chunks.add(stringExpr(json.substring(start, Math.min(start + 8000, json.length()))));
+        return """
+                private static final String VARIANT = String.join("", %s);
+                public static void prepare() { active(); }
+                private static boolean active() {
+                    try {
+                        Class<?> bridge = Class.forName("com.nododiiiii.ponderer.runtime.api.SceneVariants");
+                        return (Boolean) bridge.getMethod("standaloneActive", String.class, String.class)
+                            .invoke(null, %s, VARIANT);
+                    } catch (ClassNotFoundException absent) {
+                        return true;
+                    } catch (ReflectiveOperationException error) {
+                        throw new IllegalStateException("Cannot select exported Ponder scene", error);
+                    }
+                }
+
+            """.formatted(String.join(", ", chunks), stringExpr(target.modId));
+    }
+
     private String editableLibSceneSource(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan, DslScene document) {
         String prefix = GENERATED_NOTICE_BLOCK + "package " + target.scenePackage + ";\n\n" + """
             import com.google.gson.JsonObject;
@@ -1853,8 +1898,9 @@ public final class JavaModuleExportService {
         String tags = """
                 public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
                     if (DOCUMENT == null && !reload()) return;
+                    if (RUNTIME.catalog().getActiveScenes().isEmpty()) return;
                     for (var entry : DOCUMENT.customTags.entrySet()) {
-                        ResourceLocation id = ResourceLocation.parse(entry.getKey());
+                        ResourceLocation id = com.nododiiiii.ponderer.runtime.api.SceneVariants.tagId(DOCUMENT, entry.getKey());
                         if (net.createmod.ponder.foundation.PonderIndex.getTagAccess().getListedTags().stream()
                             .anyMatch(existing -> existing.getId().equals(id))) continue;
                         var definition = entry.getValue();

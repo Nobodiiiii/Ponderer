@@ -218,20 +218,21 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     @Override
     protected void collectHeaderEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries) {
+        var buttons = new ArrayList<WorkspaceHeaderListEntry.HeaderButton>();
+        if (com.nododiiiii.ponderer.runtime.api.SceneVariants.hasAlternative(scene)) {
+            buttons.add(WorkspaceHeaderListEntry.button(UIText.of("ponderer.ui.scene_editor.switch_version"),
+                this::switchVersion, UIText.of("ponderer.ui.scene_editor.switch_version.tooltip"), () -> true));
+        }
+        buttons.add(WorkspaceHeaderListEntry.iconButton(
+            PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_LEFT),
+            () -> switchScene(sceneIndex - 1), null, () -> getSceneCount() > 1));
+        buttons.add(WorkspaceHeaderListEntry.iconButton(
+            PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_RIGHT),
+            () -> switchScene(sceneIndex + 1), null, () -> getSceneCount() > 1));
         entries.add(new WorkspaceHeaderListEntry(
             this::screenTitleText,
             this::screenSubtitleText,
-            List.of(
-                WorkspaceHeaderListEntry.iconButton(
-                    PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_LEFT),
-                    () -> switchScene(sceneIndex - 1),
-                    null,
-                    () -> getSceneCount() > 1),
-                WorkspaceHeaderListEntry.iconButton(
-                    PonderIconStencils.centered(PonderGuiTextures.ICON_PONDER_RIGHT),
-                    () -> switchScene(sceneIndex + 1),
-                    null,
-                    () -> getSceneCount() > 1))));
+            buttons));
 
         entries.add(new ActionStripListEntry(List.of(
             ActionStripListEntry.button(
@@ -265,7 +266,6 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         rowSteps.clear();
         List<DslScene.DslStep> steps = getSteps();
         copiedSteps.keySet().retainAll(steps);
-        addJavaFragmentEntries(entries, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE);
         if (steps.isEmpty()) {
             entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.scene_editor.no_steps")));
         }
@@ -328,7 +328,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             entries.add(new SceneStepListEntry(
                 () -> UIText.of(position == com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE
                     ? "ponderer.ui.custom_step.scene_before" : "ponderer.ui.custom_step.scene_after"),
-                () -> UIText.of("ponderer.ui.custom_step.opaque"), null, List.of()));
+                () -> UIText.of("ponderer.ui.custom_step.page"), null, List.of()));
             rowSteps.put(entries.getLast(), position == com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE
                 ? 0 : Math.max(0, getSteps().size() - 1));
         }
@@ -717,10 +717,31 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private String screenSubtitleText() {
         int sceneCount = getSceneCount();
         String currentSceneName = currentSceneName();
+        if (com.nododiiiii.ponderer.runtime.api.SceneVariants.hasAlternative(scene)) {
+            currentSceneName = UIText.of(scene.exported ? "ponderer.ui.scene_editor.version.exported"
+                : "ponderer.ui.scene_editor.version.original") + " · " + currentSceneName;
+        }
         if (sceneCount > 1) {
             return "[" + (sceneIndex + 1) + "/" + sceneCount + ": " + currentSceneName + "]";
         }
         return currentSceneName;
+    }
+
+    private void switchVersion() {
+        var previous = com.nododiiiii.ponderer.runtime.api.SceneVariants.preference(scene);
+        var next = com.nododiiiii.ponderer.runtime.api.SceneVariants.selectNext(scene);
+        if (next == scene) return;
+        try {
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reloadPonderIndex();
+        } catch (RuntimeException failure) {
+            com.nododiiiii.ponderer.runtime.api.SceneVariants.restorePreference(scene, previous);
+            try { com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reloadPonderIndex(); }
+            catch (RuntimeException recovery) { failure.addSuppressed(recovery); }
+            com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reportFailure(failure);
+            return;
+        }
+        int nextIndex = Math.min(sceneIndex, Math.max(0, next.scenes.size() - 1));
+        Minecraft.getInstance().setScreen(new SceneEditorScreen(next, nextIndex, ponderReturnState));
     }
 
     private String currentSceneName() {

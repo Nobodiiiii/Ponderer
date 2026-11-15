@@ -34,10 +34,7 @@ final class StepPreviewText {
     }
     static String summary(DslScene scene, @Nullable DslScene.DslStep step) {
         if (!isCustom(step)) return summary(step);
-        var registry = com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).steps();
-        return registry.editableParameters(step.type)
-            ? UIText.of("ponderer.ui.custom_step.summary", step.parameters == null ? "{}" : step.parameters.toString())
-            : UIText.of("ponderer.ui.custom_step.opaque");
+        return UIText.of("ponderer.ui.custom_step.page");
     }
 
     static String title(@Nullable DslScene.DslStep step) {

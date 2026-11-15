@@ -22,7 +22,9 @@ public final class SceneCodec {
     public static LocalizedText decodeText(String json) { return READER.fromJson(json, LocalizedText.class); }
     /** Legacy documents receive deterministic anchors; once saved they survive reorder and edits. */
     public static DslScene withAnchors(DslScene scene) {
-        if (scene == null || scene.scenes == null) return scene;
+        if (scene == null) return null;
+        if (scene.internalId == null || scene.internalId.isBlank()) scene.internalId = scene.identity();
+        if (scene.scenes == null) return scene;
         for (var segment : scene.scenes) {
             if (segment == null || segment.steps == null) continue;
             withStepAnchors(segment.steps);

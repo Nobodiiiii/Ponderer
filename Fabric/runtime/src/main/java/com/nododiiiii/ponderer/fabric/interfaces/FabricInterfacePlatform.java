@@ -21,6 +21,13 @@ import javax.annotation.Nullable;
  */
 public class FabricInterfacePlatform implements InterfaceSandboxPlatform {
 
+    @Override
+    public boolean isClassFromMod(String modId, Class<?> type) {
+        String resource = type.getName().replace('.', '/') + ".class";
+        return net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer(modId)
+            .flatMap(mod -> mod.findPath(resource)).isPresent();
+    }
+
     @Nullable
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})

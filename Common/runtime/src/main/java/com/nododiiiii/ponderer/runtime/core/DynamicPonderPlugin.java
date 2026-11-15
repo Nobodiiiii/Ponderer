@@ -1,6 +1,7 @@
 package com.nododiiiii.ponderer.runtime.core;
 
 import com.nododiiiii.ponderer.runtime.api.NbtSceneFilter;
+import com.nododiiiii.ponderer.runtime.api.SceneVariants;
 import com.nododiiiii.ponderer.runtime.api.SceneItemBindings;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
@@ -51,7 +52,7 @@ public final class DynamicPonderPlugin implements PonderPlugin, AutoCloseable {
             return;
         }
 
-        ResourceLocation[] tags = resolveTags(scene.tags);
+        ResourceLocation[] tags = resolveTags(scene);
 
         List<DslScene.SceneSegment> sceneList = compiler.normalizeScenes(scene);
         List<ResourceLocation> schematics = compiler.resolveSceneSchematics(scene, sceneList);
@@ -82,8 +83,8 @@ public final class DynamicPonderPlugin implements PonderPlugin, AutoCloseable {
     public void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
         if (closed) return;
         contribution.beforeTags(helper);
-        for (DslScene scene : catalog.getScenes()) {
-            ResourceLocation[] tags = resolveTags(scene.tags);
+        for (DslScene scene : catalog.getActiveScenes()) {
+            ResourceLocation[] tags = resolveTags(scene);
             for (ResourceLocation item : SceneItemBindings.resolve(scene.items)) {
                 for (ResourceLocation tag : tags) {
                     helper.addTagToComponent(item, tag);
@@ -98,18 +99,18 @@ public final class DynamicPonderPlugin implements PonderPlugin, AutoCloseable {
         bindings.clear();
         structures.close();
         catalog.clearPonderIdMapping();
-        for (DslScene scene : catalog.getScenes()) {
+        for (DslScene scene : catalog.getActiveScenes()) {
             registerScene(helper, scene);
         }
         contribution.afterScenes(helper);
     }
 
-    private ResourceLocation[] resolveTags(List<String> tags) {
-        List<ResourceLocation> result = new ArrayList<>();
-        for (String tagId : contribution.tagsFor(tags)) {
+    private ResourceLocation[] resolveTags(DslScene scene) {
+        var result = new java.util.LinkedHashSet<ResourceLocation>();
+        for (String tagId : contribution.tagsFor(scene.tags)) {
             ResourceLocation tag = ResourceLocation.tryParse(tagId);
             if (tag != null) {
-                result.add(tag);
+                result.add(SceneVariants.tagId(scene, tagId));
             }
         }
         return result.toArray(ResourceLocation[]::new);
@@ -117,7 +118,7 @@ public final class DynamicPonderPlugin implements PonderPlugin, AutoCloseable {
 
     public void registerSharedText(SharedTextRegistrationHelper helper) {
         if (closed) return;
-        for (DslScene scene : catalog.getScenes()) {
+        for (DslScene scene : catalog.getActiveScenes()) {
             List<DslScene.SceneSegment> sceneList = compiler.normalizeScenes(scene);
             for (DslScene.SceneSegment sc : sceneList) {
                 if (sc.steps == null) {

@@ -35,4 +35,7 @@ public interface InterfaceSandboxPlatform {
 
     @Nullable
     Slot hoveredSlot(Screen screen);
+
+    /** Whether the mod's loader-owned roots contain this class; no package-name inference. */
+    default boolean isClassFromMod(String modId, Class<?> type) { return false; }
 }

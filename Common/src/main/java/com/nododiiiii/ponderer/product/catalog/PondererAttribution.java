@@ -63,6 +63,7 @@ public final class PondererAttribution {
 
     public static void register() {
         var registry = (PonderTagRegistry) PonderIndex.getTagAccess();
+        if (registry.getListedTags().stream().anyMatch(tag -> tag.getId().toString().equals(TAG_ID))) return;
         PonderTag tag = preview();
         registry.registerTag(tag);
         registry.listTag(tag);

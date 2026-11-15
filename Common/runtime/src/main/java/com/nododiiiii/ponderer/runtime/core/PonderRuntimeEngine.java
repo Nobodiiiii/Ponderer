@@ -19,6 +19,7 @@ public final class PonderRuntimeEngine implements RuntimeEngine {
         RuntimeFeatures.require(RuntimeFeature.CORE, "PonderRuntimeEngine");
         compiler = new SceneCompiler(namespace, structures, ingredients, defaultEditable, steps, fragments);
         plugin = new DynamicPonderPlugin(catalog, compiler, contribution, structures);
+        SceneVariants.attach(this);
     }
     @Override public SceneCatalog catalog() { return catalog; }
     @Override public StepRegistry steps() { return steps; }
@@ -52,6 +53,7 @@ public final class PonderRuntimeEngine implements RuntimeEngine {
         if (closed) return;
         closed = true;
         EditableScenes.release(this);
+        SceneVariants.release(this);
         try {
             com.nododiiiii.ponderer.runtime.support.lifecycle.Cleanup.all(new java.util.ArrayList<>(sessions).stream()
                 .<Runnable>map(session -> session::close).toArray(Runnable[]::new));

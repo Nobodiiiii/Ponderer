@@ -17,7 +17,7 @@ public final class PonderAttribution {
         "以上思索由模组思索者（Ponderer）制作并导出，了解更多：https://modrinth.com/mod/the-ponderer";
     private PonderAttribution() {}
 
-    /** Keep host-owned IDs and language keys while sharing Lib's icon and renderer. */
+    /** All hosts share one category ID, icon and renderer. */
     public static ResourceLocation tag(String namespace) {
         return ResourceAttribution.tag(namespace);
     }

@@ -14,6 +14,8 @@ final class LibExportSources {
     }
     static DslScene document(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
         DslScene result = SceneCodec.copy(plan.sourceScene);
+        result.internalId = plan.sourceScene.identity();
+        result.exported = true;
         result.pack = null;
         result.editable = target.mode == JavaModuleExportRequest.Mode.JAVA_LIB;
         if (target.mode == JavaModuleExportRequest.Mode.JAVA_LIB)
@@ -28,7 +30,14 @@ final class LibExportSources {
         tags.add(target.modId + ":ponderer_exported");
         result.tags = java.util.List.copyOf(tags);
         result.customTags = new LinkedHashMap<>();
-        plan.customTags.forEach((id, definition) -> result.customTags.put(target.modId + ":" + id.substring(id.indexOf(':') + 1), definition));
+        plan.customTags.forEach((id, definition) -> {
+            var copy = new DslScene.CustomTag();
+            copy.internalId = definition.internalId == null ? id : definition.internalId;
+            copy.title = definition.title;
+            copy.description = definition.description;
+            copy.icon = definition.icon;
+            result.customTags.put(target.modId + ":" + id.substring(id.indexOf(':') + 1), copy);
+        });
         if (result.scenes != null) for (int i = 0; i < result.scenes.size(); i++) {
             var segment = result.scenes.get(i);
             if (segment.steps == null) continue;
@@ -62,6 +71,7 @@ final class LibExportSources {
                         return false;
                     }
                 }
+                public static void prepare() { reload(); }
                 public static void registerSharedText(SharedTextRegistrationHelper helper) {
                     RUNTIME.plugin().registerSharedText(helper);
                 }

@@ -80,7 +80,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     private double panX, panY;
     private int dragButton = -1;
     private boolean scrubbing;
-    private long listSeekStart = -1;
+    private long playbackTickStart = -1;
     private float frozenPartialTick = 1;
     private boolean textVisible = true;
     private boolean textKeyHeld;
@@ -204,7 +204,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         if (playingStep && ponder != null) {
             PonderScene scene = ponder.getActiveScene();
             PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), 0, scene::tick);
-            listSeekStart = Util.getMillis();
+            playbackTickStart = Util.getMillis();
             frozenPartialTick = 1;
             if (ponder.playback.isStepComplete() || scene.isFinished()) {
                 playingStep = false;
@@ -223,7 +223,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         dragButton = -1;
         ponder.seekToTime(Math.max(0, stepTicks.get(index) - 1));
         ponder.playback.previewStep(index);
-        listSeekStart = -1;
+        playbackTickStart = -1;
         frozenPartialTick = 1;
         playingStep = true;
     }
@@ -274,17 +274,15 @@ public final class SceneEditorPreview implements AutoCloseable {
             return;
         }
         if (pendingListTick >= 0) {
-            int previousTick = ponder.getActiveScene().getCurrentTime();
             ponder.seekToTime(pendingListTick);
-            if (previousTick != ponder.getActiveScene().getCurrentTime()) {
-                // Interpolate only the final native tick, never cross-fade whole scene images.
-                listSeekStart = previousTick > 0 ? Util.getMillis() : -1;
-                frozenPartialTick = 1;
-            }
+            // A paused seek shows the destination, rather than replaying its interpolation.
+            // Native fades can retain an old previous value after their instruction has finished.
+            playbackTickStart = -1;
+            frozenPartialTick = 1;
             pendingListTick = -1;
         }
-        float scenePartialTick = listSeekStart < 0 ? frozenPartialTick
-            : Mth.clamp((Util.getMillis() - listSeekStart) / 50f, 0, 1);
+        float scenePartialTick = playbackTickStart < 0 ? frozenPartialTick
+            : Mth.clamp((Util.getMillis() - playbackTickStart) / 50f, 0, 1);
         renderedPartialTick = scenePartialTick;
         hoveredPoint = findPoint(mouseX, mouseY);
         renderScene(graphics, scenePartialTick);
@@ -446,8 +444,8 @@ public final class SceneEditorPreview implements AutoCloseable {
             playingStep = false;
             pendingListTick = -1;
             scrubbing = true;
-            listSeekStart = -1;
-            frozenPartialTick = 0;
+            playbackTickStart = -1;
+            frozenPartialTick = 1;
             progressBar.setFocused(true);
             return true;
         }
@@ -742,7 +740,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         stepTicks = List.of();
         playingStep = false;
         pendingListTick = -1;
-        listSeekStart = -1;
+        playbackTickStart = -1;
         frozenPartialTick = 1;
         scrubbing = false;
         dragButton = -1;

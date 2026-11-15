@@ -60,9 +60,10 @@ final class PanelRenderBounds {
                     for (Object area : areas) if (area instanceof Rect2i rect) bounds = union(bounds, rect);
             } catch (ReflectiveOperationException ignored) {}
         }
-        // Include permanent controls outside the declared GUI, without adding hover tooltips.
+        // Use the same resource rules as rendering/input; init-event timing is not ownership.
         for (var child : screen.children()) {
-            if (child instanceof AbstractWidget widget && widget.visible)
+            if (child instanceof AbstractWidget widget && widget.visible
+                && !InterfaceExclusions.isExcluded(widget, screen))
                 bounds = union(bounds, new Rect2i(widget.getX(), widget.getY(), widget.getWidth(), widget.getHeight()));
         }
         return new int[]{bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight()};
