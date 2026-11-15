@@ -309,6 +309,7 @@ public final class SceneCompiler {
         return (builder, util) -> {
             try {
                 com.nododiiiii.ponderer.runtime.api.RuntimeScenes.adopt(builder.getScene());
+                com.nododiiiii.ponderer.runtime.api.SceneTexts.useResolvedText(builder.getScene());
                 if (scanBox != null) {
                     builder.getScene().getWorld().getBounds().encapsulate(scanBox);
                 }

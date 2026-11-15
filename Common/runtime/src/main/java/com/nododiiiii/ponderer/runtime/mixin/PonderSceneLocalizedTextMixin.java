@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.runtime.mixin;
 
-import com.nododiiiii.ponderer.runtime.api.RuntimeScenes;
+import com.nododiiiii.ponderer.runtime.api.SceneTexts;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.registration.PonderLocalization;
 import org.spongepowered.asm.mixin.Final;
@@ -18,18 +18,18 @@ public abstract class PonderSceneLocalizedTextMixin {
 
     @Inject(method = "registerText(Ljava/lang/String;)Ljava/util/function/Supplier;", at = @At("RETURN"), cancellable = true, remap = false)
     private void ponderer$literalText(String text, CallbackInfoReturnable<Supplier<String>> callback) {
-        if (RuntimeScenes.owns(((PonderScene) (Object) this).getWorld())) callback.setReturnValue(() -> text);
+        if (SceneTexts.usesResolvedText((PonderScene) (Object) this)) callback.setReturnValue(() -> text);
     }
 
     @Inject(method = "registerText(Ljava/lang/String;[Ljava/lang/Object;)Ljava/util/function/Supplier;", at = @At("RETURN"), cancellable = true, remap = false)
     private void ponderer$formattedText(String text, Object[] parameters, CallbackInfoReturnable<Supplier<String>> callback) {
-        if (RuntimeScenes.owns(((PonderScene) (Object) this).getWorld())) callback.setReturnValue(() -> String.format(text, parameters));
+        if (SceneTexts.usesResolvedText((PonderScene) (Object) this)) callback.setReturnValue(() -> String.format(text, parameters));
     }
 
     @Inject(method = "getString(Ljava/lang/String;)Ljava/lang/String;", at = @At("HEAD"), cancellable = true, remap = false)
     private void ponderer$literalTitle(String key, CallbackInfoReturnable<String> callback) {
         var scene = (PonderScene) (Object) this;
-        if (!RuntimeScenes.owns(scene.getWorld())) return;
+        if (!SceneTexts.usesResolvedText(scene)) return;
         var values = localization.specific.get(scene.getId());
         if (values != null && values.containsKey(key)) callback.setReturnValue(values.get(key));
     }

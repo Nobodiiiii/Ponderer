@@ -27,7 +27,7 @@ public class RuntimeMixinPlugin implements IMixinConfigPlugin {
             case "AnimationTickHolderMixin", "TextWindowElementAccessor", "InputWindowElementAccessor" -> enabled(RuntimeFeature.DETACHED_RENDERING);
             case "RenderSystemShaderLightsAccessor" -> enabled(RuntimeFeature.SHADER_LIGHTS);
             case "PlaybackUiExtensionMixin" -> enabled(RuntimeFeature.UI_EXTENSIONS) && !enabled(RuntimeFeature.PLAYER);
-            case "PonderLevelMixin", "PonderSceneLocalizedTextMixin", "PonderStructureSourceMixin", "WorldSectionElementImplMixin",
+            case "PonderLevelMixin", "PonderSceneCameraMixin", "PonderSceneLocalizedTextMixin", "PonderStructureSourceMixin", "WorldSectionElementImplMixin",
                  "PonderLevelModelDataMixin", "PonderSceneAccessor", "TickingInstructionAccessor", "PonderUIAccessor" -> enabled(RuntimeFeature.CORE);
             default -> throw new IllegalArgumentException("Missing startup feature rule for Mixin " + mixinClassName);
         };

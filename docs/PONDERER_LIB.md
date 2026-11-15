@@ -66,6 +66,8 @@ Java + Lib 的 `<basePackage>.ponderext.PonderExtensions` 只创建一次。再�
 
 编辑器的“放置实体”、JSON `create_entity` 和 `PonderActions.createEntity` 均接受 `player` / `minecraft:player`，展示当前观看者的玩家模型。玩家通过 `PonderActions.createPlayer(level, profile)` 创建，与 `PonderPlayerElement` 共用玩家身份解析和客户端模型创建；传入空 profile 时优先使用当前玩家身份，无当前玩家时使用默认身份。玩家仍加入普通场景实体与链接流程，支持位置、朝向、NBT、入场动画，以及后续按类型、区域或 `linkId` 移动和清除。Java + Support 导出携带同一实现。
 
+Lib 接管的场景在整个 `PonderScene.renderScene` 期间，将实体渲染分发器的朝向临时切换到当前插值后的场景相机，并通过 `finally` 恢复原朝向。普通实体与方块实体中的相机朝向贴图统一跟随思索视角，不再因读取主游戏相机方向而侧向或被背面剔除；宿主无需为储罐等方块实体另算思索相机，也无需调整实体自身的 yaw/pitch。该适配位于 `core` 的 `PonderSceneCameraMixin`：上游在绘制方块实体后才初始化场景相机，Lib 在整个场景绘制开始前初始化同一相机。依据本地 `ref/1.21.1/Ponder/common/src/main/java/net/createmod/ponder/api/level/PonderLevel.java` 与 `foundation/PonderScene.java` 的渲染调用关系；同时核对 Biotech 实际使用的 Ponder `1.0.82` 源码包，调用关系一致。
+
 ## 纯资源接入
 
 单独安装 Lib 后，在模组资源目录或客户端资源包中放置：
@@ -172,6 +174,10 @@ Lib 随客户端资源重载读取这些文件，按当前语言 → `en_us` →
 
 Java 场景的编辑保存会直接更新目标工程中的 Java 数据方法和独立文本文件，同时更新导出清单与能力声明。Java 中仍只保留文本引用，不改写正在运行的宿主 JAR。场景标题、播放注释与分类文本均使用 Lib 已解析的值。所需 Ponder 文本 Mixin 随 Lib 分发，由导出内容声明的 `core` 能力启用，宿主无需复制 Mixin 类或配置。
 
+`RuntimeScenes.adopt(scene)` 只接管区块、实体 Tick 和缓存回收，不改变原生 Ponder 的语言键。复用 Create/Ponder 故事板时可继续调用它，标题和正文仍由 `PonderLocalization` 翻译。JSON / Java + Lib 文档编译器通过 `SceneTexts.useResolvedText(scene)` 显式声明整个场景的文本已经解析；标记按场景实例弱引用保存，重播保留、重建时重新声明，释放后不保留场景，也不影响相同 ID 的其他原生场景。
+
+`engine.program(...)` 允许原生与 Lib 指令混用，因此只接管运行设施；其中的 Lib 文本步骤在注册字幕时临时选择已解析文本路径，原生标题和字幕继续使用上游语言键。直接调用 `PonderActions.showText` 与原生 `.text(...)` 一样保留上游翻译；传入 `LocalizedText.resolve()` 等已解析值时，可用 `SceneTexts.withResolvedText(scene.getScene(), () -> PonderActions.showText(...))` 明确限定注册范围，正常返回或抛出异常均恢复原状态。该选择不改变独立文本资源的语言回退、资源包优先级或重载流程；资源重载后的新场景仍重新解析文本。
+
 先在编辑列表标题栏点击“源码工程”，选择包含 `.ponderer-export/manifest.json` 的 Java + Lib 导出工程；也可执行 `/ponderer java bind D:\Files\example`，路径有空格时可加双引号。通过导出界面完成 Java + Lib 导出也会自动绑定。只保存本机的命名空间与工程目录关联（`config/ponderer/java-projects.properties`），未绑定或源码不可写时场景只读。
 
 游戏内保存直接写回该工程，随后通过原宿主引擎更新本次进程的场景并重建 Ponder 注册，不生成本地场景 JSON。手改目标 Java 后，在 V 功能界面点击“重载”才会读取；不通过客户端 tick 监听文件或自动重载。也可执行 `/ponderer reload` 或 `/ponderer java reload`，两条命令与该按钮共用手动重载入口。编辑列表在重新进入时更新。支持增删、重排 `JavaScene` 步骤调用、修改参数、`keyframe/fields/raw/javaStep` 以及调整 `loadDocument()` 中的数据和分段列表。支持导出器使用的字面量、局部变量、列表、映射、坐标和文本引用；数据方法中的循环、条件、任意 Java 调用或闭包会明确报错，保留上一份可用场景。Java 步骤实现及扩展安装代码仍需编译。
@@ -231,6 +237,13 @@ interfaces=AUTO
 - `core` 包含思索半透明场景区块的绘制顺序修复：`WorldSectionElementImplMixin` 将 `RenderType.translucent()` 输出送入 `SuperRenderTypeBuffer.getLateBuffer()`，其他渲染层和普通缓冲保持原调用。该修复从 Create: Biotech 迁入，启用后覆盖所有思索场景，宿主无需再复制对应 Mixin；NeoForge 与 Fabric 共用实现，Minecraft 调用点保持映射。
 
 ## 验证记录与范围
+
+2026-11-16 原生场景接管与本地化分离：
+
+- `build/localized-text-build.log`：`:RuntimeNeoForge:build :RuntimeFabric:build :NeoForge:build :Fabric:build --offline` 通过。文本 Mixin 的目标均为 Ponder 自有成员，描述符仅含 JDK / Ponder 类型，保留 `remap = false`；Fabric refmap 的其他 Minecraft 目标仍有 intermediary 描述符，NeoForge ModDev 不生成 refmap。未新增测试；现有 Common JUnit 仅覆盖 AI，与本次修改无关。
+- `build/localized-text-smoke.log`：`quickPlaySmoke -PskipBuild -PsmokeTimeout=180 --offline` 两端实际进入 `PondererJavaLibEdit-20261115` 并退出清理，每端 180 秒、外层 600 秒超时。NeoForge 实例使用 21.1.244、Create 6.0.10 和其内嵌 Ponder 1.0.82，Fabric 使用 Ponder 1.0.69。日志保留 Curios 槽位错误与 Iris uniform 警告，未见本次文本注入失败。
+- `python sync_biotech.py --skip-instance --timeout 900` 构建并同步 Ponderer / Lib 到 Biotech 的 `libs/` 和 `build/quickplay/mods/`；未改 Biotech 的源码、文本资源或游戏实例，临时取消 `adopt` 的规避保留。使用新 Lib 后可以恢复 `adopt`。
+- 未操作界面；原生强力胶的中文标题/正文、混合故事板的两类文本、格式化文本、重播、语言回退、资源包覆盖及重载仅完成调用链核查，仍需在更新 Lib 并恢复 `adopt` 后人工验收。
 
 2026-11-16 半透明场景区块修复从 Biotech 迁入：
 

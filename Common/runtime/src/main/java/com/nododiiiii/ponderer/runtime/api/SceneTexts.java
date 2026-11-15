@@ -4,6 +4,7 @@ import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import net.createmod.ponder.foundation.PonderIndex;
+import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.PonderTag;
 import net.createmod.ponder.foundation.registration.PonderTagRegistry;
 import net.minecraft.client.gui.GuiGraphics;
@@ -16,8 +17,27 @@ import java.util.*;
 public final class SceneTexts {
     private static volatile Map<String, Map<String, Map<String, String>>> translations = Map.of();
     private static final Map<String, Map<String, Map<String, String>>> sessionTexts = new HashMap<>();
+    private static final Set<PonderScene> resolvedTextScenes = Collections.newSetFromMap(new WeakHashMap<>());
     private static ResourceManager resources;
     private SceneTexts() {}
+
+    /**
+     * Opt a document-built scene into already resolved text, independently of runtime world ownership.
+     * The marker survives replay on this scene, is reapplied on rebuild, and does not retain released scenes.
+     */
+    public static void useResolvedText(PonderScene scene) { resolvedTextScenes.add(scene); }
+
+    public static boolean usesResolvedText(PonderScene scene) { return resolvedTextScenes.contains(scene); }
+
+    /** Register resolved Lib text within a native storyboard without changing its other text or title. */
+    public static void withResolvedText(PonderScene scene, Runnable registration) {
+        boolean added = resolvedTextScenes.add(scene);
+        try {
+            registration.run();
+        } finally {
+            if (added) resolvedTextScenes.remove(scene);
+        }
+    }
 
     public static void install() {
         LocalizedText.useReferences((resource, key) -> {

@@ -7,7 +7,10 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
 
-/** Opts native scenes into Lib chunk data, entity ticking and cache reclamation without retaining their worlds. */
+/**
+ * Opts native scenes into Lib chunk data, entity ticking and cache reclamation without retaining their worlds.
+ * Text continues to use upstream Ponder localization; already resolved Lib text opts in through {@link SceneTexts}.
+ */
 public final class RuntimeScenes {
     private static final Set<PonderLevel> WORLDS = Collections.newSetFromMap(new WeakHashMap<>());
     private RuntimeScenes() {}
