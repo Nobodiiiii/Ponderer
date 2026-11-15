@@ -31,6 +31,7 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
     private final List<DslScene.DslStep> children = new ArrayList<>();
     private int direction;
     private boolean panelBackground = true;
+    private boolean panelBlocking = true;
     @Nullable private List<Double> panelCrop;
 
     public InterfacePanelScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent) {
@@ -64,6 +65,8 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
             FieldType.XYZ, FieldDecorators.xyzHints("ponderer.ui.interface_panel.offset_x", "ponderer.ui.interface_panel.offset_y", "ponderer.ui.interface_panel.scale")));
         entries.add(FieldSpecs.toggle("ponderer.ui.interface_panel.background", "ponderer.ui.interface_panel.background.tooltip",
             () -> panelBackground, () -> panelBackground = !panelBackground));
+        entries.add(FieldSpecs.toggle("ponderer.ui.interface_panel.blocking", "ponderer.ui.interface_panel.blocking.tooltip",
+            () -> panelBlocking, () -> panelBlocking = !panelBlocking));
         entries.add(FieldSpecs.labeledButton("ponderer.ui.interface_panel.range", "ponderer.ui.interface_panel.range.tooltip",
             this::openCrop, () -> UIText.of(panelCrop == null ? "ponderer.ui.interface_panel.range.full" : "ponderer.ui.interface_panel.range.custom"),
             () -> UIText.of("ponderer.ui.interface_panel.range.tooltip")));
@@ -141,6 +144,7 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         transform.setValue(values.get(0), values.get(1), values.get(2));
         panelCrop = step.panelCrop == null ? null : new ArrayList<>(step.panelCrop);
         panelBackground = !Boolean.FALSE.equals(step.panelBackground);
+        panelBlocking = !Boolean.FALSE.equals(step.panelBlocking);
         if (step.steps != null) {
             children.clear();
             children.addAll(JSON.fromJson(JSON.toJson(step.steps), new TypeToken<List<DslScene.DslStep>>() {}.getType()));
@@ -152,6 +156,7 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         snapshot.put("panelDirection", Integer.toString(direction));
         snapshot.put("panelCrop", JSON.toJson(panelCrop));
         snapshot.put("panelBackground", Boolean.toString(panelBackground));
+        snapshot.put("panelBlocking", Boolean.toString(panelBlocking));
     }
 
     @Override protected void restoreCustomSnapshot(Map<String, String> snapshot) {
@@ -163,6 +168,7 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         if (snapshot.containsKey("panelCrop"))
             panelCrop = JSON.fromJson(snapshot.get("panelCrop"), new TypeToken<List<Double>>() {}.getType());
         if (snapshot.containsKey("panelBackground")) panelBackground = Boolean.parseBoolean(snapshot.get("panelBackground"));
+        if (snapshot.containsKey("panelBlocking")) panelBlocking = Boolean.parseBoolean(snapshot.get("panelBlocking"));
     }
 
     @Override @Nullable protected DslScene.DslStep buildStep() {
@@ -183,6 +189,7 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         step.panelTransform = List.of(offsetX, offsetY, factor);
         step.panelCrop = panelCrop == null ? null : new ArrayList<>(panelCrop);
         step.panelBackground = panelBackground;
+        step.panelBlocking = panelBlocking;
         step.steps = JSON.fromJson(JSON.toJson(children), new TypeToken<List<DslScene.DslStep>>() {}.getType());
         try { InterfacePanelSpec.validate(step); }
         catch (IllegalArgumentException error) { setErrorMessage(error.getMessage()); return null; }

@@ -27,7 +27,8 @@ public final class UiAnchorViewport {
 
     public static Rect resolve(Minecraft mc) {
         if (!com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled()) return centeredContainerFallback(mc);
-        int[] rect = InterfaceHost.activeRect();
+        // Anchors stay relative to the native GUI, even when only a cropped region is visible.
+        double[] rect = InterfaceHost.activeAnchorRect();
         if (rect != null && rect[2] > 1 && rect[3] > 1) {
             return new Rect(rect[0], rect[1], rect[2], rect[3]);
         }

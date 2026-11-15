@@ -28,6 +28,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     protected static final int STEP_EDITOR_LIST_WIDTH = UILayoutConstants.EDITOR_LIST_W;
     private static final int SIDEBAR_BUTTON_SIZE = 28;
     private static final int SIDEBAR_BUTTON_GAP = 2;
+    private static final String SCENE_START_TYPE_KEY = "_scene_start_type";
 
     protected final int editIndex;
     @Nullable
@@ -36,6 +37,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     protected boolean attachKeyFrame = false;
     protected int insertAfterIndex = -1;
     @Nullable private StepEditorTarget stepTarget;
+    @Nullable private AbstractStepEditorScreen alternateSceneStartEditor;
     private final SceneEditorPreview preview = new SceneEditorPreview();
     @Nullable
     private DslScene previewDraft;
@@ -153,8 +155,20 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
 
     @Override
     protected void discardEdits() {
+        setPendingPickRestore(null);
+        if (alternateSceneStartEditor != null
+            && !getStepType().equals(baselineStateSnapshot().get(SCENE_START_TYPE_KEY))) {
+            AbstractStepEditorScreen savedEditor = alternateSceneStartEditor;
+            alternateSceneStartEditor = null;
+            savedEditor.alternateSceneStartEditor = null;
+            savedEditor.discardEdits();
+            savedEditor.preview.restoreView(preview.viewState());
+            Minecraft.getInstance().setScreen(savedEditor);
+            return;
+        }
         preview.cancelPointPick();
         super.discardEdits();
+        alternateSceneStartEditor = null;
         previewDraft = null;
         reloadStepPreview();
     }
@@ -377,7 +391,12 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     @Override
     protected void prepareInitialState() {
         if (isEditMode()) {
-            populateFromStep(existingStep);
+            if (!canSwitchSceneStartType() || getStepType().equalsIgnoreCase(existingStep.type)) {
+                populateFromStep(existingStep);
+            } else {
+                // A switched scene-start draft keeps the original step for identity and saving.
+                attachKeyFrame = Boolean.TRUE.equals(existingStep.attachKeyFrame);
+            }
         }
     }
 
@@ -396,10 +415,21 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     @Override
     protected void addBaseFormStateParticipants(List<SnapshotParticipant> participants) {
         participants.add(FieldBindings.bool("_keyFrame", () -> attachKeyFrame, value -> attachKeyFrame = value));
+        if (canSwitchSceneStartType()) {
+            participants.add(FieldBindings.string(SCENE_START_TYPE_KEY, this::getStepType, value -> {}));
+        }
     }
 
     @Override
     protected final void collectFormEntries(List<DeclarativeFormEntry> entries) {
+        if (canSwitchSceneStartType()) {
+            entries.add(FieldSpecs.labeledButton(
+                "ponderer.ui.step_editor.first_step_type",
+                "ponderer.ui.step_editor.first_step_type.tooltip",
+                this::switchSceneStartType,
+                () -> UIText.of("ponderer.ui.step.type." + getStepType()),
+                () -> UIText.of("ponderer.ui.step_editor.first_step_type.tooltip")));
+        }
         collectStepEntries(entries);
         if (showsKeyFrame()) {
             entries.add(FieldSpecs.toggle(
@@ -411,6 +441,37 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     }
 
     protected abstract void collectStepEntries(List<DeclarativeFormEntry> entries);
+
+    private boolean canSwitchSceneStartType() {
+        if (stepTarget != null || !("show_structure".equals(getStepType()) || "show_interface".equals(getStepType()))) {
+            return false;
+        }
+        if (isEditMode()) return editIndex == 0;
+        List<DslScene.DslStep> steps = StepEditorContext.getStepsForScene(scene, sceneIndex);
+        return steps == null || steps.isEmpty();
+    }
+
+    private void switchSceneStartType() {
+        preview.cancelPointPick();
+        // Keep each form as a draft: switching must neither validate nor save incomplete fields.
+        java.util.Map<String, String> snapshot = snapshotForm();
+        setPendingPickRestore(snapshot);
+        AbstractStepEditorScreen editor = alternateSceneStartEditor;
+        if (editor == null) {
+            editor = "show_structure".equals(getStepType())
+                ? new ShowInterfaceScreen(scene, sceneIndex, parent, editIndex, existingStep)
+                : new ShowStructureScreen(scene, sceneIndex, parent, editIndex, existingStep);
+            editor.setInsertAfterIndex(insertAfterIndex).setReturnScreen(returnScreen);
+            editor.alternateSceneStartEditor = this;
+            alternateSceneStartEditor = editor;
+        }
+        editor.preview.restoreView(preview.viewState());
+        Minecraft.getInstance().setScreen(editor);
+        editor.attachKeyFrame = attachKeyFrame;
+        java.util.Map<String, String> baseline = editor.baselineStateSnapshot();
+        baseline.put(SCENE_START_TYPE_KEY, baselineStateSnapshot().get(SCENE_START_TYPE_KEY));
+        editor.restoreBaselineState(baseline);
+    }
 
     @Override
     protected String getBreadcrumbTitleText() {
@@ -439,6 +500,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         }
 
         markStateSaved();
+        alternateSceneStartEditor = null;
         return true;
     }
 
@@ -459,7 +521,19 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
 
     @Override
     protected SceneCaptureContext createReturnContext() {
-        return new StepEditorContext(getStepType(), editIndex, insertAfterIndex, scene, sceneIndex, parent, stepTarget);
+        StepEditorContext context = new StepEditorContext(
+            getStepType(), editIndex, insertAfterIndex, scene, sceneIndex, parent, stepTarget);
+        if (!canSwitchSceneStartType()) return context;
+        // Reopen this draft after world capture or a picker, including an unsaved type switch.
+        return new SceneCaptureContext() {
+            @Override public DslScene scene() { return scene; }
+            @Override public int sceneIndex() { return sceneIndex; }
+            @Override public boolean openPreview() { return context.openPreview(); }
+            @Override public void reopenEditor(java.util.Map<String, String> snapshot) {
+                setPendingPickRestore(snapshot);
+                Minecraft.getInstance().setScreen(AbstractStepEditorScreen.this);
+            }
+        };
     }
 
     @Override

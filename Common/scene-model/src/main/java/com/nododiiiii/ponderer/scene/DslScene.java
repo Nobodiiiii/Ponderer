@@ -202,6 +202,8 @@ public class DslScene {
         public List<Double> panelTransform;
         /** interface_panel: show the controls-style background, border and pointer; defaults to true. */
         public Boolean panelBackground;
+        /** interface_panel: wait for the nested tutorial before continuing; defaults to true. */
+        public Boolean panelBlocking;
         public LocalizedText text;
         public String key;
         public List<Double> point;

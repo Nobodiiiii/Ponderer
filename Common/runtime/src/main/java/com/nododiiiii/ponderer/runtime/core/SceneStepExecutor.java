@@ -2,6 +2,7 @@ package com.nododiiiii.ponderer.runtime.core;
 
 import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.interfaces.instruction.ShowInterfaceInstruction;
+import com.nododiiiii.ponderer.runtime.interfaces.instruction.InterfacePanelSequenceInstruction;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor;
@@ -24,6 +25,8 @@ import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
 import net.createmod.ponder.foundation.PonderScene;
+import net.createmod.ponder.foundation.PonderSceneBuilder;
+import net.createmod.ponder.foundation.instruction.PonderInstruction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -57,6 +60,18 @@ final class SceneStepExecutor {
         final Map<String, ElementLink<WorldSectionElement>> sectionLinks = actions.sections();
         final Map<String, List<ElementLink<EntityElement>>> entityLinks = actions.entities();
         boolean uiAnchorMode;
+        final List<InterfacePanelSequenceInstruction> backgroundPanels = new java.util.ArrayList<>();
+    }
+
+    void finishTimeline(SceneBuilder scene, StepContext context) {
+        if (context.backgroundPanels.isEmpty()) return;
+        scene.addInstruction(new PonderInstruction() {
+            @Override public void onScheduled(PonderScene ps) {
+                context.backgroundPanels.forEach(panel -> panel.includeLifetime(ps));
+            }
+            @Override public boolean isComplete() { return true; }
+            @Override public void tick(PonderScene ps) {}
+        });
     }
 
     void applyStep(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep step, StepContext context) {
@@ -85,7 +100,7 @@ final class SceneStepExecutor {
 
             case "show_controls" -> applyShowControls(scene, step, context);
             case "show_interface" -> applyShowInterface(scene, step, context);
-            case "interface_panel" -> applyInterfacePanel(scene, util, dsl, step);
+            case "interface_panel" -> applyInterfacePanel(scene, util, dsl, step, context);
             case "change_interface_slot" -> applyChangeInterfaceSlot(scene, step);
             case "click_interface" -> applyClickInterface(scene, step);
             case "set_interface_slots" -> scene.addInstruction(
@@ -196,14 +211,30 @@ final class SceneStepExecutor {
         }
     }
 
-    private void applyInterfacePanel(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep panel) {
+    private void applyInterfacePanel(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep panel,
+                                     StepContext context) {
         com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.validate(panel);
+        if (Boolean.FALSE.equals(panel.panelBlocking)) {
+            List<PonderInstruction> instructions = new java.util.ArrayList<>();
+            SceneBuilder children = new PonderSceneBuilder(scene.getScene()) {
+                @Override public void addInstruction(PonderInstruction instruction) { instructions.add(instruction); }
+            };
+            buildInterfacePanel(children, util, dsl, panel);
+            var sequence = new InterfacePanelSequenceInstruction(instructions);
+            context.backgroundPanels.add(sequence);
+            scene.addInstruction(sequence);
+        } else {
+            buildInterfacePanel(scene, util, dsl, panel);
+        }
+    }
+
+    private void buildInterfacePanel(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep panel) {
         var descriptor = com.nododiiiii.ponderer.scene.interfaces.LegacyInterfaceMigrator.fromStep(panel.steps.getFirst());
         scene.addInstruction(ps -> {
             if (!InterfaceHost.isPlaybackSuppressed(ps))
                 InterfaceHost.openPanel(ps, descriptor, toPoint(panel.point), parsePointing(panel.direction),
                     panel.panelTransform == null ? com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.DEFAULT_TRANSFORM : panel.panelTransform,
-                    panel.panelCrop, !Boolean.FALSE.equals(panel.panelBackground));
+                    panel.panelCrop, !Boolean.FALSE.equals(panel.panelBackground), !Boolean.FALSE.equals(panel.panelBlocking));
         });
         StepContext nested = new StepContext();
         nested.uiAnchorMode = true;

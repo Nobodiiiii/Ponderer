@@ -18,7 +18,7 @@ public final class UiAnchorPoint extends Vec3 {
     public Vec2 toScreen() {
         UiAnchorViewport.Rect viewport = UiAnchorViewport.resolve(Minecraft.getInstance());
         return new Vec2(
-            (float) (viewport.left() + UiAnchorCoords.decodeToPixelX(x, (int) Math.max(1, viewport.width()))),
-            (float) (viewport.top() + UiAnchorCoords.decodeToPixelYTopLeft(y, (int) Math.max(1, viewport.height()))));
+            (float) (viewport.left() + UiAnchorCoords.decodeToPixelX(x, 1) * Math.max(1, viewport.width())),
+            (float) (viewport.top() + UiAnchorCoords.decodeToPixelYTopLeft(y, 1) * Math.max(1, viewport.height())));
     }
 }

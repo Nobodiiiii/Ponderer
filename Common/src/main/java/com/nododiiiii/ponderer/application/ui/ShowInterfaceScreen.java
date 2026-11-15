@@ -163,8 +163,10 @@ public class ShowInterfaceScreen extends AbstractStepEditorScreen {
     protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
         capturedInterface = step.interfaceSpec == null ? null : step.interfaceSpec.deepCopy();
+        String defaultSource = step.block == null || step.block.isBlank() ? SOURCE_CAPTURE : SOURCE_BLOCK;
         String source = capturedInterface != null ? SOURCE_CAPTURE
-            : step.interfaceSource == null ? SOURCE_BLOCK : step.interfaceSource.toLowerCase(Locale.ROOT);
+            : step.interfaceSource == null || step.interfaceSource.isBlank()
+                ? defaultSource : step.interfaceSource.toLowerCase(Locale.ROOT);
         for (int i = 0; i < SOURCES.length; i++) {
             if (SOURCES[i].equals(source)) {
                 sourceIndex = i;

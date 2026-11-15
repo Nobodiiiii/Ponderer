@@ -9,6 +9,7 @@
   "mixins": [],
   "client": [
     "PonderSceneRegistryNbtMixin",
+    "AnimationTickHolderMixin",
     "PonderLevelModelDataMixin",
     "SandboxContainerRenderEventsMixin",
     "PonderUINbtMixin",

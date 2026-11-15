@@ -86,6 +86,7 @@ public final class SceneCompiler {
                 if (closed) return;
                 closed = true;
                 fragments.buildScene(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER, buildContext);
+                executor.finishTimeline(builder, context);
             }
         };
     }
@@ -368,6 +369,7 @@ public final class SceneCompiler {
                     executor.applyStep(builder, util, scene, step, context);
                 }
                 fragments.buildScene(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER, boundaryContext);
+                executor.finishTimeline(builder, context);
             } catch (Exception e) {
                 throw new IllegalArgumentException("Error building " + scene.id + "/" + index + ": " + e.getMessage(), e);
             }

@@ -137,8 +137,15 @@ public final class InterfaceHost {
                                           net.minecraft.world.phys.Vec3 anchor,
                                           net.createmod.catnip.math.Pointing direction, List<Double> transform,
                                           @Nullable List<Double> crop, boolean background) {
+        return openPanel(scene, descriptor, anchor, direction, transform, crop, background, true);
+    }
+
+    public static SandboxSession openPanel(PonderScene scene, InterfaceDescriptor descriptor,
+                                          net.minecraft.world.phys.Vec3 anchor,
+                                          net.createmod.catnip.math.Pointing direction, List<Double> transform,
+                                          @Nullable List<Double> crop, boolean background, boolean blocking) {
         SandboxSession session = open(scene, descriptor);
-        current.setPanel(new InterfacePanelLayout(anchor, direction, transform, crop, background));
+        current.setPanel(new InterfacePanelLayout(anchor, direction, transform, crop, background), blocking);
         return session;
     }
 
@@ -208,7 +215,7 @@ public final class InterfaceHost {
                 endExercise();
             }
         }
-        if (mode != Mode.WATCH) {
+        if (mode != Mode.WATCH && element.blocksTimeline()) {
             // Holds the scene clock like a skip does; public API (PonderUI#coolDownAfterSkip).
             ui.coolDownAfterSkip();
         }
@@ -366,6 +373,18 @@ public final class InterfaceHost {
     public static int[] activeRect() {
         SandboxSession session = sessionFor(Minecraft.getInstance().screen);
         return session == null ? null : current.displayRect();
+    }
+
+    /** Native GUI anchor bounds projected through the panel's crop and scale, without rounding. */
+    @Nullable
+    public static double[] activeAnchorRect() {
+        SandboxSession session = sessionFor(Minecraft.getInstance().screen);
+        if (session == null) return null;
+        int[] rect = session.guiRect();
+        if (rect == null) return null;
+        double[] start = current.toDisplay(rect[0], rect[1]);
+        double[] end = current.toDisplay(rect[0] + rect[2], rect[1] + rect[3]);
+        return new double[]{start[0], start[1], end[0] - start[0], end[1] - start[1]};
     }
 
     /** Maps a native menu rectangle to the visible panel (identity for a standalone interface). */
@@ -555,7 +574,7 @@ public final class InterfaceHost {
         List<Runnable> actions = new ArrayList<>();
         switch (mode) {
             case WATCH -> {
-                if (session.canInteract()) {
+                if (session.canInteract() && !current.isPanel()) {
                     labels.add(Component.translatable("ponderer.ui.interface.try"));
                     actions.add(InterfaceHost::enterTry);
                 }

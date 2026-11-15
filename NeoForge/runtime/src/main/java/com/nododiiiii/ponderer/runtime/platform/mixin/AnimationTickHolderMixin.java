@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.mixin;
+package com.nododiiiii.ponderer.runtime.platform.mixin;
 
 import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import net.createmod.catnip.animation.AnimationTickHolder;

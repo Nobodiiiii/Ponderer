@@ -204,6 +204,8 @@ Ponderer is a Minecraft mod for data-driven Ponder scene authoring, in-game visu
 
 Use `gradlew.bat` on Windows.
 
+For the adjacent Biotech development project, run `python sync_biotech.py` to build and sync Ponderer and Lib to its development directories and local instance. See [Biotech sync instructions](docs/SYNC_BIOTECH.md) for options.
+
 ### License
 
 MIT

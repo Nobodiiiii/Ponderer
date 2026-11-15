@@ -2,8 +2,9 @@
 
 In the `show_interface` editor, choose **Capture from world**. Open that interface
 normally; its source is detected automatically, independently of the manual source
-selector or a previous capture. After one second the editor
-returns with a captured descriptor; save the step as usual. Escape or a 60-second
+selector or a previous capture. Press **C** in the target interface when it is ready;
+the editor returns with a captured descriptor. Save the step as usual. Capture is
+manual and does not run after a fixed delay. Escape or a 60-second
 timeout cancels without replacing the previous descriptor. Disconnect clears the
 capture. **Use manual settings** discards the captured descriptor.
 

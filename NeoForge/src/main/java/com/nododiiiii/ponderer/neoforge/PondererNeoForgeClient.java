@@ -14,6 +14,7 @@ import com.nododiiiii.ponderer.features.projector.registry.ModBlockEntities;
 import com.nododiiiii.ponderer.features.projector.registry.ModMenuTypes;
 import com.nododiiiii.ponderer.application.ui.FunctionScreen;
 import com.nododiiiii.ponderer.editor.capture.NbtPickState;
+import com.nododiiiii.ponderer.editor.capture.InterfaceCapture;
 import com.nododiiiii.ponderer.application.ui.ProjectorConfigScreen;
 import com.nododiiiii.ponderer.runtime.viewer.PonderPreviewTooltip;
 import com.nododiiiii.ponderer.runtime.viewer.PonderSceneTextLayer;
@@ -60,6 +61,7 @@ public class PondererNeoForgeClient {
         modEventBus.addListener(PondererNeoForgeClient::onRegisterMenuScreens);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onRegisterClientCommands);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onClientTick);
+        NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onCaptureKeyPressed);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onBlueprintClientTick);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onRenderLevelStage);
         NeoForge.EVENT_BUS.addListener(PondererNeoForgeClient::onMouseScrolled);
@@ -110,6 +112,12 @@ public class PondererNeoForgeClient {
     }
 
     // --- Client tick for key bindings ---
+    private static void onCaptureKeyPressed(ScreenEvent.KeyPressed.Pre event) {
+        if (InterfaceCapture.keyPressed(event.getScreen(), event.getKeyCode(), event.getModifiers())) {
+            event.setCanceled(true);
+        }
+    }
+
     private static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) return;

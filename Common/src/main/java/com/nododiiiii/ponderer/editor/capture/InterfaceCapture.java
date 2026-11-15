@@ -12,6 +12,7 @@ import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SandboxScope;
 import com.nododiiiii.ponderer.editor.api.SnapshotReturnContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -25,6 +26,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import org.lwjgl.glfw.GLFW;
 import javax.annotation.Nullable;
 import java.util.Base64;
 import java.util.HashMap;
@@ -52,7 +54,6 @@ public final class InterfaceCapture {
         MenuType<?> type;
         byte[] extra;
         int window = -1;
-        int stableTicks;
         Object screen;
         String error;
         Capture(Map<String, String> snapshot, SnapshotReturnContext context) {
@@ -136,7 +137,6 @@ public final class InterfaceCapture {
         active.type = type;
         active.window = window;
         active.extra = extra == null ? null : extra.clone();
-        active.stableTicks = 0;
     }
 
     public static void tick() {
@@ -157,14 +157,37 @@ public final class InterfaceCapture {
             return;
         }
         capture.screen = screen;
-        // Give vanilla slot sync and the mod's initial state packets time to arrive.
-        if (++capture.stableTicks < 20) return;
+    }
+
+    /** Consume the capture shortcut before the target menu can handle it. */
+    public static boolean keyPressed(Screen screen, int keyCode, int modifiers) {
+        if (!isObserving()) return false;
+        Capture capture = active;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level != capture.world || mc.player == null || mc.screen != screen
+            || !(screen instanceof AbstractContainerScreen<?> containerScreen)
+            || containerScreen.getMenu().containerId != capture.window) return false;
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            finish(null, "ponderer.interface.capture.cancelled");
+            return true;
+        }
+        if (keyCode != GLFW.GLFW_KEY_C
+            || (modifiers & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_ALT | GLFW.GLFW_MOD_SUPER)) != 0) return false;
+        if (capture.error != null) {
+            finish(null, capture.error);
+            return true;
+        }
+        if (System.currentTimeMillis() >= capture.deadline) {
+            finish(null, "ponderer.interface.capture.cancelled");
+            return true;
+        }
         try {
-            finish(snapshot(capture, screen), "ponderer.interface.capture.done");
+            finish(snapshot(capture, containerScreen), "ponderer.interface.capture.done");
         } catch (RuntimeException ex) {
             LogUtils.getLogger().warn("[Ponderer] Interface capture failed", ex);
             finish(null, "ponderer.interface.capture.failed");
         }
+        return true;
     }
 
     private static void finish(@Nullable JsonObject descriptor, String notice) {

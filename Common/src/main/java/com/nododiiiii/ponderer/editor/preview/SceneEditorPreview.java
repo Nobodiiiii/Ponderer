@@ -3,6 +3,7 @@ package com.nododiiiii.ponderer.editor.preview;
 import com.nododiiiii.ponderer.runtime.viewer.PonderFreePreview;
 import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.runtime.viewer.UiAnchorCoords;
+import com.nododiiiii.ponderer.runtime.viewer.UiAnchorViewport;
 import com.nododiiiii.ponderer.runtime.viewer.PonderProgressBarAccess;
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -71,7 +72,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     private record PointPick(PointPickMode mode, Consumer<Vec3> onPicked) {}
     private record PointPickResult(Vec3 point, Direction face, WorldSectionElement section) {}
     private record SectionHit(WorldSectionElement section, BlockHitResult hit, float depth) {}
-    private record UiPickViewport(int[] rect, double originX, double originY) {}
+    private record UiPickViewport(UiAnchorViewport.Rect rect, double originX, double originY) {}
 
     @Nullable private PreviewPonderUI ponder;
     @Nullable private PonderProgressBar progressBar;
@@ -444,8 +445,7 @@ public final class SceneEditorPreview implements AutoCloseable {
                         (int) ((mouseX - x - offsetX) / OVERLAY_SCALE),
                         (int) ((mouseY - y - offsetY) / OVERLAY_SCALE), partialTick, () -> {
                             renderOverlay.run();
-                            int[] rect = InterfaceHost.activeRect();
-                            if (rect != null) uiPickViewport = new UiPickViewport(rect, x + offsetX, y + offsetY);
+                            uiPickViewport = new UiPickViewport(UiAnchorViewport.resolve(mc), x + offsetX, y + offsetY);
                         });
                 } else {
                     renderOverlay.run();
@@ -549,9 +549,10 @@ public final class SceneEditorPreview implements AutoCloseable {
     @Nullable
     private Vec3 findUiPoint(double mouseX, double mouseY) {
         if (uiPickViewport == null || !containsModel(mouseX, mouseY) || isOverControls(mouseX, mouseY)) return null;
-        int[] rect = uiPickViewport.rect();
-        return new Vec3(UiAnchorCoords.normalizeX((mouseX - uiPickViewport.originX()) / OVERLAY_SCALE - rect[0], rect[2]),
-            UiAnchorCoords.normalizeY((mouseY - uiPickViewport.originY()) / OVERLAY_SCALE - rect[1], rect[3]), 0);
+        var rect = uiPickViewport.rect();
+        // Normalize against the same projected native GUI bounds used by UiAnchorPoint.
+        return new Vec3(UiAnchorCoords.normalizeX(((mouseX - uiPickViewport.originX()) / OVERLAY_SCALE - rect.left()) / rect.width(), 1),
+            UiAnchorCoords.normalizeY(((mouseY - uiPickViewport.originY()) / OVERLAY_SCALE - rect.top()) / rect.height(), 1), 0);
     }
 
     private void renderUiPointPick(GuiGraphics graphics, int mouseX, int mouseY) {

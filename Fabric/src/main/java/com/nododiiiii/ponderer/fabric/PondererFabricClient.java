@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.application.feedback.PackFeedback;
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.ModKeyBindings;
 import com.nododiiiii.ponderer.Ponderer;
+import com.nododiiiii.ponderer.editor.capture.InterfaceCapture;
 import com.nododiiiii.ponderer.features.blueprint.BlueprintHandler;
 import com.nododiiiii.ponderer.fabric.interfaces.FabricInterfaceEvents;
 import com.nododiiiii.ponderer.product.catalog.PondererAttribution;
@@ -29,10 +30,12 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -62,6 +65,12 @@ public class PondererFabricClient implements ClientModInitializer {
         for (var keyMapping : ModKeyBindings.all()) {
             KeyBindingHelper.registerKeyBinding(keyMapping);
         }
+        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
+            if (screen instanceof AbstractContainerScreen<?>) {
+                ScreenKeyboardEvents.allowKeyPress(screen).register((scr, key, scanCode, modifiers) ->
+                    !InterfaceCapture.keyPressed(scr, key, modifiers));
+            }
+        });
 
         // Ponder init
         com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().structures().extractDefaultsIfNeeded();

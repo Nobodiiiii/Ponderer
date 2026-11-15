@@ -25,6 +25,7 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
     private final PonderScene scene;
     private SandboxSession session;
     private InterfacePanelLayout panel;
+    private boolean panelBlocking = true;
     private int[] previewSource = {0, 0, 1, 1};
     private int[] previewDisplay = {0, 0, 1, 1};
 
@@ -45,7 +46,14 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
         return session;
     }
 
-    void setPanel(InterfacePanelLayout panel) { this.panel = panel; }
+    void setPanel(InterfacePanelLayout panel, boolean blocking) {
+        this.panel = panel;
+        this.panelBlocking = blocking;
+    }
+
+    boolean isPanel() { return panel != null; }
+
+    boolean blocksTimeline() { return panel == null || panelBlocking; }
 
     int[] displayRect() {
         var preview = InterfaceHost.previewViewport(scene);
