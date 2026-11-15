@@ -184,6 +184,11 @@ public class DslScene {
         public String structure;
         public Integer duration;
         public Integer height;
+        /** interface_panel: nested interface tutorial and optional normalized {x, y, width, height} crop. */
+        public List<DslStep> steps;
+        public List<Double> panelCrop;
+        /** interface_panel: show the controls-style background, border and pointer; defaults to true. */
+        public Boolean panelBackground;
         public LocalizedText text;
         public String key;
         public List<Double> point;

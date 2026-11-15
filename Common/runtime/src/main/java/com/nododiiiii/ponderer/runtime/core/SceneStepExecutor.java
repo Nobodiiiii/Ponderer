@@ -85,6 +85,7 @@ final class SceneStepExecutor {
 
             case "show_controls" -> applyShowControls(scene, step, context);
             case "show_interface" -> applyShowInterface(scene, step, context);
+            case "interface_panel" -> applyInterfacePanel(scene, util, dsl, step);
             case "change_interface_slot" -> applyChangeInterfaceSlot(scene, step);
             case "click_interface" -> applyClickInterface(scene, step);
             case "set_interface_slots" -> scene.addInstruction(
@@ -189,6 +190,40 @@ final class SceneStepExecutor {
         if (Boolean.TRUE.equals(step.whileCTRL)) {
             builder.whileCTRL();
         }
+    }
+
+    private void applyInterfacePanel(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep panel) {
+        com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.validate(panel);
+        var descriptor = com.nododiiiii.ponderer.scene.interfaces.LegacyInterfaceMigrator.fromStep(panel.steps.getFirst());
+        scene.addInstruction(ps -> {
+            if (!com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext.isActive())
+                InterfaceHost.openPanel(ps, descriptor, toPoint(panel.point), parsePointing(panel.direction),
+                    panel.scale == null ? com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.DEFAULT_SCALE : panel.scale,
+                    panel.panelCrop, !Boolean.FALSE.equals(panel.panelBackground));
+        });
+        StepContext nested = new StepContext();
+        nested.uiAnchorMode = true;
+        int tail = 0;
+        for (int i = 1; i < panel.steps.size(); i++) {
+            var child = panel.steps.get(i);
+            applyStep(scene, util, dsl, child, nested);
+            switch (child.type.toLowerCase(Locale.ROOT)) {
+                case "idle" -> tail = Math.max(0, tail - child.durationOrDefault(20));
+                case "click_interface", "await_interface" -> tail = Math.max(0, tail - 1);
+                case "interface_action" -> {
+                    var action = InterfaceStepSpecs.action(child);
+                    if (action != null) tail = Math.max(0, tail - Math.max(1, action.duration()));
+                }
+                // Native text/control instructions include five ticks of fade at each end.
+                case "text", "shared_text", "show_controls" -> tail = Math.max(tail, child.durationOrDefault(60) + 10);
+                case "set_interface_data" -> tail = Math.max(tail, Math.max(1, child.durationOrDefault(1)));
+                default -> { }
+            }
+        }
+        // Let child overlays finish before destroying their viewport, then apply the closing hold.
+        scene.idle(Math.max(1, tail));
+        scene.idle(panel.durationOrDefault(60));
+        scene.addInstruction(InterfaceHost::hide);
     }
 
     private void applyShowInterface(SceneBuilder scene, DslScene.DslStep step, StepContext context) {

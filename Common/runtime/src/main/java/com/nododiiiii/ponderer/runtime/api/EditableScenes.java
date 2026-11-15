@@ -53,12 +53,6 @@ public final class EditableScenes {
         if (engine == null) throw new IllegalArgumentException("Java host is not available: " + scene.runtimeSource);
         if (!scene.runtimeSource.equals(scene.id)) throw new IllegalArgumentException("Java scene identity cannot change: " + scene.runtimeSource);
         SceneRequirements.require(scene, engine.steps());
-        if (scene.scenes != null) for (int i = 0; i < scene.scenes.size(); i++) {
-            var segment = scene.scenes.get(i);
-            if (segment == null) continue;
-            engine.fragments().validate(scene.id, segment.id == null ? Integer.toString(i) : segment.id,
-                segment.steps == null ? Set.of() : segment.steps.stream().filter(Objects::nonNull).map(step -> step.id).collect(java.util.stream.Collectors.toSet()));
-        }
     }
     @Nullable public static SceneCatalog.SceneMatch findBySceneId(ResourceLocation id, int occurrence) {
         for (Registration source : SOURCES.values()) {

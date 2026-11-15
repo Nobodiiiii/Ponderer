@@ -87,6 +87,22 @@ public final class InterfaceHost {
         return session;
     }
 
+    public static SandboxSession openPanel(PonderScene scene, InterfaceDescriptor descriptor,
+                                          net.minecraft.world.phys.Vec3 anchor,
+                                          net.createmod.catnip.math.Pointing direction, float scale,
+                                          @Nullable List<Double> crop) {
+        return openPanel(scene, descriptor, anchor, direction, scale, crop, true);
+    }
+
+    public static SandboxSession openPanel(PonderScene scene, InterfaceDescriptor descriptor,
+                                          net.minecraft.world.phys.Vec3 anchor,
+                                          net.createmod.catnip.math.Pointing direction, float scale,
+                                          @Nullable List<Double> crop, boolean background) {
+        SandboxSession session = open(scene, descriptor);
+        current.setPanel(new InterfacePanelLayout(anchor, direction, scale, crop, background));
+        return session;
+    }
+
     /** Hides the interface shown by {@code scene}, if any ({@code hide_interface}, a later {@code show_structure}). */
     public static void hide(PonderScene scene) {
         InterfaceOverlayElement element = current;
@@ -309,7 +325,20 @@ public final class InterfaceHost {
     @Nullable
     public static int[] activeRect() {
         SandboxSession session = sessionFor(Minecraft.getInstance().screen);
-        return session == null ? null : session.guiRect();
+        return session == null ? null : current.displayRect();
+    }
+
+    /** Maps a native menu rectangle to the visible panel (identity for a standalone interface). */
+    public static int[] toScreenRect(int x, int y, int width, int height) {
+        InterfaceOverlayElement element = current;
+        if (element == null) return new int[]{x, y, width, height};
+        double[] start = element.toDisplay(x, y), end = element.toDisplay(x + width, y + height);
+        int left = (int) Math.floor(start[0]), top = (int) Math.floor(start[1]);
+        return new int[]{left, top, Math.max(1, (int) Math.ceil(end[0]) - left), Math.max(1, (int) Math.ceil(end[1]) - top)};
+    }
+
+    public static boolean isNativeRectVisible(int x, int y, int width, int height) {
+        return current == null || current.isNativeRectVisible(x, y, width, height);
     }
 
     /** Whether real input currently goes to the sandbox (try or exercise mode). */
@@ -328,12 +357,15 @@ public final class InterfaceHost {
             return true;
         }
         if (InterfaceExtensions.editing().isActive()) {
-            return InterfaceExtensions.editing().pressed(session, x, y, button);
+            if (current.clipsInputAt(x, y)) return false;
+            double[] local = current.toNative(x, y);
+            return InterfaceExtensions.editing().pressed(session, local[0], local[1], button);
         }
         if (!isInside(session, x, y) || !isTakingInput(session)) {
             return false;
         }
-        session.mouseClicked(x, y, button);
+        double[] local = current.toNative(x, y);
+        session.mouseClicked(local[0], local[1], button);
         pressedButton = button;
         lastDragX = x;
         lastDragY = y;
@@ -347,13 +379,15 @@ public final class InterfaceHost {
             return false;
         }
         if (InterfaceExtensions.editing().isActive()) {
-            return InterfaceExtensions.editing().released(session, x, y, button);
+            double[] local = current.clipsInputAt(x, y) ? new double[]{-1, -1} : current.toNative(x, y);
+            return InterfaceExtensions.editing().released(session, local[0], local[1], button);
         }
         if (pressedButton != button) {
             return false;
         }
         pressedButton = -1;
-        session.mouseReleased(x, y, button);
+        double[] local = current.clipsInputAt(x, y) ? new double[]{-1, -1} : current.toNative(x, y);
+        session.mouseReleased(local[0], local[1], button);
         return true;
     }
 
@@ -363,7 +397,8 @@ public final class InterfaceHost {
             return false;
         }
         if (isTakingInput(session)) {
-            session.mouseScrolled(x, y, scrollX, scrollY);
+            double[] local = current.toNative(x, y);
+            session.mouseScrolled(local[0], local[1], scrollX, scrollY);
         }
         // Scrolling over the interface must not switch Ponder scenes.
         return true;
@@ -409,7 +444,8 @@ public final class InterfaceHost {
 
     /** Whether hover (tooltips, slot highlight) should follow the real cursor this frame. */
     static boolean shouldForwardHover(PonderUI ui, int mouseX, int mouseY) {
-        return !PonderUiInteractionHelper.hasPriorityPonderButtonAt(ui, mouseX, mouseY);
+        return !PonderUiInteractionHelper.hasPriorityPonderButtonAt(ui, mouseX, mouseY)
+            && (current == null || !current.clipsInputAt(mouseX, mouseY));
     }
 
     /**
@@ -425,14 +461,18 @@ public final class InterfaceHost {
         double x = preciseMouseX(mc);
         double y = preciseMouseY(mc);
         if (x != lastDragX || y != lastDragY) {
-            session.mouseDragged(x, y, pressedButton, x - lastDragX, y - lastDragY);
+            if (!current.clipsInputAt(x, y)) {
+                double[] local = current.toNative(x, y);
+                double[] previous = current.toNative(lastDragX, lastDragY);
+                session.mouseDragged(local[0], local[1], pressedButton, local[0] - previous[0], local[1] - previous[1]);
+            }
             lastDragX = x;
             lastDragY = y;
         }
     }
 
     private static boolean isInside(SandboxSession session, double x, double y) {
-        int[] rect = session.guiRect();
+        int[] rect = activeRect();
         return rect != null && x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] && y < rect[1] + rect[3];
     }
 
@@ -467,7 +507,7 @@ public final class InterfaceHost {
 
     private static List<Tab> tabs(SandboxSession session) {
         List<Tab> tabs = new ArrayList<>();
-        int[] rect = session.guiRect();
+        int[] rect = activeRect();
         if (rect == null || InterfaceExtensions.editing().isActive()) {
             return tabs;
         }
@@ -524,7 +564,7 @@ public final class InterfaceHost {
             graphics.renderOutline(tab.x(), tab.y(), tab.width(), TAB_HEIGHT, 0xFF7A7AA0);
             graphics.drawString(font, tab.label(), tab.x() + 4, tab.y() + 2, 0xFFFFFF, false);
         }
-        int[] rect = session.guiRect();
+        int[] rect = activeRect();
         Component banner = switch (mode) {
             case TRY -> Component.translatable("ponderer.ui.interface.try_notice").withStyle(ChatFormatting.GRAY);
             case EXERCISE -> exerciseHint == null
@@ -596,9 +636,10 @@ public final class InterfaceHost {
 
     private static void renderCursor(GuiGraphics graphics, SandboxSession session, float partialTicks) {
         double[] p = cursorPosition(session, partialTicks);
-        if (p == null) {
+        if (p == null || !isNativeRectVisible((int) p[0], (int) p[1], 1, 1)) {
             return;
         }
+        if (current != null) p = current.toDisplay(p[0], p[1]);
         int x = (int) p[0];
         int y = (int) p[1];
         if (rippleTicks > 0) {

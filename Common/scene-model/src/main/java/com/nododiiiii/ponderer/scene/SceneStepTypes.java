@@ -18,6 +18,7 @@ public final class SceneStepTypes {
         "highlight_section",
         "show_controls",
         "show_interface",
+        "interface_panel",
         "change_interface_slot",
         "click_interface",
         "set_interface_slots",
@@ -45,5 +46,5 @@ public final class SceneStepTypes {
         "modify_entities_nbt",
         "modify_item_entities_nbt",
         "next_scene");
-    public static final Set<String> INTERFACES = Set.of("show_interface", "change_interface_slot", "click_interface", "set_interface_slots", "set_interface_data", "set_interface_context", "interface_action", "hide_interface", "await_interface");
+    public static final Set<String> INTERFACES = Set.of("interface_panel", "show_interface", "change_interface_slot", "click_interface", "set_interface_slots", "set_interface_data", "set_interface_context", "interface_action", "hide_interface", "await_interface");
 }

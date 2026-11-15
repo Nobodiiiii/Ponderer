@@ -86,6 +86,33 @@ public final class PonderScreenNavigation {
         return true;
     }
 
+    /** Opens a detached draft for UI-coordinate picking without saving or replacing the catalog. */
+    static boolean openDraftScene(DslScene scene, int sceneIndex) {
+        var compiled = com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).compile(
+            new com.nododiiiii.ponderer.runtime.api.CompileRequest(
+                com.nododiiiii.ponderer.scene.SceneSnapshot.of(scene), sceneIndex));
+        if (compiled == null) return false;
+        PonderUI ui = new DraftPonderUI(compiled);
+        Minecraft.getInstance().setScreen(ui);
+        return true;
+    }
+
+    private static final class DraftPonderUI extends PonderUI {
+        private final com.nododiiiii.ponderer.runtime.api.CompilationResult compiled;
+        DraftPonderUI(com.nododiiiii.ponderer.runtime.api.CompilationResult compiled) {
+            super(List.of(compiled.scene()));
+            this.compiled = compiled;
+        }
+        @Override protected void init() {
+            super.init();
+            compiled.scene().begin();
+        }
+        @Override public void removed() {
+            try { super.removed(); }
+            finally { compiled.playback().close(); }
+        }
+    }
+
     private static void restoreScreenHistory(List<Screen> history) {
         if (BACK_STACK == null) {
             LOGGER.warn("Unable to restore Catnip screen history: ScreenOpener.backStack was not found");

@@ -1,6 +1,6 @@
 package com.nododiiiii.ponderer.application.ui;
 
-import com.nododiiiii.ponderer.editor.api.SnapshotReturnContext;
+import com.nododiiiii.ponderer.editor.api.SceneCaptureContext;
 import com.nododiiiii.ponderer.support.ui.UIText;
 import com.nododiiiii.ponderer.editor.capture.PickState;
 import com.nododiiiii.ponderer.editor.preview.SceneEditorPreview;
@@ -35,6 +35,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
 
     protected boolean attachKeyFrame = false;
     protected int insertAfterIndex = -1;
+    @Nullable private StepEditorTarget stepTarget;
     private final SceneEditorPreview preview = new SceneEditorPreview();
     @Nullable
     private DslScene previewDraft;
@@ -180,7 +181,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         for (int index = editIndex + direction; index >= 0 && index < steps.size(); index += direction) {
             AbstractStepEditorScreen editor = StepEditorFactory.createEditScreen(
                 steps.get(index), index, scene, sceneIndex, parent);
-            if (editor != null) return editor;
+            if (editor != null) return editor.setStepTarget(stepTarget);
         }
         return null;
     }
@@ -362,6 +363,12 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         return this;
     }
 
+    AbstractStepEditorScreen setStepTarget(@Nullable StepEditorTarget target) {
+        stepTarget = target;
+        if (target != null) setReturnScreen(target.returnScreen());
+        return this;
+    }
+
     public AbstractStepEditorScreen setPendingPickRestore(@Nullable java.util.Map<String, String> snapshot) {
         setPendingFormRestore(snapshot);
         return this;
@@ -423,7 +430,9 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
             step.attachKeyFrame = true;
         }
 
-        if (isEditMode()) {
+        if (stepTarget != null) {
+            stepTarget.save(isEditMode() ? editIndex : -1, insertAfterIndex, step);
+        } else if (isEditMode()) {
             parent.replaceStepAndSave(editIndex, step);
         } else {
             parent.insertStepAndSave(insertAfterIndex, step);
@@ -449,8 +458,8 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     protected abstract String getStepType();
 
     @Override
-    protected SnapshotReturnContext createReturnContext() {
-        return new StepEditorContext(getStepType(), editIndex, insertAfterIndex, scene, sceneIndex, parent);
+    protected SceneCaptureContext createReturnContext() {
+        return new StepEditorContext(getStepType(), editIndex, insertAfterIndex, scene, sceneIndex, parent, stepTarget);
     }
 
     @Override
@@ -477,7 +486,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         PickState.startPick(
             effectiveTarget,
             snapshotForm(),
-            new StepEditorContext(getStepType(), editIndex, insertAfterIndex, scene, sceneIndex, parent),
+            createReturnContext(),
             effectiveTarget == PickState.TargetField.UI_POINT ? false : halfOffset);
         PickState.openPonderUIForPick();
     }
@@ -545,9 +554,8 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         if (!saveEdits()) {
             return false;
         }
-        // Save always lands back on the scene editor, even when this screen was opened from
-        // the step type selector — that way the editor's remembered list scroll is restored.
-        ScreenOpener.open(parent);
+        // Nested saves return to their owning panel; top-level saves return to the scene list.
+        ScreenOpener.open(stepTarget == null ? parent : stepTarget.returnScreen());
         return true;
     }
 }

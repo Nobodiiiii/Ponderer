@@ -58,23 +58,34 @@ public final class SceneCompiler {
         com.nododiiiii.ponderer.runtime.api.RuntimeScenes.adopt(builder.getScene());
         DslScene document = new DslScene();
         document.id = sceneId;
+        var segment = new DslScene.SceneSegment();
+        segment.id = segmentId;
+        segment.steps = new ArrayList<>();
+        document.scenes = List.of(segment);
         SceneStepExecutor.StepContext context = new SceneStepExecutor.StepContext();
+        var buildContext = new com.nododiiiii.ponderer.runtime.api.StepBuildContext(builder, util, sceneId, null,
+            context.sectionLinks, context.entityLinks, context.state, context.actions);
+        fragments.buildScene(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE, buildContext);
         return new com.nododiiiii.ponderer.runtime.api.SceneProgram() {
-            @Override public com.nododiiiii.ponderer.runtime.api.StepBuildContext context(String stepId) {
-                return new com.nododiiiii.ponderer.runtime.api.StepBuildContext(builder, util, sceneId, stepId, context.sectionLinks, context.entityLinks, context.state, context.actions);
+            private boolean closed;
+            @Override public com.nododiiiii.ponderer.runtime.api.StepBuildContext context() {
+                return buildContext;
             }
-            @Override public void beforeStep(String stepId) { fragments.build(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE, context(stepId)); }
-            @Override public void afterStep(String stepId) { fragments.build(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER, context(stepId)); }
             @Override public void step(DslScene.DslStep step) {
+                if (closed) throw new IllegalStateException("Scene program already closed");
                 if (step == null || step.type == null) throw new IllegalArgumentException(sceneId + "/" + segmentId + ": missing step type");
+                segment.steps.add(step);
+                com.nododiiiii.ponderer.scene.SceneCodec.withAnchors(document);
                 String location = sceneId + "/" + segmentId + "/" + step.id;
                 for (String feature : com.nododiiiii.ponderer.scene.SceneRuntimeRequirements.stepFeatures(step.type))
                     com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.require(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.parse(feature), location);
                 if (com.nododiiiii.ponderer.scene.SceneStepTypes.INTERFACES.contains(step.type.toLowerCase(Locale.ROOT))) com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.requireInterfaces(location);
-                var buildContext = context(step.id);
-                fragments.build(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE, buildContext);
                 executor.applyStep(builder, util, document, step, context);
-                fragments.build(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER, buildContext);
+            }
+            @Override public void close() {
+                if (closed) return;
+                closed = true;
+                fragments.buildScene(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER, buildContext);
             }
         };
     }
@@ -293,7 +304,6 @@ public final class SceneCompiler {
                                              @Nullable List<Integer> stepTicks) {
         validate(scene);
         String segmentId = sc.id == null ? Integer.toString(index) : sc.id;
-        fragments.validate(scene.id, segmentId, sc.steps == null ? java.util.Set.of() : sc.steps.stream().filter(java.util.Objects::nonNull).map(step -> step.id).collect(java.util.stream.Collectors.toSet()));
         BoundingBox scanBox = preScanSegmentBounds(sc);
         return (builder, util) -> {
             try {
@@ -316,11 +326,14 @@ public final class SceneCompiler {
                 }
                 builder.title(scenePath, title);
 
+                SceneStepExecutor.StepContext context = new SceneStepExecutor.StepContext();
+                var boundaryContext = new com.nododiiiii.ponderer.runtime.api.StepBuildContext(builder, util, scene.id, null,
+                    context.sectionLinks, context.entityLinks, context.state, context.actions);
+                fragments.buildScene(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE, boundaryContext);
                 if (sc.steps == null) {
+                    fragments.buildScene(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER, boundaryContext);
                     return;
                 }
-
-                SceneStepExecutor.StepContext context = new SceneStepExecutor.StepContext();
                 if (firstStepIsShowInterface(sc)) {
                     builder.removeShadow();
                 }
@@ -352,11 +365,9 @@ public final class SceneCompiler {
                     if ("next_scene".equalsIgnoreCase(step.type)) {
                         continue;
                     }
-                    var buildContext = new com.nododiiiii.ponderer.runtime.api.StepBuildContext(builder, util, scene.id, step.id, context.sectionLinks, context.entityLinks, context.state, context.actions);
-                    fragments.build(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE, buildContext);
                     executor.applyStep(builder, util, scene, step, context);
-                    fragments.build(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER, buildContext);
                 }
+                fragments.buildScene(segmentId, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER, boundaryContext);
             } catch (Exception e) {
                 throw new IllegalArgumentException("Error building " + scene.id + "/" + index + ": " + e.getMessage(), e);
             }

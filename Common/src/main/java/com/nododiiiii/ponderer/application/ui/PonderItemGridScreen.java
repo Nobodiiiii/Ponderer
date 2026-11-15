@@ -550,7 +550,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         Map<String, Map<String, List<String>>> packGroups = new LinkedHashMap<>();
         Map<String, Map<String, List<String>>> packItemFilters = new LinkedHashMap<>();
 
-        for (DslScene scene : com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().getScenes()) {
+        for (DslScene scene : com.nododiiiii.ponderer.application.api.RuntimeAccess.scenes()) {
             if (scene.items == null || scene.id == null) {
                 continue;
             }
@@ -615,7 +615,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         Map<String, List<String>> entryMap = new LinkedHashMap<>();
         Map<String, List<String>> itemFilters = new LinkedHashMap<>();
 
-        for (DslScene scene : com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().getScenes()) {
+        for (DslScene scene : com.nododiiiii.ponderer.application.api.RuntimeAccess.scenes()) {
             if (scene.items == null || scene.id == null) {
                 continue;
             }
@@ -712,7 +712,7 @@ public class PonderItemGridScreen extends AbstractDeclarativeListScreen {
         var accessor = (com.nododiiiii.ponderer.runtime.mixin.PonderUIAccessor) (Object) ui;
         List<net.createmod.ponder.foundation.PonderScene> allScenes = accessor.ponderer$getScenes();
 
-        Set<SceneCatalog.PonderSceneRef> refs = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().resolvePonderSceneRefs(entry.sceneKeys);
+        Set<SceneCatalog.PonderSceneRef> refs = com.nododiiiii.ponderer.application.api.RuntimeAccess.resolvePonderSceneRefs(entry.sceneKeys);
         if (!refs.isEmpty()) {
             Map<String, int[]> idCounters = new LinkedHashMap<>();
             List<net.createmod.ponder.foundation.PonderScene> filtered = new ArrayList<>();

@@ -639,9 +639,8 @@ public final class JavaModuleExportService {
                         continue;
                     }
                     plan.structures.add(toStructureAsset(extraResolution));
-                    generatedStep.extraStructureResourceId = target.modId
-                        + ":ponder/generated/" + extraResolution.sourceId.getNamespace()
-                        + "/" + extraResolution.sourceId.getPath() + ".nbt";
+                    ResourceLocation extraId = ResourceLocation.parse(extraResolution.targetResourceId);
+                    generatedStep.extraStructureResourceId = extraId.getNamespace() + ":ponder/" + extraId.getPath() + ".nbt";
                 }
                 segmentPlan.steps.add(generatedStep);
                 supportedStepCount++;
@@ -773,7 +772,12 @@ public final class JavaModuleExportService {
         if (sourceId == null) {
             return null;
         }
-        Path sourcePath = findStructureSourcePath(sourceId, scene.pack);
+        boolean alreadyExported = target.modId.equals(sourceId.getNamespace()) && sourceId.getPath().startsWith("generated/");
+        Path existingAsset = target.resourcesRoot.resolve("assets/" + sourceId.getNamespace() + "/ponder/" + sourceId.getPath() + ".nbt")
+            .toAbsolutePath().normalize();
+        if (!existingAsset.startsWith(target.resourcesRoot.toAbsolutePath().normalize())) return null;
+        Path sourcePath = alreadyExported && Files.isRegularFile(existingAsset)
+            ? existingAsset : findStructureSourcePath(sourceId, scene.pack);
         if (sourcePath == null || !Files.exists(sourcePath)) {
             return null;
         }
@@ -781,9 +785,9 @@ public final class JavaModuleExportService {
         StructureResolution resolution = new StructureResolution();
         resolution.sourceId = sourceId;
         resolution.sourcePath = sourcePath.toAbsolutePath().normalize();
-        resolution.targetResourceId = target.modId + ":generated/" + sourceId.getNamespace() + "/" + sourceId.getPath();
-        resolution.targetRelativePath = "src/main/resources/assets/" + target.modId + "/ponder/generated/"
-            + sourceId.getNamespace() + "/" + sourceId.getPath() + ".nbt";
+        String targetPath = alreadyExported ? sourceId.getPath() : "generated/" + sourceId.getNamespace() + "/" + sourceId.getPath();
+        resolution.targetResourceId = target.modId + ":" + targetPath;
+        resolution.targetRelativePath = "src/main/resources/assets/" + target.modId + "/ponder/" + targetPath + ".nbt";
         return resolution;
     }
 
@@ -1462,6 +1466,7 @@ public final class JavaModuleExportService {
 
     private String buildSceneSource(JavaModuleScanResult.TargetProject target,
                                            JavaModuleScanResult.ScenePlan plan) {
+        if (target.mode == JavaModuleExportRequest.Mode.JAVA_LIB) return editableLibSceneSource(target, plan);
         StringBuilder sb = new StringBuilder();
         sb.append(GENERATED_NOTICE_BLOCK);
         sb.append("package ").append(target.scenePackage).append(";\n\n");
@@ -1476,21 +1481,15 @@ public final class JavaModuleExportService {
         sb.append("import net.minecraft.world.phys.Vec3;\n");
         sb.append("import java.util.Map;\n\n");
         sb.append("public final class ").append(plan.className).append(" {\n");
-        if (LibExportSources.usesLib(target)) sb.append(LibExportSources.members(target, plan));
         sb.append("    private ").append(plan.className).append("() {\n");
         sb.append("    }\n\n");
         sb.append("    public static void register(PonderSceneRegistrationHelper<ResourceLocation> helper) {\n");
-        if (LibExportSources.usesLib(target)) sb.append("        if (!reload()) return;\n");
         sb.append("        ResourceLocation[] tags = ")
             .append(resourceLocationArrayExpr(plan.tags.stream().map(id -> exportedTagId(target, plan, id)).toList(),
                 generatedAttributionTagId(target.modId))).append(";\n");
         sb.append("        var multi = helper.forComponents(java.util.List.of(")
             .append(plan.componentItems.stream().map(this::resourceLocationExpr).collect(Collectors.joining(", ")))
             .append("));\n");
-        if (LibExportSources.usesLib(target)) {
-            int componentStart = sb.lastIndexOf("        var multi =");
-            sb.replace(componentStart, sb.length(), "        var multi = helper.forComponents(com.nododiiiii.ponderer.runtime.api.SceneItemBindings.resolve(DOCUMENT.items));\n");
-        }
         for (JavaModuleScanResult.SegmentPlan segment : plan.segments) {
             if (segment.schematic == null) {
                 continue;
@@ -1503,7 +1502,6 @@ public final class JavaModuleExportService {
         }
         sb.append("    }\n\n");
         sb.append("    public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {\n");
-        if (LibExportSources.usesLib(target)) sb.append("        if (DOCUMENT == null) reload();\n        RUNTIME.plugin().registerTags(helper);\n");
         plan.customTags.forEach((id, definition) -> {
             String exportedId = exportedTagId(target, plan, id);
             sb.append("        if (net.createmod.ponder.foundation.PonderIndex.getTagAccess().getListedTags().stream()\n")
@@ -1538,15 +1536,11 @@ public final class JavaModuleExportService {
                 .append(", ")
                 .append(localizedTextExpr(segment.sourceSegment.title, fallbackSegmentTitle(plan.sourceScene, segment.sourceSegment, segment.titlePath, plan.segments.size(), plan.segments.indexOf(segment))))
                 .append(");\n");
-            if (LibExportSources.usesLib(target)) {
-                sb.append("        var program = RUNTIME.program(").append(stringExpr(plan.sceneId)).append(", ")
-                    .append(stringExpr(segment.sourceSegment.id == null ? Integer.toString(plan.segments.indexOf(segment)) : segment.sourceSegment.id))
-                    .append(", scene, util);\n        GeneratedPonderSupport.Context context = program.context(null).actions();\n");
-            } else sb.append("        GeneratedPonderSupport.Context context = new GeneratedPonderSupport.Context();\n");
+            sb.append("        GeneratedPonderSupport.Context context = new GeneratedPonderSupport.Context();\n");
             appendPreScanBounds(sb, segment.sourceSegment);
 
             boolean firstIsShowStructure = !segment.steps.isEmpty()
-                && ("show_structure".equalsIgnoreCase(segment.steps.get(0).sourceStep.type) || LibExportSources.usesLib(target) && "show_interface".equalsIgnoreCase(segment.steps.get(0).sourceStep.type));
+                && "show_structure".equalsIgnoreCase(segment.steps.get(0).sourceStep.type);
             if (!firstIsShowStructure) {
                 sb.append("        GeneratedPonderSupport.showStructure(scene, context, null, null, null, null);\n");
                 sb.append("        scene.idle(20);\n");
@@ -1567,7 +1561,7 @@ public final class JavaModuleExportService {
                 if (Boolean.TRUE.equals(step.attachKeyFrame)) {
                     sb.append("        scene.addKeyframe();\n");
                 }
-                appendStepSource(sb, generatedStep, target);
+                appendStepSource(sb, generatedStep);
             }
             sb.append("    }\n\n");
         }
@@ -1575,7 +1569,6 @@ public final class JavaModuleExportService {
         sb.append("}\n");
         String source = sb.toString();
         if (LibExportSources.usesLib(target)) source = source.replace("import " + target.generatedPackage + ".GeneratedPonderSupport;", "import com.nododiiiii.ponderer.runtime.api.PonderActions;").replace("GeneratedPonderSupport", "PonderActions");
-        if (target.mode == JavaModuleExportRequest.Mode.JAVA_LIB) source = editableLibSceneSource(target, plan, source);
         return source;
     }
 
@@ -1629,21 +1622,9 @@ public final class JavaModuleExportService {
             .append("));\n");
     }
 
-    private void appendStepSource(StringBuilder sb, JavaModuleScanResult.GeneratedStep generatedStep, JavaModuleScanResult.TargetProject target) {
+    private void appendStepSource(StringBuilder sb, JavaModuleScanResult.GeneratedStep generatedStep) {
         DslScene.DslStep step = generatedStep.sourceStep;
         String type = step.type.toLowerCase(Locale.ROOT);
-        if (LibExportSources.usesLib(target)) {
-            if (!SUPPORTED_STEP_TYPES.contains(type) || type.equals("text") || type.equals("show_controls") || type.equals("show_structure")) {
-                DslScene.DslStep copy = GSON.fromJson(GSON.toJson(step), DslScene.DslStep.class);
-                copy.attachKeyFrame = null;
-                JavaValueEmitter emitter = new JavaValueEmitter();
-                String value = emitter.value(copy);
-                sb.append("        { // step ").append(stringExpr(step.id)).append('\n').append(emitter.statements())
-                    .append("        program.step(").append(value).append(");\n        }\n");
-                return;
-            }
-            sb.append("        program.beforeStep(").append(stringExpr(step.id)).append(");\n");
-        }
         switch (type) {
             case "show_structure" -> sb.append("        GeneratedPonderSupport.showStructure(scene, context, ")
                 .append(blockPosExpr(step.blockPos)).append(", ")
@@ -1833,11 +1814,31 @@ public final class JavaModuleExportService {
                 .append(blockPosExpr(step.blockPos2)).append(");\n");
             default -> sb.append("        // Unsupported step omitted: ").append(type).append("\n");
         }
-        if (LibExportSources.usesLib(target)) sb.append("        program.afterStep(").append(stringExpr(step.id)).append(");\n");
     }
 
-    private String editableLibSceneSource(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan, String nativeSource) {
-        String prefix = nativeSource.substring(0, nativeSource.indexOf("public final class"));
+    private String editableLibSceneSource(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
+        String prefix = GENERATED_NOTICE_BLOCK + "package " + target.scenePackage + ";\n\n" + """
+            import com.google.gson.JsonObject;
+            import com.google.gson.JsonParser;
+            import com.nododiiiii.ponderer.runtime.api.JavaScene;
+            import com.nododiiiii.ponderer.runtime.api.EditableScenes;
+            import com.nododiiiii.ponderer.runtime.api.RuntimeEngine;
+            import com.nododiiiii.ponderer.runtime.spi.AssetStructureSource;
+            import com.nododiiiii.ponderer.runtime.spi.IngredientResolver;
+            import com.nododiiiii.ponderer.runtime.spi.RegistrationContribution;
+            import com.nododiiiii.ponderer.scene.DslScene;
+            import com.nododiiiii.ponderer.scene.LocalizedText;
+            import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
+            import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
+            import net.createmod.ponder.api.registration.SharedTextRegistrationHelper;
+            import net.minecraft.core.BlockPos;
+            import net.minecraft.resources.ResourceLocation;
+            import net.minecraft.world.phys.Vec3;
+            import java.util.Arrays;
+            import java.util.List;
+            import java.util.Map;
+
+            """;
         String tags = """
                 public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
                     if (DOCUMENT == null && !reload()) return;

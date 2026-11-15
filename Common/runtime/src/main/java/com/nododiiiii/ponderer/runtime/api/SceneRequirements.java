@@ -35,6 +35,10 @@ public final class SceneRequirements {
                 var step = segment.steps.get(i);
                 if (step == null || step.type == null) continue;
                 String location = scene.id + "/" + (segment.id == null ? s : segment.id) + "/" + (step.id == null ? i : step.id);
+                if ("interface_panel".equalsIgnoreCase(step.type)) {
+                    try { com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.validate(step); }
+                    catch (IllegalArgumentException error) { result.add(location + ": " + error.getMessage()); }
+                }
                 if (step.id != null && !anchors.add(step.id)) result.add(location + ": duplicate step anchor");
                 if (!SceneStepTypes.BUILTIN.contains(step.type.toLowerCase(java.util.Locale.ROOT)) && !steps.contains(step.type)) result.add(location + ": missing step provider " + step.type);
                 if (SceneStepTypes.INTERFACES.contains(step.type.toLowerCase(java.util.Locale.ROOT)) && !RuntimeFeatures.interfacesEnabled()) result.add(location + ": capability pondererlib:interfaces is disabled at startup");

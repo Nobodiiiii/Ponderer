@@ -17,10 +17,19 @@ public record StepEditorContext(
     int insertAfterIndex,
     DslScene scene,
     int sceneIndex,
-    SceneEditorScreen parent
+    SceneEditorScreen parent,
+    @Nullable StepEditorTarget target
 ) implements com.nododiiiii.ponderer.editor.api.SceneCaptureContext {
 
-    @Override public boolean openPreview() { return PonderScreenNavigation.openPonderUIForScene(scene, sceneIndex); }
+    public StepEditorContext(String stepType, int editIndex, int insertAfterIndex, DslScene scene,
+                             int sceneIndex, SceneEditorScreen parent) {
+        this(stepType, editIndex, insertAfterIndex, scene, sceneIndex, parent, null);
+    }
+
+    @Override public boolean openPreview() {
+        return target == null ? PonderScreenNavigation.openPonderUIForScene(scene, sceneIndex)
+            : PonderScreenNavigation.openDraftScene(scene, sceneIndex);
+    }
 
     @Nullable
     public AbstractStepEditorScreen createEditor() {
@@ -40,6 +49,7 @@ public record StepEditorContext(
             return;
         }
         editor.setInsertAfterIndex(insertAfterIndex);
+        editor.setStepTarget(target);
         editor.setPendingPickRestore(snapshot);
         Minecraft.getInstance().setScreen(editor);
     }

@@ -19,7 +19,7 @@ public final class SceneRuntimeRequirements {
         }
         if (scene.scenes != null) for (var segment : scene.scenes) {
             if (segment == null || segment.steps == null) continue;
-            for (var step : segment.steps) if (step != null && step.type != null) features.addAll(stepFeatures(step.type));
+            for (var step : segment.steps) collectStepFeatures(step, features);
         }
         return Set.copyOf(features);
     }
@@ -29,5 +29,11 @@ public final class SceneRuntimeRequirements {
         if (key.equals("zoom_scene")) return Set.of("view");
         if (key.equals("text") || key.equals("shared_text") || key.equals("show_controls")) return Set.of("text");
         return Set.of();
+    }
+    private static void collectStepFeatures(DslScene.DslStep step, Set<String> features) {
+        if (step == null || step.type == null) return;
+        features.addAll(stepFeatures(step.type));
+        if ("interface_panel".equalsIgnoreCase(step.type) && step.steps != null)
+            for (var child : step.steps) collectStepFeatures(child, features);
     }
 }

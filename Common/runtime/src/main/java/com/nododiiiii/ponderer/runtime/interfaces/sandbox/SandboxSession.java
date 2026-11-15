@@ -1,8 +1,14 @@
 package com.nododiiiii.ponderer.runtime.interfaces.sandbox;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
 import com.nododiiiii.ponderer.runtime.interfaces.platform.InterfacePlatform;
+import com.nododiiiii.ponderer.runtime.interfaces.InterfaceSlotOverlayRenderer;
 import net.createmod.ponder.api.level.PonderLevel;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
@@ -11,6 +17,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.MenuAccess;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
@@ -293,9 +300,60 @@ public final class SandboxSession {
         }
     }
 
+    /** Render in the menu's original coordinate system, then composite only its GUI into the panel. */
+    public void renderPanel(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks, int[] source, int[] destination) {
+        Screen screen = currentScreen();
+        if (screen == null || fidelity == Fidelity.SCHEMATIC) {
+            graphics.pose().pushPose();
+            graphics.pose().translate(destination[0], destination[1], 200);
+            graphics.pose().scale(destination[2] / (float) source[2], destination[3] / (float) source[3], 1);
+            graphics.pose().translate(-source[0], -source[1], 0);
+            renderPlaceholder(graphics);
+            graphics.pose().popPose();
+            return;
+        }
+        graphics.flush();
+        var texture = dispatch("render", () -> {
+            int width = mc.getWindow().getGuiScaledWidth(), height = mc.getWindow().getGuiScaledHeight();
+            if (screen.width != width || screen.height != height) screen.resize(mc, width, height);
+            return inputRenderer.renderPanel(mc, screen, mouseX, mouseY, partialTicks, g -> {
+                InterfaceSlotOverlayRenderer.render(g, screen);
+            });
+        }, null);
+        if (texture == null) return;
+        double guiScale = mc.getWindow().getGuiScale();
+        float u0 = (float) (source[0] * guiScale / texture.width);
+        float u1 = (float) ((source[0] + source[2]) * guiScale / texture.width);
+        float v0 = 1 - (float) (source[1] * guiScale / texture.height);
+        float v1 = 1 - (float) ((source[1] + source[3]) * guiScale / texture.height);
+        var pose = graphics.pose().last().pose();
+        int x = destination[0], y = destination[1], w = destination[2], h = destination[3];
+        RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        RenderSystem.setShaderTexture(0, texture.getColorTextureId());
+        RenderSystem.disableDepthTest();
+        // Flushing the frame may disable blending; preserve transparent GUI gaps when compositing.
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        var buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+        buffer.addVertex(pose, x, y + h, 200).setUv(u0, v1);
+        buffer.addVertex(pose, x + w, y + h, 200).setUv(u1, v1);
+        buffer.addVertex(pose, x + w, y, 200).setUv(u1, v0);
+        buffer.addVertex(pose, x, y, 200).setUv(u0, v0);
+        BufferUploader.drawWithShader(buffer.buildOrThrow());
+        renderNotice(graphics, destination);
+    }
+
     public boolean mouseClicked(double x, double y, int button) {
         Screen screen = currentScreen();
         return screen != null && canInteract() && afterInput(dispatch("mouseClicked", () -> screen.mouseClicked(x, y, button), false));
+    }
+
+    /** Selects only GUI pixels; the crop editor never delivers its middle click to the native menu. */
+    @Nullable
+    public int[] connectedPanelPixels(int[] source, int x, int y) {
+        Screen screen = currentScreen();
+        if (screen == null || destroyed || fidelity == Fidelity.SCHEMATIC) return null;
+        return dispatch("select panel pixels", () -> inputRenderer.connectedPixels(mc, screen, source, x, y), null);
     }
 
     /** Scripted clicks also work when no visible frame runs between timeline instructions. */
@@ -490,8 +548,21 @@ public final class SandboxSession {
         if (screen == null || fidelity == Fidelity.SCHEMATIC) {
             return placeholderRect();
         }
+        int width = mc.getWindow().getGuiScaledWidth(), height = mc.getWindow().getGuiScaledHeight();
+        if (screen.width != width || screen.height != height) {
+            dispatch("resize", () -> { screen.resize(mc, width, height); return null; }, null);
+            if (fidelity == Fidelity.SCHEMATIC) return placeholderRect();
+        }
         int[] rect = InterfacePlatform.get().containerRect(screen);
-        return rect != null ? rect : new int[]{0, 0, screen.width, screen.height};
+        return rect != null && rect[2] > 0 && rect[3] > 0 ? rect : new int[]{0, 0, Math.max(1, screen.width), Math.max(1, screen.height)};
+    }
+
+    /** Complete visual source for panels; guiRect remains the native origin for slot and script coordinates. */
+    public int[] panelBounds() {
+        int[] nativeRect = guiRect();
+        Screen screen = currentScreen();
+        if (screen == null || fidelity == Fidelity.SCHEMATIC) return nativeRect;
+        return dispatch("panel bounds", () -> PanelRenderBounds.resolve(screen, nativeRect), nativeRect);
     }
 
     public boolean isDestroyed() {
@@ -604,10 +675,13 @@ public final class SandboxSession {
     }
 
     private void renderNotice(GuiGraphics graphics) {
+        renderNotice(graphics, guiRect());
+    }
+
+    private void renderNotice(GuiGraphics graphics, @Nullable int[] rect) {
         if (notice == null || Util.getMillis() > noticeUntil) {
             return;
         }
-        int[] rect = guiRect();
         if (rect == null) {
             return;
         }

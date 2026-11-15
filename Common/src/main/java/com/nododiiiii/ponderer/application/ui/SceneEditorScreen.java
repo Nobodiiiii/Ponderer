@@ -265,14 +265,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         rowSteps.clear();
         List<DslScene.DslStep> steps = getSteps();
         copiedSteps.keySet().retainAll(steps);
+        addJavaFragmentEntries(entries, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE);
         if (steps.isEmpty()) {
             entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.scene_editor.no_steps")));
-            return;
         }
 
         for (int i = 0; i < steps.size(); i++) {
             int stepIndex = i;
-            addJavaFragmentEntries(entries, steps.get(i), com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE);
             entries.add(new SceneStepListEntry(
                 () -> (stepIndex + 1) + ". " + StepPreviewText.title(scene, steps.get(stepIndex)),
                 () -> StepPreviewText.summary(scene, steps.get(stepIndex)),
@@ -316,21 +315,22 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                         null,
                         () -> !isActionDisabled(5, stepIndex)))));
             rowSteps.put(entries.getLast(), stepIndex);
-            addJavaFragmentEntries(entries, steps.get(i), com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER);
         }
+        addJavaFragmentEntries(entries, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER);
     }
 
     private void addJavaFragmentEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries,
-                                       DslScene.DslStep step, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position position) {
-        if (step == null) return;
+                                       com.nododiiiii.ponderer.runtime.api.JavaFragments.Position position) {
         var segment = scene.scenes.get(sceneIndex);
         String segmentId = segment.id == null ? Integer.toString(sceneIndex) : segment.id;
-        for (var fragment : com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).fragments().describe(scene.id)) {
-            if (!fragment.segment().equals(segmentId) || !java.util.Objects.equals(fragment.anchor(), step.id) || fragment.position() != position) continue;
+        for (var fragment : com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).fragments().describe(scene.id, segmentId)) {
+            if (fragment.position() != position) continue;
             entries.add(new SceneStepListEntry(
-                () -> UIText.of("ponderer.ui.custom_step.fragment", step.id),
+                () -> UIText.of(position == com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE
+                    ? "ponderer.ui.custom_step.scene_before" : "ponderer.ui.custom_step.scene_after"),
                 () -> UIText.of("ponderer.ui.custom_step.opaque"), null, List.of()));
-            rowSteps.put(entries.getLast(), getSteps().indexOf(step));
+            rowSteps.put(entries.getLast(), position == com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE
+                ? 0 : Math.max(0, getSteps().size() - 1));
         }
     }
 

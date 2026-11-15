@@ -64,6 +64,7 @@ final class StepPreviewText {
             case "zoom_scene" -> join(step.scale == null ? "" : "×" + number(step.scale), vector(step.point));
             case "show_controls" -> join(action(step.action), blank(step.item) ? "" : ingredientName(step.item));
             case "show_interface" -> interfaceTarget(step);
+            case "interface_panel" -> UIText.of("ponderer.ui.interface_panel.summary", step.steps == null ? 0 : step.steps.size());
             case "change_interface_slot" -> slotSummary(step);
             case "click_interface" -> join(action(blank(step.action) ? "left" : step.action), vector(step.point));
             case "encapsulate_bounds" -> step.bounds == null ? "" : step.bounds.stream()

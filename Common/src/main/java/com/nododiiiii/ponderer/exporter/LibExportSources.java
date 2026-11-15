@@ -42,24 +42,19 @@ final class LibExportSources {
     }
     static String members(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
         if (target.mode == JavaModuleExportRequest.Mode.JSON_LIB) throw new IllegalArgumentException("JSON content has no generated Java members");
-        JavaValueEmitter emitter = new JavaValueEmitter();
-        String value = emitter.value(document(target, plan));
-        String load = emitter.statements() + "        return " + value + ";\n";
         return """
-                private static final com.nododiiiii.ponderer.runtime.api.RuntimeEngine RUNTIME = createRuntime();
-                private static final com.nododiiiii.ponderer.runtime.api.EditableScenes.Registration SOURCE =
-                    com.nododiiiii.ponderer.runtime.api.EditableScenes.register(RUNTIME, %s::loadDocument);
-                private static com.nododiiiii.ponderer.scene.DslScene DOCUMENT;
-                private static com.nododiiiii.ponderer.runtime.api.RuntimeEngine createRuntime() {
-                    var engine = com.nododiiiii.ponderer.runtime.api.RuntimeEngine.create(%s,
-                        new com.nododiiiii.ponderer.runtime.spi.AssetStructureSource(%s),
-                        com.nododiiiii.ponderer.runtime.spi.IngredientResolver.NONE,
-                        com.nododiiiii.ponderer.runtime.spi.RegistrationContribution.NONE, () -> true);
+                private static final RuntimeEngine RUNTIME = createRuntime();
+                private static final EditableScenes.Registration SOURCE =
+                    EditableScenes.register(RUNTIME, %s::loadDocument);
+                private static DslScene DOCUMENT;
+                private static RuntimeEngine createRuntime() {
+                    var engine = RuntimeEngine.create(%s,
+                        new AssetStructureSource(%s), IngredientResolver.NONE,
+                        RegistrationContribution.NONE, () -> true);
                     %s.PonderExtensions.install(engine);
                     return engine;
                 }
-                private static com.nododiiiii.ponderer.scene.DslScene loadDocument() {
-            %s    }
+            %s
                 private static boolean reload() {
                     try { DOCUMENT = SOURCE.reload(); return true; }
                     catch (RuntimeException error) {
@@ -67,12 +62,12 @@ final class LibExportSources {
                         return false;
                     }
                 }
-                public static void registerSharedText(net.createmod.ponder.api.registration.SharedTextRegistrationHelper helper) {
+                public static void registerSharedText(SharedTextRegistrationHelper helper) {
                     RUNTIME.plugin().registerSharedText(helper);
                 }
                 public static void close() { RUNTIME.close(); }
 
-            """.formatted(plan.className, quote(target.modId), quote(target.modId), extensionPackage(target), load);
+            """.formatted(plan.className, quote(target.modId), quote(target.modId), extensionPackage(target), JavaSceneSources.members(document(target, plan)));
     }
     static String extension(JavaModuleScanResult.TargetProject target) {
         return """
@@ -84,7 +79,7 @@ final class LibExportSources {
             public final class PonderExtensions {
                 private PonderExtensions() {}
                 public static void install(RuntimeEngine engine) {
-                    // Register compiled custom steps and anchored Java fragments here.
+                    // Register compiled custom steps and scene-boundary Java fragments here.
                     // Player enhancements are not requested by generated content.
                 }
             }

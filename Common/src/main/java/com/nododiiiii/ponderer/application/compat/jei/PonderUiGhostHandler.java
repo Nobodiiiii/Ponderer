@@ -53,10 +53,12 @@ public class PonderUiGhostHandler implements IGhostIngredientHandler<PonderUI> {
         List<Slot> slots = container.getMenu().slots;
         for (int i = 0; i < slots.size(); i++) {
             Slot slot = slots.get(i);
-            if (!slot.isActive() || !slot.mayPlace(dropped)) {
+            if (!slot.isActive() || !slot.mayPlace(dropped)
+                || !InterfaceHost.isNativeRectVisible(rect[0] + slot.x, rect[1] + slot.y, 16, 16)) {
                 continue;
             }
-            Rect2i area = new Rect2i(rect[0] + slot.x, rect[1] + slot.y, 16, 16);
+            int[] mapped = InterfaceHost.toScreenRect(rect[0] + slot.x, rect[1] + slot.y, 16, 16);
+            Rect2i area = new Rect2i(mapped[0], mapped[1], mapped[2], mapped[3]);
             int index = i;
             targets.add(new Target<>() {
                 @Override

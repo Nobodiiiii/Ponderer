@@ -133,15 +133,31 @@ engine.steps().register("example:pause", new StepType<Integer>() {
 });
 ```
 
-对应数据为 `{"id":"pause_machine","type":"example:pause","parameters":{"ticks":40}}`。注册返回独立关闭句柄；重复 ID 明确报错。`StepBuildContext` 暴露原生 builder/util、分区/实体链接、场景内共享 state 及同一 `PonderActions.Context`。
+对应步骤数据为 `{"type":"example:pause","parameters":{"ticks":40}}`，步骤 ID 由 API 内部补齐。注册返回独立关闭句柄；重复类型 ID 明确报错。`StepBuildContext` 暴露原生 builder/util、分区/实体链接、场景内共享 state 及同一 `PonderActions.Context`。
 
-原生 Java 可用 `engine.program(sceneId, segmentId, builder, util)` 自由交织 builder 调用、PonderActions 和 `program.step(step)`。JSON 与 Java 可通过 `engine.fragments().register(sceneId, segmentId, stepId, BEFORE/AFTER, body)` 在稳定步骤前后插入手写指令。应构建可重播的 Ponder 指令，避免把播放时副作用直接写进故事板构建阶段。
+原生 Java 可用 `try (var program = engine.program(sceneId, segmentId, builder, util)) { ... }` 自由交织 builder 调用、PonderActions 和 `program.step(step)`，步骤 ID 自动补齐。JSON 与 Java 可通过 `engine.fragments().beforeScene(sceneId, segmentId, body)` / `afterScene(...)` 在分段开始或结束插入手写指令；原生 program 在创建和关闭时执行这些回调。分段中间的自定义动作通过 `javaStep` 放置。以上接口均不需要步骤 ID。应构建可重播的 Ponder 指令，避免把播放时副作用直接写进故事板构建阶段。
 
 ### Java + Lib 编辑与热重载
 
 新版 Java + Lib 导出通过 `EditableScenes.register(engine, documentSupplier)` 暴露类型化文档，并委托原引擎的插件注册故事板。安装完整 Ponderer 后，可从该宿主的思索界面进入编辑器；预览使用宿主原有的结构源、步骤提供者和 Java 片段。导出文档的场景 ID 使用宿主命名空间，与注册后的 Ponder ID 对齐。
 
+Java 场景按分段生成方法，普通步骤使用 `JavaScene` 的直接参数调用，不再展开成 `data0、data1…` 对象赋值。例如：
+
+```java
+var scene = new JavaScene("scene_1", LocalizedText.of("演示"));
+scene.showStructure("example:generated/ponderer/base", null, null, null, null);
+scene.idle(20);
+scene.keyframe().showText(
+    LocalizedText.of("说明文字"), new Vec3(2.5, 1.5, 2.5), 80, null, true);
+scene.javaStep("example:machine_animation", new JsonObject());
+return scene.build();
+```
+
+这些调用只构建可编辑数据，执行仍由同一个 runtime engine 完成；`keyframe` 保留关键帧。步骤 ID 在 `build()` 时由 API 根据步骤内容生成，相同内容的重复步骤自动区分；插入不同内容的步骤不会重编号其他步骤。ID 随编辑文档保存，Java 源码无需声明或维护，也没有单独的 ID 对照资源。复杂步骤和未识别字段通过 `raw` / `fields` 携带完整数据。生成代码需要新版 Lib；自定义 Java 提供者继续放在 `PonderExtensions` 中。旧的 `.at(...)` 和按步骤 ID 注册 Java 片段的接口已移除。
+
 编辑保存为工作区中的本地 JSON 覆盖，以 `runtimeSource` 记录所属 Java 场景。保存与 `/ponderer reload` 都会重新读取覆盖并重建 Ponder 注册；删除覆盖再重载会恢复 Java 默认文档。覆盖由宿主注册，产品不会重复注册一份相同场景。Lib 不包含编辑器，单独安装 Lib 时仍可播放导出内容。已有旧 Java + Lib 导出需要重新导出并编译，才能接入此桥接。
+
+Java 宿主文档也会出现在物品场景列表和导出选择中。再次导出到同一宿主时，保留 `runtimeSource` 对应的场景 ID；已有 `宿主:generated/...` 结构路径直接复用，不再重复嵌套 `generated` 目录。导出器可从目标项目已有资源或当前客户端资源包读取结构，不要求它们另存于编辑器工作区。
 
 自定义步骤仍实现 `StepType<P>` / `StepCodec<P>`。它们会出现在新增步骤的“自定义步骤”页；编辑器提供 JSON 参数输入，并调用提供者 codec 校验，不执行构建回调。未识别的类型和 `editableParameters() == false` 的步骤显示“自定义 Java / 未知步骤 · 已跳过解析，原样保留”，跳过参数表单，保留原始字段。未知步骤缺少运行提供者时仍按原规则报告不可播放，不伪造执行结果。
 
@@ -156,14 +172,13 @@ EditableScenes.customize(engine, document -> {
     var segment = document.scenes.getFirst();
     var steps = new java.util.ArrayList<>(segment.steps);
     var java = new DslScene.DslStep();
-    java.id = "machine_animation";
     java.type = "example:machine_animation";
     steps.add(java);
     segment.steps = steps;
 });
 ```
 
-`registerJava` 的回调在播放与预览时正常构建指令，编辑器仅跳过解析其实现。锚定 `JavaFragments` 在步骤列表中按前后位置显示只读占位行，不写入虚假 DSL 步骤；编辑后的预览保留原锚点。任意 Java 源码、闭包、循环或方法调用不会被反编译为步骤，须通过上述接口显式提供。这里的热重载作用于场景数据；修改 Java 实现仍须重新编译宿主。
+`registerJava` 的回调在播放与预览时正常构建指令，编辑器仅跳过解析其实现。`JavaFragments` 在步骤列表的开始或结束显示只读占位行，不写入虚假 DSL 步骤；删除或插入普通步骤不会影响这些回调的位置。任意 Java 源码、闭包、循环或方法调用不会被反编译为步骤，须通过上述接口显式提供。这里的热重载作用于场景数据；修改 Java 实现仍须重新编译宿主。
 
 每个 engine 独占目录、步骤、片段、NBT 绑定、结构路由和直接编译会话。`replaceCatalog` 关闭本实例会话；`close()` 释放本实例拥有的注册和资源，不清空其他实例。生成的 `GeneratedPonderIndex.close()` 汇总关闭生成场景；关闭是终止操作，正常资源重载使用原有插件注册流程。上游 Ponder 没有插件移除 API，关闭后的插件保持为空，不能宣称热卸载整个模组。
 

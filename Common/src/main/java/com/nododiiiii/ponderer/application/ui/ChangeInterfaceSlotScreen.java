@@ -105,7 +105,7 @@ public class ChangeInterfaceSlotScreen extends AbstractStepEditorScreen {
         InterfaceSlotEditState.startEdit(
             snapshot,
             slotBindings,
-            new StepEditorContext(getStepType(), editIndex, insertAfterIndex, scene, sceneIndex, parent)
+            createReturnContext()
         );
         InterfaceSlotEditState.openPonderUIForEdit();
     }

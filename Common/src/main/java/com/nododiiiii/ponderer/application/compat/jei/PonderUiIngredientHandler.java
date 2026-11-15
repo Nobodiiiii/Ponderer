@@ -29,11 +29,14 @@ public class PonderUiIngredientHandler implements IGlobalGuiHandler {
             return Optional.empty();
         }
         Slot slot = InterfacePlatform.get().hoveredSlot(screen);
-        if (slot == null || slot.getItem().isEmpty()) {
+        if (slot == null || slot.getItem().isEmpty()
+            || !InterfaceHost.isNativeRectVisible(rect[0] + slot.x, rect[1] + slot.y, 16, 16)) {
             return Optional.empty();
         }
         ItemStack stack = slot.getItem().copy();
-        Rect2i area = new Rect2i(rect[0] + slot.x, rect[1] + slot.y, 16, 16);
+        int[] mapped = InterfaceHost.toScreenRect(rect[0] + slot.x, rect[1] + slot.y, 16, 16);
+        Rect2i area = new Rect2i(mapped[0], mapped[1], mapped[2], mapped[3]);
+        if (!area.contains((int) mouseX, (int) mouseY)) return Optional.empty();
         return runtime.getIngredientManager()
             .createClickableIngredient(VanillaTypes.ITEM_STACK, stack, area, false)
             .map(clickable -> clickable);

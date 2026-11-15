@@ -23,17 +23,23 @@ public final class SceneCodec {
         if (scene == null || scene.scenes == null) return scene;
         for (var segment : scene.scenes) {
             if (segment == null || segment.steps == null) continue;
-            java.util.Set<String> used = new java.util.HashSet<>();
-            for (var step : segment.steps) if (step != null && step.id != null && !step.id.isBlank()) used.add(step.id);
-            for (int i = 0; i < segment.steps.size(); i++) {
-                var step = segment.steps.get(i);
-                if (step == null || step.id != null && !step.id.isBlank()) continue;
+            withStepAnchors(segment.steps);
+        }
+        return scene;
+    }
+    private static void withStepAnchors(java.util.List<DslScene.DslStep> steps) {
+        java.util.Set<String> used = new java.util.HashSet<>();
+        for (var step : steps) if (step != null && step.id != null && !step.id.isBlank()) used.add(step.id);
+        for (int i = 0; i < steps.size(); i++) {
+            var step = steps.get(i);
+            if (step == null) continue;
+            if (step.id == null || step.id.isBlank()) {
                 String id = "legacy_" + i;
                 while (!used.add(id)) id += "_";
                 step.id = id;
             }
+            if ("interface_panel".equalsIgnoreCase(step.type) && step.steps != null) withStepAnchors(step.steps);
         }
-        return scene;
     }
     @Nullable
     public static DslScene copy(@Nullable DslScene scene) {

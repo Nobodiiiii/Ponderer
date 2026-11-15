@@ -24,6 +24,7 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
 
     private final PonderScene scene;
     private SandboxSession session;
+    private InterfacePanelLayout panel;
 
     InterfaceOverlayElement(PonderScene scene, SandboxSession session) {
         this.scene = scene;
@@ -42,6 +43,34 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
         return session;
     }
 
+    void setPanel(InterfacePanelLayout panel) { this.panel = panel; }
+
+    int[] displayRect() {
+        if (panel == null) return session.guiRect();
+        panel.update(scene, panel.sourceRect(session), Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false));
+        return panel.rect();
+    }
+
+    double[] toNative(double x, double y) {
+        displayRect();
+        return panel == null ? new double[]{x, y} : panel.toNative(x, y);
+    }
+
+    double[] toDisplay(double x, double y) {
+        displayRect();
+        return panel == null ? new double[]{x, y} : panel.toDisplay(x, y);
+    }
+
+    boolean isNativeRectVisible(int x, int y, int width, int height) {
+        displayRect();
+        return panel == null || panel.containsNativeRect(x, y, width, height);
+    }
+
+    boolean clipsInputAt(double x, double y) {
+        displayRect();
+        return panel != null && !panel.containsDisplay(x, y);
+    }
+
     /** Swaps in a rebuilt session (try-mode reset); the caller destroys the old one. */
     void replaceSession(SandboxSession session) {
         this.session = session;
@@ -56,12 +85,13 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
         Minecraft mc = Minecraft.getInstance();
         int mouseX = InterfaceHost.mouseX(mc);
         int mouseY = InterfaceHost.mouseY(mc);
+        double[] localMouse = toNative(mouseX, mouseY);
         InterfaceHost.beforeRender(session, mouseX, mouseY);
         boolean hoverAllowed = InterfaceHost.shouldForwardHover(screen, mouseX, mouseY);
-        int hoverX = hoverAllowed ? mouseX : -1;
-        int hoverY = hoverAllowed ? mouseY : -1;
+        int hoverX = hoverAllowed ? (int) localMouse[0] : -1;
+        int hoverY = hoverAllowed ? (int) localMouse[1] : -1;
         double[] ghost = InterfaceHost.cursorPosition(session, partialTicks);
-        if (ghost != null) {
+        if (ghost != null && isNativeRectVisible((int) ghost[0], (int) ghost[1], 1, 1)) {
             // While a scripted action animates, hover (tooltips, carried stack) follows the ghost cursor.
             hoverX = (int) ghost[0];
             hoverY = (int) ghost[1];
@@ -75,9 +105,14 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
         graphics.pose().pushPose();
         try {
-            session.render(graphics, hoverX, hoverY, partialTicks);
-            if (session.currentScreen() != null) {
-                InterfaceSlotOverlayRenderer.render(graphics, session.currentScreen());
+            if (panel != null) {
+                int[] source = panel.sourceRect(session);
+                panel.update(scene, source, partialTicks);
+                panel.renderFrame(graphics);
+                session.renderPanel(graphics, hoverX, hoverY, partialTicks, source, panel.rect());
+            } else {
+                session.render(graphics, hoverX, hoverY, partialTicks);
+                if (session.currentScreen() != null) InterfaceSlotOverlayRenderer.render(graphics, session.currentScreen());
             }
             InterfaceHost.renderChrome(graphics, session, mouseX, mouseY, partialTicks);
             InterfaceHost.renderDraggedBinding(graphics, mouseX, mouseY);
@@ -92,7 +127,7 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
             RenderSystem.disableDepthTest();
         }
         redrawEarlierOverlays(scene, screen, graphics, partialTicks);
-        if (hoverAllowed && ghost == null && session.currentScreen() != null) {
+        if (panel == null && hoverAllowed && ghost == null && session.currentScreen() != null) {
             InterfaceSlotOverlayRenderer.renderJeiVisibilityTooltip(graphics, session.currentScreen(), mouseX, mouseY);
         }
     }

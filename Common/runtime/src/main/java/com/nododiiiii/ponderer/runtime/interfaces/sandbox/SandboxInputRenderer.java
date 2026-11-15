@@ -31,6 +31,27 @@ final class SandboxInputRenderer implements AutoCloseable {
 
     /** Must run inside the session's dispatch scope, before delivering the input event. */
     void render(Minecraft mc, Screen screen, double mouseX, double mouseY) {
+        render(mc, screen, mouseX, mouseY, 0, g -> {});
+    }
+
+    TextureTarget render(Minecraft mc, Screen screen, double mouseX, double mouseY, float partialTicks,
+                         java.util.function.Consumer<GuiGraphics> overlays) {
+        return render(mc, screen, mouseX, mouseY, partialTicks, overlays, false);
+    }
+
+    TextureTarget renderPanel(Minecraft mc, Screen screen, double mouseX, double mouseY, float partialTicks,
+                              java.util.function.Consumer<GuiGraphics> overlays) {
+        return render(mc, screen, mouseX, mouseY, partialTicks, overlays, true);
+    }
+
+    @Nullable
+    int[] connectedPixels(Minecraft mc, Screen screen, int[] source, int x, int y) {
+        TextureTarget image = render(mc, screen, -1, -1, 0, g -> {}, true);
+        return PanelPixelSelection.bounds(image, mc.getWindow().getGuiScale(), source, x, y);
+    }
+
+    private TextureTarget render(Minecraft mc, Screen screen, double mouseX, double mouseY, float partialTicks,
+                                 java.util.function.Consumer<GuiGraphics> overlays, boolean omitBackdrop) {
         RenderSystem.assertOnRenderThread();
         if (buffers == null) {
             bufferBuilder = new ByteBufferBuilder(256);
@@ -61,13 +82,22 @@ final class SandboxInputRenderer implements AutoCloseable {
         ShaderInstance shader = RenderSystem.getShader();
         Matrix4fStack modelView = RenderSystem.getModelViewStack();
         modelView.pushMatrix();
-        GuiGraphics graphics = new GuiGraphics(mc, buffers);
+        GuiGraphics graphics = omitBackdrop ? new GuiGraphics(mc, buffers) {
+            @Override
+            public void fillGradient(int x1, int y1, int x2, int y2, int colorFrom, int colorTo) {
+                // AbstractContainerScreen's full-window dimming is not part of its visible GUI.
+                if (x1 == 0 && y1 == 0 && x2 == screen.width && y2 == screen.height
+                    && colorFrom == 0xC0101010 && colorTo == 0xD0101010) return;
+                super.fillGradient(x1, y1, x2, y2, colorFrom, colorTo);
+            }
+        } : new GuiGraphics(mc, buffers);
         try {
             Window window = mc.getWindow();
             int width = Math.max(1, window.getWidth());
             int height = Math.max(1, window.getHeight());
             if (target == null) {
                 target = new TextureTarget(width, height, true, Minecraft.ON_OSX);
+                target.setClearColor(0, 0, 0, 0);
             } else if (target.width != width || target.height != height) {
                 target.resize(width, height, Minecraft.ON_OSX);
             }
@@ -85,7 +115,8 @@ final class SandboxInputRenderer implements AutoCloseable {
             RenderSystem.defaultBlendFunc();
             RenderSystem.disableDepthTest();
             RenderSystem.setShaderColor(1, 1, 1, 1);
-            screen.render(graphics, (int) mouseX, (int) mouseY, 0);
+            screen.render(graphics, (int) mouseX, (int) mouseY, partialTicks);
+            overlays.accept(graphics);
         } finally {
             try {
                 // Flush even if the screen throws, while its geometry is still offscreen.
@@ -111,6 +142,7 @@ final class SandboxInputRenderer implements AutoCloseable {
                 RenderSystem.setShader(() -> shader);
             }
         }
+        return target;
     }
 
     @Override

@@ -29,6 +29,7 @@ public final class StepEditorFactory {
             case "highlight_section" -> new HighlightSectionScreen(scene, sceneIndex, parent);
             case "show_controls" -> new ShowControlsScreen(scene, sceneIndex, parent);
             case "show_interface" -> new ShowInterfaceScreen(scene, sceneIndex, parent);
+            case "interface_panel" -> new InterfacePanelScreen(scene, sceneIndex, parent);
             case "change_interface_slot" -> new ChangeInterfaceSlotScreen(scene, sceneIndex, parent);
             case "click_interface" -> new ClickInterfaceScreen(scene, sceneIndex, parent);
             case "encapsulate_bounds" -> new EncapsulateBoundsScreen(scene, sceneIndex, parent);
@@ -71,6 +72,7 @@ public final class StepEditorFactory {
             case "highlight_section" -> new HighlightSectionScreen(scene, sceneIndex, parent, stepIndex, step);
             case "show_controls" -> new ShowControlsScreen(scene, sceneIndex, parent, stepIndex, step);
             case "show_interface" -> new ShowInterfaceScreen(scene, sceneIndex, parent, stepIndex, step);
+            case "interface_panel" -> new InterfacePanelScreen(scene, sceneIndex, parent, stepIndex, step);
             case "change_interface_slot" -> new ChangeInterfaceSlotScreen(scene, sceneIndex, parent, stepIndex, step);
             case "click_interface" -> new ClickInterfaceScreen(scene, sceneIndex, parent, stepIndex, step);
             case "encapsulate_bounds" -> new EncapsulateBoundsScreen(scene, sceneIndex, parent, stepIndex, step);
