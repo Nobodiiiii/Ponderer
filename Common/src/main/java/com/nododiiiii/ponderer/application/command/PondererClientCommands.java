@@ -70,6 +70,12 @@ public final class PondererClientCommands {
     public static void register(CommandDispatcher<net.minecraft.commands.CommandSourceStack> dispatcher) {
         dispatcher.register(
                 Commands.literal("ponderer")
+                        .then(Commands.literal("java")
+                                .then(Commands.literal("bind")
+                                        .then(Commands.argument("project", StringArgumentType.greedyString())
+                                                .executes(ctx -> bindJavaProject(StringArgumentType.getString(ctx, "project")))))
+                                .then(Commands.literal("reload")
+                                        .executes(ctx -> reloadLocal())))
                         .then(Commands.literal("pull")
                                 .executes(ctx -> pull("check"))
                                 .then(Commands.literal("force")
@@ -149,6 +155,19 @@ public final class PondererClientCommands {
                                                 StringArgumentType.getString(ctx, "pack_name"))))));
     }
 
+    private static int bindJavaProject(String project) {
+        try {
+            String path = project.trim();
+            if (path.startsWith("\"") && path.endsWith("\"")) path = path.substring(1, path.length() - 1);
+            com.nododiiiii.ponderer.application.JavaSceneWorkspace.bind(java.nio.file.Path.of(path));
+            notifyClient(Component.translatable("ponderer.ui.java_source.bound", path));
+            return 1;
+        } catch (Exception error) {
+            notifyClient(Component.translatable("ponderer.ui.save_error.java_scene", error.getMessage()));
+            return 0;
+        }
+    }
+
     private static int convertToPonderJs(ResourceLocation id) {
         return PONDER_JS.convertToPonderJs(id);
     }
@@ -172,7 +191,10 @@ public final class PondererClientCommands {
     }
 
     public static int reloadLocal() {
-        try { return reloadLocalOrThrow(); }
+        try {
+            int javaCount = com.nododiiiii.ponderer.application.JavaSceneWorkspace.reload();
+            return reloadLocalOrThrow(javaCount);
+        }
         catch (RuntimeException failure) {
             com.nododiiiii.ponderer.application.SceneRefreshCoordinator.reportFailure(failure);
             return 0;
@@ -181,8 +203,12 @@ public final class PondererClientCommands {
 
     /** Other use cases must observe refresh failure before reporting their own success. */
     public static int reloadLocalOrThrow() {
+        return reloadLocalOrThrow(0);
+    }
+
+    private static int reloadLocalOrThrow(int javaCount) {
         com.nododiiiii.ponderer.workspace.api.WorkspaceResults.AutoLoadResult autoLoadResult = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().packs().autoLoadPonderPacks();
-        int count = com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refresh();
+        int count = javaCount + com.nododiiiii.ponderer.application.SceneRefreshCoordinator.refresh();
         for (com.nododiiiii.ponderer.workspace.api.WorkspaceResults.PackUpdateInfo info : autoLoadResult.updatedPacks) {
             notifyClient(Component.literal("[Ponderer] ")
                 .append(Component.translatable("ponderer.pack.update.readonly_newer_source",

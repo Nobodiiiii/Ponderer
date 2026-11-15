@@ -114,6 +114,8 @@ public class DslScene {
      * Not serialized by GSON.
      */
     public transient String sourceFile;
+    /** Client-process source revision; never exported or restored from disk. */
+    public transient long javaSourceRevision;
 
     /**
      * Extract pack prefix from a source filename.

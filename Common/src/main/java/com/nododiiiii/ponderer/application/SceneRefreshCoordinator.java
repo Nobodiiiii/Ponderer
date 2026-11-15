@@ -20,7 +20,6 @@ public final class SceneRefreshCoordinator {
     /** Initial bootstrap only, before Ponder registers its plugins. Writes use refresh(). */
     public static int loadCatalog() {
         var scenes = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().loadScenes();
-        com.nododiiiii.ponderer.runtime.api.EditableScenes.setOverrides(scenes);
         com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().setScenes(localScenes(scenes));
         version++;
         return scenes.size();
@@ -59,15 +58,12 @@ public final class SceneRefreshCoordinator {
     private static void publish(List<DslScene> scenes, boolean advanceVersion) {
         var catalog = RuntimeAccess.engine().catalog();
         var previous = catalog.getScenes();
-        var previousOverrides = com.nododiiiii.ponderer.runtime.api.EditableScenes.overrides();
-        com.nododiiiii.ponderer.runtime.api.EditableScenes.setOverrides(scenes);
         catalog.setScenes(localScenes(scenes));
         try {
             PonderIndex.reload();
             if (advanceVersion) version++;
         } catch (RuntimeException failure) {
             catalog.setScenes(previous);
-            com.nododiiiii.ponderer.runtime.api.EditableScenes.setOverrides(previousOverrides);
             try { PonderIndex.reload(); }
             catch (RuntimeException recovery) { failure.addSuppressed(recovery); }
             throw failure;

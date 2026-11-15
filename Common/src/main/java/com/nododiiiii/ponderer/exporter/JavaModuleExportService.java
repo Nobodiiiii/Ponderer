@@ -1873,7 +1873,7 @@ public final class JavaModuleExportService {
     }
 
     private String editableLibSceneSource(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan, DslScene document) {
-        String prefix = GENERATED_NOTICE_BLOCK + "package " + target.scenePackage + ";\n\n" + """
+        String prefix = JavaSceneSource.NOTICE + "package " + target.scenePackage + ";\n\n" + """
             import com.google.gson.JsonObject;
             import com.google.gson.JsonParser;
             import com.nododiiiii.ponderer.runtime.api.JavaScene;

@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.runtime.interfaces.instruction;
 import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SessionOps;
-import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import com.nododiiiii.ponderer.runtime.interfaces.InterfaceSlotOverlayRenderer;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
@@ -23,7 +22,7 @@ public class SetInterfaceSlotsInstruction extends TickingInstruction {
 
     @Override
     protected void firstTick(PonderScene scene) {
-        if (PlaybackExecutionContext.isActive()) {
+        if (InterfaceHost.isPlaybackSuppressed(scene)) {
             return;
         }
         if (spec.replace()) {

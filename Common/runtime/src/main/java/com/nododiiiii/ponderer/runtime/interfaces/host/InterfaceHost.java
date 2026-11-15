@@ -17,6 +17,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
@@ -70,8 +71,53 @@ public final class InterfaceHost {
     private static double lastDragX;
     private static double lastDragY;
 
+    record PreviewViewport(PonderUI screen, Rect2i bounds, int mouseX, int mouseY, float partialTicks) {}
+    @Nullable private static PreviewViewport previewViewport;
+    @Nullable private static PonderScene editorPreviewScene;
+
 
     private InterfaceHost() {
+    }
+
+    /** Shares the editor's local overlay coordinates with interfaces and their UI anchors. */
+    public static void renderPreview(PonderUI screen, Rect2i bounds, int mouseX, int mouseY,
+                                     float partialTicks, Runnable render) {
+        PreviewViewport previous = previewViewport;
+        previewViewport = new PreviewViewport(screen, bounds, mouseX, mouseY, partialTicks);
+        try {
+            render.run();
+        } finally {
+            previewViewport = previous;
+        }
+    }
+
+    @Nullable
+    static PreviewViewport previewViewport(PonderScene scene) {
+        return previewViewport != null && previewViewport.screen().getActiveScene() == scene ? previewViewport : null;
+    }
+
+    /** Allow sandbox instructions only for this editor's scene while seeking or playing it. */
+    public static void advancePreview(PonderScene scene, Runnable advance) {
+        PonderScene previous = editorPreviewScene;
+        editorPreviewScene = scene;
+        try {
+            advance.run();
+        } finally {
+            editorPreviewScene = previous;
+        }
+    }
+
+    public static boolean isPlaybackSuppressed(PonderScene scene) {
+        return com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext.isActive() && editorPreviewScene != scene;
+    }
+
+    /** Editor previews have no live PonderUI screen to receive the normal client tick. */
+    public static void tickPreview(PonderScene scene) {
+        SandboxSession session = sessionOf(scene);
+        if (session != null) {
+            session.tick();
+            if (rippleTicks > 0) rippleTicks--;
+        }
     }
 
     // ---- Lifecycle ----------------------------------------------------------------------
@@ -298,7 +344,8 @@ public final class InterfaceHost {
         if (element == null || element.session().isDestroyed() || !element.isVisible()) {
             return null;
         }
-        if (!(screen instanceof PonderUI ui) || ui.getActiveScene() != element.scene()) {
+        Screen host = previewViewport == null ? screen : previewViewport.screen();
+        if (!(host instanceof PonderUI ui) || ui.getActiveScene() != element.scene()) {
             return null;
         }
         if (ui instanceof PonderUiPreviewAccess previewAccess && previewAccess.ponderer$getFreePreview().isActive()) {
@@ -627,7 +674,7 @@ public final class InterfaceHost {
         return t * t * (3 - 2 * t);
     }
 
-    private static void renderCursor(GuiGraphics graphics, SandboxSession session, float partialTicks) {
+    static void renderCursor(GuiGraphics graphics, SandboxSession session, float partialTicks) {
         double[] p = cursorPosition(session, partialTicks);
         if (p == null || !isNativeRectVisible((int) p[0], (int) p[1], 1, 1)) {
             return;

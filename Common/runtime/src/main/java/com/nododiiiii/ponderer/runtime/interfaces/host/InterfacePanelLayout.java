@@ -51,8 +51,13 @@ final class InterfacePanelLayout {
         if (rect == null) return;
         source = rect;
         var window = Minecraft.getInstance().getWindow();
-        double fittedScale = Math.min(scale, Math.min(Math.max(1, window.getGuiScaledWidth() - 32) / (double) rect[2],
-            Math.max(1, window.getGuiScaledHeight() - 80) / (double) rect[3]));
+        var preview = InterfaceHost.previewViewport(scene);
+        int left = preview == null ? 0 : preview.bounds().getX();
+        int top = preview == null ? 0 : preview.bounds().getY();
+        int width = preview == null ? window.getGuiScaledWidth() : preview.bounds().getWidth();
+        int height = preview == null ? window.getGuiScaledHeight() : preview.bounds().getHeight();
+        double fittedScale = Math.min(scale, Math.min(Math.max(1, width - 32) / (double) rect[2],
+            Math.max(1, height - 80) / (double) rect[3]));
         int w = Math.max(1, (int) Math.round(rect[2] * fittedScale));
         int h = Math.max(1, (int) Math.round(rect[3] * fittedScale));
         var point = scene.getTransform().sceneToScreen(anchor, partialTicks);
@@ -63,8 +68,8 @@ final class InterfacePanelLayout {
             case LEFT -> { x += 10; y -= h / 2; }
             case RIGHT -> { x -= w + 10; y -= h / 2; }
         }
-        x = Mth.clamp(x + offsetX, 4, Math.max(4, window.getGuiScaledWidth() - w - 4));
-        y = Mth.clamp(y + offsetY, 20, Math.max(20, window.getGuiScaledHeight() - h - 40));
+        x = Mth.clamp(x + offsetX, left + 4, left + Math.max(4, width - w - 4));
+        y = Mth.clamp(y + offsetY, top + 20, top + Math.max(20, height - h - 40));
         display = new int[]{(int) Math.round(x), (int) Math.round(y), w, h};
     }
 

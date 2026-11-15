@@ -182,6 +182,9 @@ public final class LocalSceneRepository implements SceneRepository {
             LOGGER.warn(validationFailure.englishMessage());
             return validationFailure;
         }
+        if (scene.runtimeSource != null) return LocalSaveResult.failure(
+            "Java scenes must be saved to a bound source project",
+            SAVE_ERROR_KEY_PREFIX + "java_scene", "Java scenes must be saved to a bound source project");
 
         Path filePath = workspace.layout.resolveLocalScenePath(scene);
         if (filePath == null) {

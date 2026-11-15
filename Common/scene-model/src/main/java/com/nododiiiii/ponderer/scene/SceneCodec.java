@@ -47,7 +47,10 @@ public final class SceneCodec {
     }
     @Nullable
     public static DslScene copy(@Nullable DslScene scene) {
-        return scene == null ? null : decode(encode(scene));
+        if (scene == null) return null;
+        DslScene copy = decode(encode(scene));
+        copy.javaSourceRevision = scene.javaSourceRevision;
+        return copy;
     }
     /** A detached document retaining origin metadata, which is deliberately absent from JSON. */
     public static DslScene snapshot(DslScene scene) {

@@ -470,6 +470,7 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
             return false;
         }
 
+        scene.javaSourceRevision = candidate.javaSourceRevision;
         scene.items = candidate.items;
         scene.nbtFilter = candidate.nbtFilter;
         scene.itemNbtFilters = candidate.itemNbtFilters;

@@ -17,6 +17,7 @@ public final class SceneApplicationService {
                 error.getMessage(), "ponderer.ui.save_error.java_scene", error.getMessage());
             return new SaveOutcome(failure, SceneRefreshCoordinator.version(), null);
         }
+        if (scene.runtimeSource != null) return JavaSceneWorkspace.save(scene);
         var result = scenes.saveSceneToLocalDetailed(scene);
         if (!result.isSuccess()) return new SaveOutcome(result, SceneRefreshCoordinator.version(), null);
         try {

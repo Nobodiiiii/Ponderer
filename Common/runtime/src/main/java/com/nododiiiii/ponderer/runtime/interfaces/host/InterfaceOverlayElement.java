@@ -25,6 +25,8 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
     private final PonderScene scene;
     private SandboxSession session;
     private InterfacePanelLayout panel;
+    private int[] previewSource = {0, 0, 1, 1};
+    private int[] previewDisplay = {0, 0, 1, 1};
 
     InterfaceOverlayElement(PonderScene scene, SandboxSession session) {
         this.scene = scene;
@@ -46,29 +48,76 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
     void setPanel(InterfacePanelLayout panel) { this.panel = panel; }
 
     int[] displayRect() {
-        if (panel == null) return session.guiRect();
-        panel.update(scene, panel.sourceRect(session), Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false));
+        var preview = InterfaceHost.previewViewport(scene);
+        if (panel == null) {
+            int[] nativeRect = session.guiRect();
+            if (preview == null) return nativeRect;
+            updatePreviewRect(preview);
+            double[] start = previewToDisplay(nativeRect[0], nativeRect[1]);
+            double[] end = previewToDisplay(nativeRect[0] + nativeRect[2], nativeRect[1] + nativeRect[3]);
+            return new int[]{(int) Math.round(start[0]), (int) Math.round(start[1]),
+                Math.max(1, (int) Math.round(end[0] - start[0])), Math.max(1, (int) Math.round(end[1] - start[1]))};
+        }
+        panel.update(scene, panel.sourceRect(session), preview == null
+            ? Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false) : preview.partialTicks());
         return panel.rect();
     }
 
+    private void updatePreviewRect(InterfaceHost.PreviewViewport preview) {
+        previewSource = session.panelBounds();
+        var bounds = preview.bounds();
+        double scale = Math.min(1, Math.min(Math.max(1, bounds.getWidth() - 16) / (double) previewSource[2],
+            Math.max(1, bounds.getHeight() - 32) / (double) previewSource[3]));
+        int width = Math.max(1, (int) Math.round(previewSource[2] * scale));
+        int height = Math.max(1, (int) Math.round(previewSource[3] * scale));
+        previewDisplay = new int[]{bounds.getX() + (bounds.getWidth() - width) / 2,
+            bounds.getY() + (bounds.getHeight() - height) / 2, width, height};
+    }
+
     double[] toNative(double x, double y) {
-        displayRect();
-        return panel == null ? new double[]{x, y} : panel.toNative(x, y);
+        if (panel != null) {
+            displayRect();
+            return panel.toNative(x, y);
+        }
+        var preview = InterfaceHost.previewViewport(scene);
+        if (preview == null) return new double[]{x, y};
+        updatePreviewRect(preview);
+        return new double[]{previewSource[0] + (x - previewDisplay[0]) * previewSource[2] / previewDisplay[2],
+            previewSource[1] + (y - previewDisplay[1]) * previewSource[3] / previewDisplay[3]};
     }
 
     double[] toDisplay(double x, double y) {
-        displayRect();
-        return panel == null ? new double[]{x, y} : panel.toDisplay(x, y);
+        if (panel != null) {
+            displayRect();
+            return panel.toDisplay(x, y);
+        }
+        var preview = InterfaceHost.previewViewport(scene);
+        if (preview == null) return new double[]{x, y};
+        updatePreviewRect(preview);
+        return previewToDisplay(x, y);
+    }
+
+    private double[] previewToDisplay(double x, double y) {
+        return new double[]{previewDisplay[0] + (x - previewSource[0]) * previewDisplay[2] / previewSource[2],
+            previewDisplay[1] + (y - previewSource[1]) * previewDisplay[3] / previewSource[3]};
     }
 
     boolean isNativeRectVisible(int x, int y, int width, int height) {
+        if (panel == null) return true;
         displayRect();
-        return panel == null || panel.containsNativeRect(x, y, width, height);
+        return panel.containsNativeRect(x, y, width, height);
     }
 
     boolean clipsInputAt(double x, double y) {
-        displayRect();
-        return panel != null && !panel.containsDisplay(x, y);
+        if (panel != null) {
+            displayRect();
+            return !panel.containsDisplay(x, y);
+        }
+        var preview = InterfaceHost.previewViewport(scene);
+        if (preview == null) return false;
+        updatePreviewRect(preview);
+        return x < previewDisplay[0] || y < previewDisplay[1]
+            || x >= previewDisplay[0] + previewDisplay[2] || y >= previewDisplay[1] + previewDisplay[3];
     }
 
     /** Swaps in a rebuilt session (try-mode reset); the caller destroys the old one. */
@@ -83,10 +132,11 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
-        int mouseX = InterfaceHost.mouseX(mc);
-        int mouseY = InterfaceHost.mouseY(mc);
+        var preview = InterfaceHost.previewViewport(scene);
+        int mouseX = preview == null ? InterfaceHost.mouseX(mc) : preview.mouseX();
+        int mouseY = preview == null ? InterfaceHost.mouseY(mc) : preview.mouseY();
         double[] localMouse = toNative(mouseX, mouseY);
-        InterfaceHost.beforeRender(session, mouseX, mouseY);
+        if (preview == null) InterfaceHost.beforeRender(session, mouseX, mouseY);
         boolean hoverAllowed = InterfaceHost.shouldForwardHover(screen, mouseX, mouseY);
         int hoverX = hoverAllowed ? (int) localMouse[0] : -1;
         int hoverY = hoverAllowed ? (int) localMouse[1] : -1;
@@ -110,12 +160,19 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
                 panel.update(scene, source, partialTicks);
                 panel.renderFrame(graphics);
                 session.renderPanel(graphics, hoverX, hoverY, partialTicks, source, panel.rect());
+            } else if (preview != null) {
+                updatePreviewRect(preview);
+                session.renderPanel(graphics, hoverX, hoverY, partialTicks, previewSource, previewDisplay);
             } else {
                 session.render(graphics, hoverX, hoverY, partialTicks);
                 if (session.currentScreen() != null) InterfaceSlotOverlayRenderer.render(graphics, session.currentScreen());
             }
-            InterfaceHost.renderChrome(graphics, session, mouseX, mouseY, partialTicks);
-            InterfaceHost.renderDraggedBinding(graphics, mouseX, mouseY);
+            if (preview == null) {
+                InterfaceHost.renderChrome(graphics, session, mouseX, mouseY, partialTicks);
+                InterfaceHost.renderDraggedBinding(graphics, mouseX, mouseY);
+            } else {
+                InterfaceHost.renderCursor(graphics, session, partialTicks);
+            }
         } finally {
             graphics.pose().popPose();
             graphics.flush();
@@ -127,7 +184,7 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
             RenderSystem.disableDepthTest();
         }
         redrawEarlierOverlays(scene, screen, graphics, partialTicks);
-        if (panel == null && hoverAllowed && ghost == null && session.currentScreen() != null) {
+        if (panel == null && preview == null && hoverAllowed && ghost == null && session.currentScreen() != null) {
             InterfaceSlotOverlayRenderer.renderJeiVisibilityTooltip(graphics, session.currentScreen(), mouseX, mouseY);
         }
     }

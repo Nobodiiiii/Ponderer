@@ -278,6 +278,7 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     }
 
     private void applySavedScene(DslScene candidate) {
+        scene.javaSourceRevision = candidate.javaSourceRevision;
         scene.title = candidate.title;
         scene.tags = candidate.tags;
         scene.customTags = candidate.customTags;

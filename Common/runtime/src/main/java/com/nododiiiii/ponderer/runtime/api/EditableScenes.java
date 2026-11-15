@@ -6,7 +6,7 @@ import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Supplier;
 
-/** Client-thread bridge for Java documents. The optional editor supplies persisted overrides, never Java code. */
+/** Client-thread bridge for Java documents. Editor replacements live only in this client process. */
 public final class EditableScenes {
     private static final Map<String, Registration> SOURCES = new LinkedHashMap<>();
     private static final Map<RuntimeEngine, List<java.util.function.Consumer<DslScene>>> CUSTOMIZERS = new IdentityHashMap<>();
@@ -33,7 +33,7 @@ public final class EditableScenes {
         return registration;
     }
 
-    /** Publish the complete workspace view, so removing a local override restores compiled defaults. */
+    /** Replace the complete client-session view; used to restore a previous publication on failure. */
     public static void setOverrides(List<DslScene> scenes) {
         Map<String, DslScene> next = new LinkedHashMap<>();
         for (DslScene scene : scenes) if (scene.runtimeSource != null) {
@@ -43,6 +43,13 @@ public final class EditableScenes {
         overrides = Map.copyOf(next);
     }
     public static List<DslScene> overrides() { return overrides.values().stream().map(SceneCodec::snapshot).toList(); }
+    public static void putOverride(DslScene scene) {
+        validate(scene);
+        var next = new LinkedHashMap<>(overrides);
+        next.put(scene.runtimeSource, SceneCodec.snapshot(scene));
+        overrides = Map.copyOf(next);
+    }
+    public static void clearOverrides() { overrides = Map.of(); }
 
     @Nullable public static RuntimeEngine owner(DslScene scene) {
         Registration source = SOURCES.get(scene.runtimeSource);
@@ -64,6 +71,8 @@ public final class EditableScenes {
     public static List<DslScene> scenes() {
         return SOURCES.values().stream().map(source -> SceneCodec.snapshot(source.document)).toList();
     }
+    /** Enumerate source bindings without cloning registered documents. */
+    public static List<String> sourceIds() { return List.copyOf(SOURCES.keySet()); }
     public static void release(RuntimeEngine engine) {
         SOURCES.values().removeIf(source -> source.engine == engine);
         CUSTOMIZERS.remove(engine);

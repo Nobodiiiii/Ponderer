@@ -1,6 +1,8 @@
 package com.nododiiiii.ponderer.editor.preview;
 
 import com.nododiiiii.ponderer.runtime.viewer.PonderFreePreview;
+import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.runtime.viewer.UiAnchorCoords;
 import com.nododiiiii.ponderer.runtime.viewer.PonderProgressBarAccess;
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -69,6 +71,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     private record PointPick(PointPickMode mode, Consumer<Vec3> onPicked) {}
     private record PointPickResult(Vec3 point, Direction face, WorldSectionElement section) {}
     private record SectionHit(WorldSectionElement section, BlockHitResult hit, float depth) {}
+    private record UiPickViewport(int[] rect, double originX, double originY) {}
 
     @Nullable private PreviewPonderUI ponder;
     @Nullable private PonderProgressBar progressBar;
@@ -86,6 +89,8 @@ public final class SceneEditorPreview implements AutoCloseable {
     private boolean textKeyHeld;
     @Nullable private PointPick pointPick;
     @Nullable private PointPickResult hoveredPoint;
+    @Nullable private Consumer<Vec3> uiPointPick;
+    @Nullable private UiPickViewport uiPickViewport;
     private float renderedPartialTick = 1;
     private final LerpedFloat renderPitch = LerpedFloat.angular();
     private final LerpedFloat renderYaw = LerpedFloat.angular();
@@ -144,6 +149,7 @@ public final class SceneEditorPreview implements AutoCloseable {
 
     public boolean load(DslScene definition, int segmentIndex) {
         PointPick pendingPick = pointPick;
+        Consumer<Vec3> pendingUiPick = uiPointPick;
         close();
         com.nododiiiii.ponderer.editor.api.EditorResources.track(this);
         try {
@@ -166,6 +172,7 @@ public final class SceneEditorPreview implements AutoCloseable {
             seekStep(0);
             layoutProgressBar();
             pointPick = pendingPick;
+            uiPointPick = pendingUiPick;
             return true;
         } catch (RuntimeException e) {
             close();
@@ -203,12 +210,16 @@ public final class SceneEditorPreview implements AutoCloseable {
     public void tick() {
         if (playingStep && ponder != null) {
             PonderScene scene = ponder.getActiveScene();
-            PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), 0, scene::tick);
+            InterfaceHost.advancePreview(scene,
+                () -> PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), 0, scene::tick));
             playbackTickStart = Util.getMillis();
             frozenPartialTick = 1;
             if (ponder.playback.isStepComplete() || scene.isFinished()) {
                 playingStep = false;
             }
+        }
+        if (ponder != null && com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled()) {
+            InterfaceHost.tickPreview(ponder.getActiveScene());
         }
         if (progressBar != null) progressBar.tick();
         resetButton.tick();
@@ -257,9 +268,20 @@ public final class SceneEditorPreview implements AutoCloseable {
         return true;
     }
 
+    public boolean startUiPointPick(Consumer<Vec3> onPicked) {
+        if (ponder == null) return false;
+        cancelPointPick();
+        playingStep = false;
+        textVisible = true;
+        uiPointPick = onPicked;
+        dragButton = -1;
+        return true;
+    }
+
     public boolean cancelPointPick() {
-        if (pointPick == null) return false;
+        if (pointPick == null && uiPointPick == null) return false;
         pointPick = null;
+        uiPointPick = null;
         hoveredPoint = null;
         if (ponder != null) ponder.getActiveScene().deselect();
         return true;
@@ -285,7 +307,8 @@ public final class SceneEditorPreview implements AutoCloseable {
             : Mth.clamp((Util.getMillis() - playbackTickStart) / 50f, 0, 1);
         renderedPartialTick = scenePartialTick;
         hoveredPoint = findPoint(mouseX, mouseY);
-        renderScene(graphics, scenePartialTick);
+        renderScene(graphics, mouseX, mouseY, scenePartialTick);
+        renderUiPointPick(graphics, mouseX, mouseY);
         // Use the native widget unchanged, including its keyframe markers and drag/snap mixin.
         progressBar.render(graphics, mouseX, mouseY, partialTicks);
         renderButtons(graphics, mouseX, mouseY, partialTicks);
@@ -309,11 +332,12 @@ public final class SceneEditorPreview implements AutoCloseable {
             return;
         }
         if (ponder == null) return;
-        if (pointPick != null && containsModel(mouseX, mouseY) && !isOverControls(mouseX, mouseY)) {
+        if ((pointPick != null || uiPointPick != null) && containsModel(mouseX, mouseY) && !isOverControls(mouseX, mouseY)) {
             var lines = new java.util.ArrayList<Component>();
             lines.add(Component.translatable("ponderer.ui.pick.preview.hint"));
-            if (hoveredPoint != null) {
-                Vec3 point = hoveredPoint.point();
+            Vec3 point = uiPointPick == null ? hoveredPoint == null ? null : hoveredPoint.point()
+                : findUiPoint(mouseX, mouseY);
+            if (point != null) {
                 lines.add(Component.literal(String.format(Locale.ROOT, "[ %s, %s, %s ]",
                     formatCoordinate(point.x), formatCoordinate(point.y), formatCoordinate(point.z))));
             }
@@ -347,7 +371,8 @@ public final class SceneEditorPreview implements AutoCloseable {
         }
     }
 
-    private void renderScene(GuiGraphics graphics, float partialTick) {
+    private void renderScene(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        uiPickViewport = null;
         Minecraft mc = Minecraft.getInstance();
         PonderScene scene = ponder.getActiveScene();
         var transform = scene.getTransform();
@@ -389,8 +414,12 @@ public final class SceneEditorPreview implements AutoCloseable {
                 pose.popPose();
             }
             graphics.flush();
-            graphics.disableScissor();
-            sceneScissor = false;
+            boolean hasInterface = com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled()
+                && InterfaceHost.sessionOf(scene) != null;
+            if (!hasInterface) {
+                graphics.disableScissor();
+                sceneScissor = false;
+            }
             RenderSystem.disableDepthTest();
             pose.translate(0, 0, PonderRuntimeZLayers.PONDER_TEXT_BASELINE_LAYER);
             if (textVisible) {
@@ -398,15 +427,29 @@ public final class SceneEditorPreview implements AutoCloseable {
                 int overlayHeight = Mth.ceil(height / OVERLAY_SCALE);
                 ponder.width = overlayWidth;
                 ponder.height = overlayHeight;
-                pose.translate((width - overlayWidth * OVERLAY_SCALE) / 2,
-                    (height - overlayHeight * OVERLAY_SCALE) / 2, 0);
+                double offsetX = (width - overlayWidth * OVERLAY_SCALE) / 2;
+                double offsetY = (height - overlayHeight * OVERLAY_SCALE) / 2;
+                pose.translate(offsetX, offsetY, 0);
                 pose.scale(OVERLAY_SCALE, OVERLAY_SCALE, 1);
                 // Compensate the scene projection so scaled text and controls retain their world anchors.
                 accessor.ponderer$setScaleFactor(scene.getScaleFactor() / OVERLAY_SCALE);
                 transform.updateScreenParams(overlayWidth + (int) Math.round(panX * 2 / OVERLAY_SCALE),
                     overlayHeight + (int) Math.round(panY * 2 / OVERLAY_SCALE), 0);
-                PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), partialTick,
+                Runnable renderOverlay = () -> PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), partialTick,
                     () -> scene.renderOverlay(ponder, graphics, partialTick));
+                if (hasInterface) {
+                    Rect2i viewport = new Rect2i((int) Math.ceil(-offsetX / OVERLAY_SCALE),
+                        (int) Math.ceil(-offsetY / OVERLAY_SCALE), (int) (width / OVERLAY_SCALE), (int) (height / OVERLAY_SCALE));
+                    InterfaceHost.renderPreview(ponder, viewport,
+                        (int) ((mouseX - x - offsetX) / OVERLAY_SCALE),
+                        (int) ((mouseY - y - offsetY) / OVERLAY_SCALE), partialTick, () -> {
+                            renderOverlay.run();
+                            int[] rect = InterfaceHost.activeRect();
+                            if (rect != null) uiPickViewport = new UiPickViewport(rect, x + offsetX, y + offsetY);
+                        });
+                } else {
+                    renderOverlay.run();
+                }
             }
         } finally {
             ponder.width = width;
@@ -428,6 +471,16 @@ public final class SceneEditorPreview implements AutoCloseable {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (previewButton != null && previewButton.mouseClicked(mouseX, mouseY, button)) return true;
         if (ponder == null) return false;
+        if (uiPointPick != null && containsModel(mouseX, mouseY) && !isOverControls(mouseX, mouseY)
+            && button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
+            Vec3 point = findUiPoint(mouseX, mouseY);
+            if (point != null) {
+                Consumer<Vec3> onPicked = uiPointPick;
+                cancelPointPick();
+                onPicked.accept(point);
+            }
+            return true;
+        }
         if (pointPick != null && containsModel(mouseX, mouseY) && !isOverControls(mouseX, mouseY)
             && button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
             // Recalculate against the rendered camera, without relying on the last hovered block.
@@ -491,6 +544,28 @@ public final class SceneEditorPreview implements AutoCloseable {
 
     private boolean containsModel(double mouseX, double mouseY) {
         return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
+    }
+
+    @Nullable
+    private Vec3 findUiPoint(double mouseX, double mouseY) {
+        if (uiPickViewport == null || !containsModel(mouseX, mouseY) || isOverControls(mouseX, mouseY)) return null;
+        int[] rect = uiPickViewport.rect();
+        return new Vec3(UiAnchorCoords.normalizeX((mouseX - uiPickViewport.originX()) / OVERLAY_SCALE - rect[0], rect[2]),
+            UiAnchorCoords.normalizeY((mouseY - uiPickViewport.originY()) / OVERLAY_SCALE - rect[1], rect[3]), 0);
+    }
+
+    private void renderUiPointPick(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (uiPointPick == null || findUiPoint(mouseX, mouseY) == null) return;
+        graphics.pose().pushPose();
+        try {
+            graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER + 600);
+            graphics.fill(mouseX - 5, mouseY - 1, mouseX + 6, mouseY + 2, 0xFF000000);
+            graphics.fill(mouseX - 1, mouseY - 5, mouseX + 2, mouseY + 6, 0xFF000000);
+            graphics.fill(mouseX - 4, mouseY, mouseX + 5, mouseY + 1, 0xFFFFFFFF);
+            graphics.fill(mouseX, mouseY - 4, mouseX + 1, mouseY + 5, 0xFFFFFFFF);
+        } finally {
+            graphics.pose().popPose();
+        }
     }
 
     private boolean isOverControls(double mouseX, double mouseY) {
@@ -736,6 +811,7 @@ public final class SceneEditorPreview implements AutoCloseable {
             PonderRenderCache.releaseDiscardedScene(ponder.getActiveScene());
         }
         ponder = null;
+        uiPickViewport = null;
         progressBar = null;
         stepTicks = List.of();
         playingStep = false;
@@ -767,6 +843,10 @@ public final class SceneEditorPreview implements AutoCloseable {
         }
 
         @Override public void seekToTime(int time) {
+            InterfaceHost.advancePreview(getActiveScene(), () -> seekPreviewTime(time));
+        }
+
+        private void seekPreviewTime(int time) {
             int target = Mth.clamp(time, 0, getActiveScene().getTotalTime());
             if (playback.isPreviewingStep()) {
                 // Preview ticks leave later instructions paused. Rebuild their normal state even

@@ -15,12 +15,32 @@ import java.util.*;
 /** Client resources, independent of Minecraft's global language table. */
 public final class SceneTexts {
     private static volatile Map<String, Map<String, Map<String, String>>> translations = Map.of();
+    private static final Map<String, Map<String, Map<String, String>>> sessionTexts = new HashMap<>();
     private static ResourceManager resources;
     private SceneTexts() {}
 
     public static void install() {
-        LocalizedText.useReferences((resource, key) -> translations.getOrDefault(resource, Map.of()).getOrDefault(key, Map.of()));
+        LocalizedText.useReferences((resource, key) -> {
+            var values = new TreeMap<>(translations.getOrDefault(resource, Map.of()).getOrDefault(key, Map.of()));
+            values.putAll(sessionTexts.getOrDefault(resource, Map.of()).getOrDefault(key, Map.of()));
+            return values;
+        });
     }
+    /** Development source resources, released with the editor process rather than persisted as scene overrides. */
+    public static void setSessionTexts(String scope, Map<String, Map<String, String>> locales) {
+        var keys = new TreeMap<String, Map<String, String>>();
+        locales.forEach((locale, values) -> values.forEach((key, text) ->
+            keys.computeIfAbsent(key, ignored -> new TreeMap<>()).put(locale, text)));
+        sessionTexts.put(scope, keys);
+        install();
+    }
+    public static Map<String, Map<String, String>> sessionTexts(String scope) {
+        var locales = new TreeMap<String, Map<String, String>>();
+        sessionTexts.getOrDefault(scope, Map.of()).forEach((key, values) -> values.forEach((locale, text) ->
+            locales.computeIfAbsent(locale, ignored -> new TreeMap<>()).put(key, text)));
+        return locales;
+    }
+    public static void clearSessionTexts() { sessionTexts.clear(); }
 
     /** A higher-priority pack replaces one scene/locale file; other locale files remain available. */
     public static void reload(ResourceManager manager) {

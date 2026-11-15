@@ -43,7 +43,7 @@ Java 模组导出界面可切换以下模式：
 | 模式 | 产物 | 能力边界 |
 | --- | --- | --- |
 | JSON + Lib | 内容清单、场景 JSON、NBT 结构、语言和许可资源 | Lib 自动发现、校验、注册和重载；不生成 Java |
-| Java + Lib | Java 构造的类型化场景文档、结构和资源 | 原宿主引擎统一注册和执行步骤，支持编辑器本地覆盖及热重载 |
+| Java + Lib | Java 构造的类型化场景文档、结构和资源 | 原宿主引擎统一注册和执行步骤，编辑器直接写回源码并在本次游戏中热重载 |
 | Java + Support | 原生故事板、GeneratedPonderSupport、结构和资源 | 不依赖 Lib；不支持的界面、镜头等能力明确报告降级 |
 
 Lib 档保留界面描述、NBT 挂载、运行时物品标签、shared_text、自定义步骤与未知步骤扩展字段。自定义 Java 提供者仍需在宿主编译；JSON 中的数据不作为 Java 代码执行。Support 档继续给出精确到场景/段落/步骤的省略诊断。
@@ -170,9 +170,15 @@ Java + Lib 与 JSON + Lib 会把标题、注释、提示及自定义分类文本
 
 Lib 随客户端资源重载读取这些文件，按当前语言 → `en_us` → 首个可用语言回退。资源包可以替换某个场景的单个语言文件，其他语言继续可用；同一文件按资源包优先级整体替换。缺失引用显示 `namespace:scene#key`，再次导出遇到完全缺失的引用会报错，避免生成丢失翻译的资源。`/ponderer reload` 同时刷新已有资源管理器内的文本；增加资源包或新资源文件时使用资源重载。
 
-编辑器保留引用；本地编辑以 `{"ref":"example:demo","key":"scene_1.text_1","overrides":{"zh_cn":"新说明"}}` 保存语言覆盖，不修改宿主 JAR。再次导出会将覆盖合并进独立文本文件，Java 中仍只保留引用。场景标题、播放注释与分类文本均使用 Lib 已解析的值。所需 Ponder 文本 Mixin 随 Lib 分发，由导出内容声明的 `core` 能力启用，宿主无需复制 Mixin 类或配置。
+Java 场景的编辑保存会直接更新目标工程中的 Java 数据方法和独立文本文件，同时更新导出清单与能力声明。Java 中仍只保留文本引用，不改写正在运行的宿主 JAR。场景标题、播放注释与分类文本均使用 Lib 已解析的值。所需 Ponder 文本 Mixin 随 Lib 分发，由导出内容声明的 `core` 能力启用，宿主无需复制 Mixin 类或配置。
 
-编辑保存为工作区中的本地 JSON 覆盖，以 `runtimeSource` 记录所属 Java 场景。保存与 `/ponderer reload` 都会重新读取覆盖并重建 Ponder 注册；删除覆盖再重载会恢复 Java 默认文档。覆盖由宿主注册，产品不会重复注册一份相同场景。Lib 不包含编辑器，单独安装 Lib 时仍可播放导出内容。已有旧 Java + Lib 导出需要重新导出并编译，才能接入此桥接。
+先在编辑列表标题栏点击“源码工程”，选择包含 `.ponderer-export/manifest.json` 的 Java + Lib 导出工程；也可执行 `/ponderer java bind D:\Files\example`，路径有空格时可加双引号。通过导出界面完成 Java + Lib 导出也会自动绑定。只保存本机的命名空间与工程目录关联（`config/ponderer/java-projects.properties`），未绑定或源码不可写时场景只读。
+
+游戏内保存直接写回该工程，随后通过原宿主引擎更新本次进程的场景并重建 Ponder 注册，不生成本地场景 JSON。手改目标 Java 后，在 V 功能界面点击“重载”才会读取；不通过客户端 tick 监听文件或自动重载。也可执行 `/ponderer reload` 或 `/ponderer java reload`，两条命令与该按钮共用手动重载入口。编辑列表在重新进入时更新。支持增删、重排 `JavaScene` 步骤调用、修改参数、`keyframe/fields/raw/javaStep` 以及调整 `loadDocument()` 中的数据和分段列表。支持导出器使用的字面量、局部变量、列表、映射、坐标和文本引用；数据方法中的循环、条件、任意 Java 调用或闭包会明确报错，保留上一份可用场景。Java 步骤实现及扩展安装代码仍需编译。
+
+临时场景和文本只保留到游戏进程退出，切换世界不会释放。下一次启动读取目标模组已编译的默认文档；绑定工程时只记录源码基线，不自动恢复未编译的上次修改。要让新内容随模组发布，需重新编译并加载目标模组的新产物。若主动执行 `/ponderer java reload` 或 `/ponderer reload`，可在当前进程重新读取工程内尚未编译的源码。旧版本遗留的 `runtimeSource` 本地 JSON 不再参与 Java 场景加载，文件保留以供手动迁移。Lib 不包含工程绑定与编辑器，单独安装 Lib 时仍播放编译内容。
+
+外部手改解析失败或编辑页持有较旧源码版本时，保存会拒绝覆盖，避免丢失源码修改；修正源码并重载后重新打开编辑页。源码写回只替换场景数据方法，保留类内运行装配和扩展安装代码。完整再次导出仍检查手改冲突；通过编辑器保存的数据方法会同步记录到清单，纯手改源码则须先在编辑器确认保存，或自行处理完整导出提示的冲突。
 
 Java 宿主文档也会出现在物品场景列表和导出选择中。再次导出到同一宿主时，保留 `runtimeSource` 对应的场景 ID；已有 `宿主:generated/...` 结构路径直接复用，不再重复嵌套 `generated` 目录。导出器可从目标项目已有资源或当前客户端资源包读取结构，不要求它们另存于编辑器工作区。
 
@@ -185,7 +191,7 @@ engine.steps().registerJava("example:machine_animation", "机器动画", context
     context.builder().idle(30); // 这里可以构建任意可重播的 Ponder 指令
 });
 EditableScenes.customize(engine, document -> {
-    // 对此 engine 的每份新默认文档执行；本地覆盖优先于默认文档。
+    // 对此 engine 的每份新默认文档执行；本次进程的编辑文档优先于默认文档。
     var segment = document.scenes.getFirst();
     var steps = new java.util.ArrayList<>(segment.steps);
     var java = new DslScene.DslStep();
@@ -224,6 +230,14 @@ interfaces=AUTO
 - 沙盒打开前要求网络防火墙与屏幕拦截已实际生效，缺失则给不可用占位，不先调用目标代码再降级。渲染缓存维护独立于界面，跟随 render_cache；实体安全 Tick 和缓存记录缩小到接入 Lib 的场景/独立渲染上下文。
 
 ## 验证记录与范围
+
+2026-11-15 Java 源码写回与会话重载：
+
+- `build/java-source-hot-reload-build-final.log`：`:Common:build :RuntimeNeoForge:build :RuntimeFabric:build :NeoForge:build :Fabric:build --offline` 通过；现有 Common 测试 5 项通过，真实 LLM 1 项按原条件跳过，未新增测试或修改 Mixin。
+- `build/java-source-hot-reload-observations.log`：Java 21 中读取并往返生成 Biotech 的 19 份场景和两端已有全步骤宿主，共 21 份场景、950 个步骤，数据一致。内存中检查手改增删步骤、增加分段、自定义调用、保留宿主方法、拒绝不支持的调用和语法错误，以及临时版本不写入持久文档。
+- 源码重载入口已统一到 V 功能界面的“重载”按钮及两条重载命令，移除 Java 文件轮询、计时和时间戳状态；游戏内保存仍直接刷新当前会话。源码读取失败由手动入口报告，每次点击均可重试。
+- `build/java-source-manual-reload-build.log`：调整后 `:Common:build :NeoForge:build :Fabric:build --offline` 通过；静态检查确认 Java 源码重载只有显式入口，编辑页版本更新不再挂在 tick。
+- 本轮未启动游戏，V 界面手动重载、播放器更新、退出后恢复编译内容仍需人工验收。已有 Biotech 工程和实例中的旧场景文件未改写。
 
 2026-11-15 Java + Lib 编辑桥接验证：
 

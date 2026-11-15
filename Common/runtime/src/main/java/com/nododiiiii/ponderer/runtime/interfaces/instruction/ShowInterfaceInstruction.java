@@ -4,7 +4,6 @@ import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.scene.interfaces.InterfaceDescriptor;
 import com.nododiiiii.ponderer.scene.interfaces.LegacyInterfaceMigrator;
-import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
 
@@ -23,7 +22,7 @@ public class ShowInterfaceInstruction extends TickingInstruction {
 
     @Override
     protected void firstTick(PonderScene scene) {
-        if (PlaybackExecutionContext.isActive()) {
+        if (InterfaceHost.isPlaybackSuppressed(scene)) {
             return;
         }
         InterfaceHost.open(scene, descriptor);

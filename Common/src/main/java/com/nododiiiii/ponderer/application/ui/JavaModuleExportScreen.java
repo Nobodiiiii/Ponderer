@@ -223,6 +223,12 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
                 : exportResult.errorMessage);
             return false;
         }
+        if (request.mode() == JavaModuleExportRequest.Mode.JAVA_LIB) try {
+            com.nododiiiii.ponderer.application.JavaSceneWorkspace.bind(request.targetRoot());
+        } catch (java.io.IOException error) {
+            setErrorMessage(UIText.of("ponderer.ui.save_error.java_scene", error.getMessage()));
+            return false;
+        }
 
         markStateSaved();
         if (exportResult.supportOnly) {

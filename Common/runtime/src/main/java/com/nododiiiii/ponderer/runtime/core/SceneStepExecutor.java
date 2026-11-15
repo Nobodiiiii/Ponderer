@@ -200,7 +200,7 @@ final class SceneStepExecutor {
         com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.validate(panel);
         var descriptor = com.nododiiiii.ponderer.scene.interfaces.LegacyInterfaceMigrator.fromStep(panel.steps.getFirst());
         scene.addInstruction(ps -> {
-            if (!com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext.isActive())
+            if (!InterfaceHost.isPlaybackSuppressed(ps))
                 InterfaceHost.openPanel(ps, descriptor, toPoint(panel.point), parsePointing(panel.direction),
                     panel.panelTransform == null ? com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.DEFAULT_TRANSFORM : panel.panelTransform,
                     panel.panelCrop, !Boolean.FALSE.equals(panel.panelBackground));

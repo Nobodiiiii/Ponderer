@@ -66,6 +66,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private final Map<net.createmod.catnip.config.ui.ConfigScreenList.Entry, Integer> rowSteps = new IdentityHashMap<>();
     private final SceneEditorPreview preview = new SceneEditorPreview();
     private boolean syncingListFromPreview;
+    private boolean sourceWritable;
 
     @Nullable
     private BoxWidget undoButton;
@@ -81,6 +82,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         super(null, "ponderer.ui.scope.editor", "ponderer.ui.scene_editor", SCENE_LIST_WIDTH);
         this.session = new com.nododiiiii.ponderer.editor.session.EditorSession(scene, sceneIndex);
         this.scene = session.draft();
+        com.nododiiiii.ponderer.application.JavaSceneWorkspace.track(this.scene);
         this.sceneIndex = sceneIndex;
         this.ponderReturnState = ponderReturnState;
     }
@@ -91,6 +93,18 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     @Override
     protected void init() {
+        DslScene updated = com.nododiiiii.ponderer.application.JavaSceneWorkspace.updated(scene);
+        if (updated != null) {
+            clearCurrentPonderHistory();
+            if (updated.scenes == null || updated.scenes.isEmpty()) {
+                Minecraft.getInstance().setScreen(null);
+                return;
+            }
+            Minecraft.getInstance().setScreen(new SceneEditorScreen(updated,
+                Math.min(sceneIndex, Math.max(0, updated.scenes.size() - 1)), ponderReturnState));
+            return;
+        }
+        refreshSourceWritable();
         super.init();
         configureActionButtons();
         initHistoryButtons();
@@ -219,6 +233,10 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     @Override
     protected void collectHeaderEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries) {
         var buttons = new ArrayList<WorkspaceHeaderListEntry.HeaderButton>();
+        if (scene.runtimeSource != null) {
+            buttons.add(WorkspaceHeaderListEntry.button(UIText.of("ponderer.ui.java_source.project"),
+                this::bindJavaProject, UIText.of("ponderer.ui.java_source.project.tooltip"), () -> true));
+        }
         if (com.nododiiiii.ponderer.runtime.api.SceneVariants.hasAlternative(scene)) {
             buttons.add(WorkspaceHeaderListEntry.button(UIText.of("ponderer.ui.scene_editor.switch_version"),
                 this::switchVersion, UIText.of("ponderer.ui.scene_editor.switch_version.tooltip"), () -> true));
@@ -240,25 +258,26 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                 null,
                 this::openSceneDescription,
                 () -> 0xFFFFFF,
-                () -> true),
+                this::canWrite),
             ActionStripListEntry.button(
                 () -> UIText.of("ponderer.ui.scene_editor.trigger"),
                 null,
                 this::openTriggerEditor,
                 () -> 0xFFFFFF,
-                () -> true),
+                this::canWrite),
             ActionStripListEntry.button(
                 () -> UIText.of("ponderer.ui.scene_editor.split"),
                 null,
                 this::openSplitTypeSelector,
                 () -> 0xFFFFFF,
-                () -> true),
+                this::canWrite),
             ActionStripListEntry.button(
                 () -> UIText.of("ponderer.ui.scene_editor.delete_scene"),
                 null,
                 this::confirmDeleteScene,
                 () -> 0xFFFF8080,
-                () -> true))));
+                this::canWrite))));
+        if (!canWrite()) entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.java_source.readonly")));
     }
 
     @Override
@@ -307,7 +326,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                         this::pasteButtonTooltip,
                         () -> pasteAfter(stepIndex),
                         null,
-                        () -> !clipboard.isEmpty()),
+                        () -> canWrite() && !clipboard.isEmpty()),
                     SceneStepListEntry.iconButton(
                         PondererGuiIcons.REMOVE,
                         () -> List.of(net.minecraft.network.chat.Component.literal(UIText.of("ponderer.ui.scene_editor.btn.delete"))),
@@ -321,6 +340,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private void addJavaFragmentEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries,
                                        com.nododiiiii.ponderer.runtime.api.JavaFragments.Position position) {
+        if (scene.scenes == null || sceneIndex < 0 || sceneIndex >= scene.scenes.size()
+            || scene.scenes.get(sceneIndex) == null) return;
         var segment = scene.scenes.get(sceneIndex);
         String segmentId = segment.id == null ? Integer.toString(sceneIndex) : segment.id;
         for (var fragment : com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).fragments().describe(scene.id, segmentId)) {
@@ -469,8 +490,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     private void refreshHistoryButtonState() {
         UndoManager history = undoManager();
-        updateButtonState(undoButton, history.canUndo());
-        updateButtonState(redoButton, history.canRedo());
+        updateButtonState(undoButton, canWrite() && history.canUndo());
+        updateButtonState(redoButton, canWrite() && history.canRedo());
     }
 
     public static void markUiToEditorTransition(DslScene scene) {
@@ -565,16 +586,19 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void openSceneDescription() {
+        if (!requireWritable()) return;
         rememberCurrentListScroll();
         ScreenOpener.open(new SceneDescEditorScreen(scene, sceneIndex, this));
     }
 
     private void openTriggerEditor() {
+        if (!requireWritable()) return;
         rememberCurrentListScroll();
         ScreenOpener.open(new TriggerEditorScreen(scene, sceneIndex, this));
     }
 
     private void openEditorForStep(int index) {
+        if (!requireWritable()) return;
         List<DslScene.DslStep> steps = getSteps();
         if (index < 0 || index >= steps.size()) {
             return;
@@ -588,6 +612,24 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         }
     }
 
+    private void bindJavaProject() {
+        java.util.concurrent.CompletableFuture.supplyAsync(() ->
+            org.lwjgl.util.tinyfd.TinyFileDialogs.tinyfd_selectFolderDialog(
+                UIText.of("ponderer.ui.java_source.project"), Minecraft.getInstance().gameDirectory.getAbsolutePath()))
+            .thenAccept(path -> Minecraft.getInstance().execute(() -> {
+                if (path == null) return;
+                try {
+                    com.nododiiiii.ponderer.application.JavaSceneWorkspace.bind(java.nio.file.Path.of(path));
+                    com.nododiiiii.ponderer.application.JavaSceneWorkspace.track(scene);
+                    refreshSourceWritable();
+                    setInfoMessage(UIText.of("ponderer.ui.java_source.bound", path));
+                    rebuildListPreservingScroll();
+                } catch (Exception error) {
+                    setErrorMessage(UIText.of("ponderer.ui.save_error.java_scene", error.getMessage()));
+                }
+            }));
+    }
+
     private static DslScene.DslStep deepCopy(DslScene.DslStep step) {
         DslScene.DslStep copy = STEP_GSON.fromJson(STEP_GSON.toJson(step), DslScene.DslStep.class);
         copy.id = java.util.UUID.randomUUID().toString();
@@ -595,6 +637,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private boolean isActionDisabled(int actionId, int rowIndex) {
+        if (!canWrite()) return true;
         List<DslScene.DslStep> steps = getSteps();
         if (steps.isEmpty()) {
             return false;
@@ -665,11 +708,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void openInsertAfter(int afterIndex) {
+        if (!requireWritable()) return;
         rememberCurrentListScroll();
         ScreenOpener.open(new StepTypeSelectorScreen(scene, sceneIndex, this, 0, afterIndex));
     }
 
     private void pasteAfter(int afterIndex) {
+        if (!requireWritable()) return;
         if (!copiedSteps.isEmpty()) {
             updateClipboardFromSelection();
         }
@@ -681,6 +726,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void performUndo() {
+        if (!requireWritable()) return;
         if (!session.undo(undoManager())) return;
         copiedSteps.clear();
         saveToFile();
@@ -688,6 +734,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void performRedo() {
+        if (!requireWritable()) return;
         if (!session.redo(undoManager())) return;
         copiedSteps.clear();
         saveToFile();
@@ -725,6 +772,21 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             return "[" + (sceneIndex + 1) + "/" + sceneCount + ": " + currentSceneName + "]";
         }
         return currentSceneName;
+    }
+
+    private boolean canWrite() {
+        return sourceWritable;
+    }
+
+    private void refreshSourceWritable() {
+        // Button suppliers run every frame; source lookup and filesystem checks belong to editor lifecycle events.
+        sourceWritable = com.nododiiiii.ponderer.application.JavaSceneWorkspace.writable(scene);
+    }
+
+    private boolean requireWritable() {
+        if (canWrite()) return true;
+        setErrorMessage(UIText.of("ponderer.ui.java_source.readonly"));
+        return false;
     }
 
     private void switchVersion() {
@@ -767,6 +829,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void insertStepsAndSave(int afterIndex, List<DslScene.DslStep> newSteps) {
+        if (!requireWritable()) return;
         session.execute(steps -> {
             int insertedIndex = afterIndex >= 0 && afterIndex < steps.size() ? afterIndex + 1 : steps.size();
             for (DslScene.DslStep newStep : newSteps) {
@@ -781,6 +844,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     public void replaceStepAndSave(int index, DslScene.DslStep newStep) {
+        if (!requireWritable()) return;
         List<DslScene.DslStep> steps = getMutableSteps();
         if (index >= 0 && index < steps.size()) {
             session.execute(mutable -> {
@@ -827,6 +891,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     public void removeStepAndSave(int index) {
+        if (!requireWritable()) return;
         List<DslScene.DslStep> steps = getMutableSteps();
         if (index >= 0 && index < steps.size()) {
             session.execute(mutable -> {
@@ -838,6 +903,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void moveStepUp(int index) {
+        if (!requireWritable()) return;
         List<DslScene.DslStep> steps = getMutableSteps();
         if (index > 0 && index < steps.size()) {
             session.execute(mutable -> {
@@ -851,6 +917,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void moveStepDown(int index) {
+        if (!requireWritable()) return;
         List<DslScene.DslStep> steps = getMutableSteps();
         if (index >= 0 && index < steps.size() - 1) {
             session.execute(mutable -> {
@@ -864,11 +931,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void openSplitTypeSelector() {
+        if (!requireWritable()) return;
         rememberCurrentListScroll();
         ScreenOpener.open(new SceneTypeSelectorScreen(this));
     }
 
     public void insertSplitStep(String startStepType) {
+        if (!requireWritable()) return;
         String normalizedType = startStepType != null && !startStepType.isBlank()
             ? startStepType.toLowerCase(Locale.ROOT)
             : "show_structure";
@@ -957,6 +1026,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void confirmDeleteScene() {
+        if (!requireWritable()) return;
         int sceneCount = getSceneCount();
 
         if (sceneCount > 1 && scene.scenes != null && !scene.scenes.isEmpty()) {
@@ -990,6 +1060,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void deleteCurrentScene() {
+        if (!requireWritable()) return;
         if (scene.scenes != null && scene.scenes.size() > 1
             && sceneIndex >= 0 && sceneIndex < scene.scenes.size()) {
             if (!(scene.scenes instanceof ArrayList)) {
@@ -1008,6 +1079,12 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     }
 
     private void deletePonderAndExit() {
+        if (!requireWritable()) return;
+        if (scene.runtimeSource != null) {
+            scene.scenes = new ArrayList<>();
+            if (saveToFile()) Minecraft.getInstance().setScreen(null);
+            return;
+        }
         clearCurrentPonderHistory();
         boolean deleted = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().deleteSceneLocal(scene.id);
         Minecraft mc = Minecraft.getInstance();

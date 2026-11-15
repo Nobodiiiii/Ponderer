@@ -483,12 +483,13 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
             }
             return;
         }
-        PickState.startPick(
-            effectiveTarget,
-            snapshotForm(),
-            createReturnContext(),
-            effectiveTarget == PickState.TargetField.UI_POINT ? false : halfOffset);
-        PickState.openPonderUIForPick();
+        clearStatusMessages();
+        if (preview.startUiPointPick(point -> applyPickedPoint(effectiveTarget, point))) {
+            setFocused(null);
+            setInfoMessage(UIText.of("ponderer.ui.pick.preview.active"));
+        } else {
+            setErrorMessage(UIText.of("ponderer.ui.scene_editor.preview_unavailable"));
+        }
     }
 
     private void applyPickedPoint(PickState.TargetField target, Vec3 point) {
@@ -511,10 +512,12 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
     }
 
     private PickState.TargetField resolvePointPickTarget(PickState.TargetField target) {
-        if (target != PickState.TargetField.POINT || !isInterfaceStartScene()) {
-            return target;
-        }
-        return PickState.TargetField.UI_POINT;
+        if (target != PickState.TargetField.POINT) return target;
+        return switch (getStepType()) {
+            case "click_interface" -> PickState.TargetField.UI_POINT;
+            case "text", "shared_text", "show_controls" -> hasInterfaceBeforeStep() ? PickState.TargetField.UI_POINT : target;
+            default -> target;
+        };
     }
 
     @Override
@@ -528,7 +531,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
             ? "ponderer.ui.pick.ui.tooltip" : "ponderer.ui.pick.tooltip");
     }
 
-    private boolean isInterfaceStartScene() {
+    private boolean hasInterfaceBeforeStep() {
         if (scene.scenes == null || scene.scenes.isEmpty()) {
             return false;
         }
@@ -541,13 +544,19 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
             return false;
         }
 
-        for (DslScene.DslStep step : steps) {
+        int end = isEditMode() ? Math.min(editIndex, steps.size())
+            : insertAfterIndex >= 0 ? Math.min(insertAfterIndex + 1, steps.size()) : steps.size();
+        boolean interfaceActive = false;
+        for (int i = 0; i < end; i++) {
+            DslScene.DslStep step = steps.get(i);
             if (step == null || step.type == null || step.type.isBlank()) {
                 continue;
             }
-            return "show_interface".equalsIgnoreCase(step.type);
+            if ("show_interface".equalsIgnoreCase(step.type)) interfaceActive = true;
+            else if ("show_structure".equalsIgnoreCase(step.type) || "hide_interface".equalsIgnoreCase(step.type))
+                interfaceActive = false;
         }
-        return false;
+        return interfaceActive;
     }
 
     private boolean saveAndClose() {

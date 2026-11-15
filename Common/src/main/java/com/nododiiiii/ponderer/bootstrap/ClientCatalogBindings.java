@@ -61,6 +61,7 @@ public final class ClientCatalogBindings {
         }
     }
     public static void close() {
+        com.nododiiiii.ponderer.application.JavaSceneWorkspace.close();
         stopAi();
         stopSync();
         RuntimeException failure = null;

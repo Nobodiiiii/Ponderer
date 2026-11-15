@@ -3,7 +3,6 @@ package com.nododiiiii.ponderer.runtime.interfaces.instruction;
 import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
 import com.nododiiiii.ponderer.scene.interfaces.InterfaceStepSpecs;
 import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SessionOps;
-import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import net.createmod.ponder.foundation.PonderScene;
 import net.createmod.ponder.foundation.instruction.TickingInstruction;
 
@@ -25,7 +24,7 @@ public class SetInterfaceDataInstruction extends TickingInstruction {
     @Override
     public void tick(PonderScene scene) {
         super.tick(scene);
-        if (PlaybackExecutionContext.isActive()) {
+        if (InterfaceHost.isPlaybackSuppressed(scene)) {
             return;
         }
         int elapsed = totalTicks - remainingTicks;
