@@ -8,15 +8,14 @@ public enum RuntimeFeature {
     CORE("core"),
     VIEW("view", CORE),
     TEXT("text", VIEW),
-    PLAYER("player", VIEW, TEXT),
+    TIMELINE("timeline", CORE),
+    PLAYER("player", VIEW, TEXT, TIMELINE),
     INTERFACES("interfaces", VIEW),
     NBT_BINDINGS("nbt_bindings", CORE),
     RENDER_CACHE("render_cache", CORE),
-    DETACHED_RENDERING("detached_rendering", VIEW, TEXT, RENDER_CACHE),
-    UI_EXTENSIONS("ui_extensions", CORE),
-    APPLICATION("application", CORE),
-    EDITOR("editor", APPLICATION, DETACHED_RENDERING, UI_EXTENSIONS),
-    FEEDBACK("feedback");
+    SHADER_LIGHTS("shader_lights"),
+    DETACHED_RENDERING("detached_rendering", VIEW, TEXT, RENDER_CACHE, SHADER_LIGHTS),
+    UI_EXTENSIONS("ui_extensions", CORE);
 
     private final String key;
     private final Set<RuntimeFeature> dependencies;

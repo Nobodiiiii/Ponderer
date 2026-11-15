@@ -12,5 +12,5 @@
     "InterfaceExtendedCaptureMixin"
   ],
   "server": [],
-  "plugin": "com.nododiiiii.ponderer.neoforge.runtime.NeoForgeRuntimeMixinPlugin"
+  "plugin": "com.nododiiiii.ponderer.neoforge.launch.NeoForgeProductMixinPlugin"
 }

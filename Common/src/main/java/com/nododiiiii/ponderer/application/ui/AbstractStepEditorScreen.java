@@ -111,6 +111,10 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         DslScene.DslStep step = buildStep();
         if (step == null) return;
         if (attachKeyFrame) step.attachKeyFrame = true;
+        if (existingStep != null) {
+            step.id = existingStep.id;
+            step.extensionData = existingStep.extensionData == null ? null : existingStep.extensionData.deepCopy();
+        }
 
         // Compile an isolated draft so previewing cannot save or modify the scene's undo history.
         DslScene draft = com.nododiiiii.ponderer.scene.SceneCodec.copy(scene);

@@ -1,4 +1,4 @@
-package com.nododiiiii.ponderer.runtime.mixin;
+package com.nododiiiii.ponderer.application.mixin;
 
 import net.createmod.ponder.enums.PonderKeybinds;
 import net.minecraft.client.KeyMapping;

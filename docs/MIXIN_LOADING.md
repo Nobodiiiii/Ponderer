@@ -1,10 +1,12 @@
 # Mixin 按需加载
 
-Mixin 在目标类转换前决定是否应用，不能在打开场景时安装，也不能在关闭最后一个场景后卸载。Lib 和产品的全部 Mixin 配置使用加载器对应的启动插件；未归组的新增 Mixin 会明确报错。
+Mixin 在目标类转换前决定是否应用，不能在打开场景时安装，也不能在关闭最后一个场景后卸载。Lib 与本体分别使用 Runtime/Product 启动插件，各自管理自身 Mixin；未归组的新增 Mixin 会明确报错。
 
 ## 启动需求
 
-启动插件从加载器提供的模组根目录读取 `META-INF/pondererlib.features.properties` 及 `META-INF/pondererlib.features/*.properties`，支持开发目录、独立和嵌套 JAR。多个宿主取并集，不通过加载宿主 Java 类收集需求。
+启动插件从加载器提供的模组根目录读取 `META-INF/pondererlib.features.properties` 及 `META-INF/pondererlib.features/*.properties`，支持开发目录、独立和嵌套 JAR。多个宿主取并集。普通声明与 JSON 内容不加载宿主 Java 类。
+
+需要自行管理开关的已编译宿主可用 `META-INF/pondererlib.startup.properties` 的 `provider=<类名>` 显式注册 `StartupFeatureProvider`。它在任意一方 Mixin 插件首次初始化 Lib 时执行、提交通用能力需求，先于能力冻结，不依赖插件先后顺序。提供者只能引用 JDK 和启动 API，不能初始化游戏类。只有已安装模组可提供该入口，资源包不能加载 Java。本体通过这个入口读取自身配置；Lib 不包含本体开关、依赖组合或产品 Mixin 名称。
 
 ```properties
 # 手写宿主声明。生成器使用另一个文件，不覆盖此文件。
@@ -29,19 +31,28 @@ features=core,view,interfaces
 | core | 无 | 实体安全 Tick、结构来源、区块空保护、NeoForge ModelData、场景/UI/指令访问器 |
 | view | core | 场景镜头状态和坐标变换 |
 | text | view | 文字索引/覆盖层重播清理 |
-| player | view、text | 播放界面、播放控制、进度条（与 editor 共用）、倍速插值 |
+| timeline | core | 可由嵌入预览独立使用的交互进度条 |
+| player | view、text、timeline | 播放界面、播放控制、倍速插值 |
 | interfaces | view | Sandbox 系列，包括平台访问器和事件隔离 |
 | nbt_bindings | core | 两端物品 NBT 上下文、场景过滤、悬浮提示 |
 | render_cache | core | 区块渲染缓存记录；与区块空保护分离 |
-| detached_rendering | view、text、render_cache | Fabric 帧时间桥接、文字/输入访问器、灯光访问器 |
+| shader_lights | 无 | 通用渲染灯光状态访问器 |
+| detached_rendering | view、text、render_cache、shader_lights | Fabric 帧时间桥接、文字/输入访问器 |
 | ui_extensions | core | 独立键盘扩展桥接；有 player 时复用其入口，两种入口不同时应用 |
-| application | core | 产品注册、本地化、文本框和按键访问器；产品结构预览也需要灯光访问器 |
-| editor | application、detached_rendering、ui_extensions | 编辑按钮、坐标/NBT 点选、离屏预览进度条；界面捕获还要求 interfaces |
+
+`application`、`editor`、`feedback` 仅属于本体，配置文件为 `config/ponderer.properties`，支持 AUTO、ON、OFF（安装本体时 AUTO 默认申请）。可用 `-Dponderer.<开关>=OFF` 覆盖，`-Dponderer.config=<文件>` 指定配置文件。优先级为新 JVM 参数、新配置文件、旧 JVM 参数、旧 Lib 配置文件；旧 `pondererlib.application/editor/feedback` 参数和 Lib 配置中的同名键继续由本体读取。旧全局 `features` 列表中的这三个名称在安装本体时仍可识别。只安装 Lib 时不提供这些产品能力。
+
+| 本体开关 | 直接依赖 | 本体 Mixin 范围 |
+| --- | --- | --- |
+| application | Lib core、shader_lights | 产品注册、本地化、文本框和按键访问器 |
+| editor | 本体 application；Lib detached_rendering、ui_extensions、timeline | 编辑按钮、坐标/NBT 点选；界面捕获还要求 Lib interfaces |
 | feedback | 无 | 产品 ActionBar 访问器 |
+
+本体 OFF 只移除本体需求，不撤销其他宿主需求。Lib 的 OFF 仍优先：禁用本体模块的必要通用能力也会使该模块不可用。`application=OFF` 会同时关闭 editor，不能据此将完整产品当成可正常使用的纯运行库。
 
 播放器还有运行时激活层：启动声明让 Mixin 可用，普通客户端初始化时调用 `RuntimeFeatures.requestPlayerEnhancements(owner)` 才激活 AUTO 播放增强；多个申请独立释放。未声明且被裁剪时申请会给出重启提示，显式 OFF 优先。已打开屏幕在初始化时固定激活状态。
 
-编辑器的离屏预览不调用完整 `PonderUI.init()`，通过 `PonderProgressBarAccess` 单独启用进度条的点击、拖动、吸附和提示。进度条 Mixin 在 player 或 editor 启用时加载；player=OFF 不影响编辑器时间线，也不会因此为普通 Ponder 屏幕启用播放器增强。
+编辑器的离屏预览不调用完整 `PonderUI.init()`，通过 `PonderProgressBarAccess` 单独启用进度条的点击、拖动、吸附和提示。进度条 Mixin 跟随通用 timeline 能力，本体 editor 申请该能力；player=OFF 不影响编辑器时间线，也不会因此为普通 Ponder 屏幕启用播放器增强。
 
 ## 已加载组的运行范围
 
@@ -55,7 +66,15 @@ features=core,view,interfaces
 
 使用现有 Gradle 构建、Common 测试、生成 refmap 检查与 `quickPlaySmoke` 普通入世界验证。没有新增测试文件、自动打开界面或自动播放脚本。普通入世界不能证明全部播放、界面交互和运行中重载效果，后者仍需人工验收。
 
-2026-11-14 本轮记录位于 `build/`：
+2026-11-15 本体开关迁移：
+
+- `:RuntimeNeoForge:build :RuntimeFabric:build :NeoForge:build :Fabric:build :Common:test --offline` 通过，见 `build/product-feature-build-final.log`。既有 AI 测试 5 项通过、真实 LLM 1 项按原条件跳过。
+- `build/product-feature-policy-observations.log` 为 Java 21 中直接检查启动策略和全部 90 个配置项的记录：仅 Lib 无需求为 0/0；产品默认为 Fabric 45、NeoForge 43；播放器 OFF 且编辑器开启为 42/40；播放器、编辑器、反馈关闭为 30/28。新旧配置、JVM 优先级、application 依赖关闭、timeline 依赖关闭和旧 features 列表均已核对。没有新增测试文件或脚本。
+- 两端 JAR 的 Mixin 配置均指向各自 Runtime/Product 插件，对应类全部存在；产品按键访问器已移出 Lib，Lib 不含产品启动实现。Fabric refmap 保留预期的 class_*/field_* 映射；NeoForge 当前工具链不生成 refmap，使用实际启动补充验证。
+- `build/product-feature-smoke-default.log`、`product-feature-smoke-player-off.log`、`product-feature-smoke-editor-off.log` 记录三组双端实际入世界通过（58 秒、51 秒、60 秒），均无占用跳过。使用 `quickPlaySmoke -PskipBuild -Pworld=<隔离副本> -PsmokeTimeout=180 --offline`；每端上限 180 秒、外层上限 420 秒，客户端均退出，临时配置已恢复。启动日志确认本体开关不再进入 Lib 的 requested/enabled 集合，player OFF 时 editor 仍申请 timeline。
+- 普通入世界未覆盖编辑预览的实际拖动、界面捕获和专用服务器加载，这些仍需人工验收。
+
+以下为 2026-11-14 迁移前记录（包含旧能力名称与计数），位于 `build/`：
 
 | 记录 | 结果 |
 | --- | --- |

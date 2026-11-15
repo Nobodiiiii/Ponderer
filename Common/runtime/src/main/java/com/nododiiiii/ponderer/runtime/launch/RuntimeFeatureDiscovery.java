@@ -13,9 +13,31 @@ import java.util.EnumSet;
 import java.util.Properties;
 import java.util.Set;
 
-/** Reads declarations and scene data without loading host or Minecraft classes. */
+/** Data discovery plus explicitly registered, game-independent startup providers. */
 public final class RuntimeFeatureDiscovery {
     private RuntimeFeatureDiscovery() {}
+
+    /** Only installed mods can explicitly opt into compiled startup policy. */
+    public static java.util.List<com.nododiiiii.ponderer.runtime.spi.StartupFeatureProvider> providers(Collection<Path> roots) {
+        var providers = new java.util.LinkedHashMap<String, com.nododiiiii.ponderer.runtime.spi.StartupFeatureProvider>();
+        for (Path root : roots) {
+            Path path = root.resolve("META-INF/pondererlib.startup.properties");
+            if (!Files.isRegularFile(path)) continue;
+            Properties declaration = new Properties();
+            try (var input = Files.newInputStream(path)) { declaration.load(input); }
+            catch (IOException error) { throw new IllegalStateException("Cannot read " + path, error); }
+            String name = declaration.getProperty("provider", "").trim();
+            if (providers.containsKey(name)) continue;
+            try {
+                var type = Class.forName(name, true, RuntimeFeatureDiscovery.class.getClassLoader())
+                    .asSubclass(com.nododiiiii.ponderer.runtime.spi.StartupFeatureProvider.class);
+                providers.put(name, type.getConstructor().newInstance());
+            } catch (ReflectiveOperationException | ClassCastException error) {
+                throw new IllegalStateException("Invalid startup provider in " + path + ": " + name, error);
+            }
+        }
+        return java.util.List.copyOf(providers.values());
+    }
     public static EnumSet<RuntimeFeature> discover(Collection<Path> roots, Path gameDirectory) {
         EnumSet<RuntimeFeature> features = EnumSet.noneOf(RuntimeFeature.class);
         Set<String> references = new java.util.LinkedHashSet<>();

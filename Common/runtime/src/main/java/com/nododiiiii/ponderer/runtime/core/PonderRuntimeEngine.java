@@ -51,6 +51,7 @@ public final class PonderRuntimeEngine implements RuntimeEngine {
     @Override public void close() {
         if (closed) return;
         closed = true;
+        EditableScenes.release(this);
         try {
             com.nododiiiii.ponderer.runtime.support.lifecycle.Cleanup.all(new java.util.ArrayList<>(sessions).stream()
                 .<Runnable>map(session -> session::close).toArray(Runnable[]::new));

@@ -1574,5 +1574,13 @@
   "ponderer.ui.ai_generate.view_generated": "View generated Ponder",
   "ponderer.ui.ai_generate.view_generated.tooltip": "Play the last successfully generated Ponder. Returning switches new mode to editing that scene.",
   "ponderer.ui.ai_generate.error.cannot_open_generated": "Cannot open the generated Ponder. Check that its scene still exists.",
-  "ponderer.ui.ai_runs.status.awaiting_review": "Legacy unsaved draft; resume to generate and save"
+  "ponderer.ui.ai_runs.status.awaiting_review": "Legacy unsaved draft; resume to generate and save",
+  "ponderer.ui.custom_step.page": "Custom steps",
+  "ponderer.ui.custom_step.parameters": "Parameters (JSON)",
+  "ponderer.ui.custom_step.parameters.tooltip": "Edit a JSON object. The installed Java provider validates these parameters.",
+  "ponderer.ui.custom_step.summary": "Custom step · %s",
+  "ponderer.ui.custom_step.opaque": "Custom Java / unknown step · parsing skipped; preserved unchanged",
+  "ponderer.ui.custom_step.fragment": "Java fragment · anchor %s",
+  "ponderer.ui.custom_step.invalid": "Invalid custom step: %s",
+  "ponderer.ui.save_error.java_scene": "Cannot save Java scene override: %s"
 }

@@ -23,7 +23,7 @@ public final class WorldFeedback {
     private WorldFeedback() {}
 
     public static void hint(String owner, Component message, int priority, int duration) {
-        if (!com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.enabled(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.FEEDBACK)) return;
+        if (!com.nododiiiii.ponderer.bootstrap.launch.ProductFeatures.enabled(com.nododiiiii.ponderer.bootstrap.launch.ProductFeature.FEEDBACK)) return;
         hints.put(owner, new Hint(message, priority, ticks + duration));
     }
 

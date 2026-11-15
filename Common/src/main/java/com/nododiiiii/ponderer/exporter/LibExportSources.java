@@ -15,7 +15,10 @@ final class LibExportSources {
     static DslScene document(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
         DslScene result = SceneCodec.copy(plan.sourceScene);
         result.pack = null;
-        result.editable = false;
+        result.editable = target.mode == JavaModuleExportRequest.Mode.JAVA_LIB;
+        if (target.mode == JavaModuleExportRequest.Mode.JAVA_LIB)
+            result.id = target.modId + ":" + result.id.substring(result.id.indexOf(':') + 1);
+        result.runtimeSource = target.mode == JavaModuleExportRequest.Mode.JAVA_LIB ? result.id : null;
         Map<String, String> relocated = new LinkedHashMap<>();
         for (var asset : plan.structures) relocated.put(asset.sourceId, asset.targetResourceId);
         result.structures = result.structures == null ? java.util.List.of() : result.structures.stream().map(id -> relocate(id, relocated)).toList();
@@ -44,31 +47,32 @@ final class LibExportSources {
         String load = emitter.statements() + "        return " + value + ";\n";
         return """
                 private static final com.nododiiiii.ponderer.runtime.api.RuntimeEngine RUNTIME = createRuntime();
+                private static final com.nododiiiii.ponderer.runtime.api.EditableScenes.Registration SOURCE =
+                    com.nododiiiii.ponderer.runtime.api.EditableScenes.register(RUNTIME, %s::loadDocument);
                 private static com.nododiiiii.ponderer.scene.DslScene DOCUMENT;
-                private static final com.nododiiiii.ponderer.runtime.api.NbtSceneFilter.Registration BINDINGS = new com.nododiiiii.ponderer.runtime.api.NbtSceneFilter.Registration();
                 private static com.nododiiiii.ponderer.runtime.api.RuntimeEngine createRuntime() {
                     var engine = com.nododiiiii.ponderer.runtime.api.RuntimeEngine.create(%s,
                         new com.nododiiiii.ponderer.runtime.spi.AssetStructureSource(%s),
                         com.nododiiiii.ponderer.runtime.spi.IngredientResolver.NONE,
-                        com.nododiiiii.ponderer.runtime.spi.RegistrationContribution.NONE, () -> false);
+                        com.nododiiiii.ponderer.runtime.spi.RegistrationContribution.NONE, () -> true);
                     %s.PonderExtensions.install(engine);
                     return engine;
                 }
                 private static com.nododiiiii.ponderer.scene.DslScene loadDocument() {
             %s    }
                 private static boolean reload() {
-                    DOCUMENT = loadDocument();
-                    RUNTIME.replaceCatalog(() -> java.util.List.of(com.nododiiiii.ponderer.scene.SceneSnapshot.of(DOCUMENT)));
-                    var diagnostics = com.nododiiiii.ponderer.runtime.api.SceneRequirements.diagnostics(DOCUMENT, RUNTIME.steps());
-                    if (!diagnostics.isEmpty()) { com.mojang.logging.LogUtils.getLogger().error("Scene unavailable: {}", diagnostics); return false; }
-                    return true;
+                    try { DOCUMENT = SOURCE.reload(); return true; }
+                    catch (RuntimeException error) {
+                        com.mojang.logging.LogUtils.getLogger().error("Java scene unavailable", error);
+                        return false;
+                    }
                 }
                 public static void registerSharedText(net.createmod.ponder.api.registration.SharedTextRegistrationHelper helper) {
                     RUNTIME.plugin().registerSharedText(helper);
                 }
-                public static void close() { BINDINGS.close(); RUNTIME.close(); }
+                public static void close() { RUNTIME.close(); }
 
-            """.formatted(quote(target.modId), quote(target.modId), extensionPackage(target), load);
+            """.formatted(plan.className, quote(target.modId), quote(target.modId), extensionPackage(target), load);
     }
     static String extension(JavaModuleScanResult.TargetProject target) {
         return """

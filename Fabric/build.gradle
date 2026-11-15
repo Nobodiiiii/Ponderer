@@ -36,7 +36,6 @@ dependencies {
 
     implementation(commonProject)
     implementation project(path: ":RuntimeFabric", configuration: "namedElements")
-    include project(":RuntimeFabric")
 }
 
 loom {

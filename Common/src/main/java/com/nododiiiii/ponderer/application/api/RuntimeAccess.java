@@ -12,4 +12,13 @@ public final class RuntimeAccess {
         if (source == null) throw new IllegalStateException("Runtime host has not been installed");
         return source.get();
     }
+    public static RuntimeEngine engineFor(com.nododiiiii.ponderer.scene.DslScene scene) {
+        var owner = com.nododiiiii.ponderer.runtime.api.EditableScenes.owner(scene);
+        return owner == null ? engine() : owner;
+    }
+    public static com.nododiiiii.ponderer.runtime.api.SceneCatalog.SceneMatch findBySceneId(
+            net.minecraft.resources.ResourceLocation id, int occurrence) {
+        var match = engine().catalog().findBySceneId(id, occurrence);
+        return match != null ? match : com.nododiiiii.ponderer.runtime.api.EditableScenes.findBySceneId(id, occurrence);
+    }
 }

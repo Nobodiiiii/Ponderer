@@ -54,7 +54,6 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 dependencies {
     compileOnly(commonProject)
     implementation project(":RuntimeNeoForge")
-    jarJar project(":RuntimeNeoForge")
 
     implementation("net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:${ponder_version}")
 

@@ -930,7 +930,7 @@ public final class JavaModuleExportService {
             content.scenes = manifest.scenes.values().stream().map(entry -> entry.resourceId).filter(Objects::nonNull).sorted().toList();
             content.attribution = true;
             writes.add(new TextFile("src/main/resources/assets/" + target.modId + "/ponderer/content/ponderer_export.json", GSON.toJson(content)));
-            writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This resource-only export requires pondererlib >= 0.1.0 and upstream Ponder.\nLib discovers assets/<namespace>/ponderer/content/*.json and registers scenes on client resource reload.\nNo generated Java or content entrypoint is required. Embed the loader-specific pondererlib artifact or install it separately.\nThe same assets tree works in a client resource pack.\nOptional compiled providers register with ResourceSceneContents.registerExtension; manifests select provider IDs in extensions.\n"));
+            writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This resource-only export requires external pondererlib >= 0.1.0 and upstream Ponder.\nLib discovers assets/<namespace>/ponderer/content/*.json and registers scenes on client resource reload.\nNo generated Java or content entrypoint is required. Install the loader-specific pondererlib JAR separately in mods; do not embed it in the host.\nThe same assets tree works in a client resource pack.\nOptional compiled providers register with ResourceSceneContents.registerExtension; manifests select provider IDs in extensions.\n"));
             writes.addAll(buildLangWrites(target, manifest, currentSceneIds, staleManagedLangKeys));
             return writes;
         }
@@ -946,7 +946,7 @@ public final class JavaModuleExportService {
             String extensionPath = "src/main/java/" + packageToPath(LibExportSources.extensionPackage(target)) + "/PonderExtensions.java";
             // Deliberately excluded from manifest ownership and source-overwrite checks.
             if (!Files.exists(target.targetRoot.resolve(extensionPath))) writes.add(new TextFile(extensionPath, LibExportSources.extension(target)));
-            writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This export requires pondererlib >= 0.1.0 and upstream Ponder.\nEmbed the loader-specific pondererlib artifact using Fabric include or NeoForge jarJar; keep its identity unchanged.\nHandwritten custom steps belong in " + LibExportSources.extensionPackage(target) + ".PonderExtensions.\n"));
+            writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This export requires external pondererlib >= 0.1.0 and upstream Ponder.\nDeclare the loader-specific pondererlib artifact with Fabric modImplementation or NeoForge implementation for development; do not use include or jarJar for Lib.\nInstall the pondererlib JAR separately in mods; multiple hosts share one copy.\nHandwritten custom steps belong in " + LibExportSources.extensionPackage(target) + ".PonderExtensions.\n"));
         } else {
             writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This export uses upstream Ponder and generated Support without pondererlib.\nConfigure loader-specific Ponder/Flywheel dependencies in the host build.\nWhen embedding legacy NeoForge Ponder coordinates, coordinate JarJar identity with modern Create-provided ponder-neoforge.\n"));
         }
@@ -1480,7 +1480,7 @@ public final class JavaModuleExportService {
         sb.append("    private ").append(plan.className).append("() {\n");
         sb.append("    }\n\n");
         sb.append("    public static void register(PonderSceneRegistrationHelper<ResourceLocation> helper) {\n");
-        if (LibExportSources.usesLib(target)) sb.append("        if (!reload()) return;\n        BINDINGS.clear();\n");
+        if (LibExportSources.usesLib(target)) sb.append("        if (!reload()) return;\n");
         sb.append("        ResourceLocation[] tags = ")
             .append(resourceLocationArrayExpr(plan.tags.stream().map(id -> exportedTagId(target, plan, id)).toList(),
                 generatedAttributionTagId(target.modId))).append(";\n");
@@ -1575,7 +1575,7 @@ public final class JavaModuleExportService {
         sb.append("}\n");
         String source = sb.toString();
         if (LibExportSources.usesLib(target)) source = source.replace("import " + target.generatedPackage + ".GeneratedPonderSupport;", "import com.nododiiiii.ponderer.runtime.api.PonderActions;").replace("GeneratedPonderSupport", "PonderActions");
-        if (target.mode == JavaModuleExportRequest.Mode.JSON_LIB) source = jsonSceneSource(target, plan, source);
+        if (target.mode == JavaModuleExportRequest.Mode.JAVA_LIB) source = editableLibSceneSource(target, plan, source);
         return source;
     }
 
@@ -1836,11 +1836,26 @@ public final class JavaModuleExportService {
         if (LibExportSources.usesLib(target)) sb.append("        program.afterStep(").append(stringExpr(step.id)).append(");\n");
     }
 
-    private String jsonSceneSource(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan, String nativeSource) {
+    private String editableLibSceneSource(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan, String nativeSource) {
         String prefix = nativeSource.substring(0, nativeSource.indexOf("public final class"));
-        int tagsStart = nativeSource.indexOf("    public static void registerTags(");
-        int tagsEnd = nativeSource.indexOf("    private static void storyboard$", tagsStart);
-        String tags = nativeSource.substring(tagsStart, tagsEnd);
+        String tags = """
+                public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
+                    if (DOCUMENT == null && !reload()) return;
+                    for (var entry : DOCUMENT.customTags.entrySet()) {
+                        ResourceLocation id = ResourceLocation.parse(entry.getKey());
+                        if (net.createmod.ponder.foundation.PonderIndex.getTagAccess().getListedTags().stream()
+                            .anyMatch(existing -> existing.getId().equals(id))) continue;
+                        var definition = entry.getValue();
+                        ResourceLocation icon = ResourceLocation.tryParse(definition.icon == null ? "minecraft:book" : definition.icon);
+                        helper.registerTag(id)
+                            .title(definition.title == null ? id.getPath() : definition.title.resolve())
+                            .description(definition.description == null ? "" : definition.description.resolve())
+                            .item(icon == null ? net.minecraft.world.item.Items.BOOK : net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(icon).orElse(net.minecraft.world.item.Items.BOOK))
+                            .addToIndex().register();
+                    }
+                    RUNTIME.plugin().registerTags(helper);
+                }
+            """;
         return prefix + "public final class " + plan.className + " {\n" + LibExportSources.members(target, plan)
             + "    public static void register(PonderSceneRegistrationHelper<ResourceLocation> helper) {\n        if (reload()) RUNTIME.plugin().registerScenes(helper);\n    }\n"
             + tags + "}\n";

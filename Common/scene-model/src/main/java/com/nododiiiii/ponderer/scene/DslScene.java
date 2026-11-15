@@ -9,6 +9,9 @@ public class DslScene {
     public int formatVersion = 1;
     public List<String> requiredCapabilities = List.of();
     public String id;
+    /** Java host identity for local editor overrides; these are registered by their owning engine. */
+    @Nullable
+    public String runtimeSource;
     /** Carrier item IDs or item tags prefixed with #, e.g. #minecraft:logs. */
     public List<String> items = List.of();
     public LocalizedText title;

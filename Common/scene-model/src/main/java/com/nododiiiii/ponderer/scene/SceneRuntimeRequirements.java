@@ -15,7 +15,7 @@ public final class SceneRuntimeRequirements {
         if (scene.requiredCapabilities != null) for (String capability : scene.requiredCapabilities) {
             if (capability == null || !capability.startsWith("pondererlib:")) continue;
             String key = capability.substring(12);
-            if (Set.of("core", "view", "text", "interfaces", "nbt_bindings", "player", "detached_rendering", "ui_extensions").contains(key)) features.add(key);
+            if (Set.of("core", "view", "text", "interfaces", "nbt_bindings", "player", "timeline", "shader_lights", "render_cache", "detached_rendering", "ui_extensions").contains(key)) features.add(key);
         }
         if (scene.scenes != null) for (var segment : scene.scenes) {
             if (segment == null || segment.steps == null) continue;

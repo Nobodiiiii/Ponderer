@@ -77,7 +77,7 @@ public final class InterfaceSlotEditState {
         PonderUIAccessor accessor = (PonderUIAccessor) ponderUI;
         List<PonderScene> ponderScenes = accessor.ponderer$getScenes();
         for (int i = 0; i < ponderScenes.size(); i++) {
-            SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findBySceneId(ponderScenes.get(i).getId());
+            SceneCatalog.SceneMatch match = com.nododiiiii.ponderer.application.api.RuntimeAccess.findBySceneId(ponderScenes.get(i).getId(), -1);
             if (match != null && match.sceneIndex() == context.sceneIndex() && match.scene().id.equals(context.scene().id)) {
                 accessor.ponderer$setIndex(i);
                 accessor.ponderer$getLazyIndex().startWithValue(i);

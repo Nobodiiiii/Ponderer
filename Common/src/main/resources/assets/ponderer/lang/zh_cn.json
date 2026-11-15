@@ -1574,5 +1574,13 @@
   "ponderer.ui.ai_generate.view_generated": "查看生成的思索",
   "ponderer.ui.ai_generate.view_generated.tooltip": "播放最近一次成功生成的思索。返回时，新建模式会自动切为编辑该场景。",
   "ponderer.ui.ai_generate.error.cannot_open_generated": "无法打开生成的思索，请检查场景是否仍然存在。",
-  "ponderer.ui.ai_runs.status.awaiting_review": "旧版未保存草稿，可恢复后生成并保存"
+  "ponderer.ui.ai_runs.status.awaiting_review": "旧版未保存草稿，可恢复后生成并保存",
+  "ponderer.ui.custom_step.page": "自定义步骤",
+  "ponderer.ui.custom_step.parameters": "参数（JSON）",
+  "ponderer.ui.custom_step.parameters.tooltip": "编辑 JSON 对象，由已安装的 Java 步骤提供者校验参数。",
+  "ponderer.ui.custom_step.summary": "自定义步骤 · %s",
+  "ponderer.ui.custom_step.opaque": "自定义 Java / 未知步骤 · 已跳过解析，原样保留",
+  "ponderer.ui.custom_step.fragment": "Java 片段 · 锚点 %s",
+  "ponderer.ui.custom_step.invalid": "自定义步骤无效：%s",
+  "ponderer.ui.save_error.java_scene": "无法保存 Java 场景覆盖：%s"
 }

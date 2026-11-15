@@ -486,6 +486,8 @@ def run_build(targets: list[PlatformSpec], offline: bool) -> None:
         gradlew = PROJECT_ROOT / "gradlew"
 
     tasks = list(dict.fromkeys(f":{target.module}:build" for target in targets))
+    modules = read_settings_modules()
+    tasks += [f":Runtime{target.module}:build" for target in targets if f"Runtime{target.module}" in modules]
     command = [str(gradlew)]
     if offline:
         command.append("--offline")
@@ -527,13 +529,7 @@ def find_mod_jar(spec: PlatformSpec, props: dict[str, str]) -> Path:
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def copy_mod_jar(spec: PlatformSpec, props: dict[str, str], instance: Path) -> Path:
-    jar_path = find_mod_jar(spec, props)
-    mods_dir = instance / "mods"
-    mods_dir.mkdir(exist_ok=True)
-
-    mod_id = props.get("mod_id", "ponderer")
-    mc_version = props["minecraft_version"]
+def copy_built_jar(jar_path: Path, mods_dir: Path, stale_pattern: str) -> Path:
     destination = mods_dir / jar_path.name
     # Never overwrite a jar in place: a running client's ZipFile keeps entry
     # offsets from the original archive and cannot safely read the new bytes.
@@ -542,7 +538,7 @@ def copy_mod_jar(spec: PlatformSpec, props: dict[str, str], instance: Path) -> P
         with tempfile.NamedTemporaryFile(dir=mods_dir, suffix=".tmp", delete=False) as staged:
             staged_path = Path(staged.name)
         shutil.copy2(jar_path, staged_path)
-        for existing in mods_dir.glob(f"{mod_id}-{mc_version}-{spec.loader}-*.jar"):
+        for existing in mods_dir.glob(stale_pattern):
             if existing != destination:
                 existing.unlink()
         os.replace(staged_path, destination)
@@ -554,6 +550,24 @@ def copy_mod_jar(spec: PlatformSpec, props: dict[str, str], instance: Path) -> P
         if staged_path is not None:
             staged_path.unlink(missing_ok=True)
     return destination
+
+
+def copy_mod_jar(spec: PlatformSpec, props: dict[str, str], instance: Path) -> Path:
+    jar_path = find_mod_jar(spec, props)
+    mc_version = props["minecraft_version"]
+    mod_id = props.get("mod_id", "ponderer")
+    runtime_jar = None
+    if f"Runtime{spec.module}" in read_settings_modules():
+        runtime_jar = PROJECT_ROOT / spec.module / "runtime" / "build" / "libs" / (
+            f"pondererlib-{mc_version}-{spec.loader}-{props['lib_version']}.jar"
+        )
+        if not runtime_jar.is_file():
+            raise FileNotFoundError(f"Built external Ponderer Lib not found: {runtime_jar}")
+    mods_dir = instance / "mods"
+    mods_dir.mkdir(exist_ok=True)
+    if runtime_jar is not None:
+        copy_built_jar(runtime_jar, mods_dir, f"pondererlib-{mc_version}-{spec.loader}-*.jar")
+    return copy_built_jar(jar_path, mods_dir, f"{mod_id}-{mc_version}-{spec.loader}-*.jar")
 
 
 def latest_log_candidates(instance: Path) -> list[Path]:

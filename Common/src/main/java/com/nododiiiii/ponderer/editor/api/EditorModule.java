@@ -14,7 +14,8 @@ public final class EditorModule implements AutoCloseable {
     private final List<AutoCloseable> bindings = new ArrayList<>();
     public EditorModule() { this(IngredientPresentation.NONE); }
     public EditorModule(IngredientPresentation ingredients) {
-        RuntimeFeatures.require(RuntimeFeature.EDITOR, "EditorModule");
+        com.nododiiiii.ponderer.bootstrap.launch.ProductFeatures.require(
+            com.nododiiiii.ponderer.bootstrap.launch.ProductFeature.EDITOR, "EditorModule");
         installations++;
         bindings.add(InterfaceExtensions.installEditing(new SlotDragController(ingredients)));
         bindings.add(InterfaceSessionEvents.onSlotsChanged(InterfaceSlotEditState::invalidatePreview));

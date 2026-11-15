@@ -9,6 +9,12 @@ public final class JavaFragments {
     public enum Position { BEFORE, AFTER }
     private record Fragment(String scene, String segment, String anchor, Position position, Consumer<StepBuildContext> body) {}
     private final List<Fragment> fragments = new CopyOnWriteArrayList<>();
+    public record Description(String segment, String anchor, Position position) {}
+    /** Metadata only: the editor never attempts to parse a compiled callback. */
+    public List<Description> describe(String sceneId) {
+        return fragments.stream().filter(fragment -> fragment.scene.equals(sceneId))
+            .map(fragment -> new Description(fragment.segment, fragment.anchor, fragment.position)).toList();
+    }
     public AutoCloseable register(String sceneId, String segmentId, String stepId, Position position, Consumer<StepBuildContext> body) {
         java.util.Objects.requireNonNull(sceneId);
         java.util.Objects.requireNonNull(segmentId);

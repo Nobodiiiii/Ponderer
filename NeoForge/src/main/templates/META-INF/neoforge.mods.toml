@@ -85,7 +85,7 @@ side = "BOTH"
 [[dependencies."${mod_id}"]]
 modId = "ponder"
 type = "optional"
-# Ponder is bundled via jarJar for standalone; when Create provides a newer version, that takes priority
+# The external Ponderer Lib bundles Ponder; Create may provide a newer version.
 versionRange = "[1.0,)"
 ordering = "AFTER"
 side = "CLIENT"
@@ -93,7 +93,7 @@ side = "CLIENT"
 [[dependencies."${mod_id}"]]
 modId = "flywheel"
 type = "optional"
-# Flywheel is bundled via jarJar for standalone; when Create provides a newer version, that takes priority
+# The external Ponderer Lib bundles Flywheel; Create may provide a newer version.
 versionRange = "[1.0,)"
 ordering = "AFTER"
 side = "CLIENT"

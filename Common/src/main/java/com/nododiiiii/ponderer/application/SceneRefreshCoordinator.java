@@ -20,7 +20,8 @@ public final class SceneRefreshCoordinator {
     /** Initial bootstrap only, before Ponder registers its plugins. Writes use refresh(). */
     public static int loadCatalog() {
         var scenes = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().loadScenes();
-        com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().setScenes(scenes);
+        com.nododiiiii.ponderer.runtime.api.EditableScenes.setOverrides(scenes);
+        com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().setScenes(localScenes(scenes));
         version++;
         return scenes.size();
     }
@@ -47,17 +48,25 @@ public final class SceneRefreshCoordinator {
         return () -> invalidations.remove(listener);
     }
     public static void reloadPonderIndex() {
-        publish(RuntimeAccess.engine().catalog().getScenes(), false);
+        var scenes = new java.util.ArrayList<>(RuntimeAccess.engine().catalog().getScenes());
+        scenes.addAll(com.nododiiiii.ponderer.runtime.api.EditableScenes.overrides());
+        publish(scenes, false);
+    }
+    private static List<DslScene> localScenes(List<DslScene> scenes) {
+        return scenes.stream().filter(scene -> scene.runtimeSource == null).toList();
     }
     private static void publish(List<DslScene> scenes, boolean advanceVersion) {
         var catalog = RuntimeAccess.engine().catalog();
         var previous = catalog.getScenes();
-        catalog.setScenes(scenes);
+        var previousOverrides = com.nododiiiii.ponderer.runtime.api.EditableScenes.overrides();
+        com.nododiiiii.ponderer.runtime.api.EditableScenes.setOverrides(scenes);
+        catalog.setScenes(localScenes(scenes));
         try {
             PonderIndex.reload();
             if (advanceVersion) version++;
         } catch (RuntimeException failure) {
             catalog.setScenes(previous);
+            com.nododiiiii.ponderer.runtime.api.EditableScenes.setOverrides(previousOverrides);
             try { PonderIndex.reload(); }
             catch (RuntimeException recovery) { failure.addSuppressed(recovery); }
             throw failure;
@@ -69,7 +78,8 @@ public final class SceneRefreshCoordinator {
         }
     }
     public static void onItemTagsUpdated() {
-        if (com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().getScenes().stream().anyMatch(SceneItemBindings::hasTagBindings)) {
+        if (java.util.stream.Stream.concat(RuntimeAccess.engine().catalog().getScenes().stream(),
+                com.nododiiiii.ponderer.runtime.api.EditableScenes.scenes().stream()).anyMatch(SceneItemBindings::hasTagBindings)) {
             try { reloadPonderIndex(); }
             catch (RuntimeException failure) { reportFailure(failure); }
         }

@@ -10,11 +10,12 @@
   "mixins": [],
   "client": [
     "PonderLocalizationMixin",
+    "PonderKeybindsAccessor",
     "MinecraftCoordPickScrollMixin",
     "MultiLineEditBoxAccessor",
     "MultilineTextFieldAccessor",
     "PonderEditorMixin"
   ],
   "server": [],
-  "plugin": "com.nododiiiii.ponderer.fabric.runtime.FabricRuntimeMixinPlugin"
+  "plugin": "com.nododiiiii.ponderer.fabric.launch.FabricProductMixinPlugin"
 }

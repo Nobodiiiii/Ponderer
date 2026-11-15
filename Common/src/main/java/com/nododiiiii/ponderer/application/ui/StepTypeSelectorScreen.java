@@ -56,13 +56,16 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
         this.scene = scene;
         this.sceneIndex = sceneIndex;
         this.parent = parent;
-        if (isInterfaceStartScene(scene, sceneIndex)) {
-            this.pageTypes = INTERFACE_SCENE_PAGE_TYPES;
-            this.pageKeys = INTERFACE_SCENE_PAGE_KEYS;
-        } else {
-            this.pageTypes = PAGE_TYPES;
-            this.pageKeys = PAGE_KEYS;
+        boolean interfaces = isInterfaceStartScene(scene, sceneIndex);
+        var types = new java.util.ArrayList<String[]>(java.util.Arrays.asList(interfaces ? INTERFACE_SCENE_PAGE_TYPES : PAGE_TYPES));
+        var keys = new java.util.ArrayList<String>(java.util.Arrays.asList(interfaces ? INTERFACE_SCENE_PAGE_KEYS : PAGE_KEYS));
+        var custom = com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).steps().editableTypes();
+        for (int i = 0; i < custom.size(); i += 6) {
+            types.add(custom.subList(i, Math.min(i + 6, custom.size())).toArray(String[]::new));
+            keys.add("ponderer.ui.custom_step.page");
         }
+        this.pageTypes = types.toArray(String[][]::new);
+        this.pageKeys = keys.toArray(String[]::new);
         this.pageIndex = Math.max(0, Math.min(pageIndex, this.pageTypes.length - 1));
         this.insertAfterIndex = insertAfterIndex;
     }
@@ -79,7 +82,10 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
             () -> pageIndex + 1 < pageTypes.length));
 
         for (String type : pageTypes[pageIndex]) {
-            entries.add(new FullButtonListEntry(UIText.of(stepTypeLabelKey(type)), null, () -> openEditorForType(type)));
+            String label = type.contains(":")
+                ? com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).steps().editorLabel(type)
+                : UIText.of(stepTypeLabelKey(type));
+            entries.add(new FullButtonListEntry(label, null, () -> openEditorForType(type)));
         }
     }
 

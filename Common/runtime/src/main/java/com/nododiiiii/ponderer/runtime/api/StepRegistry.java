@@ -30,6 +30,38 @@ public final class StepRegistry {
     public void clear() { types.clear(); capabilities.clear(); }
 
     public boolean contains(String id) { return types.containsKey(id); }
+    public java.util.List<String> editableTypes() {
+        return types.entrySet().stream().filter(entry -> entry.getValue().editableParameters())
+            .map(Map.Entry::getKey).sorted().toList();
+    }
+    public boolean editableParameters(String id) {
+        StepType<?> type = types.get(id);
+        return type != null && type.editableParameters();
+    }
+    public String editorLabel(String id) {
+        StepType<?> type = types.get(id);
+        return type == null || type.editorLabel().isBlank() ? id : type.editorLabel();
+    }
+    /** Compiled callbacks execute normally and appear as opaque Java steps in the optional editor. */
+    public AutoCloseable registerJava(String id, String label, java.util.function.Consumer<StepBuildContext> body) {
+        Objects.requireNonNull(body);
+        Objects.requireNonNull(label);
+        return register(id, new StepType<JsonObject>() {
+            @Override public StepCodec<JsonObject> codec() { return new StepCodec<>() {
+                public JsonObject decode(JsonObject data) { return data.deepCopy(); }
+                public JsonObject encode(JsonObject data) { return data.deepCopy(); }
+            }; }
+            @Override public boolean editableParameters() { return false; }
+            @Override public String editorLabel() { return label; }
+            @Override public void build(JsonObject parameters, StepBuildContext context) { body.accept(context); }
+        });
+    }
+    /** Validate edited parameters through the provider without constructing or executing instructions. */
+    public void validateParameters(String id, JsonObject parameters) {
+        StepType<?> type = types.get(id);
+        if (type == null) throw new IllegalArgumentException("Unknown step " + id);
+        type.codec().decode(parameters.deepCopy());
+    }
 
     public void build(String id, JsonObject parameters, StepBuildContext context) {
         StepType<?> type = types.get(id);

@@ -22,7 +22,7 @@ public final class ClientCatalogBindings {
         if (player == null) player = com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.requestPlayerEnhancements("ponderer");
         if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled() && menus == null) menus = com.nododiiiii.ponderer.runtime.interfaces.InterfaceExtensions.installMenus(
             new com.nododiiiii.ponderer.compat.ae2.RuntimeAe2Menus());
-        if (com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.enabled(com.nododiiiii.ponderer.runtime.api.RuntimeFeature.EDITOR) && editor == null)
+        if (com.nododiiiii.ponderer.bootstrap.launch.ProductFeatures.enabled(com.nododiiiii.ponderer.bootstrap.launch.ProductFeature.EDITOR) && editor == null)
             editor = new com.nododiiiii.ponderer.editor.api.EditorModule(new com.nododiiiii.ponderer.compat.jei.EditorJeiIngredients());
         if (preferences == null) preferences = com.nododiiiii.ponderer.runtime.api.PlaybackPreferences.install(
             () -> com.nododiiiii.ponderer.Config.DEFAULT_TEXT_PROGRESS.get(), value -> {

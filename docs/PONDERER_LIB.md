@@ -13,7 +13,7 @@ Minecraft 1.21.1，Java 21，当前支持 NeoForge 与 Fabric。Lib 扩展上游
 | Common | Common/src | 编辑、工作区、AI、同步、导出与产品组合 |
 | NeoForge / Fabric | 原平台目录 | 完整 Ponderer 的平台入口与分发 |
 
-两个 Lib JAR 的加载器身份都为 `pondererlib`。完整产品嵌入对应加载器的同一 Lib，不再在外层重复打包场景模型和运行类。Ponder、Flywheel 后备依赖由 Lib 携带；Fabric 的 Ponder 后备包本身携带 ForgeConfigAPIPort。产品自己的配置依赖保留在产品中。Fabric 的 Flywheel 仅客户端加载，因此通用元数据使用建议依赖，客户端入口按其中的版本条件强制检查；专服不被要求加载客户端渲染库。
+两个 Lib JAR 的加载器身份都为 `pondererlib`。完整产品将对应加载器的 Lib 作为外置必需依赖，不再内嵌 Lib，也不在外层重复打包场景模型和运行类。玩家需将产品 JAR 与对应的 `pondererlib-1.21.1-<loader>-0.1.0.jar` 一起放入 `mods`；多个宿主共用同一份 Lib。开发运行保留项目依赖，快速启动脚本构建、复制并清理旧版独立 Lib。Ponder、Flywheel 后备依赖仍由 Lib 携带；Fabric 的 Ponder 后备包本身携带 ForgeConfigAPIPort。产品自己的配置依赖保留在产品中。Fabric 的 Flywheel 仅客户端加载，因此通用元数据使用建议依赖，客户端入口按其中的版本条件强制检查；专服不被要求加载客户端渲染库。
 
 运行包不依赖产品、编辑器、工作区、AI、同步、投影仪、蓝图或 JEI/AE2/Resourcify 实现。共享叶子工具位于 `runtime.support`，平台 Mixin 位于 `runtime.platform.mixin`，防止 NeoForge 模块层的 split-package 冲突。`api` / `spi` 是消费入口，Mixin 所需的 public 实现类不自动成为稳定 API。
 
@@ -24,15 +24,14 @@ Minecraft 1.21.1，Java 21，当前支持 NeoForge 与 Fabric。Lib 扩展上游
 
 第二条发布到项目内的 `build/lib-repository`，没有上传远端仓库。当前 Maven 坐标为 `com.nododiiiii:RuntimeFabric:0.1.0`、`com.nododiiiii:RuntimeNeoForge:0.1.0`。发布仓库地址仍由维护者决定。
 
-独立宿主必须按加载器嵌入 Lib，保留原身份：
+独立宿主按加载器声明外置 Lib 依赖，并在模组元数据中将 `pondererlib` 声明为必需依赖。Gradle 编译/开发运行使用以下依赖，不配置 `include` 或 `jarJar` 内嵌 Lib；安装时单独放置 Lib JAR，保留原身份：
 
 ```groovy
 // Fabric Loom，repositories 先加入实际发布仓库。
-modImplementation(include("com.nododiiiii:RuntimeFabric:0.1.0"))
+modImplementation "com.nododiiiii:RuntimeFabric:0.1.0"
 
 // NeoForge ModDevGradle。
 implementation "com.nododiiiii:RuntimeNeoForge:0.1.0"
-jarJar "com.nododiiiii:RuntimeNeoForge:[0.1.0,)"
 ```
 
 Ponder 的旧坐标 `Ponder-NeoForge-1.21.1` 与新坐标 `ponder-neoforge` 指向同一模组身份。Lib 的 JarJar 元数据统一使用后者，让 Create 携带的较新版参与同一次版本选择。仅 Support 的宿主自行配置上游依赖时也需要处理这项版本协调；不能让旧坐标强选低于 Create 最低要求的 Ponder。
@@ -44,7 +43,7 @@ Java 模组导出界面可切换以下模式：
 | 模式 | 产物 | 能力边界 |
 | --- | --- | --- |
 | JSON + Lib | 内容清单、场景 JSON、NBT 结构、语言和许可资源 | Lib 自动发现、校验、注册和重载；不生成 Java |
-| Java + Lib | 原生故事板、类型化步骤对象、结构和资源 | 基础动作直接调用 PonderActions；界面、镜头、文本等通过同一 SceneProgram 执行 |
+| Java + Lib | Java 构造的类型化场景文档、结构和资源 | 原宿主引擎统一注册和执行步骤，支持编辑器本地覆盖及热重载 |
 | Java + Support | 原生故事板、GeneratedPonderSupport、结构和资源 | 不依赖 Lib；不支持的界面、镜头等能力明确报告降级 |
 
 Lib 档保留界面描述、NBT 挂载、运行时物品标签、shared_text、自定义步骤与未知步骤扩展字段。自定义 Java 提供者仍需在宿主编译；JSON 中的数据不作为 Java 代码执行。Support 档继续给出精确到场景/段落/步骤的省略诊断。
@@ -67,7 +66,7 @@ Java + Lib 的 `<basePackage>.ponderext.PonderExtensions` 只创建一次。再�
 
 ## 纯资源接入
 
-安装或嵌入 Lib 后，在模组资源目录或客户端资源包中放置：
+单独安装 Lib 后，在模组资源目录或客户端资源包中放置：
 
 ```text
 assets/example/ponderer/content/tutorials.json
@@ -138,6 +137,34 @@ engine.steps().register("example:pause", new StepType<Integer>() {
 
 原生 Java 可用 `engine.program(sceneId, segmentId, builder, util)` 自由交织 builder 调用、PonderActions 和 `program.step(step)`。JSON 与 Java 可通过 `engine.fragments().register(sceneId, segmentId, stepId, BEFORE/AFTER, body)` 在稳定步骤前后插入手写指令。应构建可重播的 Ponder 指令，避免把播放时副作用直接写进故事板构建阶段。
 
+### Java + Lib 编辑与热重载
+
+新版 Java + Lib 导出通过 `EditableScenes.register(engine, documentSupplier)` 暴露类型化文档，并委托原引擎的插件注册故事板。安装完整 Ponderer 后，可从该宿主的思索界面进入编辑器；预览使用宿主原有的结构源、步骤提供者和 Java 片段。导出文档的场景 ID 使用宿主命名空间，与注册后的 Ponder ID 对齐。
+
+编辑保存为工作区中的本地 JSON 覆盖，以 `runtimeSource` 记录所属 Java 场景。保存与 `/ponderer reload` 都会重新读取覆盖并重建 Ponder 注册；删除覆盖再重载会恢复 Java 默认文档。覆盖由宿主注册，产品不会重复注册一份相同场景。Lib 不包含编辑器，单独安装 Lib 时仍可播放导出内容。已有旧 Java + Lib 导出需要重新导出并编译，才能接入此桥接。
+
+自定义步骤仍实现 `StepType<P>` / `StepCodec<P>`。它们会出现在新增步骤的“自定义步骤”页；编辑器提供 JSON 参数输入，并调用提供者 codec 校验，不执行构建回调。未识别的类型和 `editableParameters() == false` 的步骤显示“自定义 Java / 未知步骤 · 已跳过解析，原样保留”，跳过参数表单，保留原始字段。未知步骤缺少运行提供者时仍按原规则报告不可播放，不伪造执行结果。
+
+在保留的 `PonderExtensions.install(engine)` 中可加入纯 Java 步骤和默认文档修改，无需手改生成文件：
+
+```java
+engine.steps().registerJava("example:machine_animation", "机器动画", context -> {
+    context.builder().idle(30); // 这里可以构建任意可重播的 Ponder 指令
+});
+EditableScenes.customize(engine, document -> {
+    // 对此 engine 的每份新默认文档执行；本地覆盖优先于默认文档。
+    var segment = document.scenes.getFirst();
+    var steps = new java.util.ArrayList<>(segment.steps);
+    var java = new DslScene.DslStep();
+    java.id = "machine_animation";
+    java.type = "example:machine_animation";
+    steps.add(java);
+    segment.steps = steps;
+});
+```
+
+`registerJava` 的回调在播放与预览时正常构建指令，编辑器仅跳过解析其实现。锚定 `JavaFragments` 在步骤列表中按前后位置显示只读占位行，不写入虚假 DSL 步骤；编辑后的预览保留原锚点。任意 Java 源码、闭包、循环或方法调用不会被反编译为步骤，须通过上述接口显式提供。这里的热重载作用于场景数据；修改 Java 实现仍须重新编译宿主。
+
 每个 engine 独占目录、步骤、片段、NBT 绑定、结构路由和直接编译会话。`replaceCatalog` 关闭本实例会话；`close()` 释放本实例拥有的注册和资源，不清空其他实例。生成的 `GeneratedPonderIndex.close()` 汇总关闭生成场景；关闭是终止操作，正常资源重载使用原有插件注册流程。上游 Ponder 没有插件移除 API，关闭后的插件保持为空，不能宣称热卸载整个模组。
 
 `formatVersion` 和 `requiredCapabilities` 是内容声明。内建能力为 core、java_steps、view、nbt_bindings、interfaces（均带 `pondererlib:` 前缀）。第三方能力由 `engine.steps().provideCapability(id)` 申明。未知格式、缺步骤提供者、重复锚点、启动时禁用界面均给出位置诊断；依赖界面的整个场景不可用，数据继续保留。
@@ -155,11 +182,22 @@ interfaces=AUTO
 
 - 播放器 AUTO：存在至少一个 `RuntimeFeatures.requestPlayerEnhancements(owner)` 申请时启用。Ponderer 申请，导出内容默认不申请。多个申请独立关闭，用户 ON/OFF 优先。单个已打开屏幕在初始化时固定策略，避免中途改变申请导致渲染状态失衡。
 - 所有 Mixin 现按启动能力分组：AUTO 没有需求时不应用，ON 请求该组及依赖，OFF 排除该组和依赖它的组。完整产品、Java 导出与资源内容在启动时提供需求，手写 Java 宿主需要声明后才能在客户端初始化时申请播放器。
+- `editor`、`application`、`feedback` 的配置与 Mixin 决策属于本体，使用 `config/ponderer.properties` 和 `-Dponderer.<开关>`；旧 Lib 配置键仍由本体兼容读取。Lib 只保留通用能力，共享进度条和灯光访问器分别由 `timeline`、`shader_lights` 控制。本体通过显式的 `StartupFeatureProvider` 在能力冻结前提交需求，避免初始化顺序影响。仅安装 Lib 不包含完整编辑器。
 - 全量分组、声明方式、资源包发现及重启要求见 [Mixin 按需加载](MIXIN_LOADING.md)。
 - 界面 OFF：Mixin 插件在目标类转换前排除 Sandbox 系列和界面捕获注入；不安装界面平台、不注册界面事件、不执行第三方菜单/屏幕代码。Fabric 已去掉永久生效的界面 Access Widener，改为同组条件访问器。
 - 沙盒打开前要求网络防火墙与屏幕拦截已实际生效，缺失则给不可用占位，不先调用目标代码再降级。渲染缓存维护独立于界面，跟随 render_cache；实体安全 Tick 和缓存记录缩小到接入 Lib 的场景/独立渲染上下文。
 
 ## 验证记录与范围
+
+2026-11-15 Java + Lib 编辑桥接验证：
+
+- `build/java-lib-edit-build.log`、`build/java-lib-edit-build-final.log`：两端 Lib 与产品构建通过，最终产品构建覆盖参数表单和未知扩展字段输出；未新增测试。
+- `build/java-lib-edit-export.log`：使用现有全步骤示例，Fabric、NeoForge 的 Java + Lib 实际导出均成功；`build/java-lib-edit-host-fabric-final.log`、`build/java-lib-edit-host-neoforge-final.log`：两个独立导出宿主最终构建通过。
+- Fabric 生成 refmap 的编辑入口仍含 `method_25426`、`method_25432` 和 `class_332` 等映射；NeoForge 1.21.1 使用 Mojang 名称，本轮未改变任何注入目标或映射声明。
+- `build/java-lib-edit-smoke.log`：`quickPlaySmoke -PskipBuild -Pworld=PondererJavaLibEdit-20261115 -PsmokeTimeout=180` 两端普通入世界通过，存档使用副本，两个测试 PID 均退出。
+- 未自动操作界面；自定义参数表单、Java 片段显示、实际播放与播放期间热重载仍需人工验收。Java 代码实现本身不属于数据热重载范围。
+
+2026-11-15 外置依赖调整：两端产品移除 Lib 的 `jarJar` / `include`，宿主与导出说明统一要求单独安装 Lib。`test.py` 构建并复制对应的产品和独立 Lib，保留原有启动与超时行为。`:NeoForge:clean :Fabric:clean :RuntimeNeoForge:build :RuntimeFabric:build :NeoForge:build :Fabric:build --offline` 通过；成品检查确认两端产品不包含内嵌 Lib 或运行类，元数据仍声明必需的 `pondererlib`。Create: Biotech 的 `build syncQuickPlayMods --offline` 通过，80 项现有测试通过，独立 Lib 已暂存。两个启动脚本语法检查通过；此次未启动客户端，以下旧记录中的“嵌入 Lib”描述属于此前分发方式。
 
 2026-11-14 纯数据接入补充验收（日志同在 `build/lib-split/`）：
 

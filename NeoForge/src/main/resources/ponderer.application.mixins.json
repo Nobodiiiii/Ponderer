@@ -9,11 +9,12 @@
   "mixins": [],
   "client": [
     "PonderLocalizationMixin",
+    "PonderKeybindsAccessor",
     "MinecraftCoordPickScrollMixin",
     "MultiLineEditBoxAccessor",
     "MultilineTextFieldAccessor",
     "PonderEditorMixin"
   ],
   "server": [],
-  "plugin": "com.nododiiiii.ponderer.neoforge.runtime.NeoForgeRuntimeMixinPlugin"
+  "plugin": "com.nododiiiii.ponderer.neoforge.launch.NeoForgeProductMixinPlugin"
 }

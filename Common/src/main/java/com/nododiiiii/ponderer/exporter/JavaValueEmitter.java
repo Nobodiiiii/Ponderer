@@ -35,7 +35,11 @@ final class JavaValueEmitter {
         statements.append("        ").append(type).append(' ').append(name).append(" = new ").append(type).append("();\n");
         try {
             for (var field : value.getClass().getFields()) {
-                if (Modifier.isStatic(field.getModifiers()) || Modifier.isTransient(field.getModifiers())) continue;
+                if (Modifier.isStatic(field.getModifiers())) continue;
+                // Extension fields are transient only because StepJsonAdapter flattens them into JSON.
+                // Native Java documents must carry the same opaque payload across export and editing.
+                if (Modifier.isTransient(field.getModifiers())
+                    && !(value instanceof com.nododiiiii.ponderer.scene.DslScene.DslStep && field.getName().equals("extensionData"))) continue;
                 Object fieldValue = field.get(value);
                 if (fieldValue == null) continue;
                 String expression = value(fieldValue);

@@ -29,8 +29,17 @@ public final class RuntimeFeatures {
         if (Files.exists(path)) try (var input = Files.newInputStream(path)) { config.load(input); }
         catch (IOException error) { throw new IllegalStateException("Cannot read " + path, error); }
         EnumSet<RuntimeFeature> requested = RuntimeFeatureDiscovery.discover(roots, gameDirectory);
+        var providers = RuntimeFeatureDiscovery.providers(roots);
         String extra = System.getProperty("pondererlib.features", config.getProperty("features", ""));
-        for (String key : extra.split("[,\\s]+")) if (!key.isBlank()) requested.add(RuntimeFeature.parse(key));
+        Set<String> requestedKeys = new java.util.LinkedHashSet<>();
+        for (String key : extra.split("[,\\s]+")) if (!key.isBlank()) {
+            String normalized = key.toLowerCase(java.util.Locale.ROOT);
+            if (normalized.startsWith("pondererlib:")) normalized = normalized.substring(12);
+            requestedKeys.add(normalized);
+            String featureKey = normalized;
+            if (providers.stream().noneMatch(provider -> provider.ownsFeatureKey(featureKey))) requested.add(RuntimeFeature.parse(key));
+        }
+        for (var provider : providers) requested.addAll(provider.requirements(gameDirectory, config, Set.copyOf(requestedKeys)));
         EnumMap<RuntimeFeature, Policy> policies = new EnumMap<>(RuntimeFeature.class);
         for (RuntimeFeature feature : RuntimeFeature.values()) {
             String value = System.getProperty("pondererlib." + feature.key(), config.getProperty(feature.key(), "AUTO"));
@@ -41,12 +50,14 @@ public final class RuntimeFeatures {
             if (policy == Policy.ON) requested.add(feature);
         }
         EnumSet<RuntimeFeature> enabled = requested.clone();
+        // An explicitly disabled request must not install its otherwise unused prerequisites.
+        enabled.removeIf(feature -> policies.get(feature) == Policy.OFF);
         boolean changed;
         do {
             changed = false;
-            for (RuntimeFeature feature : EnumSet.copyOf(enabled)) changed |= enabled.addAll(feature.dependencies());
+            for (RuntimeFeature feature : EnumSet.copyOf(enabled)) for (RuntimeFeature dependency : feature.dependencies())
+                if (policies.get(dependency) != Policy.OFF) changed |= enabled.add(dependency);
         } while (changed);
-        enabled.removeIf(feature -> policies.get(feature) == Policy.OFF);
         do { changed = enabled.removeIf(feature -> !enabled.containsAll(feature.dependencies())); }
         while (changed);
         startup = new State(Set.copyOf(requested), Set.copyOf(enabled), policies);

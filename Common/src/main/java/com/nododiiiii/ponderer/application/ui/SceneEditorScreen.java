@@ -63,6 +63,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private final PonderScreenNavigation.ReturnState ponderReturnState;
     private int sceneIndex;
     private final Map<DslScene.DslStep, DslScene.DslStep> copiedSteps = new IdentityHashMap<>();
+    private final Map<net.createmod.catnip.config.ui.ConfigScreenList.Entry, Integer> rowSteps = new IdentityHashMap<>();
     private final SceneEditorPreview preview = new SceneEditorPreview();
     private boolean syncingListFromPreview;
 
@@ -120,7 +121,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     @Override
     protected void onListScrollChanged(int firstVisibleIndex) {
-        if (!syncingListFromPreview) preview.seekStep(firstVisibleIndex);
+        if (!syncingListFromPreview && list != null && firstVisibleIndex >= 0 && firstVisibleIndex < list.children().size())
+            preview.seekStep(rowSteps.getOrDefault(list.children().get(firstVisibleIndex), 0));
     }
 
     private void layoutPreview() {
@@ -156,7 +158,11 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         if (list == null) return;
         syncingListFromPreview = true;
         try {
-            list.setScrollAmount(preview.stepAtCursor() * (double) getEntryHeight() + 7);
+            int step = preview.stepAtCursor();
+            for (int row = 0; row < list.children().size(); row++) if (rowSteps.getOrDefault(list.children().get(row), -1) == step) {
+                list.setScrollAmount(row * (double) getEntryHeight() + 7);
+                break;
+            }
         } finally {
             syncingListFromPreview = false;
         }
@@ -256,6 +262,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
     @Override
     protected void collectEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries) {
+        rowSteps.clear();
         List<DslScene.DslStep> steps = getSteps();
         copiedSteps.keySet().retainAll(steps);
         if (steps.isEmpty()) {
@@ -265,9 +272,10 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
 
         for (int i = 0; i < steps.size(); i++) {
             int stepIndex = i;
+            addJavaFragmentEntries(entries, steps.get(i), com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.BEFORE);
             entries.add(new SceneStepListEntry(
-                () -> (stepIndex + 1) + ". " + StepPreviewText.title(steps.get(stepIndex)),
-                () -> StepPreviewText.summary(steps.get(stepIndex)),
+                () -> (stepIndex + 1) + ". " + StepPreviewText.title(scene, steps.get(stepIndex)),
+                () -> StepPreviewText.summary(scene, steps.get(stepIndex)),
                 () -> openEditorForStep(stepIndex),
                 List.of(
                     SceneStepListEntry.iconButton(
@@ -307,6 +315,22 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                         () -> removeStepAndSave(stepIndex),
                         null,
                         () -> !isActionDisabled(5, stepIndex)))));
+            rowSteps.put(entries.getLast(), stepIndex);
+            addJavaFragmentEntries(entries, steps.get(i), com.nododiiiii.ponderer.runtime.api.JavaFragments.Position.AFTER);
+        }
+    }
+
+    private void addJavaFragmentEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries,
+                                       DslScene.DslStep step, com.nododiiiii.ponderer.runtime.api.JavaFragments.Position position) {
+        if (step == null) return;
+        var segment = scene.scenes.get(sceneIndex);
+        String segmentId = segment.id == null ? Integer.toString(sceneIndex) : segment.id;
+        for (var fragment : com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).fragments().describe(scene.id)) {
+            if (!fragment.segment().equals(segmentId) || !java.util.Objects.equals(fragment.anchor(), step.id) || fragment.position() != position) continue;
+            entries.add(new SceneStepListEntry(
+                () -> UIText.of("ponderer.ui.custom_step.fragment", step.id),
+                () -> UIText.of("ponderer.ui.custom_step.opaque"), null, List.of()));
+            rowSteps.put(entries.getLast(), getSteps().indexOf(step));
         }
     }
 
@@ -559,6 +583,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         AbstractStepEditorScreen editor = StepEditorFactory.createEditScreen(steps.get(index), index, scene, sceneIndex, this);
         if (editor != null) {
             ScreenOpener.open(editor);
+        } else if (StepPreviewText.isCustom(steps.get(index))) {
+            setInfoMessage(UIText.of("ponderer.ui.custom_step.opaque"));
         }
     }
 

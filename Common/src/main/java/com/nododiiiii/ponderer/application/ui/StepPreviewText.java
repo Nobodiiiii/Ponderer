@@ -25,6 +25,21 @@ final class StepPreviewText {
     private StepPreviewText() {
     }
 
+    static String title(DslScene scene, @Nullable DslScene.DslStep step) {
+        if (isCustom(step)) return com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).steps().editorLabel(step.type);
+        return title(step);
+    }
+    static boolean isCustom(@Nullable DslScene.DslStep step) {
+        return step != null && step.type != null && !com.nododiiiii.ponderer.scene.SceneStepTypes.BUILTIN.contains(step.type.toLowerCase(Locale.ROOT));
+    }
+    static String summary(DslScene scene, @Nullable DslScene.DslStep step) {
+        if (!isCustom(step)) return summary(step);
+        var registry = com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).steps();
+        return registry.editableParameters(step.type)
+            ? UIText.of("ponderer.ui.custom_step.summary", step.parameters == null ? "{}" : step.parameters.toString())
+            : UIText.of("ponderer.ui.custom_step.opaque");
+    }
+
     static String title(@Nullable DslScene.DslStep step) {
         if (step == null || step.type == null || step.type.isBlank()) {
             return UIText.of("ponderer.ui.invalid");

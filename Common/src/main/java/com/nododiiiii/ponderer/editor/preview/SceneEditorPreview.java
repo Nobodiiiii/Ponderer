@@ -147,7 +147,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         close();
         com.nododiiiii.ponderer.editor.api.EditorResources.track(this);
         try {
-            var compiled = com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().compile(
+            var compiled = com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(definition).compile(
                 new com.nododiiiii.ponderer.runtime.api.CompileRequest(com.nododiiiii.ponderer.scene.SceneSnapshot.of(definition), segmentIndex));
             if (compiled == null) return false;
             ponder = new PreviewPonderUI(compiled.scene(), compiled.playback());

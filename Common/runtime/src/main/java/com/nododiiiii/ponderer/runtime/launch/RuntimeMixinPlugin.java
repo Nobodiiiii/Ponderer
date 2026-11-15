@@ -18,23 +18,17 @@ public class RuntimeMixinPlugin implements IMixinConfigPlugin {
         return switch (simple) {
             case "PonderUIMixin", "PonderPlaybackMixin",
                  "LerpedFloatInterpolationMixin", "WorldSectionInterpolationMixin" -> enabled(RuntimeFeature.PLAYER);
-            case "PonderProgressBarMixin" -> enabled(RuntimeFeature.PLAYER) || enabled(RuntimeFeature.EDITOR);
+            case "PonderProgressBarMixin" -> enabled(RuntimeFeature.TIMELINE);
             case "PonderSceneViewOffsetMixin", "SceneTransformOffsetMixin" -> enabled(RuntimeFeature.VIEW);
             case "PonderSceneTextIndexMixin" -> enabled(RuntimeFeature.TEXT);
             case "PonderUINbtMixin", "PonderUINbtMixinFabric", "PonderSceneRegistryNbtMixin",
                  "PonderSceneRegistryNbtMixinFabric", "PonderTooltipNbtMixin", "PonderTooltipNbtMixinFabric" -> enabled(RuntimeFeature.NBT_BINDINGS);
             case "WorldSectionRenderCacheMixin" -> enabled(RuntimeFeature.RENDER_CACHE);
             case "AnimationTickHolderMixin", "TextWindowElementAccessor", "InputWindowElementAccessor" -> enabled(RuntimeFeature.DETACHED_RENDERING);
-            case "RenderSystemShaderLightsAccessor" -> enabled(RuntimeFeature.DETACHED_RENDERING) || enabled(RuntimeFeature.APPLICATION);
+            case "RenderSystemShaderLightsAccessor" -> enabled(RuntimeFeature.SHADER_LIGHTS);
             case "PlaybackUiExtensionMixin" -> enabled(RuntimeFeature.UI_EXTENSIONS) && !enabled(RuntimeFeature.PLAYER);
             case "PonderLevelMixin", "PonderStructureSourceMixin", "WorldSectionElementImplMixin",
                  "PonderLevelModelDataMixin", "PonderSceneAccessor", "TickingInstructionAccessor", "PonderUIAccessor" -> enabled(RuntimeFeature.CORE);
-            case "InterfaceExtendedCaptureMixin", "InterfaceCaptureMixin", "InterfaceItemCaptureMixin",
-                 "InterfaceBlockCaptureMixin", "InterfaceLevelCaptureMixin", "InterfaceMenuCaptureMixin" -> enabled(RuntimeFeature.EDITOR) && enabled(RuntimeFeature.INTERFACES);
-            case "MinecraftNbtPickMixin", "MinecraftCoordPickScrollMixin", "PonderEditorMixin" -> enabled(RuntimeFeature.EDITOR);
-            case "PonderSceneRegistryMixin", "PonderSceneRegistryMixinFabric", "PonderLocalizationMixin",
-                 "MultiLineEditBoxAccessor", "MultilineTextFieldAccessor", "PonderKeybindsAccessor" -> enabled(RuntimeFeature.APPLICATION);
-            case "GuiFeedbackAccessor" -> enabled(RuntimeFeature.FEEDBACK);
             default -> throw new IllegalArgumentException("Missing startup feature rule for Mixin " + mixinClassName);
         };
     }

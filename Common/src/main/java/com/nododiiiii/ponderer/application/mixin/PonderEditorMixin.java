@@ -143,11 +143,8 @@ public abstract class PonderEditorMixin extends AbstractPonderScreen {
     @Unique
     private static SceneCatalog.SceneMatch ponderer$resolveDynamicScene(PonderUI ui) {
         PonderScene active = ui.getActiveScene();
-        if (!"ponderer".equals(active.getNamespace())) {
-            return null;
-        }
         int occurrence = ponderer$computeOccurrenceIndex(ui, active);
-        return com.nododiiiii.ponderer.application.api.RuntimeAccess.engine().catalog().findBySceneId(active.getId(), occurrence);
+        return com.nododiiiii.ponderer.application.api.RuntimeAccess.findBySceneId(active.getId(), occurrence);
     }
 
     @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/createmod/ponder/foundation/ui/PonderUI;updateIdentifiedItem(Lnet/createmod/ponder/foundation/PonderScene;)V", remap = false))

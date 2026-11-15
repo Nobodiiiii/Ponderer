@@ -47,7 +47,8 @@ public final class StepEditorFactory {
             case "clear_item_entities" -> new ClearEntitiesScreen("clear_item_entities", scene, sceneIndex, parent);
             case "modify_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_entities_nbt", scene, sceneIndex, parent);
             case "modify_item_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_item_entities_nbt", scene, sceneIndex, parent);
-            default -> null;
+            default -> com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).steps().editableParameters(type)
+                ? new CustomStepScreen(type, scene, sceneIndex, parent, -1, null) : null;
         };
     }
 
@@ -88,7 +89,8 @@ public final class StepEditorFactory {
             case "clear_item_entities" -> new ClearEntitiesScreen("clear_item_entities", scene, sceneIndex, parent, stepIndex, step);
             case "modify_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_entities_nbt", scene, sceneIndex, parent, stepIndex, step);
             case "modify_item_entities_nbt" -> new ModifyEntitiesNbtScreen("modify_item_entities_nbt", scene, sceneIndex, parent, stepIndex, step);
-            default -> null;
+            default -> com.nododiiiii.ponderer.application.api.RuntimeAccess.engineFor(scene).steps().editableParameters(step.type)
+                ? new CustomStepScreen(step.type, scene, sceneIndex, parent, stepIndex, step) : null;
         };
     }
 }
