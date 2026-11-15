@@ -159,7 +159,7 @@ public class TextStepScreen extends AbstractStepEditorScreen {
 
     private static LocalizedText copyText(@Nullable LocalizedText text) {
         if (text == null) return LocalizedText.of("");
-        return text.isPlain() ? LocalizedText.of(text.resolve()) : LocalizedText.ofMap(text.getAllTranslations());
+        return text.copy();
     }
 
     /** Toggle between editing the current MC language and en_us. */

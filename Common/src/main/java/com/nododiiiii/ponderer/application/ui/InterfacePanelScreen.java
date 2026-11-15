@@ -27,8 +27,7 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         .registerTypeAdapter(LocalizedText.class, new LocalizedText.GsonAdapter()).create();
     private static final String[] DIRECTIONS = {"down", "up", "left", "right"};
     private final StepXyzFieldHandle point = new StepXyzFieldHandle("point");
-    private final StepTextFieldHandle scale = new StepTextFieldHandle("scale");
-    private final StepTextFieldHandle hold = new StepTextFieldHandle("duration");
+    private final StepXyzFieldHandle transform = new StepXyzFieldHandle("panelTransform");
     private final List<DslScene.DslStep> children = new ArrayList<>();
     private int direction;
     private boolean panelBackground = true;
@@ -42,8 +41,7 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
                                 int index, @Nullable DslScene.DslStep step) {
         super(Component.translatable("ponderer.ui.step.type.interface_panel"), scene, sceneIndex, parent, index, step);
         point.setValue(2.5, 1.5, 2.5);
-        scale.setValue("0.5");
-        hold.setValue("60");
+        transform.setValue(0, 0, 0.5);
         var opening = new DslScene.DslStep();
         opening.type = "show_interface";
         opening.block = "minecraft:crafting_table";
@@ -62,13 +60,13 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         entries.add(FieldSpecs.choice("ponderer.ui.show_controls.direction", "ponderer.ui.show_controls.direction.tooltip", 70,
             () -> direction = (direction + 1) % DIRECTIONS.length,
             () -> UIText.of("ponderer.ui.show_controls.direction." + DIRECTIONS[direction])));
-        entries.add(FieldSpecs.number(scale, "ponderer.ui.interface_panel.scale", "ponderer.ui.interface_panel.scale.tooltip", "0.5", 70, null));
+        entries.add(FieldSpecs.xyz(transform, "ponderer.ui.interface_panel.transform", "ponderer.ui.interface_panel.transform.tooltip",
+            FieldType.XYZ, FieldDecorators.xyzHints("ponderer.ui.interface_panel.offset_x", "ponderer.ui.interface_panel.offset_y", "ponderer.ui.interface_panel.scale")));
         entries.add(FieldSpecs.toggle("ponderer.ui.interface_panel.background", "ponderer.ui.interface_panel.background.tooltip",
             () -> panelBackground, () -> panelBackground = !panelBackground));
         entries.add(FieldSpecs.labeledButton("ponderer.ui.interface_panel.range", "ponderer.ui.interface_panel.range.tooltip",
             this::openCrop, () -> UIText.of(panelCrop == null ? "ponderer.ui.interface_panel.range.full" : "ponderer.ui.interface_panel.range.custom"),
             () -> UIText.of("ponderer.ui.interface_panel.range.tooltip")));
-        entries.add(FieldSpecs.ticksNumber(hold, "ponderer.ui.interface_panel.hold", "ponderer.ui.interface_panel.hold.tooltip", "60", 70));
         entries.add(screen -> screen.createSectionHeaderEntry(UIText.of("ponderer.ui.interface_panel.children")));
         for (int i = 0; i < children.size(); i++) {
             int index = i;
@@ -139,10 +137,10 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         super.populateFromStep(step);
         if (step.point != null && step.point.size() >= 3) point.setValue(step.point.get(0), step.point.get(1), step.point.get(2));
         for (int i = 0; i < DIRECTIONS.length; i++) if (DIRECTIONS[i].equalsIgnoreCase(step.direction)) direction = i;
-        scale.setValue(Float.toString(step.scale == null ? InterfacePanelSpec.DEFAULT_SCALE : step.scale));
+        var values = step.panelTransform == null ? InterfacePanelSpec.DEFAULT_TRANSFORM : step.panelTransform;
+        transform.setValue(values.get(0), values.get(1), values.get(2));
         panelCrop = step.panelCrop == null ? null : new ArrayList<>(step.panelCrop);
         panelBackground = !Boolean.FALSE.equals(step.panelBackground);
-        hold.setValue(Integer.toString(step.durationOrDefault(60)));
         if (step.steps != null) {
             children.clear();
             children.addAll(JSON.fromJson(JSON.toJson(step.steps), new TypeToken<List<DslScene.DslStep>>() {}.getType()));
@@ -169,10 +167,11 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
 
     @Override @Nullable protected DslScene.DslStep buildStep() {
         Double x = parseDouble(point.x(), "X"), y = parseDouble(point.y(), "Y"), z = parseDouble(point.z(), "Z");
-        Double factor = parseDouble(scale.getValue(), UIText.of("ponderer.ui.interface_panel.scale"));
-        Integer ticks = parseInt(hold.getValue(), UIText.of("ponderer.ui.interface_panel.hold"));
-        if (x == null || y == null || z == null || factor == null || ticks == null) return null;
-        if (!Float.isFinite(factor.floatValue()) || factor.floatValue() <= 0 || ticks < 0
+        Double offsetX = parseDouble(transform.x(), UIText.of("ponderer.ui.interface_panel.offset_x"));
+        Double offsetY = parseDouble(transform.y(), UIText.of("ponderer.ui.interface_panel.offset_y"));
+        Double factor = parseDouble(transform.z(), UIText.of("ponderer.ui.interface_panel.scale"));
+        if (x == null || y == null || z == null || offsetX == null || offsetY == null || factor == null) return null;
+        if (!Double.isFinite(offsetX) || !Double.isFinite(offsetY) || !Double.isFinite(factor) || factor <= 0
             || !Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
             setErrorMessage(UIText.of("ponderer.ui.interface_panel.invalid"));
             return null;
@@ -181,10 +180,9 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         step.type = InterfacePanelSpec.TYPE;
         step.point = List.of(x, y, z);
         step.direction = DIRECTIONS[direction];
-        step.scale = factor.floatValue();
+        step.panelTransform = List.of(offsetX, offsetY, factor);
         step.panelCrop = panelCrop == null ? null : new ArrayList<>(panelCrop);
         step.panelBackground = panelBackground;
-        step.duration = ticks;
         step.steps = JSON.fromJson(JSON.toJson(children), new TypeToken<List<DslScene.DslStep>>() {}.getType());
         try { InterfacePanelSpec.validate(step); }
         catch (IllegalArgumentException error) { setErrorMessage(error.getMessage()); return null; }

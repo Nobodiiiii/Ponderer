@@ -64,6 +64,15 @@ public final class FieldDecorators {
         };
     }
 
+    public static FieldDecorator xyzHints(String xHint, String yHint, String zHint) {
+        return new FieldDecorator() {
+            @Override
+            public void applyXyz(AbstractDeclarativeFormScreen screen, XyzListEntry entry) {
+                entry.setFieldHints(xHint, yHint, zHint);
+            }
+        };
+    }
+
     public static FieldDecorator xyzAction(String label, int color, @Nullable String tooltipText, Runnable onClick) {
         return xyzAction(20, onClick, () -> label, () -> color, tooltipText);
     }

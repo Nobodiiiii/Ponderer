@@ -22,6 +22,7 @@
     "LerpedFloatInterpolationMixin",
     "WorldSectionInterpolationMixin",
     "PonderSceneAccessor",
+    "PonderSceneLocalizedTextMixin",
     "TickingInstructionAccessor",
     "TextWindowElementAccessor",
     "InputWindowElementAccessor",

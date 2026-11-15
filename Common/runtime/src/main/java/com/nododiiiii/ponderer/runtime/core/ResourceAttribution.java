@@ -13,6 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import com.nododiiiii.ponderer.runtime.api.PonderAttribution;
 import java.util.function.Supplier;
+import com.nododiiiii.ponderer.scene.LocalizedText;
 
 /** The exported attribution icon is built in, so resource-only hosts need no model registration code. */
 public final class ResourceAttribution {
@@ -25,9 +26,10 @@ public final class ResourceAttribution {
     }
     public static void register(String namespace, PonderTagRegistrationHelper<ResourceLocation> helper) {
         ResourceLocation id = tag(namespace);
-        helper.registerTag(id).title(PonderAttribution.TITLE_EN_US)
-            .description(PonderAttribution.DESCRIPTION_EN_US).register();
-        ((PonderTagRegistry) PonderIndex.getTagAccess()).registerTag(create(id, null, null));
+        var title = LocalizedText.ref("pondererlib:attribution", "title");
+        var description = LocalizedText.ref("pondererlib:attribution", "description");
+        helper.registerTag(id).title(title.resolve()).description(description.resolve()).register();
+        ((PonderTagRegistry) PonderIndex.getTagAccess()).registerTag(create(id, title::resolve, description::resolve));
     }
 
     public static PonderTag create(ResourceLocation id, Supplier<String> title, Supplier<String> description) {

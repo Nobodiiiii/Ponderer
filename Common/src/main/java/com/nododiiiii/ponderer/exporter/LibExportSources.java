@@ -40,7 +40,7 @@ final class LibExportSources {
         if (id == null || id.isBlank()) return id;
         return relocated.getOrDefault(id.contains(":") ? id : "ponderer:" + id, id);
     }
-    static String members(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
+    static String members(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan, DslScene document) {
         if (target.mode == JavaModuleExportRequest.Mode.JSON_LIB) throw new IllegalArgumentException("JSON content has no generated Java members");
         return """
                 private static final RuntimeEngine RUNTIME = createRuntime();
@@ -67,7 +67,7 @@ final class LibExportSources {
                 }
                 public static void close() { RUNTIME.close(); }
 
-            """.formatted(plan.className, quote(target.modId), quote(target.modId), extensionPackage(target), JavaSceneSources.members(document(target, plan)));
+            """.formatted(plan.className, quote(target.modId), quote(target.modId), extensionPackage(target), JavaSceneSources.members(document));
     }
     static String extension(JavaModuleScanResult.TargetProject target) {
         return """

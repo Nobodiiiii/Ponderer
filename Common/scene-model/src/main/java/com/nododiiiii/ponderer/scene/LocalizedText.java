@@ -25,12 +25,43 @@ public final class LocalizedText {
     private String plain;
     /** null if this is a plain string; the lang->text map otherwise */
     private Map<String, String> localized;
+    private String reference;
+    private String key;
+    private static volatile java.util.function.BiFunction<String, String, Map<String, String>> references = (resource, key) -> Map.of();
 
     private static Supplier<String> language = () -> "en_us";
 
     /** Install the host language lookup at client bootstrap; no game classes are loaded by the model. */
     public static void useLanguage(Supplier<String> supplier) {
         language = java.util.Objects.requireNonNull(supplier);
+    }
+
+    /** The client resource loader supplies translations; the model itself has no game dependency. */
+    public static void useReferences(java.util.function.BiFunction<String, String, Map<String, String>> resolver) {
+        references = java.util.Objects.requireNonNull(resolver);
+    }
+
+    public static LocalizedText ref(String resource, String key) {
+        if (resource == null || !resource.matches("[a-z0-9_.-]+:[a-z0-9/._-]+")
+            || java.util.Arrays.asList(resource.substring(resource.indexOf(':') + 1).split("/", -1)).stream()
+                .anyMatch(part -> part.isEmpty() || part.equals(".") || part.equals("..")))
+            throw new IllegalArgumentException("Invalid text resource: " + resource);
+        if (key == null || key.isBlank()) throw new IllegalArgumentException("Blank text key");
+        var text = new LocalizedText();
+        text.reference = resource;
+        text.key = key;
+        text.localized = new LinkedHashMap<>();
+        return text;
+    }
+
+    public boolean isReference() { return reference != null; }
+    public String resource() { return reference; }
+    public String key() { return key; }
+    public LocalizedText copy() {
+        if (!isReference()) return isPlain() ? of(plain) : ofMap(localized == null ? Map.of() : localized);
+        var result = ref(reference, key);
+        result.localized.putAll(localized);
+        return result;
     }
 
     private LocalizedText() {}
@@ -56,6 +87,11 @@ public final class LocalizedText {
 
     /** Get the map of all translations. Returns a single-entry map for plain text. */
     public Map<String, String> getAllTranslations() {
+        if (isReference()) {
+            var translations = new LinkedHashMap<>(references.apply(reference, key));
+            translations.putAll(localized);
+            return translations;
+        }
         if (localized != null) return localized;
         Map<String, String> m = new LinkedHashMap<>();
         m.put("_plain", plain != null ? plain : "");
@@ -67,21 +103,7 @@ public final class LocalizedText {
      * Order: current MC language -> en_us -> first available -> ""
      */
     public String resolve() {
-        if (plain != null) return plain;
-        if (localized == null || localized.isEmpty()) return "";
-
-        String lang = getCurrentLanguage();
-
-        // 1. Try current language
-        String val = localized.get(lang);
-        if (val != null) return val;
-
-        // 2. Try en_us
-        val = localized.get("en_us");
-        if (val != null) return val;
-
-        // 3. First available
-        return localized.values().iterator().next();
+        return resolve(getCurrentLanguage());
     }
 
     /**
@@ -89,15 +111,16 @@ public final class LocalizedText {
      */
     public String resolve(String lang) {
         if (plain != null) return plain;
-        if (localized == null || localized.isEmpty()) return "";
+        Map<String, String> translations = isReference() ? getAllTranslations() : localized;
+        if (translations == null || translations.isEmpty()) return isReference() ? reference + "#" + key : "";
 
-        String val = localized.get(lang);
+        String val = translations.get(lang);
         if (val != null) return val;
 
-        val = localized.get("en_us");
+        val = translations.get("en_us");
         if (val != null) return val;
 
-        return localized.values().iterator().next();
+        return translations.values().iterator().next();
     }
 
     /**
@@ -146,6 +169,7 @@ public final class LocalizedText {
      * For plain text, returns the plain text only when lang is "en_us" or null otherwise.
      */
     public String getExact(String lang) {
+        if (isReference()) return getAllTranslations().get(lang);
         if (plain != null) {
             // Plain text is treated as unlocalized; return it for any language query
             return plain;
@@ -156,6 +180,7 @@ public final class LocalizedText {
 
     /** Check if the text is null/empty in all forms. */
     public boolean isEmpty() {
+        if (isReference()) return false;
         if (plain != null) return plain.isEmpty();
         if (localized == null || localized.isEmpty()) return true;
         return localized.values().stream().allMatch(v -> v == null || v.isEmpty());
@@ -183,6 +208,18 @@ public final class LocalizedText {
                 out.nullValue();
                 return;
             }
+            if (value.isReference()) {
+                out.beginObject();
+                out.name("ref").value(value.reference);
+                out.name("key").value(value.key);
+                if (!value.localized.isEmpty()) {
+                    out.name("overrides").beginObject();
+                    for (var entry : value.localized.entrySet()) out.name(entry.getKey()).value(entry.getValue());
+                    out.endObject();
+                }
+                out.endObject();
+                return;
+            }
             if (value.plain != null) {
                 out.value(value.plain);
             } else if (value.localized != null) {
@@ -207,36 +244,22 @@ public final class LocalizedText {
                 return LocalizedText.of(in.nextString());
             }
             if (token == JsonToken.BEGIN_OBJECT) {
-                Map<String, String> map = new LinkedHashMap<>();
-                in.beginObject();
-                while (in.hasNext()) {
-                    String key = in.nextName();
-                    JsonToken valueToken = in.peek();
-                    if (valueToken == JsonToken.STRING) {
-                        map.put(key, in.nextString());
-                        continue;
-                    }
-
-                    // Backward-compatibility for malformed shape:
-                    // { "localized": { "en_us": "...", "zh_cn": "..." } }
-                    if ("localized".equals(key) && valueToken == JsonToken.BEGIN_OBJECT) {
-                        in.beginObject();
-                        while (in.hasNext()) {
-                            String lang = in.nextName();
-                            JsonToken nested = in.peek();
-                            if (nested == JsonToken.STRING) {
-                                map.put(lang, in.nextString());
-                            } else {
-                                in.skipValue();
-                            }
-                        }
-                        in.endObject();
-                        continue;
-                    }
-
-                    in.skipValue();
+                var object = JsonParser.parseReader(in).getAsJsonObject();
+                if (object.has("ref")) {
+                    var text = LocalizedText.ref(object.get("ref").getAsString(), object.get("key").getAsString());
+                    if (object.has("overrides")) object.getAsJsonObject("overrides").entrySet()
+                        .forEach(entry -> text.setForLang(entry.getKey(), entry.getValue().getAsString()));
+                    return text;
                 }
-                in.endObject();
+                Map<String, String> map = new LinkedHashMap<>();
+                for (var entry : object.entrySet()) {
+                    if (entry.getValue().isJsonPrimitive() && entry.getValue().getAsJsonPrimitive().isString())
+                        map.put(entry.getKey(), entry.getValue().getAsString());
+                    else if (entry.getKey().equals("localized") && entry.getValue().isJsonObject())
+                        entry.getValue().getAsJsonObject().entrySet().stream()
+                            .filter(child -> child.getValue().isJsonPrimitive() && child.getValue().getAsJsonPrimitive().isString())
+                            .forEach(child -> map.put(child.getKey(), child.getValue().getAsString()));
+                }
                 return LocalizedText.ofMap(map);
             }
             // unexpected token - skip and return empty

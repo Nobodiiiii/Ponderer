@@ -18,6 +18,8 @@ public final class SceneCodec {
     public static DslScene decode(Reader json) { return withAnchors(READER.fromJson(json, DslScene.class)); }
     public static String encode(DslScene scene) { return READER.toJson(withAnchors(scene)); }
     public static String pretty(DslScene scene) { return WRITER.toJson(withAnchors(scene)); }
+    public static String encodeText(LocalizedText text) { return READER.toJson(text, LocalizedText.class); }
+    public static LocalizedText decodeText(String json) { return READER.fromJson(json, LocalizedText.class); }
     /** Legacy documents receive deterministic anchors; once saved they survive reorder and edits. */
     public static DslScene withAnchors(DslScene scene) {
         if (scene == null || scene.scenes == null) return scene;

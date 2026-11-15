@@ -27,9 +27,11 @@ final class JavaSceneSources {
     private JavaSceneSources() {}
 
     static String members(DslScene document) {
-        var metadata = new JavaValueEmitter(true);
+        var metadata = new JavaValueEmitter(true, document.id);
         metadata.fields("document", document, Set.of("scenes"));
-        var source = new StringBuilder("    private static DslScene loadDocument() {\n        var document = new DslScene();\n")
+        var source = new StringBuilder("    private static LocalizedText text(String key) {\n        return LocalizedText.ref(")
+            .append(metadata.value(document.id)).append(", key);\n    }\n\n")
+            .append("    private static DslScene loadDocument() {\n        var document = new DslScene();\n")
             .append(metadata.statements());
         if (document.scenes == null) source.append("        document.scenes = null;\n");
         else {
@@ -44,7 +46,7 @@ final class JavaSceneSources {
         source.append("        return document;\n    }\n\n");
         if (document.scenes != null) for (int i = 0; i < document.scenes.size(); i++) {
             var segment = document.scenes.get(i);
-            var values = new JavaValueEmitter(true);
+            var values = new JavaValueEmitter(true, document.id);
             source.append("    private static DslScene.SceneSegment scene").append(i + 1).append("() {\n");
             if (segment == null) {
                 source.append("        return null;\n    }\n\n");
@@ -52,7 +54,7 @@ final class JavaSceneSources {
             }
             source.append("        var scene = new JavaScene(").append(values.value(segment.id)).append(", ")
                 .append(values.value(segment.title)).append(");\n");
-            if (segment.steps != null) for (var step : segment.steps) source.append(step(step));
+            if (segment.steps != null) for (var step : segment.steps) source.append(step(step, document.id));
             if (segment.steps == null) source.append("        var segment = scene.build();\n        segment.steps = null;\n        return segment;\n");
             else source.append("        return scene.build();\n");
             source.append("    }\n\n");
@@ -60,9 +62,9 @@ final class JavaSceneSources {
         return source.toString();
     }
 
-    private static String step(DslScene.DslStep step) {
+    private static String step(DslScene.DslStep step, String textScope) {
         if (step == null) return "        scene.emptyStep();\n";
-        var values = new JavaValueEmitter(true);
+        var values = new JavaValueEmitter(true, textScope);
         JsonObject extra = CODEC.toJsonTree(step).getAsJsonObject();
         extra.remove("id");
         extra.remove("type");

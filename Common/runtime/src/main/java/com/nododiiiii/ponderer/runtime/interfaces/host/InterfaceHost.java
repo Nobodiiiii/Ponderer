@@ -89,17 +89,10 @@ public final class InterfaceHost {
 
     public static SandboxSession openPanel(PonderScene scene, InterfaceDescriptor descriptor,
                                           net.minecraft.world.phys.Vec3 anchor,
-                                          net.createmod.catnip.math.Pointing direction, float scale,
-                                          @Nullable List<Double> crop) {
-        return openPanel(scene, descriptor, anchor, direction, scale, crop, true);
-    }
-
-    public static SandboxSession openPanel(PonderScene scene, InterfaceDescriptor descriptor,
-                                          net.minecraft.world.phys.Vec3 anchor,
-                                          net.createmod.catnip.math.Pointing direction, float scale,
+                                          net.createmod.catnip.math.Pointing direction, List<Double> transform,
                                           @Nullable List<Double> crop, boolean background) {
         SandboxSession session = open(scene, descriptor);
-        current.setPanel(new InterfacePanelLayout(anchor, direction, scale, crop, background));
+        current.setPanel(new InterfacePanelLayout(anchor, direction, transform, crop, background));
         return session;
     }
 

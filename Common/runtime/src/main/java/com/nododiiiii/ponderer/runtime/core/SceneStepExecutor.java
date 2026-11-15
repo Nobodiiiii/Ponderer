@@ -118,6 +118,10 @@ final class SceneStepExecutor {
     }
 
     private void applySharedText(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
+        if (step.text != null) {
+            applyText(scene, step, context);
+            return;
+        }
         String key = step.key;
         if (key == null || key.isBlank()) {
             LOGGER.warn("shared_text missing key");
@@ -198,7 +202,7 @@ final class SceneStepExecutor {
         scene.addInstruction(ps -> {
             if (!com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext.isActive())
                 InterfaceHost.openPanel(ps, descriptor, toPoint(panel.point), parsePointing(panel.direction),
-                    panel.scale == null ? com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.DEFAULT_SCALE : panel.scale,
+                    panel.panelTransform == null ? com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.DEFAULT_TRANSFORM : panel.panelTransform,
                     panel.panelCrop, !Boolean.FALSE.equals(panel.panelBackground));
         });
         StepContext nested = new StepContext();
@@ -220,9 +224,8 @@ final class SceneStepExecutor {
                 default -> { }
             }
         }
-        // Let child overlays finish before destroying their viewport, then apply the closing hold.
+        // Let child overlays finish before destroying their viewport.
         scene.idle(Math.max(1, tail));
-        scene.idle(panel.durationOrDefault(60));
         scene.addInstruction(InterfaceHost::hide);
     }
 

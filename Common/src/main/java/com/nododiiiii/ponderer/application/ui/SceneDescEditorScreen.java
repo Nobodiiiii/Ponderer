@@ -386,12 +386,11 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
         if (text == null) {
             return LocalizedText.of("");
         }
-        return text.isPlain()
-            ? LocalizedText.of(text.resolve())
-            : LocalizedText.ofMap(new LinkedHashMap<>(text.getAllTranslations()));
+        return text.copy();
     }
 
     private static void writeLocalizedSnapshot(Map<String, String> snapshot, String prefix, LocalizedText text) {
+        snapshot.put(prefix + "_json", com.nododiiiii.ponderer.scene.SceneCodec.encodeText(text));
         snapshot.put(prefix + "_count", String.valueOf(text.getAllTranslations().size()));
         int index = 0;
         for (Map.Entry<String, String> entry : text.getAllTranslations().entrySet()) {
@@ -402,6 +401,8 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
     }
 
     private static LocalizedText readLocalizedSnapshot(Map<String, String> snapshot, String prefix) {
+        if (snapshot.containsKey(prefix + "_json"))
+            return com.nododiiiii.ponderer.scene.SceneCodec.decodeText(snapshot.get(prefix + "_json"));
         int count = 0;
         try {
             count = Integer.parseInt(snapshot.getOrDefault(prefix + "_count", "0"));

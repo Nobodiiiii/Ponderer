@@ -15,9 +15,11 @@ final class JavaValueEmitter {
     private static final Gson STRINGS = new com.google.gson.GsonBuilder().disableHtmlEscaping().create();
     private final StringBuilder statements = new StringBuilder();
     private final boolean shortNames;
+    private final String textScope;
     private int next;
     JavaValueEmitter() { this(false); }
-    JavaValueEmitter(boolean shortNames) { this.shortNames = shortNames; }
+    JavaValueEmitter(boolean shortNames) { this(shortNames, null); }
+    JavaValueEmitter(boolean shortNames, String textScope) { this.shortNames = shortNames; this.textScope = textScope; }
     private String type(String name) {
         if (!shortNames) return name;
         return name.replace("com.nododiiiii.ponderer.scene.DslScene", "DslScene")
@@ -39,6 +41,10 @@ final class JavaValueEmitter {
             if (json.isJsonObject() && json.getAsJsonObject().isEmpty()) return "new " + type("com.google.gson.JsonObject") + "()";
             return type("com.google.gson.JsonParser") + ".parseString(" + STRINGS.toJson(json.toString()) + ")"
             + (json.isJsonObject() ? ".getAsJsonObject()" : json.isJsonArray() ? ".getAsJsonArray()" : "");
+        }
+        if (value instanceof LocalizedText text && text.isReference()) {
+            if (text.resource().equals(textScope)) return "text(" + value(text.key()) + ")";
+            return type("com.nododiiiii.ponderer.scene.LocalizedText") + ".ref(" + value(text.resource()) + ", " + value(text.key()) + ")";
         }
         if (value instanceof LocalizedText text) return type("com.nododiiiii.ponderer.scene.LocalizedText") + "."
             + (text.isPlain() ? "of(" + value(text.resolve()) : "ofMap(" + value(text.getAllTranslations())) + ")";

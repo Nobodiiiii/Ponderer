@@ -144,16 +144,31 @@ engine.steps().register("example:pause", new StepType<Integer>() {
 Java 场景按分段生成方法，普通步骤使用 `JavaScene` 的直接参数调用，不再展开成 `data0、data1…` 对象赋值。例如：
 
 ```java
-var scene = new JavaScene("scene_1", LocalizedText.of("演示"));
+var scene = new JavaScene("scene_1", LocalizedText.ref("example:demo", "scene_1.title"));
 scene.showStructure("example:generated/ponderer/base", null, null, null, null);
 scene.idle(20);
 scene.keyframe().showText(
-    LocalizedText.of("说明文字"), new Vec3(2.5, 1.5, 2.5), 80, null, true);
+    LocalizedText.ref("example:demo", "scene_1.text_1"), new Vec3(2.5, 1.5, 2.5), 80, null, true);
 scene.javaStep("example:machine_animation", new JsonObject());
 return scene.build();
 ```
 
 这些调用只构建可编辑数据，执行仍由同一个 runtime engine 完成；`keyframe` 保留关键帧。步骤 ID 在 `build()` 时由 API 根据步骤内容生成，相同内容的重复步骤自动区分；插入不同内容的步骤不会重编号其他步骤。ID 随编辑文档保存，Java 源码无需声明或维护，也没有单独的 ID 对照资源。复杂步骤和未识别字段通过 `raw` / `fields` 携带完整数据。生成代码需要新版 Lib；自定义 Java 提供者继续放在 `PonderExtensions` 中。旧的 `.at(...)` 和按步骤 ID 注册 Java 片段的接口已移除。
+
+Java + Lib 与 JSON + Lib 会把标题、注释、提示及自定义分类文本抽取到 `assets/<namespace>/ponderer/texts/<scene>/<locale>.json`。例如 `assets/example/ponderer/texts/demo/zh_cn.json`：
+
+```json
+{
+  "scene_1.title": "演示",
+  "scene_1.text_1": "说明文字"
+}
+```
+
+生成 Java 提供场景内的 `text(key)` 简写，普通调用形如 `scene.showText(text("scene_1.text_1"), ...)`。首次导出自动分配文本键，已有引用在插入、重排和修改文字时保持原键；手写内容可使用 `rotation_direction` 等语义键。文本键独立于步骤 ID。Lib 不再向宿主的总 `lang/*.json` 添加场景或署名条目；迁移时仅清理导出清单记录的旧条目及旧署名条目，其余翻译保留。无需 Lib 的 Java + Support 模式继续使用上游语言文件。
+
+Lib 随客户端资源重载读取这些文件，按当前语言 → `en_us` → 首个可用语言回退。资源包可以替换某个场景的单个语言文件，其他语言继续可用；同一文件按资源包优先级整体替换。缺失引用显示 `namespace:scene#key`，再次导出遇到完全缺失的引用会报错，避免生成丢失翻译的资源。`/ponderer reload` 同时刷新已有资源管理器内的文本；增加资源包或新资源文件时使用资源重载。
+
+编辑器保留引用；本地编辑以 `{"ref":"example:demo","key":"scene_1.text_1","overrides":{"zh_cn":"新说明"}}` 保存语言覆盖，不修改宿主 JAR。再次导出会将覆盖合并进独立文本文件，Java 中仍只保留引用。场景标题、播放注释与分类文本均使用 Lib 已解析的值。所需 Ponder 文本 Mixin 随 Lib 分发，由导出内容声明的 `core` 能力启用，宿主无需复制 Mixin 类或配置。
 
 编辑保存为工作区中的本地 JSON 覆盖，以 `runtimeSource` 记录所属 Java 场景。保存与 `/ponderer reload` 都会重新读取覆盖并重建 Ponder 注册；删除覆盖再重载会恢复 Java 默认文档。覆盖由宿主注册，产品不会重复注册一份相同场景。Lib 不包含编辑器，单独安装 Lib 时仍可播放导出内容。已有旧 Java + Lib 导出需要重新导出并编译，才能接入此桥接。
 

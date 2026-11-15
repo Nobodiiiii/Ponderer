@@ -867,12 +867,19 @@ public final class JavaModuleExportService {
                                              JavaModuleScanResult.ScenePlan scenePlan,
                                              SceneExportOutcome outcome) {
         boolean resourceOnly = target.mode == JavaModuleExportRequest.Mode.JSON_LIB;
-        String sceneSource = resourceOnly ? com.nododiiiii.ponderer.scene.SceneCodec.pretty(LibExportSources.document(target, scenePlan)) : buildSceneSource(target, scenePlan);
+        var texts = LibExportSources.usesLib(target) ? com.nododiiiii.ponderer.scene.SceneTextBundle.extract(LibExportSources.document(target, scenePlan)) : null;
+        String sceneSource = resourceOnly ? com.nododiiiii.ponderer.scene.SceneCodec.pretty(texts.document()) : buildSceneSource(target, scenePlan, texts == null ? null : texts.document());
         String sceneRelativePath = resourceOnly ? "src/main/resources" + LibExportSources.jsonPath(target, scenePlan)
             : "src/main/java/" + packageToPath(target.scenePackage) + "/" + scenePlan.className + ".java";
-        Map<String, Map<String, String>> langEntries = buildSceneLangEntries(target, scenePlan);
+        Map<String, Map<String, String>> langEntries = texts == null ? buildSceneLangEntries(target, scenePlan) : Map.of();
 
         List<BinaryFile> structureFiles = new ArrayList<>();
+        if (texts != null) {
+            String path = texts.document().id.substring(texts.document().id.indexOf(':') + 1);
+            texts.locales().forEach((locale, values) -> structureFiles.add(new BinaryFile(
+                "src/main/resources/assets/" + target.modId + "/ponderer/texts/" + path + "/" + locale + ".json",
+                (GSON.toJson(values) + "\n").getBytes(StandardCharsets.UTF_8))));
+        }
         for (JavaModuleScanResult.StructureAsset asset : scenePlan.structures) {
             if (asset == null || asset.sourcePath == null) {
                 continue;
@@ -978,7 +985,10 @@ public final class JavaModuleExportService {
         // and the always-on attribution). Other scenes' entries — even those tracked in the
         // manifest — are left alone so partial exports cannot rewrite untouched translations.
         Map<String, Map<String, String>> currentEntries = collectManagedLangEntriesForScenes(manifest, currentSceneIds);
-        mergeLangEntries(currentEntries, buildAttributionLangEntries(target.modId));
+        if (LibExportSources.usesLib(target)) {
+            buildAttributionLangEntries(target.modId).forEach((locale, values) ->
+                staleManagedLangKeys.computeIfAbsent(locale, ignored -> new LinkedHashSet<>()).addAll(values.keySet()));
+        } else mergeLangEntries(currentEntries, buildAttributionLangEntries(target.modId));
         Set<String> locales = new LinkedHashSet<>();
         locales.addAll(currentEntries.keySet());
         locales.addAll(staleManagedLangKeys.keySet());
@@ -990,6 +1000,7 @@ public final class JavaModuleExportService {
             Set<String> keysToRemove = new LinkedHashSet<>();
             keysToRemove.addAll(currentEntries.getOrDefault(locale, Map.of()).keySet());
             keysToRemove.addAll(staleManagedLangKeys.getOrDefault(locale, Set.of()));
+            if (currentEntries.getOrDefault(locale, Map.of()).isEmpty() && keysToRemove.stream().noneMatch(mergedEntries::containsKey)) continue;
             keysToRemove.forEach(mergedEntries::remove);
             mergedEntries.putAll(currentEntries.getOrDefault(locale, Map.of()));
             writes.add(new TextFile(relativeToRoot(target.targetRoot, langPath), GSON.toJson(mergedEntries)));
@@ -1465,8 +1476,8 @@ public final class JavaModuleExportService {
     }
 
     private String buildSceneSource(JavaModuleScanResult.TargetProject target,
-                                           JavaModuleScanResult.ScenePlan plan) {
-        if (target.mode == JavaModuleExportRequest.Mode.JAVA_LIB) return editableLibSceneSource(target, plan);
+                                           JavaModuleScanResult.ScenePlan plan, DslScene document) {
+        if (target.mode == JavaModuleExportRequest.Mode.JAVA_LIB) return editableLibSceneSource(target, plan, document);
         StringBuilder sb = new StringBuilder();
         sb.append(GENERATED_NOTICE_BLOCK);
         sb.append("package ").append(target.scenePackage).append(";\n\n");
@@ -1816,7 +1827,7 @@ public final class JavaModuleExportService {
         }
     }
 
-    private String editableLibSceneSource(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
+    private String editableLibSceneSource(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan, DslScene document) {
         String prefix = GENERATED_NOTICE_BLOCK + "package " + target.scenePackage + ";\n\n" + """
             import com.google.gson.JsonObject;
             import com.google.gson.JsonParser;
@@ -1853,11 +1864,12 @@ public final class JavaModuleExportService {
                             .description(definition.description == null ? "" : definition.description.resolve())
                             .item(icon == null ? net.minecraft.world.item.Items.BOOK : net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(icon).orElse(net.minecraft.world.item.Items.BOOK))
                             .addToIndex().register();
+                        com.nododiiiii.ponderer.runtime.api.SceneTexts.localizeTag(id, definition.title, definition.description);
                     }
                     RUNTIME.plugin().registerTags(helper);
                 }
             """;
-        return prefix + "public final class " + plan.className + " {\n" + LibExportSources.members(target, plan)
+        return prefix + "public final class " + plan.className + " {\n" + LibExportSources.members(target, plan, document)
             + "    public static void register(PonderSceneRegistrationHelper<ResourceLocation> helper) {\n        if (reload()) RUNTIME.plugin().registerScenes(helper);\n    }\n"
             + tags + "}\n";
     }

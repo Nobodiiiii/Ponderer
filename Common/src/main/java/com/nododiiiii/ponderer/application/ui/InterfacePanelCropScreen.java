@@ -44,6 +44,7 @@ final class InterfacePanelCropScreen extends AbstractDeclarativeScreen implement
     private double pressX, pressY, startLeft, startTop, startRight, startBottom;
     private int dragMode, dragButton = -1;
     private boolean emptyPixelSelection;
+    private boolean selectionInitialized;
 
     InterfacePanelCropScreen(Screen parent, DslScene draft, int sceneIndex, int stepIndex,
                              DslScene.DslStep opening, @Nullable List<Double> crop,
@@ -55,6 +56,7 @@ final class InterfacePanelCropScreen extends AbstractDeclarativeScreen implement
         this.opening = opening;
         this.onSelected = onSelected;
         initialCrop = crop == null ? null : List.copyOf(crop);
+        selectionInitialized = crop != null;
         if (crop != null) {
             InterfacePanelSpec.validateCrop(crop);
             left = crop.get(0);
@@ -75,6 +77,7 @@ final class InterfacePanelCropScreen extends AbstractDeclarativeScreen implement
             left = top = 0;
             right = bottom = 1;
             emptyPixelSelection = false;
+            selectionInitialized = false;
         });
         addButton(x + (buttonWidth + 8) * 2, buttonWidth, "gui.cancel", this::onClose);
         apply.active = ready();
@@ -201,10 +204,17 @@ final class InterfacePanelCropScreen extends AbstractDeclarativeScreen implement
             int[] selected = session.connectedPanelPixels(full, x, y);
             emptyPixelSelection = selected == null;
             if (selected != null) {
-                left = (selected[0] - full[0]) / (double) full[2];
-                top = (selected[1] - full[1]) / (double) full[3];
-                right = (selected[0] - full[0] + selected[2]) / (double) full[2];
-                bottom = (selected[1] - full[1] + selected[3]) / (double) full[3];
+                double nextLeft = (selected[0] - full[0]) / (double) full[2];
+                double nextTop = (selected[1] - full[1]) / (double) full[3];
+                double nextRight = (selected[0] - full[0] + selected[2]) / (double) full[2];
+                double nextBottom = (selected[1] - full[1] + selected[3]) / (double) full[3];
+                if (hasControlDown() && selectionInitialized) {
+                    left = Math.min(left, nextLeft); top = Math.min(top, nextTop);
+                    right = Math.max(right, nextRight); bottom = Math.max(bottom, nextBottom);
+                } else {
+                    left = nextLeft; top = nextTop; right = nextRight; bottom = nextBottom;
+                }
+                selectionInitialized = true;
             }
             return true;
         }
@@ -234,6 +244,7 @@ final class InterfacePanelCropScreen extends AbstractDeclarativeScreen implement
 
     private void updateSelection(double x, double y) {
         emptyPixelSelection = false;
+        selectionInitialized = true;
         double minW = 1.0 / full[2], minH = 1.0 / full[3];
         double dx = x - pressX, dy = y - pressY;
         if (dragMode == MOVE) {
@@ -300,6 +311,8 @@ final class InterfacePanelCropScreen extends AbstractDeclarativeScreen implement
     @Override protected boolean hasUnsavedChanges() { return !java.util.Objects.equals(initialCrop, crop()); }
     @Override protected int getUnsavedChangeCount() { return hasUnsavedChanges() ? 1 : 0; }
     @Override protected void discardEdits() {
+        selectionInitialized = initialCrop != null;
+        emptyPixelSelection = false;
         left = initialCrop == null ? 0 : initialCrop.get(0);
         top = initialCrop == null ? 0 : initialCrop.get(1);
         right = initialCrop == null ? 1 : left + initialCrop.get(2);

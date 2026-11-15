@@ -8,7 +8,7 @@ import java.util.Set;
 /** A panel owns a flat interface tutorial; recursive panels and world mutations are excluded. */
 public final class InterfacePanelSpec {
     public static final String TYPE = "interface_panel";
-    public static final float DEFAULT_SCALE = 0.5f;
+    public static final List<Double> DEFAULT_TRANSFORM = List.of(0.0, 0.0, 0.5);
     public static final List<String> EDITABLE_STEPS = List.of(
         "idle", "text", "show_controls", "change_interface_slot", "click_interface", "play_sound");
     private static final Set<String> ALLOWED = Set.of("show_interface", "idle", "text", "shared_text",
@@ -20,8 +20,10 @@ public final class InterfacePanelSpec {
         if (panel.steps == null || panel.steps.isEmpty()
             || panel.steps.getFirst() == null || !"show_interface".equalsIgnoreCase(panel.steps.getFirst().type))
             throw new IllegalArgumentException("interface_panel must start with show_interface");
-        if (panel.scale != null && (!Float.isFinite(panel.scale) || panel.scale <= 0))
-            throw new IllegalArgumentException("interface_panel scale must be finite and positive");
+        if (panel.panelTransform != null && (panel.panelTransform.size() != 3
+            || panel.panelTransform.stream().anyMatch(v -> v == null || !Double.isFinite(v))
+            || panel.panelTransform.get(2) <= 0))
+            throw new IllegalArgumentException("interface_panel panelTransform must contain finite X/Y offsets and a positive scale");
         validateCrop(panel.panelCrop);
         for (int i = 0; i < panel.steps.size(); i++) {
             var child = panel.steps.get(i);

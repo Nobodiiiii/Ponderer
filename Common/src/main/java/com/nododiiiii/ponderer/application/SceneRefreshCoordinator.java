@@ -28,6 +28,7 @@ public final class SceneRefreshCoordinator {
     public static long version() { return version; }
     /** Publish a complete workspace view and finish the native index before reporting success. */
     public static int refresh() {
+        com.nododiiiii.ponderer.runtime.api.SceneTexts.refresh();
         var scenes = com.nododiiiii.ponderer.workspace.api.WorkspaceAccess.get().scenes().loadScenes();
         publish(scenes, true);
         return scenes.size();

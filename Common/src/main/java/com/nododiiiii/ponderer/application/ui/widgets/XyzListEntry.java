@@ -62,7 +62,7 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
 
     public void setSharedField(FieldType type) {
         String tooltipKey = type.tooltipKey();
-        EntryTextSupport.applyTooltip(this, labelKey, tooltipKey);
+        EntryTextSupport.applyTooltip(this, labelKey, tooltipKey, contextTooltipKey);
         ((ClippedConfigTextField) xField).setNumericDrag(type);
         ((ClippedConfigTextField) yField).setNumericDrag(type);
         ((ClippedConfigTextField) zField).setNumericDrag(type);
@@ -74,6 +74,12 @@ public class XyzListEntry extends ConfigScreenList.LabeledEntry implements Searc
 
     public ConfigTextField yField() {
         return yField;
+    }
+
+    public void setFieldHints(String xHint, String yHint, String zHint) {
+        EntryTextSupport.applyHint(xField, xHint);
+        EntryTextSupport.applyHint(yField, yHint);
+        EntryTextSupport.applyHint(zField, zHint);
     }
 
     public ConfigTextField zField() {

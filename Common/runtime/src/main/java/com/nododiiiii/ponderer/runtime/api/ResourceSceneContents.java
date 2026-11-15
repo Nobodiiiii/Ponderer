@@ -29,6 +29,7 @@ public final class ResourceSceneContents {
     private ResourceSceneContents() {}
 
     public static void install() {
+        SceneTexts.install();
         if (installed) return;
         installed = true;
         // Collect the built-in partial model before Flywheel bakes additional models.
@@ -46,6 +47,7 @@ public final class ResourceSceneContents {
     }
 
     public static void reload(ResourceManager manager) {
+        SceneTexts.reload(manager);
         resources = manager;
         CONTENTS.forEach(content -> content.engine.close());
         CONTENTS.clear();
@@ -171,6 +173,7 @@ public final class ResourceSceneContents {
                     helper.registerTag(id).title(tag.title == null ? id.getPath() : tag.title.resolve())
                         .description(tag.description == null ? "" : tag.description.resolve())
                         .item(icon == null ? Items.BOOK : BuiltInRegistries.ITEM.getOptional(icon).orElse(Items.BOOK)).register();
+                    SceneTexts.localizeTag(id, tag.title, tag.description);
                 }
                 if (content.attribution && registered.add(ResourceLocation.fromNamespaceAndPath(content.namespace, "ponderer_exported")))
                     PonderAttribution.register(content.namespace, helper);
