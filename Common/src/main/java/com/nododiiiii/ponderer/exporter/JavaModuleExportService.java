@@ -185,7 +185,7 @@ public final class JavaModuleExportService {
             return JavaModuleExportResult.failure("Failed to read Ponderer license: " + e.getMessage());
         }
         List<BinaryFile> binaryWrites = new ArrayList<>();
-        if (request.mode() != JavaModuleExportRequest.Mode.JSON_LIB)
+        if (!LibExportSources.usesLib(scanResult.targetProject))
         for (String iconPath : List.of(PondererAttribution.ICON_TEXTURE_PATH, PondererAttribution.ICON_MODEL_RESOURCE_PATH)) {
             try (InputStream icon = JavaModuleExportService.class.getResourceAsStream("/assets/ponderer/" + iconPath)) {
                 if (icon == null) {
@@ -203,6 +203,24 @@ public final class JavaModuleExportService {
             }
         }
         List<Path> deletions = new ArrayList<>();
+        if (LibExportSources.usesLib(scanResult.targetProject)) {
+            // Older Java + Lib exports copied these shared assets. Remove only unchanged copies.
+            for (String iconPath : List.of(PondererAttribution.ICON_TEXTURE_PATH, PondererAttribution.ICON_MODEL_RESOURCE_PATH)) {
+                Path exportedIcon = scanResult.targetProject.resourcesRoot.resolve(
+                    "assets/" + scanResult.targetProject.modId + "/" + iconPath);
+                ensureInsideRoot(scanResult.targetProject.targetRoot, exportedIcon);
+                if (!Files.isRegularFile(exportedIcon)) continue;
+                try (InputStream icon = JavaModuleExportService.class.getResourceAsStream("/assets/ponderer/" + iconPath)) {
+                    if (icon == null) continue;
+                    byte[] expected = icon.readAllBytes();
+                    if (iconPath.endsWith(".json")) expected = new String(expected, StandardCharsets.UTF_8)
+                        .replace("ponderer:", scanResult.targetProject.modId + ":").getBytes(StandardCharsets.UTF_8);
+                    if (Arrays.equals(expected, Files.readAllBytes(exportedIcon))) deletions.add(exportedIcon);
+                } catch (IOException error) {
+                    return JavaModuleExportResult.failure("Cannot inspect attribution asset " + exportedIcon + ": " + error.getMessage());
+                }
+            }
+        }
         List<SceneExportOutcome> outcomes = new ArrayList<>();
         Map<String, Set<String>> staleManagedLangKeys = new LinkedHashMap<>();
 
@@ -1282,14 +1300,21 @@ public final class JavaModuleExportService {
             public final class GeneratedPonderFabricClient implements ClientModInitializer {
                 @Override
                 public void onInitializeClient() {
-                    GeneratedPonderAttribution.iconModelLocation();
-                    PonderIndex.addPlugin(new GeneratedPonderPlugin());
+            %s        PonderIndex.addPlugin(new GeneratedPonderPlugin());
                 }
             }
-            """.formatted(target.generatedPackage);
+            """.formatted(target.generatedPackage, LibExportSources.usesLib(target) ? ""
+                : "        GeneratedPonderAttribution.iconModelLocation();\n");
     }
 
     private String buildForgeClientSource(JavaModuleScanResult.TargetProject target) {
+        String modelRegistration = LibExportSources.usesLib(target) ? "" : """
+                @SubscribeEvent
+                public static void onRegisterModels(ModelEvent.RegisterAdditional event) {
+                    event.register(GeneratedPonderAttribution.iconModelLocation());
+                }
+
+            """;
         return GENERATED_NOTICE_BLOCK + """
             package %s;
 
@@ -1298,27 +1323,31 @@ public final class JavaModuleExportService {
             import net.minecraftforge.eventbus.api.SubscribeEvent;
             import net.minecraftforge.fml.common.Mod;
             import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-            import net.minecraftforge.client.event.ModelEvent;
+            %s
 
             @Mod.EventBusSubscriber(modid = "%s", bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
             public final class GeneratedPonderForgeClient {
                 private GeneratedPonderForgeClient() {
                 }
 
-                @SubscribeEvent
-                public static void onRegisterModels(ModelEvent.RegisterAdditional event) {
-                    event.register(GeneratedPonderAttribution.iconModelLocation());
-                }
-
-                @SubscribeEvent
+            %s    @SubscribeEvent
                 public static void onClientSetup(FMLClientSetupEvent event) {
                     event.enqueueWork(() -> PonderIndex.addPlugin(new GeneratedPonderPlugin()));
                 }
             }
-            """.formatted(target.generatedPackage, escapeJava(target.modId));
+            """.formatted(target.generatedPackage, LibExportSources.usesLib(target) ? ""
+                : "import net.minecraftforge.client.event.ModelEvent;",
+                escapeJava(target.modId), modelRegistration);
     }
 
     String buildNeoForgeClientSource(JavaModuleScanResult.TargetProject target) {
+        String modelRegistration = LibExportSources.usesLib(target) ? "" : """
+                @SubscribeEvent
+                public static void onRegisterModels(ModelEvent.RegisterAdditional event) {
+                    event.register(ModelResourceLocation.standalone(GeneratedPonderAttribution.iconModelLocation()));
+                }
+
+            """;
         return GENERATED_NOTICE_BLOCK + """
             package %s;
 
@@ -1327,28 +1356,43 @@ public final class JavaModuleExportService {
             import net.neoforged.bus.api.SubscribeEvent;
             import net.neoforged.fml.common.EventBusSubscriber;
             import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
-            import net.neoforged.neoforge.client.event.ModelEvent;
-            import net.minecraft.client.resources.model.ModelResourceLocation;
+            %s
 
             @EventBusSubscriber(modid = "%s", value = Dist.CLIENT)
             public final class GeneratedPonderNeoForgeClient {
                 private GeneratedPonderNeoForgeClient() {
                 }
 
-                @SubscribeEvent
-                public static void onRegisterModels(ModelEvent.RegisterAdditional event) {
-                    event.register(ModelResourceLocation.standalone(GeneratedPonderAttribution.iconModelLocation()));
-                }
-
-                @SubscribeEvent
+            %s    @SubscribeEvent
                 public static void onClientSetup(FMLClientSetupEvent event) {
                     event.enqueueWork(() -> PonderIndex.addPlugin(new GeneratedPonderPlugin()));
                 }
             }
-            """.formatted(target.generatedPackage, escapeJava(target.modId));
+            """.formatted(target.generatedPackage, LibExportSources.usesLib(target) ? ""
+                : "import net.neoforged.neoforge.client.event.ModelEvent;\nimport net.minecraft.client.resources.model.ModelResourceLocation;",
+                escapeJava(target.modId), modelRegistration);
     }
 
     String buildAttributionSource(JavaModuleScanResult.TargetProject target) {
+        if (LibExportSources.usesLib(target)) return GENERATED_NOTICE_BLOCK + """
+            package %s;
+
+            import com.nododiiiii.ponderer.runtime.api.PonderAttribution;
+            import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
+            import net.minecraft.resources.ResourceLocation;
+
+            public final class GeneratedPonderAttribution {
+                private GeneratedPonderAttribution() {}
+
+                public static ResourceLocation tag() {
+                    return PonderAttribution.tag(%s);
+                }
+
+                public static void registerTag(PonderTagRegistrationHelper<ResourceLocation> helper) {
+                    PonderAttribution.register(%s, helper);
+                }
+            }
+            """.formatted(target.generatedPackage, stringExpr(target.modId), stringExpr(target.modId));
         return GENERATED_NOTICE_BLOCK + """
             package %s;
 

@@ -51,11 +51,19 @@ Lib 档保留界面描述、NBT 挂载、运行时物品标签、shared_text、�
 
 Java 两档写入加载器入口；JSON 档只写 Lib 依赖元数据，不添加加载器入口，也不要求 `src/main/java` 或 Java 包名。生成 `.ponderer-export/DEPENDENCIES.md` 提示宿主的 Gradle 接入；它不擅自改写宿主 build.gradle。切换模式必须选中此前导出的全部场景。生成器只移除自身记录的 Lib 依赖，保留宿主手写的依赖声明。切回 Support 时清理未修改的 Lib 扩展骨架；若扩展已有手写内容则保留并拒绝转换，提示先移植或移出。
 
+Java + Lib 的归属标签委托 `runtime.api.PonderAttribution.register(namespace, helper)`，与 JSON 内容使用同一 Lib 实现；`PonderAttribution.tag(namespace)` 返回宿主命名空间下的原有标签 ID。旋转观察者图标的模型、纹理与加载器模型注册由 Lib 提供，不再导出宿主副本。Java + Support 继续携带独立渲染代码、资源和模型注册。
+
+完整产品的 `product.catalog.PondererAttribution` 同样委托 Lib，仅负责产品分类关联和本地化文本。预览与注册均使用 Lib 的模型和渲染实现；产品资源中的图标仍供无 Lib 的 Support 导出使用。
+
 三档导出及仅导出 Support 均写入 `src/main/resources/META-INF/licenses/ponderer/LICENSE`，包含 Ponderer 的版权声明与完整 MIT 许可文本，随宿主资源打包进入 JAR，不覆盖宿主根目录的 `LICENSE`。文本直接来自本仓库根目录的 `LICENSE`。
 
 Java + Lib 的 `<basePackage>.ponderext.PonderExtensions` 只创建一次。再次导出不会覆盖它。生成源文件的上次文本保存在 manifest；检测到手改后拒绝覆盖或删除，并报告路径。稳定步骤 `id` 保留在数据中，旧文档会分配 `legacy_<序号>`；编辑器复制步骤时分配新 ID，替换步骤时保留原锚点。
 
 `PonderActions` 和 Support 来自 `Common/runtime/src/main/templates/ponderer/generated_ponder_support.java.template`。Gradle 将分区归属和附加结构规划的源实现注入模板，生成正常编译的 Lib 动作类与导出模板。JSON 执行器只适配参数，避免另外维护一套分区、实体与结构算法。
+
+原生 `PonderActions.showText` 与 JSON `text` 现在共用字幕构建和 `PonderText` 索引标记，每条字幕只记录一次；启用 `text` 能力后重播仍由原有生命周期清理索引。无 Lib 的 Support 模板不包含索引钩子。`ParticleEffects.emit` 也委托 `PonderActions.spawnParticles`，编辑器保留粒子参数解析与校验。
+
+`runtime.api.PonderPlayerElement` / `PonderPlayerSupport` 提供玩家皮肤展示、朝向及淡出，宿主无需复制元素渲染类。`PonderEntityAnimations` 为原生 Java 提供入场、退场和原地行走便捷方法，底层使用同一 `PonderActions.Context` 的实体创建、链接、位移与清理；这些方法按传入时长推进场景时间。宿主方块、物品和专属动画留在宿主。Create: Biotech 已使用这些接口，并自行声明和申请播放器增强；普通导出内容仍按下述启动策略运行。
 
 ## 纯资源接入
 
@@ -96,7 +104,7 @@ flowchart LR
 ## 宿主与扩展
 
 ```java
-RuntimeEngine engine = new PonderRuntimeEngine(
+RuntimeEngine engine = RuntimeEngine.create(
     "example", new AssetStructureSource("example"),
     IngredientResolver.NONE, RegistrationContribution.NONE, () -> false);
 engine.replaceCatalog(() -> List.of(SceneSnapshot.of(document)));

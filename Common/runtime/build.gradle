@@ -33,10 +33,11 @@ def generatePortableSupport = tasks.register("generatePortableSupport") {
         def template = portableTemplate.getText("UTF-8").replace('${SECTION_OWNERSHIP}', declaration).replace('${EXTRA_STRUCTURE_PLANNER}', plannerDeclaration)
         def resource = portableOutput.get().file("resources/ponderer/generated_ponder_support.java.template").asFile
         resource.parentFile.mkdirs()
-        resource.setText(template, "UTF-8")
+        resource.setText(template.replace('${TEXT_MARKER}', ''), "UTF-8")
         def source = portableOutput.get().file("java/com/nododiiiii/ponderer/runtime/api/PonderActions.java").asFile
         source.parentFile.mkdirs()
-        source.setText(template.replace('${PACKAGE}', 'com.nododiiiii.ponderer.runtime.api')
+        source.setText(template.replace('${TEXT_MARKER}', 'PonderText.mark(scene, text);')
+            .replace('${PACKAGE}', 'com.nododiiiii.ponderer.runtime.api')
             .replace('GeneratedPonderSupport', 'PonderActions'), "UTF-8")
     }
 }

@@ -2,7 +2,6 @@ package com.nododiiiii.ponderer.runtime.api;
 
 import com.google.gson.Gson;
 import com.mojang.logging.LogUtils;
-import com.nododiiiii.ponderer.runtime.core.PonderRuntimeEngine;
 import com.nododiiiii.ponderer.runtime.core.ResourceAttribution;
 import com.nododiiiii.ponderer.runtime.spi.*;
 import com.nododiiiii.ponderer.scene.*;
@@ -63,7 +62,7 @@ public final class ResourceSceneContents {
                     throw new IllegalArgumentException("Unsupported or incomplete content manifest");
                 String namespace = manifestId.getNamespace();
                 var source = new AssetStructureSource(namespace, () -> manager);
-                engine = new PonderRuntimeEngine(namespace, source, IngredientResolver.NONE, RegistrationContribution.NONE, () -> false);
+                engine = RuntimeEngine.create(namespace, source, IngredientResolver.NONE, RegistrationContribution.NONE, () -> false);
                 for (String extension : manifest.extensions) {
                     var installer = EXTENSIONS.get(extension);
                     if (installer == null) throw new IllegalArgumentException("Missing compiled extension " + extension);
@@ -174,7 +173,7 @@ public final class ResourceSceneContents {
                         .item(icon == null ? Items.BOOK : BuiltInRegistries.ITEM.getOptional(icon).orElse(Items.BOOK)).register();
                 }
                 if (content.attribution && registered.add(ResourceLocation.fromNamespaceAndPath(content.namespace, "ponderer_exported")))
-                    ResourceAttribution.register(content.namespace, helper);
+                    PonderAttribution.register(content.namespace, helper);
                 content.engine.plugin().registerTags(helper);
             }
         }

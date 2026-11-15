@@ -343,6 +343,7 @@ ${SECTION_OWNERSHIP}
 
     public static void showText(SceneBuilder scene, String text, Vec3 point, int duration,
                                 String color, boolean placeNearTarget) {
+        ${TEXT_MARKER}
         TextElementBuilder builder = scene.overlay()
             .showText(duration)
             .text(text == null ? "" : text);

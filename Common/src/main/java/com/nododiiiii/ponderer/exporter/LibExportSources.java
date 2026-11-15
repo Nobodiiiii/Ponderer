@@ -47,7 +47,7 @@ final class LibExportSources {
                 private static com.nododiiiii.ponderer.scene.DslScene DOCUMENT;
                 private static final com.nododiiiii.ponderer.runtime.api.NbtSceneFilter.Registration BINDINGS = new com.nododiiiii.ponderer.runtime.api.NbtSceneFilter.Registration();
                 private static com.nododiiiii.ponderer.runtime.api.RuntimeEngine createRuntime() {
-                    var engine = new com.nododiiiii.ponderer.runtime.core.PonderRuntimeEngine(%s,
+                    var engine = com.nododiiiii.ponderer.runtime.api.RuntimeEngine.create(%s,
                         new com.nododiiiii.ponderer.runtime.spi.AssetStructureSource(%s),
                         com.nododiiiii.ponderer.runtime.spi.IngredientResolver.NONE,
                         com.nododiiiii.ponderer.runtime.spi.RegistrationContribution.NONE, () -> false);

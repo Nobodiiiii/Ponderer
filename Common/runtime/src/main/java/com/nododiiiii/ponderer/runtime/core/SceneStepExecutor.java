@@ -111,25 +111,9 @@ final class SceneStepExecutor {
     private void applyText(SceneBuilder scene, DslScene.DslStep step, StepContext context) {
         String text = step.text == null ? "" : step.text.resolve();
         int duration = step.durationOrDefault(60);
-
-        scene.addInstruction(new TextMarkerInstruction(text, false));
-
-        TextElementBuilder builder = scene.overlay()
-            .showText(duration)
-            .text(text);
-
-        if (hasExplicitPoint(step)) {
-            builder.pointAt(resolveOverlayPoint(step, context));
-        }
-
-        PonderPalette palette = parsePalette(step.color);
-        if (palette != null) {
-            builder.colored(palette);
-        }
-
-        if (Boolean.TRUE.equals(step.placeNearTarget)) {
-            builder.placeNearTarget();
-        }
+        com.nododiiiii.ponderer.runtime.api.PonderActions.showText(scene, text,
+            hasExplicitPoint(step) ? resolveOverlayPoint(step, context) : null,
+            duration, step.color, Boolean.TRUE.equals(step.placeNearTarget));
     }
 
     private void applySharedText(SceneBuilder scene, DslScene.DslStep step, StepContext context) {

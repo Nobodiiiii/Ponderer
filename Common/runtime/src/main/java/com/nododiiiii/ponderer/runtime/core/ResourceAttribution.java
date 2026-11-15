@@ -11,6 +11,8 @@ import net.createmod.ponder.foundation.registration.PonderTagRegistry;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import com.nododiiiii.ponderer.runtime.api.PonderAttribution;
+import java.util.function.Supplier;
 
 /** The exported attribution icon is built in, so resource-only hosts need no model registration code. */
 public final class ResourceAttribution {
@@ -18,16 +20,25 @@ public final class ResourceAttribution {
     private ResourceAttribution() {}
     public static void initialize() {}
     public static ResourceLocation modelLocation() { return MODEL.modelLocation(); }
+    public static ResourceLocation tag(String namespace) {
+        return ResourceLocation.fromNamespaceAndPath(namespace, PonderAttribution.TAG_PATH);
+    }
     public static void register(String namespace, PonderTagRegistrationHelper<ResourceLocation> helper) {
-        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(namespace, "ponderer_exported");
-        helper.registerTag(id).title("The Ponderer...")
-            .description("This mod's Ponder scenes were created and exported with The Ponderer. Learn more: https://modrinth.com/mod/the-ponderer").register();
-        ((PonderTagRegistry) PonderIndex.getTagAccess()).registerTag(new PonderTag(id, null, ItemStack.EMPTY, ItemStack.EMPTY) {
+        ResourceLocation id = tag(namespace);
+        helper.registerTag(id).title(PonderAttribution.TITLE_EN_US)
+            .description(PonderAttribution.DESCRIPTION_EN_US).register();
+        ((PonderTagRegistry) PonderIndex.getTagAccess()).registerTag(create(id, null, null));
+    }
+
+    public static PonderTag create(ResourceLocation id, Supplier<String> title, Supplier<String> description) {
+        return new PonderTag(id, null, ItemStack.EMPTY, ItemStack.EMPTY) {
+            @Override public String getTitle() { return title == null ? super.getTitle() : title.get(); }
+            @Override public String getDescription() { return description == null ? super.getDescription() : description.get(); }
             @Override public void render(GuiGraphics graphics, int x, int y) {
                 double ticks = AnimationTickHolder.getTicks(true) % 600 + AnimationTickHolder.getPartialTicksUI();
                 GuiGameElement.of(MODEL).rotateBlock(30, 135 + ticks * 360 / 600, 0).scale(10).at(x + 3, y + 13, 100).render(graphics);
                 RenderSystem.enableDepthTest();
             }
-        });
+        };
     }
 }

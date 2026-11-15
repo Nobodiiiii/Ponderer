@@ -2,7 +2,6 @@ package com.nododiiiii.ponderer.bootstrap;
 
 import com.nododiiiii.ponderer.Config;
 import com.nododiiiii.ponderer.runtime.api.RuntimeEngine;
-import com.nododiiiii.ponderer.runtime.core.PonderRuntimeEngine;
 import com.nododiiiii.ponderer.runtime.spi.*;
 import net.createmod.ponder.foundation.registration.PonderSceneRegistry;
 import net.minecraft.resources.ResourceLocation;
@@ -15,7 +14,7 @@ import java.nio.file.Files;
 public final class ProductRuntime {
     private ProductRuntime() {}
     private static final class Holder {
-        static final RuntimeEngine ENGINE = new PonderRuntimeEngine("ponderer", new StructureSource() {
+        static final RuntimeEngine ENGINE = RuntimeEngine.create("ponderer", new StructureSource() {
             @Override public StructureTemplate loadSchematic(ResourceLocation id) {
                 return PonderSceneRegistry.loadSchematic(id);
             }
