@@ -46,7 +46,8 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
     public InterfacePanelScreen(DslScene scene, int sceneIndex, SceneEditorScreen parent,
                                 int index, @Nullable DslScene.DslStep step) {
         super(Component.translatable("ponderer.ui.step.type.interface_panel"), scene, sceneIndex, parent, index, step);
-        point.setValue(2.5, 1.5, 2.5);
+        if (hasInterfaceBeforeStep()) point.setValue(0, 0, 0);
+        else point.setValue(2.5, 1.5, 2.5);
         transform.setValue(0, 0, 0.5);
         var opening = new DslScene.DslStep();
         opening.type = "show_interface";
@@ -68,7 +69,9 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         if (!children.isEmpty()) entries.add(FieldSpecs.labeledButton(
             "ponderer.ui.show_interface", null, () -> openChild(0, null),
             () -> UIText.of("ponderer.ui.interface_panel.edit"), null));
-        entries.add(FieldSpecs.xyz(point, "ponderer.ui.interface_panel.point", "ponderer.ui.field.position.tooltip", PickState.TargetField.POINT));
+        boolean uiAnchor = hasInterfaceBeforeStep();
+        entries.add(FieldSpecs.xyz(point, uiAnchor ? "ponderer.ui.point" : "ponderer.ui.interface_panel.point",
+            uiAnchor ? "ponderer.ui.pick.ui.tooltip" : "ponderer.ui.field.position.tooltip", PickState.TargetField.POINT));
         entries.add(FieldSpecs.choice("ponderer.ui.show_controls.direction", "ponderer.ui.show_controls.direction.tooltip", 70,
             () -> direction = (direction + 1) % DIRECTIONS.length,
             () -> UIText.of("ponderer.ui.show_controls.direction." + DIRECTIONS[direction])));
@@ -235,7 +238,8 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
 
     @Override protected void populateFromStep(DslScene.DslStep step) {
         super.populateFromStep(step);
-        if (step.point != null && step.point.size() >= 3) point.setValue(step.point.get(0), step.point.get(1), step.point.get(2));
+        if (step.point != null && step.point.size() >= 2)
+            point.setValue(step.point.get(0), step.point.get(1), step.point.size() >= 3 ? step.point.get(2) : 0);
         for (int i = 0; i < DIRECTIONS.length; i++) if (DIRECTIONS[i].equalsIgnoreCase(step.direction)) direction = i;
         var values = step.panelTransform == null ? InterfacePanelSpec.DEFAULT_TRANSFORM : step.panelTransform;
         transform.setValue(values.get(0), values.get(1), values.get(2));

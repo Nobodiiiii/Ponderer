@@ -22,7 +22,7 @@ public class PonderUiIngredientHandler implements IGlobalGuiHandler {
     @Override
     public Optional<IClickableIngredient<?>> getClickableIngredientUnderMouse(double mouseX, double mouseY) {
         IJeiRuntime runtime = JeiRuntimeAccess.getRuntime();
-        SandboxSession session = InterfaceHost.sessionFor(Minecraft.getInstance().screen);
+        SandboxSession session = InterfaceHost.sessionAt(Minecraft.getInstance().screen, mouseX, mouseY);
         Screen screen = session == null ? null : session.currentScreen();
         int[] rect = session == null ? null : session.guiRect();
         if (runtime == null || screen == null || rect == null) {
@@ -30,11 +30,11 @@ public class PonderUiIngredientHandler implements IGlobalGuiHandler {
         }
         Slot slot = InterfacePlatform.get().hoveredSlot(screen);
         if (slot == null || slot.getItem().isEmpty()
-            || !InterfaceHost.isNativeRectVisible(rect[0] + slot.x, rect[1] + slot.y, 16, 16)) {
+            || !InterfaceHost.isSlotExposed(session, rect[0] + slot.x, rect[1] + slot.y, 16, 16)) {
             return Optional.empty();
         }
         ItemStack stack = slot.getItem().copy();
-        int[] mapped = InterfaceHost.toScreenRect(rect[0] + slot.x, rect[1] + slot.y, 16, 16);
+        int[] mapped = InterfaceHost.toScreenRect(session, rect[0] + slot.x, rect[1] + slot.y, 16, 16);
         Rect2i area = new Rect2i(mapped[0], mapped[1], mapped[2], mapped[3]);
         if (!area.contains((int) mouseX, (int) mouseY)) return Optional.empty();
         return runtime.getIngredientManager()

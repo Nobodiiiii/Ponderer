@@ -22,6 +22,7 @@ import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.api.PlaybackExecutionContext;
 import com.nododiiiii.ponderer.support.ui.ScreenTooltipBoxWidget;
 import net.createmod.catnip.animation.LerpedFloat;
+import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.outliner.AABBOutline;
 import net.createmod.catnip.render.DefaultSuperRenderTypeBuffer;
@@ -55,7 +56,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
-/** Scene rendering with paused seeking and bounded playback of the edited step's native effects. */
+/** Scene rendering with paused seeking, timeline playback and bounded step previews. */
 public final class SceneEditorPreview implements AutoCloseable {
     private static final Vector3f LIGHT_0 = new Vector3f(.4f, -1, .7f).normalize();
     private static final Vector3f LIGHT_1 = new Vector3f(-.4f, -.5f, .7f).normalize();
@@ -79,7 +80,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     @Nullable private PreviewPonderUI ponder;
     @Nullable private PonderProgressBar progressBar;
     private List<Integer> stepTicks = List.of();
-    private boolean playingStep;
+    private boolean playing;
     private int pendingListTick = -1;
     private int x, y, width, height;
     private float pitch, yaw, zoom = DEFAULT_ZOOM;
@@ -98,6 +99,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     private final LerpedFloat renderPitch = LerpedFloat.angular();
     private final LerpedFloat renderYaw = LerpedFloat.angular();
     private final ScreenTooltipBoxWidget resetButton;
+    @Nullable private ScreenTooltipBoxWidget playbackButton;
     @Nullable private ScreenTooltipBoxWidget previewButton;
     private final AABBOutline pointPickOutline = new AABBOutline(new AABB(0, 0, 0, 1, 1, 1));
     private final AABBOutline pointPickBorderOutline = new AABBOutline(new AABB(0, 0, 0, 1, 1, 1));
@@ -119,6 +121,44 @@ public final class SceneEditorPreview implements AutoCloseable {
         previewButton.setMessage(Component.translatable("ponderer.ui.step_editor.preview"));
         previewButton.showingElement(PonderGuiTextures.ICON_PONDER_RIGHT.asStencil()
             .withElementRenderer(BoxWidget.gradientFactory.apply(previewButton)));
+    }
+
+    public void enablePlaybackControl() {
+        playbackButton = new ScreenTooltipBoxWidget(0, 0, 24, 24);
+        playbackButton.withPadding(4, 4).withCallback(this::togglePlayback);
+        playbackButton.showingElement(new DelegatedStencilElement()
+            .withStencilRenderer((graphics, width, height, alpha) -> {
+                if (playing) {
+                    int centerX = width / 2;
+                    int centerY = height / 2;
+                    graphics.fill(centerX - 5, centerY - 5, centerX - 2, centerY + 5, 0xFFFFFFFF);
+                    graphics.fill(centerX + 2, centerY - 5, centerX + 5, centerY + 5, 0xFFFFFFFF);
+                } else {
+                    PonderGuiTextures.ICON_PONDER_RIGHT.render(graphics, (width - 16) / 2, (height - 16) / 2);
+                }
+            })
+            .withElementRenderer(BoxWidget.gradientFactory.apply(playbackButton))
+            .withBounds(16, 16));
+    }
+
+    private void togglePlayback() {
+        if (ponder == null) return;
+        if (playing) {
+            playing = false;
+            if (playbackTickStart >= 0) {
+                frozenPartialTick = Mth.clamp((Util.getMillis() - playbackTickStart) / 50f, 0, 1);
+                playbackTickStart = -1;
+            }
+            return;
+        }
+        cancelPointPick();
+        scrubbing = false;
+        dragButton = -1;
+        PonderScene scene = ponder.getActiveScene();
+        int target = pendingListTick >= 0 ? pendingListTick : (scene.isFinished() ? 0 : scene.getCurrentTime());
+        ponder.seekToTime(target);
+        pendingListTick = -1;
+        playing = true;
     }
 
     public ViewState viewState() {
@@ -195,8 +235,13 @@ public final class SceneEditorPreview implements AutoCloseable {
         }
         resetButton.setX(x + this.width - resetButton.getWidth() - 4);
         resetButton.setY(y + 4);
+        if (playbackButton != null) {
+            playbackButton.setX(resetButton.getX() - playbackButton.getWidth() - 4);
+            playbackButton.setY(resetButton.getY());
+        }
         if (previewButton != null) {
-            previewButton.setX(resetButton.getX() - previewButton.getWidth() - 4);
+            previewButton.setX((playbackButton == null ? resetButton.getX() : playbackButton.getX())
+                - previewButton.getWidth() - 4);
             previewButton.setY(resetButton.getY());
         }
         layoutProgressBar();
@@ -211,14 +256,14 @@ public final class SceneEditorPreview implements AutoCloseable {
     }
 
     public void tick() {
-        if (playingStep && ponder != null) {
+        if (playing && ponder != null) {
             PonderScene scene = ponder.getActiveScene();
             InterfaceHost.advancePreview(scene,
                 () -> PlaybackExecutionContext.runWithFrameTime(scene.getCurrentTime(), 0, scene::tick));
             playbackTickStart = Util.getMillis();
             frozenPartialTick = 1;
             if (ponder.playback.isStepComplete() || scene.isFinished()) {
-                playingStep = false;
+                playing = false;
             }
         }
         if (ponder != null && com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.interfacesEnabled()) {
@@ -226,6 +271,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         }
         if (progressBar != null) progressBar.tick();
         resetButton.tick();
+        if (playbackButton != null) playbackButton.tick();
         if (previewButton != null) previewButton.tick();
     }
 
@@ -239,7 +285,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         ponder.playback.previewStep(index);
         playbackTickStart = -1;
         frozenPartialTick = 1;
-        playingStep = true;
+        playing = true;
     }
 
     public int stepAtCursor() {
@@ -253,7 +299,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     }
 
     public void seekStep(int index) {
-        playingStep = false;
+        playing = false;
         if (!scrubbing && index >= 0 && index < stepTicks.size()) {
             // Scroll events in the same frame replace one pending seek; never queue replays.
             pendingListTick = stepTicks.get(index);
@@ -265,7 +311,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     public boolean startPointPick(PointPickMode mode, Consumer<Vec3> onPicked) {
         if (ponder == null) return false;
         cancelPointPick();
-        playingStep = false;
+        playing = false;
         pointPick = new PointPick(mode, onPicked);
         dragButton = -1;
         return true;
@@ -274,7 +320,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     public boolean startUiPointPick(Consumer<Vec3> onPicked) {
         if (ponder == null) return false;
         cancelPointPick();
-        playingStep = false;
+        playing = false;
         textVisible = true;
         uiPointPick = onPicked;
         dragButton = -1;
@@ -322,6 +368,10 @@ public final class SceneEditorPreview implements AutoCloseable {
         try {
             graphics.pose().translate(0, 0, PonderRuntimeZLayers.PONDER_BUTTON_LAYER + 500);
             resetButton.render(graphics, mouseX, mouseY, partialTicks);
+            if (playbackButton != null) {
+                playbackButton.active = ponder != null;
+                playbackButton.render(graphics, mouseX, mouseY, partialTicks);
+            }
             if (previewButton != null) previewButton.render(graphics, mouseX, mouseY, partialTicks);
         } finally {
             graphics.pose().popPose();
@@ -472,6 +522,7 @@ public final class SceneEditorPreview implements AutoCloseable {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (previewButton != null && previewButton.mouseClicked(mouseX, mouseY, button)) return true;
         if (ponder == null) return false;
+        if (playbackButton != null && playbackButton.mouseClicked(mouseX, mouseY, button)) return true;
         if (uiPointPick != null && containsModel(mouseX, mouseY) && !isOverControls(mouseX, mouseY)
             && button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
             Vec3 point = findUiPoint(mouseX, mouseY);
@@ -495,7 +546,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         }
         if (resetButton.mouseClicked(mouseX, mouseY, button)) return true;
         if (progressBar.mouseClicked(mouseX, mouseY, button)) {
-            playingStep = false;
+            playing = false;
             pendingListTick = -1;
             scrubbing = true;
             playbackTickStart = -1;
@@ -572,6 +623,7 @@ public final class SceneEditorPreview implements AutoCloseable {
 
     private boolean isOverControls(double mouseX, double mouseY) {
         return resetButton.isMouseOver(mouseX, mouseY)
+            || playbackButton != null && playbackButton.isMouseOver(mouseX, mouseY)
             || previewButton != null && previewButton.isMouseOver(mouseX, mouseY);
     }
 
@@ -857,7 +909,7 @@ public final class SceneEditorPreview implements AutoCloseable {
         uiPickViewport = null;
         progressBar = null;
         stepTicks = List.of();
-        playingStep = false;
+        playing = false;
         pendingListTick = -1;
         playbackTickStart = -1;
         frozenPartialTick = 1;

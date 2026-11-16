@@ -591,7 +591,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
         if (target != PickState.TargetField.POINT) return target;
         return switch (getStepType()) {
             case "click_interface" -> PickState.TargetField.UI_POINT;
-            case "text", "shared_text", "show_controls" -> hasInterfaceBeforeStep() ? PickState.TargetField.UI_POINT : target;
+            case "text", "shared_text", "show_controls", "interface_panel" -> hasInterfaceBeforeStep() ? PickState.TargetField.UI_POINT : target;
             default -> target;
         };
     }
@@ -607,7 +607,7 @@ public abstract class AbstractStepEditorScreen extends AbstractSceneEditorFormSc
             ? "ponderer.ui.pick.ui.tooltip" : "ponderer.ui.pick.tooltip");
     }
 
-    private boolean hasInterfaceBeforeStep() {
+    protected final boolean hasInterfaceBeforeStep() {
         if (scene.scenes == null || scene.scenes.isEmpty()) {
             return false;
         }

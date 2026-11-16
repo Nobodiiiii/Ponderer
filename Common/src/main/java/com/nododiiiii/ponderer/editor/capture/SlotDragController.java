@@ -22,6 +22,7 @@ public final class SlotDragController implements InterfaceEditingExtension {
     private Integer draggedBindingOrigin;
     private ItemStack draggedItemStack = ItemStack.EMPTY;
     @Override public boolean isActive() { return InterfaceSlotEditState.isActive(); }
+    @Override public boolean ownsSession(SandboxSession session) { return InterfaceSlotEditState.ownsSession(session); }
     @Override public void applyPreview(SandboxSession session) { InterfaceSlotEditState.applyPreview(session); }
     @Override public java.util.Map<Integer, DslScene.InterfaceSlotBinding> ghostBindings() { return InterfaceSlotEditState.getGhostBindingsForRender(); }
     @Override public void resetInput() { draggedBinding = null; draggedBindingOrigin = null; draggedItemStack = ItemStack.EMPTY; }

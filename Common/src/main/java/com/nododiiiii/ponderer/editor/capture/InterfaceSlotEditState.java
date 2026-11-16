@@ -74,6 +74,10 @@ public final class InterfaceSlotEditState {
         return active;
     }
 
+    public static boolean ownsSession(SandboxSession session) {
+        return active && session != null && previewSession == session;
+    }
+
     public static void captureJeiViewport(Screen mirrorScreen) {
         Minecraft mc = Minecraft.getInstance();
         jeiViewport = UiAnchorViewport.resolveJeiForScreen(mc, mirrorScreen);
@@ -112,7 +116,7 @@ public final class InterfaceSlotEditState {
         binding.slotY = slotY;
         slotBindings.put(slotIndex, binding);
         previewDirty = true;
-        SandboxSession session = InterfaceHost.sessionFor(Minecraft.getInstance().screen);
+        SandboxSession session = previewSession;
         if (session != null) {
             applyPreview(session);
         }
@@ -133,6 +137,7 @@ public final class InterfaceSlotEditState {
             return;
         }
         if (previewSession != session) {
+            if (previewSession != null && !previewSession.isDestroyed()) return;
             previewSession = session;
             previewDirty = true;
         }

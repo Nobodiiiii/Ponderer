@@ -30,9 +30,10 @@ public class StepTypeSelectorScreen extends AbstractReadonlyDeclarativeListScree
         "ponderer.ui.step.page.effect"
     };
     private static final String[][] INTERFACE_SCENE_PAGE_TYPES = {
-        {"idle", "text", "show_controls", "change_interface_slot", "click_interface", "play_sound"}
+        {"idle", "text", "show_controls", "change_interface_slot", "click_interface", "play_sound"},
+        {"interface_panel"}
     };
-    private static final String[] INTERFACE_SCENE_PAGE_KEYS = {"ponderer.ui.step.page.story"};
+    private static final String[] INTERFACE_SCENE_PAGE_KEYS = {"ponderer.ui.step.page.story", "ponderer.ui.step.page.story"};
 
     private final DslScene scene;
     private final int sceneIndex;

@@ -178,7 +178,7 @@ Java 场景的编辑保存会直接更新目标工程中的 Java 数据方法和
 
 `engine.program(...)` 允许原生与 Lib 指令混用，因此只接管运行设施；其中的 Lib 文本步骤在注册字幕时临时选择已解析文本路径，原生标题和字幕继续使用上游语言键。直接调用 `PonderActions.showText` 与原生 `.text(...)` 一样保留上游翻译；传入 `LocalizedText.resolve()` 等已解析值时，可用 `SceneTexts.withResolvedText(scene.getScene(), () -> PonderActions.showText(...))` 明确限定注册范围，正常返回或抛出异常均恢复原状态。该选择不改变独立文本资源的语言回退、资源包优先级或重载流程；资源重载后的新场景仍重新解析文本。
 
-先在编辑列表标题栏点击“源码工程”，选择包含 `.ponderer-export/manifest.json` 的 Java + Lib 导出工程；也可执行 `/ponderer java bind D:\Files\example`，路径有空格时可加双引号。通过导出界面完成 Java + Lib 导出也会自动绑定。只保存本机的命名空间与工程目录关联（`config/ponderer/java-projects.properties`），未绑定或源码不可写时场景只读。
+先在编辑列表标题下方的按钮栏首位点击“源码工程”（仅 Java 场景显示，共五个按钮），选择包含 `.ponderer-export/manifest.json` 的 Java + Lib 导出工程；也可执行 `/ponderer java bind D:\Files\example`，路径有空格时可加双引号。通过导出界面完成 Java + Lib 导出也会自动绑定。只保存本机的命名空间与工程目录关联（`config/ponderer/java-projects.properties`），未绑定或源码不可写时场景只读。
 
 游戏内保存直接写回该工程，随后通过原宿主引擎更新本次进程的场景并重建 Ponder 注册，不生成本地场景 JSON。手改目标 Java 后，在 V 功能界面点击“重载”才会读取；不通过客户端 tick 监听文件或自动重载。也可执行 `/ponderer reload` 或 `/ponderer java reload`，两条命令与该按钮共用手动重载入口。编辑列表在重新进入时更新。支持增删、重排 `JavaScene` 步骤调用、修改参数、`keyframe/fields/raw/javaStep` 以及调整 `loadDocument()` 中的数据和分段列表。支持导出器使用的字面量、局部变量、列表、映射、坐标和文本引用；数据方法中的循环、条件、任意 Java 调用或闭包会明确报错，保留上一份可用场景。Java 步骤实现及扩展安装代码仍需编译。
 

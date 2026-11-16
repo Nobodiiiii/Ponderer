@@ -76,6 +76,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         this.session = new com.nododiiiii.ponderer.editor.session.EditorSession(scene, sceneIndex);
         this.scene = session.draft();
         com.nododiiiii.ponderer.application.JavaSceneWorkspace.track(this.scene);
+        preview.enablePlaybackControl();
         this.sceneIndex = sceneIndex;
         this.ponderReturnState = ponderReturnState;
     }
@@ -226,10 +227,6 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     @Override
     protected void collectHeaderEntries(List<net.createmod.catnip.config.ui.ConfigScreenList.Entry> entries) {
         var buttons = new ArrayList<WorkspaceHeaderListEntry.HeaderButton>();
-        if (scene.runtimeSource != null) {
-            buttons.add(WorkspaceHeaderListEntry.button(UIText.of("ponderer.ui.java_source.project"),
-                this::bindJavaProject, UIText.of("ponderer.ui.java_source.project.tooltip"), () -> true));
-        }
         if (com.nododiiiii.ponderer.runtime.api.SceneVariants.hasAlternative(scene)) {
             buttons.add(WorkspaceHeaderListEntry.button(UIText.of("ponderer.ui.scene_editor.switch_version"),
                 this::switchVersion, UIText.of("ponderer.ui.scene_editor.switch_version.tooltip"), () -> true));
@@ -245,7 +242,14 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             this::screenSubtitleText,
             buttons));
 
-        entries.add(new ActionStripListEntry(List.of(
+        var actions = new ArrayList<ActionStripListEntry.ButtonModel>();
+        if (scene.runtimeSource != null) {
+            actions.add(ActionStripListEntry.button(
+                UIText.of("ponderer.ui.java_source.project"),
+                UIText.of("ponderer.ui.java_source.project.tooltip"),
+                this::bindJavaProject));
+        }
+        actions.addAll(List.of(
             ActionStripListEntry.button(
                 () -> UIText.of("ponderer.ui.scene_editor.desc"),
                 null,
@@ -269,7 +273,8 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
                 null,
                 this::confirmDeleteScene,
                 () -> 0xFFFF8080,
-                this::canWrite))));
+                this::canWrite)));
+        entries.add(new ActionStripListEntry(actions));
         if (!canWrite()) entries.add(new SectionHeaderListEntry(UIText.of("ponderer.ui.java_source.readonly")));
     }
 

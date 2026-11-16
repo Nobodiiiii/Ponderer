@@ -157,17 +157,22 @@ public class PondererJeiPlugin implements IModPlugin {
         }
     }
 
-    /** The embedded interface rectangle while JEI should be shown next to it, else null. */
+    /** Keep JEI beside all interactive interfaces, independently of the hovered panel. */
     @Nullable
     static UiAnchorViewport.Rect resolvePonderUiViewport(Screen screen) {
-        SandboxSession session = InterfaceHost.sessionFor(screen);
-        if (session == null || !(InterfaceSlotEditState.isActive() || InterfaceHost.isTakingInput(session))) {
-            return null;
+        int left = Integer.MAX_VALUE, top = Integer.MAX_VALUE;
+        int right = Integer.MIN_VALUE, bottom = Integer.MIN_VALUE;
+        for (SandboxSession session : InterfaceHost.sessionsFor(screen)) {
+            boolean interactive = InterfaceSlotEditState.isActive()
+                ? InterfaceSlotEditState.ownsSession(session) : InterfaceHost.isTakingInput(session);
+            if (!interactive) continue;
+            int[] rect = InterfaceHost.screenRect(session);
+            if (rect == null || rect[2] <= 1 || rect[3] <= 1) continue;
+            left = Math.min(left, rect[0]);
+            top = Math.min(top, rect[1]);
+            right = Math.max(right, rect[0] + rect[2]);
+            bottom = Math.max(bottom, rect[1] + rect[3]);
         }
-        int[] rect = session.guiRect();
-        if (rect == null || rect[2] <= 1 || rect[3] <= 1) {
-            return null;
-        }
-        return new UiAnchorViewport.Rect(rect[0], rect[1], rect[2], rect[3]);
+        return left == Integer.MAX_VALUE ? null : new UiAnchorViewport.Rect(left, top, right - left, bottom - top);
     }
 }

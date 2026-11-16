@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.runtime.api.PonderSceneViewOffsetAccess;
 import com.nododiiiii.ponderer.runtime.interfaces.instruction.ShowInterfaceInstruction;
 import com.nododiiiii.ponderer.runtime.interfaces.instruction.InterfacePanelSequenceInstruction;
 import com.nododiiiii.ponderer.runtime.interfaces.instruction.InterfacePanelTransitionInstruction;
+import com.nododiiiii.ponderer.runtime.interfaces.instruction.InterfaceTargetInstruction;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.mojang.logging.LogUtils;
 import com.nododiiiii.ponderer.runtime.mixin.PonderSceneAccessor;
@@ -61,6 +62,7 @@ final class SceneStepExecutor {
         final Map<String, ElementLink<WorldSectionElement>> sectionLinks = actions.sections();
         final Map<String, List<ElementLink<EntityElement>>> entityLinks = actions.entities();
         boolean uiAnchorMode;
+        final InterfaceHost.Target interfaceTarget = new InterfaceHost.Target();
         final List<InterfacePanelSequenceInstruction> backgroundPanels = new java.util.ArrayList<>();
     }
 
@@ -76,6 +78,7 @@ final class SceneStepExecutor {
     }
 
     void applyStep(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep step, StepContext context) {
+        scene = InterfaceTargetInstruction.bind(scene, context.interfaceTarget);
         if (Boolean.TRUE.equals(step.attachKeyFrame)) {
             scene.addKeyframe();
         }
@@ -216,32 +219,35 @@ final class SceneStepExecutor {
     private void applyInterfacePanel(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep panel,
                                      StepContext context) {
         com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.validate(panel);
+        StepContext nested = new StepContext();
+        nested.uiAnchorMode = true;
+        Vec3 anchor = resolveOverlayPoint(panel, context);
         if (Boolean.FALSE.equals(panel.panelBlocking)) {
             List<PonderInstruction> instructions = new java.util.ArrayList<>();
             SceneBuilder children = new PonderSceneBuilder(scene.getScene()) {
                 @Override public void addInstruction(PonderInstruction instruction) { instructions.add(instruction); }
             };
-            buildInterfacePanel(children, util, dsl, panel);
-            var sequence = new InterfacePanelSequenceInstruction(instructions);
+            buildInterfacePanel(children, util, dsl, panel, nested, anchor);
+            var sequence = new InterfacePanelSequenceInstruction(instructions, nested.interfaceTarget);
             context.backgroundPanels.add(sequence);
             scene.addInstruction(sequence);
         } else {
-            buildInterfacePanel(scene, util, dsl, panel);
+            buildInterfacePanel(scene, util, dsl, panel, nested, anchor);
         }
     }
 
-    private void buildInterfacePanel(SceneBuilder scene, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep panel) {
+    private void buildInterfacePanel(SceneBuilder destination, SceneBuildingUtil util, DslScene dsl, DslScene.DslStep panel,
+                                     StepContext nested, Vec3 anchor) {
+        SceneBuilder scene = InterfaceTargetInstruction.bind(destination, nested.interfaceTarget);
         var descriptor = com.nododiiiii.ponderer.scene.interfaces.LegacyInterfaceMigrator.fromStep(panel.steps.getFirst());
         boolean animation = !Boolean.FALSE.equals(panel.panelAnimation);
         scene.addInstruction(ps -> {
             if (!InterfaceHost.isPlaybackSuppressed(ps))
-                InterfaceHost.openPanel(ps, descriptor, toPoint(panel.point), parsePointing(panel.direction),
+                InterfaceHost.openPanel(ps, descriptor, anchor, parsePointing(panel.direction),
                     panel.panelTransform == null ? com.nododiiiii.ponderer.scene.interfaces.InterfacePanelSpec.DEFAULT_TRANSFORM : panel.panelTransform,
                     panel.panelCrop, !Boolean.FALSE.equals(panel.panelBackground), !Boolean.FALSE.equals(panel.panelBlocking), animation);
         });
         if (animation) scene.addInstruction(new InterfacePanelTransitionInstruction(true));
-        StepContext nested = new StepContext();
-        nested.uiAnchorMode = true;
         int tail = 0;
         for (int i = 1; i < panel.steps.size(); i++) {
             var child = panel.steps.get(i);
@@ -481,7 +487,7 @@ final class SceneStepExecutor {
             }
         }
 
-        return new UiAnchorPoint(u, v);
+        return new UiAnchorPoint(u, v, context.interfaceTarget);
     }
 
     private Vec3 toPoint(List<Double> point) {

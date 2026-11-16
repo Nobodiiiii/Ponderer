@@ -8,6 +8,7 @@ import java.util.Map;
 
 public interface InterfaceEditingExtension {
     default boolean isActive() { return false; }
+    default boolean ownsSession(SandboxSession session) { return session != null && isActive(); }
     default void applyPreview(SandboxSession session) {}
     default boolean pressed(SandboxSession session, double x, double y, int button) { return false; }
     default boolean released(SandboxSession session, double x, double y, int button) { return false; }

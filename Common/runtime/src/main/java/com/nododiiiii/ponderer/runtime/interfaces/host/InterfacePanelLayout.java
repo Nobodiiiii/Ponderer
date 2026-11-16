@@ -24,6 +24,7 @@ final class InterfacePanelLayout {
     private final boolean background;
     private int[] source = {0, 0, 176, 166};
     private int[] display = {0, 0, 176, 166};
+    private int projectedX, projectedY;
 
     InterfacePanelLayout(Vec3 anchor, Pointing direction, List<Double> transform, List<Double> crop, boolean background) {
         this.anchor = anchor;
@@ -61,6 +62,8 @@ final class InterfacePanelLayout {
         int w = Math.max(1, (int) Math.round(rect[2] * fittedScale));
         int h = Math.max(1, (int) Math.round(rect[3] * fittedScale));
         var point = scene.getTransform().sceneToScreen(anchor, partialTicks);
+        projectedX = Math.round(point.x);
+        projectedY = Math.round(point.y);
         double x = point.x, y = point.y;
         switch (direction) {
             case DOWN -> { x -= w / 2; y -= h + 10; }
@@ -99,13 +102,28 @@ final class InterfacePanelLayout {
         int x = display[0], y = display[1];
         new BoxElement().withBackground(PonderUI.BACKGROUND_FLAT).gradientBorder(PonderUI.COLOR_IDLE)
             .withBorderOffset(0).at(x, y, 100).withBounds(w, h).render(graphics);
+        // Keep the pointer aligned to the world anchor after offsets and window clamping.
+        boolean vertical = direction == Pointing.DOWN || direction == Pointing.UP;
+        int center = vertical ? projectedX : projectedY;
+        int edgeStart = vertical ? x : y;
+        int edgeLength = vertical ? w : h;
+        if (center - 4 < edgeStart || center + 4 > edgeStart + edgeLength) return;
+        boolean pointsTowardsAnchor = switch (direction) {
+            case DOWN -> projectedY >= y + h;
+            case UP -> projectedY <= y;
+            case LEFT -> projectedX <= x;
+            case RIGHT -> projectedX >= x + w;
+        };
+        if (!pointsTowardsAnchor) return;
         int arrowX, arrowY, rotation;
         Color color;
+        // PonderUI.renderSpeechBox assumes BoxElement's default two-pixel inset.
+        // Move the divot inward by those two pixels to join this zero-inset border.
         switch (direction) {
-            case DOWN -> { arrowX = x + w / 2 - 4; arrowY = y + h + 1; rotation = 0; color = PonderUI.COLOR_IDLE.getSecond(); }
-            case UP -> { arrowX = x + w / 2 - 4; arrowY = y - 9; rotation = 180; color = PonderUI.COLOR_IDLE.getFirst(); }
-            case LEFT -> { arrowX = x - 9; arrowY = y + h / 2 - 4; rotation = 90; color = Color.mixColors(PonderUI.COLOR_IDLE, 0.5f); }
-            case RIGHT -> { arrowX = x + w + 1; arrowY = y + h / 2 - 4; rotation = 270; color = Color.mixColors(PonderUI.COLOR_IDLE, 0.5f); }
+            case DOWN -> { arrowX = projectedX - 4; arrowY = y + h - 1; rotation = 0; color = PonderUI.COLOR_IDLE.getSecond(); }
+            case UP -> { arrowX = projectedX - 4; arrowY = y - 7; rotation = 180; color = PonderUI.COLOR_IDLE.getFirst(); }
+            case LEFT -> { arrowX = x - 7; arrowY = projectedY - 4; rotation = 90; color = Color.mixColors(PonderUI.COLOR_IDLE, (projectedY - y) / (float) h); }
+            case RIGHT -> { arrowX = x + w - 1; arrowY = projectedY - 4; rotation = 270; color = Color.mixColors(PonderUI.COLOR_IDLE, (projectedY - y) / (float) h); }
             default -> throw new IllegalStateException("Unsupported panel direction: " + direction);
         }
         var pose = graphics.pose();

@@ -26,11 +26,11 @@ public class SetInterfaceSlotsInstruction extends TickingInstruction {
             return;
         }
         if (spec.replace()) {
-            InterfaceSlotOverlayRenderer.clearRuntimeBindings();
+            InterfaceSlotOverlayRenderer.clearRuntimeBindings(InterfaceHost.sessionOf(scene));
             InterfaceHost.forgetScript(scene, "slot:");
         }
         for (InterfaceStepSpecs.GhostWrite ghost : spec.ghosts()) {
-            InterfaceSlotOverlayRenderer.putGhost(ghost.index(), ghost.id(), ghost.kind());
+            InterfaceSlotOverlayRenderer.putGhost(InterfaceHost.sessionOf(scene), ghost.index(), ghost.id(), ghost.kind());
         }
         for (InterfaceStepSpecs.SlotWrite write : spec.slots()) {
             InterfaceHost.script(scene, "slot:" + write.index(), session -> SessionOps.writeSlot(session, write));

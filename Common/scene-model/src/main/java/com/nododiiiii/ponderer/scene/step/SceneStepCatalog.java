@@ -149,14 +149,16 @@ public final class SceneStepCatalog {
                 "uiId:string", "duration:int", "enableNbt:boolean", "interface:object"),
             List.of("The segment may start with this instead of show_structure"),
             "{\"type\":\"show_interface\",\"interfaceSource\":\"block\",\"blockPos\":[1,1,1],\"duration\":100}");
-        add(schemas, "interface_panel", "Show a nested interface tutorial in a controls-style panel", List.of("steps:array"),
-            List.of("point:number[3]", "direction:down|up|left|right", "panelTransform:number[3]", "panelCrop:number[4]", "panelBackground:boolean", "panelAnimation:boolean", "panelBlocking:boolean"),
+        add(schemas, "interface_panel", "Show an interface tutorial in a controls-style panel", List.of("steps:array"),
+            List.of("point:number[2|3]", "direction:down|up|left|right", "panelTransform:number[3]", "panelCrop:number[4]", "panelBackground:boolean", "panelAnimation:boolean", "panelBlocking:boolean"),
             List.of("steps must start with show_interface; later steps are interface actions and annotations, not world mutations",
+                "point uses world coordinates in structure scenes, or normalized coordinates of the main GUI in interface scenes",
                 "panelTransform defaults to [0,0,0.5]: X/Y offsets in GUI pixels (right/down positive) and uniform scale, capped to fit the window",
                 "panelCrop is an optional normalized [x,y,width,height] display region; omitted means full GUI, with no automatic inventory crop",
                 "panelBackground defaults to true; false hides the controls-style background, border and pointer",
                 "panelAnimation defaults to true; the whole panel slides 10 GUI pixels over five ticks at each end, matching show_controls; false shows and hides it instantly",
-                "panelBlocking defaults to true; false runs the nested tutorial concurrently with subsequent main-timeline steps"),
+                "panelBlocking defaults to true; false runs this panel concurrently with subsequent main-timeline steps and sibling panels",
+                "Sibling panels have independent sessions and close individually; the main interface stays visible. Panels cannot contain another interface_panel"),
             "{\"type\":\"interface_panel\",\"point\":[2.5,1.5,2.5],\"panelTransform\":[0,0,0.5],\"steps\":[{\"type\":\"show_interface\",\"block\":\"minecraft:crafting_table\"},{\"type\":\"idle\",\"duration\":40}]}");
         add(schemas, "change_interface_slot", "Temporarily change mirrored interface slots", List.of("interfaceSlots:array"),
             List.of("duration:int"), List.of(), "{\"type\":\"change_interface_slot\",\"interfaceSlots\":[{\"slotIndex\":0,\"ingredientId\":\"minecraft:paper\"}]}");

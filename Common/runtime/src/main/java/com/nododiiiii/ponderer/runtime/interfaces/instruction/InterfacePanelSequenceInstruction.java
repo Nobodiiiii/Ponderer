@@ -16,6 +16,7 @@ import java.util.Set;
 /** Runs the native child schedule independently of the main scene's blocking instructions. */
 public final class InterfacePanelSequenceInstruction extends TickingInstruction {
     private final List<PonderInstruction> instructions;
+    private final InterfaceHost.Target target;
     private final List<PonderInstruction> active = new ArrayList<>();
     private final Set<PonderElement> elements = new HashSet<>();
     private SandboxSession session;
@@ -23,8 +24,13 @@ public final class InterfacePanelSequenceInstruction extends TickingInstruction 
     private int endTick;
 
     public InterfacePanelSequenceInstruction(List<PonderInstruction> instructions) {
+        this(instructions, null);
+    }
+
+    public InterfacePanelSequenceInstruction(List<PonderInstruction> instructions, InterfaceHost.Target target) {
         super(false, duration(instructions));
         this.instructions = List.copyOf(instructions);
+        this.target = target;
     }
 
     private static int ticks(PonderInstruction instruction) {
@@ -77,15 +83,15 @@ public final class InterfacePanelSequenceInstruction extends TickingInstruction 
 
     @Override
     public void tick(PonderScene scene) {
-        if (started && session != null && InterfaceHost.sessionOf(scene) != session) {
-            // A later interface replaces the single active session. Never replay stale
-            // actions against it or let this sequence's closing callback hide it.
+        if (started && session != null && (target == null
+            ? InterfaceHost.sessionOf(scene) != session : !InterfaceHost.isOpen(target, scene))) {
+            // A new standalone scene can replace all panels. Stop only this sequence's work.
             remainingTicks = 0;
             active.clear();
             elements.forEach(element -> element.setVisible(false));
             return;
         }
-        if (started && session != null && InterfaceHost.mode() != InterfaceHost.Mode.WATCH) {
+        if (started && session != null && (target == null ? InterfaceHost.mode() : InterfaceHost.mode(target)) != InterfaceHost.Mode.WATCH) {
             // An interactive goal holds this child schedule while the main scene continues.
             endTick++;
             includeLifetime(scene);
@@ -101,7 +107,8 @@ public final class InterfacePanelSequenceInstruction extends TickingInstruction 
         }
         for (var element : scene.getElements()) if (!before.contains(element)) elements.add(element);
         if (!started) {
-            session = InterfaceHost.sessionOf(scene);
+            session = target == null ? InterfaceHost.sessionOf(scene)
+                : InterfaceHost.withTarget(target, () -> InterfaceHost.sessionOf(scene));
             started = true;
         }
         if (active.isEmpty()) remainingTicks = 0;

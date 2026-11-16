@@ -4,6 +4,7 @@ import com.nododiiiii.ponderer.compat.jei.JeiCompat;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.editor.capture.InterfaceSlotEditState;
 import com.nododiiiii.ponderer.runtime.interfaces.InterfaceSlotOverlayRenderer;
+import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
 import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -45,6 +46,8 @@ public class InterfaceSlotGhostHandler<T extends AbstractContainerScreen<?>> imp
         DslScene.InterfaceSlotBinding droppedBinding = binding;
         InterfaceSlotOverlayRenderer.ContainerBounds bounds = InterfaceSlotOverlayRenderer.readContainerBounds(gui);
         List<Target<I>> targets = new ArrayList<>();
+        var session = InterfaceHost.sessionForNative(gui);
+        if (session != null && !InterfaceSlotEditState.ownsSession(session)) return List.of();
         List<Slot> slots = gui.getMenu().slots;
         for (int slotIndex = 0; slotIndex < slots.size(); slotIndex++) {
             Slot slot = slots.get(slotIndex);
@@ -52,15 +55,24 @@ public class InterfaceSlotGhostHandler<T extends AbstractContainerScreen<?>> imp
                 continue;
             }
             Rect2i area = new Rect2i(bounds.left() + slot.x, bounds.top() + slot.y, 16, 16);
+            if (session != null) {
+                if (!InterfaceHost.isSlotExposed(
+                    session, area.getX(), area.getY(), area.getWidth(), area.getHeight())) continue;
+                int[] mapped = InterfaceHost.toScreenRect(
+                    session, area.getX(), area.getY(), area.getWidth(), area.getHeight());
+                area = new Rect2i(mapped[0], mapped[1], mapped[2], mapped[3]);
+            }
+            Rect2i targetArea = area;
             final int finalSlotIndex = slotIndex;
             targets.add(new Target<>() {
                 @Override
                 public Rect2i getArea() {
-                    return area;
+                    return targetArea;
                 }
 
                 @Override
                 public void accept(I ignored) {
+                    if (session != null && (session.isDestroyed() || !InterfaceSlotEditState.ownsSession(session))) return;
                     InterfaceSlotEditState.putBinding(finalSlotIndex, slot.x, slot.y, droppedBinding);
                 }
             });

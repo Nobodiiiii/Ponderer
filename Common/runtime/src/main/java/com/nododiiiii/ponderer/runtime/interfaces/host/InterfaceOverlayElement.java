@@ -59,6 +59,10 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
 
     boolean blocksTimeline() { return panel == null || panelBlocking; }
 
+    boolean hasVisibleContent(float partialTicks) {
+        return getFade(partialTicks) >= (panel == null ? 1 / 32f : 1 / 16f);
+    }
+
     int[] displayRect() {
         var preview = InterfaceHost.previewViewport(scene);
         if (panel == null) {
@@ -140,8 +144,19 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
 
     @Override
     public void render(PonderScene scene, PonderUI screen, GuiGraphics graphics, float partialTicks, float fade) {
+        if (!InterfaceHost.rendersInterfaces(this)) return;
+        InterfaceHost.renderInterfaces(scene, screen, graphics, partialTicks);
+        redrawEarlierOverlays(scene, screen, graphics, partialTicks);
+        if (InterfaceHost.previewViewport(scene) == null) {
+            Minecraft mc = Minecraft.getInstance();
+            InterfaceHost.renderDraggedBinding(graphics, InterfaceHost.mouseX(mc), InterfaceHost.mouseY(mc));
+        }
+    }
+
+    void renderInterface(PonderScene scene, PonderUI screen, GuiGraphics graphics, float partialTicks) {
+        float fade = getFade(partialTicks);
         // Match InputWindowElement's cutoff; the panel and its native GUI slide as one rectangle.
-        if (fade < (panel == null ? 1 / 32f : 1 / 16f)
+        if (!hasVisibleContent(partialTicks)
             || scene != screen.getActiveScene() || session.isDestroyed() || !InterfaceHost.isCurrent(this)) {
             return;
         }
@@ -183,7 +198,6 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
             }
             if (preview == null) {
                 InterfaceHost.renderChrome(graphics, session, mouseX, mouseY, partialTicks);
-                InterfaceHost.renderDraggedBinding(graphics, mouseX, mouseY);
             } else {
                 InterfaceHost.renderCursor(graphics, session, partialTicks);
             }
@@ -197,7 +211,6 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
             RenderSystem.defaultBlendFunc();
             RenderSystem.disableDepthTest();
         }
-        redrawEarlierOverlays(scene, screen, graphics, partialTicks);
         if (panel == null && preview == null && hoverAllowed && ghost == null && session.currentScreen() != null) {
             InterfaceSlotOverlayRenderer.renderJeiVisibilityTooltip(graphics, session.currentScreen(), mouseX, mouseY);
         }
@@ -205,8 +218,8 @@ public final class InterfaceOverlayElement extends AnimatedOverlayElementBase {
 
     /**
      * Overlay elements are kept in a HashSet, so text windows iterated before this element were
-     * drawn underneath the interface backdrop. Draw those once more on top. {@link #hashCode()}
-     * places this element in bucket 0, so in practice the list is almost always empty.
+     * drawn underneath the interface backdrop. Draw those once more after all panels.
+     * {@link #hashCode()} places interface elements in bucket 0.
      */
     private void redrawEarlierOverlays(PonderScene scene, PonderUI screen, GuiGraphics graphics, float partialTicks) {
         List<PonderOverlayElement> earlier = new ArrayList<>();

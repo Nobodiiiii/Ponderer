@@ -52,7 +52,7 @@ public class Config {
         .comment("Show the text progress panel by default when opening a Ponder scene.",
                  "Right-click the Comfy Reading button to toggle this default; left-click toggles the current panel.")
         .translation("ponderer.ui.mod_config.default_text_progress")
-        .define("defaultTextProgress", true);
+        .define("defaultTextProgress", false);
 
     public static final ModConfigSpec.ConfigValue<String> AUTO_SYNC_SERVER_PONDERS = CLIENT_BUILDER
         .comment("Automatically sync server Ponder scenes and their structures: 'auto', 'on', or 'off'.",

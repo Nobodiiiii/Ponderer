@@ -26,7 +26,13 @@ import java.util.Optional;
 public class PonderUiGhostHandler implements IGhostIngredientHandler<PonderUI> {
     @Override
     public <I> List<Target<I>> getTargetsTyped(PonderUI gui, ITypedIngredient<I> ingredient, boolean doStart) {
-        SandboxSession session = InterfaceHost.sessionFor(gui);
+        List<Target<I>> targets = new ArrayList<>();
+        for (SandboxSession session : InterfaceHost.sessionsFor(gui))
+            targets.addAll(targetsFor(session, ingredient));
+        return targets;
+    }
+
+    private <I> List<Target<I>> targetsFor(SandboxSession session, ITypedIngredient<I> ingredient) {
         Screen screen = session == null ? null : session.currentScreen();
         if (!(screen instanceof AbstractContainerScreen<?> container)) {
             return List.of();
@@ -37,6 +43,7 @@ public class PonderUiGhostHandler implements IGhostIngredientHandler<PonderUI> {
             if (descriptor == null || descriptor.id() == null || descriptor.id().isBlank()) {
                 return List.of();
             }
+            if (!InterfaceSlotEditState.ownsSession(session)) return List.of();
             return InterfaceSlotGhostHandler.createTargets(container, descriptor, ingredient);
         }
 
@@ -54,10 +61,10 @@ public class PonderUiGhostHandler implements IGhostIngredientHandler<PonderUI> {
         for (int i = 0; i < slots.size(); i++) {
             Slot slot = slots.get(i);
             if (!slot.isActive() || !slot.mayPlace(dropped)
-                || !InterfaceHost.isNativeRectVisible(rect[0] + slot.x, rect[1] + slot.y, 16, 16)) {
+                || !InterfaceHost.isSlotExposed(session, rect[0] + slot.x, rect[1] + slot.y, 16, 16)) {
                 continue;
             }
-            int[] mapped = InterfaceHost.toScreenRect(rect[0] + slot.x, rect[1] + slot.y, 16, 16);
+            int[] mapped = InterfaceHost.toScreenRect(session, rect[0] + slot.x, rect[1] + slot.y, 16, 16);
             Rect2i area = new Rect2i(mapped[0], mapped[1], mapped[2], mapped[3]);
             int index = i;
             targets.add(new Target<>() {
@@ -68,7 +75,8 @@ public class PonderUiGhostHandler implements IGhostIngredientHandler<PonderUI> {
 
                 @Override
                 public void accept(I ignored) {
-                    SessionOps.placeStack(session, index, dropped);
+                    if (!session.isDestroyed() && InterfaceHost.isTakingInput(session))
+                        SessionOps.placeStack(session, index, dropped);
                 }
             });
         }

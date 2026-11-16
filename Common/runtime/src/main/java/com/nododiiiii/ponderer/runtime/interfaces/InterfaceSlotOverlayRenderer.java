@@ -3,6 +3,8 @@ package com.nododiiiii.ponderer.runtime.interfaces;
 import com.nododiiiii.ponderer.runtime.viewer.PonderRuntimeZLayers;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nododiiiii.ponderer.runtime.interfaces.platform.InterfacePlatform;
+import com.nododiiiii.ponderer.runtime.interfaces.host.InterfaceHost;
+import com.nododiiiii.ponderer.runtime.interfaces.sandbox.SandboxSession;
 import com.nododiiiii.ponderer.scene.DslScene;
 import net.createmod.catnip.gui.element.ScreenElement;
 import net.minecraft.client.Minecraft;
@@ -27,22 +29,41 @@ import java.util.Map;
  * current runtime slot snapshot for show_interface scenes.
  */
 public final class InterfaceSlotOverlayRenderer {
-    private static final LinkedHashMap<Integer, DslScene.InterfaceSlotBinding> RUNTIME_BINDINGS = new LinkedHashMap<>();
+    private static final Map<SandboxSession, LinkedHashMap<Integer, DslScene.InterfaceSlotBinding>> RUNTIME_BINDINGS = new java.util.IdentityHashMap<>();
 
     private InterfaceSlotOverlayRenderer() {
     }
 
     public static void clearRuntimeBindings() {
-        RUNTIME_BINDINGS.clear();
+        clearRuntimeBindings(InterfaceHost.sessionFor(Minecraft.getInstance().screen));
+    }
+
+    public static void clearRuntimeBindings(SandboxSession session) {
+        RUNTIME_BINDINGS.remove(session);
+    }
+
+    public static void replaceSession(SandboxSession old, SandboxSession fresh) {
+        var bindings = RUNTIME_BINDINGS.remove(old);
+        if (bindings != null) RUNTIME_BINDINGS.put(fresh, bindings);
     }
 
     public static boolean hasRuntimeBindingForSlot(int slotIndex) {
-        return RUNTIME_BINDINGS.containsKey(slotIndex);
+        return bindings(InterfaceHost.sessionFor(Minecraft.getInstance().screen)).containsKey(slotIndex);
     }
 
     /** Adds a display-only ingredient over slot {@code slotIndex} ({@code set_interface_slots.ghosts}). */
     public static void putGhost(int slotIndex, String ingredientId, @Nullable String ingredientKind) {
-        RUNTIME_BINDINGS.put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, ingredientId, ingredientKind));
+        putGhost(InterfaceHost.sessionFor(Minecraft.getInstance().screen), slotIndex, ingredientId, ingredientKind);
+    }
+
+    public static void putGhost(SandboxSession session, int slotIndex, String ingredientId, @Nullable String ingredientKind) {
+        if (session != null) RUNTIME_BINDINGS.computeIfAbsent(session, ignored -> new LinkedHashMap<>())
+            .put(slotIndex, new DslScene.InterfaceSlotBinding(slotIndex, ingredientId, ingredientKind));
+    }
+
+    private static Map<Integer, DslScene.InterfaceSlotBinding> bindings(SandboxSession session) {
+        Map<Integer, DslScene.InterfaceSlotBinding> bindings = RUNTIME_BINDINGS.get(session);
+        return bindings == null ? Map.of() : bindings;
     }
 
     public static void render(GuiGraphics graphics, Screen screen) {
@@ -50,9 +71,9 @@ public final class InterfaceSlotOverlayRenderer {
             return;
         }
 
-        Map<Integer, DslScene.InterfaceSlotBinding> bindings = InterfaceExtensions.editing().isActive()
+        Map<Integer, DslScene.InterfaceSlotBinding> bindings = InterfaceExtensions.editing().ownsSession(InterfaceHost.sessionForNative(screen))
             ? InterfaceExtensions.editing().ghostBindings()
-            : RUNTIME_BINDINGS;
+            : bindings(InterfaceHost.sessionForNative(screen));
         if (bindings.isEmpty()) {
             return;
         }
@@ -134,9 +155,9 @@ public final class InterfaceSlotOverlayRenderer {
             return null;
         }
 
-        Map<Integer, DslScene.InterfaceSlotBinding> bindings = InterfaceExtensions.editing().isActive()
+        Map<Integer, DslScene.InterfaceSlotBinding> bindings = InterfaceExtensions.editing().ownsSession(InterfaceHost.sessionForNative(screen))
             ? InterfaceExtensions.editing().ghostBindings()
-            : RUNTIME_BINDINGS;
+            : bindings(InterfaceHost.sessionForNative(screen));
 
         DslScene.InterfaceSlotBinding binding = bindings.get(slot.index);
         if (binding == null) {

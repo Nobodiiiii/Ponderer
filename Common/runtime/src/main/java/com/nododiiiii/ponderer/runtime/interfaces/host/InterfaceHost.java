@@ -26,9 +26,10 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
- * Owns the (at most one) visible interface session and routes PonderUI input to it.
+ * Owns visible interface sessions and routes PonderUI input to the topmost hit panel.
  * Loader modules call the input methods from their screen events; a {@code true} return
  * means the event was consumed and must not reach PonderUI.
  *
@@ -47,29 +48,64 @@ public final class InterfaceHost {
     private static final int TAB_HEIGHT = 12;
     private static final int TAB_GAP = 2;
 
-    @Nullable
-    private static InterfaceOverlayElement current;
-    private static Mode mode = Mode.WATCH;
-    private static final List<ScriptOp> scriptLog = new ArrayList<>();
+    /** Stable timeline identity; its live session is rebuilt when seeking or replaying. */
+    public static final class Target {
+        private InterfaceOverlayElement element;
+        private boolean panel;
+        private Mode mode = Mode.WATCH;
+        private final List<ScriptOp> scriptLog = new ArrayList<>();
+        private InterfaceStepSpecs.Goal exerciseGoal;
+        private Component exerciseHint;
+        private int exerciseTicksLeft;
+        private InterfaceStepSpecs.Action cursorAction;
+        private int cursorTick, cursorPrevTick, rippleTicks;
+        private double[] cursorRest;
+        private int pressedButton = -1;
+        private double lastDragX, lastDragY;
+    }
 
-    @Nullable
-    private static InterfaceStepSpecs.Goal exerciseGoal;
-    @Nullable
-    private static Component exerciseHint;
-    private static int exerciseTicksLeft;
+    private static final List<Target> targets = new ArrayList<>();
+    @Nullable private static Target scopedTarget;
+    @Nullable private static Target focusedTarget;
 
-    // Ghost cursor of the running interface_action.
-    @Nullable
-    private static InterfaceStepSpecs.Action cursorAction;
-    private static int cursorTick;
-    private static int cursorPrevTick;
-    private static int rippleTicks;
-    @Nullable
-    private static double[] cursorRest;
+    private static Target target() {
+        if (scopedTarget != null) return scopedTarget;
+        for (Target target : targets) if (!target.element.isPanel()) return target;
+        return targets.isEmpty() ? null : targets.getLast();
+    }
 
-    private static int pressedButton = -1;
-    private static double lastDragX;
-    private static double lastDragY;
+    @Nullable private static InterfaceOverlayElement current() {
+        Target target = target();
+        return target == null ? null : target.element;
+    }
+
+    public static <T> T withTarget(Target target, Supplier<T> action) {
+        Target previous = scopedTarget;
+        scopedTarget = target;
+        try { return action.get(); }
+        finally { scopedTarget = previous; }
+    }
+
+    public static void withTarget(Target target, Runnable action) {
+        withTarget(target, () -> { action.run(); return null; });
+    }
+
+    static Target targetOf(InterfaceOverlayElement element) {
+        for (Target target : targets) if (target.element == element) return target;
+        return null;
+    }
+
+    private static Target targetOf(SandboxSession session) {
+        for (Target target : targets) if (target.element.session() == session) return target;
+        return null;
+    }
+
+    public static boolean isOpen(Target target, PonderScene scene) {
+        return target != null && target.element != null && target.element.scene() == scene
+            && !target.element.session().isDestroyed() && targets.contains(target);
+    }
+
+    public static Mode mode(Target target) { return target == null ? Mode.WATCH : target.mode; }
 
     record PreviewViewport(PonderUI screen, Rect2i bounds, int mouseX, int mouseY, float partialTicks) {}
     @Nullable private static PreviewViewport previewViewport;
@@ -113,11 +149,8 @@ public final class InterfaceHost {
 
     /** Editor previews have no live PonderUI screen to receive the normal client tick. */
     public static void tickPreview(PonderScene scene) {
-        SandboxSession session = sessionOf(scene);
-        if (session != null) {
-            session.tick();
-            if (rippleTicks > 0) rippleTicks--;
-        }
+        for (Target target : List.copyOf(targets)) if (isOpen(target, scene))
+            withTarget(target, () -> tickSession(null));
     }
 
     // ---- Lifecycle ----------------------------------------------------------------------
@@ -125,10 +158,18 @@ public final class InterfaceHost {
     /** Opens {@code descriptor} for {@code scene}, replacing any interface that is currently shown. */
     public static SandboxSession open(PonderScene scene, InterfaceDescriptor descriptor) {
         com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.requireInterfaces("InterfaceHost.java");
+        Target owner = scopedTarget == null ? new Target() : scopedTarget;
         closeAll("replaced");
+        owner.panel = false;
+        return openTarget(owner, scene, descriptor);
+    }
+
+    private static SandboxSession openTarget(Target owner, PonderScene scene, InterfaceDescriptor descriptor) {
         SandboxSession session = SandboxSession.open(descriptor, scene.getWorld());
         InterfaceOverlayElement element = new InterfaceOverlayElement(scene, session);
-        current = element;
+        owner.element = element;
+        targets.add(owner);
+        if (focusedTarget == null) focusedTarget = owner;
         scene.addElement(element);
         return session;
     }
@@ -151,14 +192,21 @@ public final class InterfaceHost {
                                           net.minecraft.world.phys.Vec3 anchor,
                                           net.createmod.catnip.math.Pointing direction, List<Double> transform,
                                           @Nullable List<Double> crop, boolean background, boolean blocking, boolean animation) {
-        SandboxSession session = open(scene, descriptor);
-        current.setPanel(new InterfacePanelLayout(anchor, direction, transform, crop, background), blocking, animation);
+        com.nododiiiii.ponderer.runtime.api.RuntimeFeatures.requireInterfaces("InterfaceHost.java");
+        Target owner = scopedTarget == null ? new Target() : scopedTarget;
+        // Panels coexist; only a new standalone interface replaces the scene's interfaces.
+        for (Target existing : List.copyOf(targets))
+            if (existing == owner || existing.element.scene() != scene) close(existing, "replaced");
+        owner.panel = true;
+        SandboxSession session = openTarget(owner, scene, descriptor);
+        owner.element.setPanel(new InterfacePanelLayout(anchor, direction, transform, crop, background), blocking, animation);
         return session;
     }
 
     /** A transition must never animate a later interface that replaced its own session. */
     public static void setPanelFade(PonderScene scene, SandboxSession session, float progress) {
-        InterfaceOverlayElement element = current;
+        Target owner = targetOf(session);
+        InterfaceOverlayElement element = owner == null ? null : owner.element;
         if (element != null && element.scene() == scene && element.session() == session && element.isPanel()) {
             element.setFade(progress);
         }
@@ -166,71 +214,92 @@ public final class InterfaceHost {
 
     /** Hides the interface shown by {@code scene}, if any ({@code hide_interface}, a later {@code show_structure}). */
     public static void hide(PonderScene scene) {
-        InterfaceOverlayElement element = current;
-        if (element != null && element.scene() == scene) {
-            element.setVisible(false);
-            closeAll("hidden by scene");
+        if (scopedTarget == null || !scopedTarget.panel) {
+            for (Target owner : List.copyOf(targets)) if (owner.element.scene() == scene) close(owner, "scene hidden");
+            return;
         }
+        Target owner = target();
+        if (isOpen(owner, scene)) close(owner, "hidden by scene");
     }
 
     public static void closeAll(String reason) {
         cancelSlotDrag();
-        InterfaceOverlayElement element = current;
-        current = null;
-        mode = Mode.WATCH;
-        scriptLog.clear();
-        exerciseGoal = null;
-        exerciseHint = null;
-        cursorAction = null;
-        cursorRest = null;
-        resetInput();
-        InterfaceSlotOverlayRenderer.clearRuntimeBindings();
-        if (element != null) {
-            element.session().destroy(reason);
-        }
+        for (Target owner : List.copyOf(targets)) close(owner, reason);
+    }
+
+    private static void close(Target owner, String reason) {
+        if (owner == null || !targets.remove(owner)) return;
+        InterfaceOverlayElement element = owner.element;
+        if (InterfaceExtensions.editing().ownsSession(element.session())) cancelSlotDrag();
+        owner.element = null;
+        owner.mode = Mode.WATCH;
+        owner.scriptLog.clear();
+        owner.exerciseGoal = null;
+        owner.exerciseHint = null;
+        owner.cursorAction = null;
+        owner.cursorRest = null;
+        owner.pressedButton = -1;
+        owner.rippleTicks = 0;
+        if (focusedTarget == owner) focusedTarget = null;
+        InterfaceSlotOverlayRenderer.clearRuntimeBindings(element.session());
+        element.setVisible(false);
+        element.session().destroy(reason);
     }
 
     static void onElementReset(InterfaceOverlayElement element) {
-        if (current == element) {
-            closeAll("scene reset");
-        } else {
-            element.session().destroy("scene reset");
-        }
+        Target owner = targetOf(element);
+        if (owner != null) close(owner, "scene reset");
+        else element.session().destroy("scene reset");
     }
 
     static boolean isCurrent(InterfaceOverlayElement element) {
-        return current == element;
+        return targetOf(element) != null;
+    }
+
+    static boolean rendersInterfaces(InterfaceOverlayElement element) {
+        return !targets.isEmpty() && targets.getFirst().element == element;
+    }
+
+    static void renderInterfaces(PonderScene scene, PonderUI screen, GuiGraphics graphics, float partialTicks) {
+        for (Target owner : List.copyOf(targets)) {
+            if (isOpen(owner, scene) && owner.element.isVisible())
+                withTarget(owner, () -> owner.element.renderInterface(scene, screen, graphics, partialTicks));
+        }
     }
 
     /** Client tick: ticks the visible session, holds the timeline outside watch mode, drops stale sessions. */
     public static void tick() {
-        InterfaceOverlayElement element = current;
-        if (element == null) {
-            return;
-        }
+        if (targets.isEmpty()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null || mc.screen == null) {
             closeAll(mc.level == null ? "left world" : "host screen closed");
             return;
         }
-        if (!(mc.screen instanceof PonderUI ui) || ui.getActiveScene() != element.scene()) {
-            return;
-        }
+        if (!(mc.screen instanceof PonderUI ui)) return;
         if (ui instanceof PonderUiPreviewAccess previewAccess && previewAccess.ponderer$getFreePreview().isActive()) {
             return;
         }
+        for (Target owner : List.copyOf(targets)) {
+            if (owner.element.scene() != ui.getActiveScene()) close(owner, "scene changed");
+            else withTarget(owner, () -> tickSession(ui));
+        }
+    }
+
+    private static void tickSession(@Nullable PonderUI ui) {
+        Target owner = target();
+        InterfaceOverlayElement element = current();
         SandboxSession session = element.session();
         session.tick();
-        if (rippleTicks > 0) {
-            rippleTicks--;
+        if (owner.rippleTicks > 0) {
+            owner.rippleTicks--;
         }
-        if (mode == Mode.EXERCISE) {
-            InterfaceStepSpecs.Goal goal = exerciseGoal;
-            if (goal == null || !session.canInteract() || SessionOps.goalMet(session, goal) || --exerciseTicksLeft <= 0) {
+        if (owner.mode == Mode.EXERCISE) {
+            InterfaceStepSpecs.Goal goal = owner.exerciseGoal;
+            if (goal == null || !session.canInteract() || SessionOps.goalMet(session, goal) || --owner.exerciseTicksLeft <= 0) {
                 endExercise();
             }
         }
-        if (mode != Mode.WATCH && element.blocksTimeline()) {
+        if (ui != null && owner.mode != Mode.WATCH && element.blocksTimeline()) {
             // Holds the scene clock like a skip does; public API (PonderUI#coolDownAfterSkip).
             ui.coolDownAfterSkip();
         }
@@ -244,28 +313,28 @@ public final class InterfaceHost {
      * (e.g. successive values of one data slot).
      */
     public static void script(PonderScene scene, @Nullable String key, Consumer<SandboxSession> op) {
-        InterfaceOverlayElement element = current;
+        InterfaceOverlayElement element = current();
         if (element == null || element.scene() != scene || element.session().isDestroyed()) {
             return;
         }
         if (key != null) {
-            scriptLog.removeIf(existing -> key.equals(existing.key()));
+            target().scriptLog.removeIf(existing -> key.equals(existing.key()));
         }
-        scriptLog.add(new ScriptOp(key, op));
+        target().scriptLog.add(new ScriptOp(key, op));
         op.accept(element.session());
     }
 
     /** Drops earlier keyed ops whose key starts with {@code prefix} (replace-style slot steps). */
     public static void forgetScript(PonderScene scene, String prefix) {
-        InterfaceOverlayElement element = current;
+        InterfaceOverlayElement element = current();
         if (element != null && element.scene() == scene) {
-            scriptLog.removeIf(existing -> existing.key() != null && existing.key().startsWith(prefix));
+            target().scriptLog.removeIf(existing -> existing.key() != null && existing.key().startsWith(prefix));
         }
     }
 
     @Nullable
     public static SandboxSession sessionOf(PonderScene scene) {
-        InterfaceOverlayElement element = current;
+        InterfaceOverlayElement element = current();
         return element == null || element.scene() != scene || element.session().isDestroyed() ? null : element.session();
     }
 
@@ -274,30 +343,30 @@ public final class InterfaceHost {
         if (sessionOf(scene) == null) {
             return;
         }
-        cursorAction = action;
-        cursorTick = 0;
-        cursorPrevTick = 0;
+        target().cursorAction = action;
+        target().cursorTick = 0;
+        target().cursorPrevTick = 0;
     }
 
     public static void tickCursor(PonderScene scene, InterfaceStepSpecs.Action action, int tick) {
-        if (cursorAction != action) {
+        if (target() == null || target().cursorAction != action) {
             return;
         }
-        cursorPrevTick = cursorTick;
-        cursorTick = tick;
+        target().cursorPrevTick = target().cursorTick;
+        target().cursorTick = tick;
     }
 
     public static void pressRipple() {
-        rippleTicks = 6;
+        if (target() != null) target().rippleTicks = 6;
     }
 
     public static void endCursor(PonderScene scene, InterfaceStepSpecs.Action action) {
-        if (cursorAction != action) {
+        if (target() == null || target().cursorAction != action) {
             return;
         }
         SandboxSession session = sessionOf(scene);
-        cursorRest = session == null ? null : cursorEnd(session, action);
-        cursorAction = null;
+        target().cursorRest = session == null ? null : cursorEnd(session, action);
+        target().cursorAction = null;
     }
 
     /** Enters exercise mode for {@code await_interface}; skipped when the session cannot take input. */
@@ -306,44 +375,44 @@ public final class InterfaceHost {
         if (session == null || !session.canInteract() || SessionOps.goalMet(session, goal)) {
             return;
         }
-        mode = Mode.EXERCISE;
-        exerciseGoal = goal;
-        exerciseHint = hint;
-        exerciseTicksLeft = timeout <= 0 ? Integer.MAX_VALUE : timeout;
+        target().mode = Mode.EXERCISE;
+        target().exerciseGoal = goal;
+        target().exerciseHint = hint;
+        target().exerciseTicksLeft = timeout <= 0 ? Integer.MAX_VALUE : timeout;
     }
 
     private static void endExercise() {
         // The player's changes are the point of an exercise, so they are kept.
-        mode = Mode.WATCH;
-        exerciseGoal = null;
-        exerciseHint = null;
+        target().mode = Mode.WATCH;
+        target().exerciseGoal = null;
+        target().exerciseHint = null;
         resetInput();
     }
 
     // ---- Try mode -----------------------------------------------------------------------
 
     public static Mode mode() {
-        return mode;
+        return mode(target());
     }
 
     public static void enterTry() {
-        InterfaceOverlayElement element = current;
-        if (element != null && element.session().canInteract() && mode == Mode.WATCH) {
-            mode = Mode.TRY;
-            cursorAction = null;
+        InterfaceOverlayElement element = current();
+        if (element != null && element.session().canInteract() && mode() == Mode.WATCH) {
+            target().mode = Mode.TRY;
+            target().cursorAction = null;
         }
     }
 
     public static void exitTry() {
-        if (mode == Mode.TRY) {
+        if (mode() == Mode.TRY) {
             resetToScript();
-            mode = Mode.WATCH;
+            target().mode = Mode.WATCH;
         }
     }
 
     /** Rebuilds the session from its descriptor and replays the scripted ops, discarding the player's changes. */
     public static void resetToScript() {
-        InterfaceOverlayElement element = current;
+        InterfaceOverlayElement element = current();
         if (element == null) {
             return;
         }
@@ -351,60 +420,115 @@ public final class InterfaceHost {
         old.destroy("reset to script");
         SandboxSession fresh = SandboxSession.open(old.descriptor(), element.scene().getWorld());
         element.replaceSession(fresh);
+        InterfaceSlotOverlayRenderer.replaceSession(old, fresh);
         resetInput();
-        for (ScriptOp op : List.copyOf(scriptLog)) {
+        for (ScriptOp op : List.copyOf(target().scriptLog)) {
             op.apply().accept(fresh);
         }
     }
 
     // ---- Queries ------------------------------------------------------------------------
 
+    private static boolean visible(Target owner, @Nullable Screen screen) {
+        if (owner == null || owner.element == null || owner.element.session().isDestroyed()
+            || !owner.element.isVisible()) return false;
+        float partialTicks = previewViewport == null
+            ? Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false) : previewViewport.partialTicks();
+        if (!owner.element.hasVisibleContent(partialTicks)) return false;
+        Screen host = previewViewport == null ? screen : previewViewport.screen();
+        return host instanceof PonderUI ui && ui.getActiveScene() == owner.element.scene()
+            && (!(ui instanceof PonderUiPreviewAccess access) || !access.ponderer$getFreePreview().isActive());
+    }
+
+    private static Target hitTarget(Screen screen, double x, double y) {
+        for (int i = targets.size() - 1; i >= 0; i--) {
+            Target owner = targets.get(i);
+            if (!visible(owner, screen)) continue;
+            int[] rect = owner.element.displayRect();
+            if (rect != null && x >= rect[0] && y >= rect[1]
+                && x < rect[0] + rect[2] && y < rect[1] + rect[3]) return owner;
+            if (withTarget(owner, () -> tabs(owner.element.session()).stream().anyMatch(tab -> tab.contains(x, y))))
+                return owner;
+        }
+        return null;
+    }
+
+    private static Target queryTarget(@Nullable Screen screen) {
+        if (scopedTarget != null) return visible(scopedTarget, screen) ? scopedTarget : null;
+        Minecraft mc = Minecraft.getInstance();
+        Target hit = hitTarget(screen, mouseX(mc), mouseY(mc));
+        if (hit != null) return hit;
+        if (visible(focusedTarget, screen)) return focusedTarget;
+        Target owner = target();
+        return visible(owner, screen) ? owner : null;
+    }
+
+    public static List<SandboxSession> sessionsFor(Screen screen) {
+        return targets.stream().filter(owner -> visible(owner, screen)).map(owner -> owner.element.session()).toList();
+    }
+
+    @Nullable public static SandboxSession sessionForNative(Screen screen) {
+        for (Target owner : targets) if (owner.element.session().currentScreen() == screen) return owner.element.session();
+        return null;
+    }
+
     /** The session shown on {@code screen}'s active scene, if any. */
     @Nullable
     public static SandboxSession sessionFor(@Nullable Screen screen) {
-        InterfaceOverlayElement element = current;
-        if (element == null || element.session().isDestroyed() || !element.isVisible()) {
-            return null;
-        }
-        Screen host = previewViewport == null ? screen : previewViewport.screen();
-        if (!(host instanceof PonderUI ui) || ui.getActiveScene() != element.scene()) {
-            return null;
-        }
-        if (ui instanceof PonderUiPreviewAccess previewAccess && previewAccess.ponderer$getFreePreview().isActive()) {
-            return null;
-        }
-        return element.session();
+        Target owner = queryTarget(screen);
+        return owner == null ? null : owner.element.session();
+    }
+
+    @Nullable public static SandboxSession sessionAt(Screen screen, double x, double y) {
+        Target owner = hitTarget(screen, x, y);
+        return owner == null ? null : owner.element.session();
     }
 
     /** The embedded screen currently shown in PonderUI, used by UI anchors and JEI handlers. */
     @Nullable
     public static Screen activeScreen() {
-        SandboxSession session = sessionFor(Minecraft.getInstance().screen);
-        return session == null ? null : session.currentScreen();
+        Target owner = target();
+        return visible(owner, Minecraft.getInstance().screen) ? owner.element.session().currentScreen() : null;
     }
 
     /** GUI rectangle {left, top, width, height} of the interface on the current PonderUI, if any. */
     @Nullable
     public static int[] activeRect() {
-        SandboxSession session = sessionFor(Minecraft.getInstance().screen);
-        return session == null ? null : current.displayRect();
+        Target owner = queryTarget(Minecraft.getInstance().screen);
+        return owner == null ? null : owner.element.displayRect();
+    }
+
+    @Nullable public static int[] screenRect(SandboxSession session) {
+        Target owner = targetOf(session);
+        return owner == null ? null : owner.element.displayRect();
     }
 
     /** Native GUI anchor bounds projected through the panel's crop and scale, without rounding. */
     @Nullable
     public static double[] activeAnchorRect() {
-        SandboxSession session = sessionFor(Minecraft.getInstance().screen);
-        if (session == null) return null;
+        return anchorRect(target());
+    }
+
+    @Nullable public static double[] anchorRect(Target owner) {
+        if (owner == null || owner.element == null || owner.element.session().isDestroyed()) return null;
+        InterfaceOverlayElement element = owner.element;
+        SandboxSession session = element.session();
         int[] rect = session.guiRect();
         if (rect == null) return null;
-        double[] start = current.toDisplay(rect[0], rect[1]);
-        double[] end = current.toDisplay(rect[0] + rect[2], rect[1] + rect[3]);
+        double[] start = element.toDisplay(rect[0], rect[1]);
+        double[] end = element.toDisplay(rect[0] + rect[2], rect[1] + rect[3]);
         return new double[]{start[0], start[1], end[0] - start[0], end[1] - start[1]};
     }
 
     /** Maps a native menu rectangle to the visible panel (identity for a standalone interface). */
     public static int[] toScreenRect(int x, int y, int width, int height) {
-        InterfaceOverlayElement element = current;
+        Target owner = queryTarget(Minecraft.getInstance().screen);
+        return toScreenRect(owner == null ? null : owner.element.session(), x, y, width, height);
+    }
+
+    public static int[] toScreenRect(@Nullable SandboxSession session, int x, int y, int width, int height) {
+        Target owner = targetOf(session);
+        InterfaceOverlayElement element = owner == null ? null : owner.element;
         if (element == null) return new int[]{x, y, width, height};
         double[] start = element.toDisplay(x, y), end = element.toDisplay(x + width, y + height);
         int left = (int) Math.floor(start[0]), top = (int) Math.floor(start[1]);
@@ -412,17 +536,51 @@ public final class InterfaceHost {
     }
 
     public static boolean isNativeRectVisible(int x, int y, int width, int height) {
-        return current == null || current.isNativeRectVisible(x, y, width, height);
+        SandboxSession session = sessionFor(Minecraft.getInstance().screen);
+        return isNativeRectVisible(session, x, y, width, height);
+    }
+
+    public static boolean isNativeRectVisible(SandboxSession session, int x, int y, int width, int height) {
+        Target owner = targetOf(session);
+        return owner == null || owner.element.isNativeRectVisible(x, y, width, height);
+    }
+
+    /** JEI targets must not expose slots covered by a later panel. */
+    public static boolean isSlotExposed(SandboxSession session, int x, int y, int width, int height) {
+        Target owner = targetOf(session);
+        Screen screen = Minecraft.getInstance().screen;
+        if (!visible(owner, screen) || !isNativeRectVisible(session, x, y, width, height)) return false;
+        int[] rect = toScreenRect(session, x, y, width, height);
+        for (int i = targets.indexOf(owner) + 1; i < targets.size(); i++) {
+            Target otherOwner = targets.get(i);
+            if (!visible(otherOwner, screen)) continue;
+            InterfaceOverlayElement other = otherOwner.element;
+            int[] cover = other.displayRect();
+            if (cover != null && rect[0] < cover[0] + cover[2] && rect[0] + rect[2] > cover[0]
+                && rect[1] < cover[1] + cover[3] && rect[1] + rect[3] > cover[1]) return false;
+            if (withTarget(otherOwner, () -> tabs(other.session()).stream().anyMatch(tab ->
+                rect[0] < tab.x() + tab.width() && rect[0] + rect[2] > tab.x()
+                    && rect[1] < tab.y() + TAB_HEIGHT && rect[1] + rect[3] > tab.y()))) return false;
+        }
+        return true;
     }
 
     /** Whether real input currently goes to the sandbox (try or exercise mode). */
     public static boolean isTakingInput(@Nullable SandboxSession session) {
-        return session != null && mode != Mode.WATCH && session.canInteract();
+        Target owner = targetOf(session);
+        return owner != null && owner.mode != Mode.WATCH && session.canInteract();
     }
 
     // ---- Input --------------------------------------------------------------------------
 
     public static boolean mouseClicked(Screen screen, double x, double y, int button) {
+        Target owner = hitTarget(screen, x, y);
+        if (owner == null) return false;
+        focusedTarget = owner;
+        return withTarget(owner, () -> mouseClickedHere(screen, x, y, button));
+    }
+
+    private static boolean mouseClickedHere(Screen screen, double x, double y, int button) {
         SandboxSession session = sessionFor(screen);
         if (session == null || PonderUiInteractionHelper.hasPriorityPonderButtonAt(screen, x, y)) {
             return false;
@@ -431,47 +589,64 @@ public final class InterfaceHost {
             return true;
         }
         if (InterfaceExtensions.editing().isActive()) {
-            if (current.clipsInputAt(x, y)) return false;
-            double[] local = current.toNative(x, y);
-            return InterfaceExtensions.editing().pressed(session, local[0], local[1], button);
+            if (!InterfaceExtensions.editing().ownsSession(session)) return false;
+            if (current().clipsInputAt(x, y)) return false;
+            double[] local = current().toNative(x, y);
+            boolean handled = InterfaceExtensions.editing().pressed(session, local[0], local[1], button);
+            if (handled) target().pressedButton = button;
+            return handled;
         }
         if (!isInside(session, x, y) || !isTakingInput(session)) {
             return false;
         }
-        double[] local = current.toNative(x, y);
+        double[] local = current().toNative(x, y);
         session.mouseClicked(local[0], local[1], button);
-        pressedButton = button;
-        lastDragX = x;
-        lastDragY = y;
+        target().pressedButton = button;
+        target().lastDragX = x;
+        target().lastDragY = y;
         return true;
     }
 
     public static boolean mouseReleased(Screen screen, double x, double y, int button) {
+        Target owner = targets.stream().filter(t -> t.pressedButton == button).findFirst().orElse(focusedTarget);
+        return owner != null && withTarget(owner, () -> mouseReleasedHere(screen, x, y, button));
+    }
+
+    private static boolean mouseReleasedHere(Screen screen, double x, double y, int button) {
         SandboxSession session = sessionFor(screen);
         if (session == null) {
             resetInput();
             return false;
         }
         if (InterfaceExtensions.editing().isActive()) {
-            double[] local = current.clipsInputAt(x, y) ? new double[]{-1, -1} : current.toNative(x, y);
+            if (!InterfaceExtensions.editing().ownsSession(session)) return false;
+            target().pressedButton = -1;
+            double[] local = hitTarget(screen, x, y) != target() || current().clipsInputAt(x, y)
+                ? new double[]{-1, -1} : current().toNative(x, y);
             return InterfaceExtensions.editing().released(session, local[0], local[1], button);
         }
-        if (pressedButton != button) {
+        if (target().pressedButton != button) {
             return false;
         }
-        pressedButton = -1;
-        double[] local = current.clipsInputAt(x, y) ? new double[]{-1, -1} : current.toNative(x, y);
+        target().pressedButton = -1;
+        double[] local = hitTarget(screen, x, y) != target() || current().clipsInputAt(x, y)
+            ? new double[]{-1, -1} : current().toNative(x, y);
         session.mouseReleased(local[0], local[1], button);
         return true;
     }
 
     public static boolean mouseScrolled(Screen screen, double x, double y, double scrollX, double scrollY) {
+        Target owner = hitTarget(screen, x, y);
+        return owner != null && withTarget(owner, () -> mouseScrolledHere(screen, x, y, scrollX, scrollY));
+    }
+
+    private static boolean mouseScrolledHere(Screen screen, double x, double y, double scrollX, double scrollY) {
         SandboxSession session = sessionFor(screen);
         if (session == null || !isInside(session, x, y) || InterfaceExtensions.editing().isActive()) {
             return false;
         }
         if (isTakingInput(session)) {
-            double[] local = current.toNative(x, y);
+            double[] local = current().toNative(x, y);
             session.mouseScrolled(local[0], local[1], scrollX, scrollY);
         }
         // Scrolling over the interface must not switch Ponder scenes.
@@ -479,6 +654,11 @@ public final class InterfaceHost {
     }
 
     public static boolean keyPressed(Screen screen, int key, int scanCode, int modifiers) {
+        Target owner = visible(focusedTarget, screen) ? focusedTarget : queryTarget(screen);
+        return owner != null && withTarget(owner, () -> keyPressedHere(screen, key, scanCode, modifiers));
+    }
+
+    private static boolean keyPressedHere(Screen screen, int key, int scanCode, int modifiers) {
         if (screen instanceof PonderUI && key == GLFW.GLFW_KEY_SPACE && !InterfaceExtensions.editing().isActive()) {
             return false;
         }
@@ -490,36 +670,39 @@ public final class InterfaceHost {
             if (session.popScreen()) {
                 return true;
             }
-            if (mode == Mode.TRY) {
+            if (mode() == Mode.TRY) {
                 exitTry();
                 return true;
             }
-            if (mode == Mode.EXERCISE) {
+            if (mode() == Mode.EXERCISE) {
                 endExercise();
                 return true;
             }
             return false;
         }
-        Minecraft mc = Minecraft.getInstance();
-        if (!isTakingInput(session) || !isInside(session, mouseX(mc), mouseY(mc))) {
+        if (!isTakingInput(session)) {
             return false;
         }
         return session.keyPressed(key, scanCode, modifiers);
     }
 
     public static boolean charTyped(Screen screen, char c, int modifiers) {
+        Target owner = visible(focusedTarget, screen) ? focusedTarget : queryTarget(screen);
+        return owner != null && withTarget(owner, () -> charTypedHere(screen, c, modifiers));
+    }
+
+    private static boolean charTypedHere(Screen screen, char c, int modifiers) {
         SandboxSession session = sessionFor(screen);
         if (!isTakingInput(session) || InterfaceExtensions.editing().isActive()) {
             return false;
         }
-        Minecraft mc = Minecraft.getInstance();
-        return isInside(session, mouseX(mc), mouseY(mc)) && session.charTyped(c, modifiers);
+        return session.charTyped(c, modifiers);
     }
 
     /** Whether hover (tooltips, slot highlight) should follow the real cursor this frame. */
     static boolean shouldForwardHover(PonderUI ui, int mouseX, int mouseY) {
         return !PonderUiInteractionHelper.hasPriorityPonderButtonAt(ui, mouseX, mouseY)
-            && (current == null || !current.clipsInputAt(mouseX, mouseY));
+            && hitTarget(ui, mouseX, mouseY) == target();
     }
 
     /**
@@ -528,20 +711,21 @@ public final class InterfaceHost {
      */
     static void beforeRender(SandboxSession session, int mouseX, int mouseY) {
         InterfaceExtensions.editing().applyPreview(session);
-        if (pressedButton < 0) {
+        if (InterfaceExtensions.editing().isActive()) return;
+        if (target().pressedButton < 0) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
         double x = preciseMouseX(mc);
         double y = preciseMouseY(mc);
-        if (x != lastDragX || y != lastDragY) {
-            if (!current.clipsInputAt(x, y)) {
-                double[] local = current.toNative(x, y);
-                double[] previous = current.toNative(lastDragX, lastDragY);
-                session.mouseDragged(local[0], local[1], pressedButton, local[0] - previous[0], local[1] - previous[1]);
+        if (x != target().lastDragX || y != target().lastDragY) {
+            if (hitTarget(mc.screen, x, y) == target() && !current().clipsInputAt(x, y)) {
+                double[] local = current().toNative(x, y);
+                double[] previous = current().toNative(target().lastDragX, target().lastDragY);
+                session.mouseDragged(local[0], local[1], target().pressedButton, local[0] - previous[0], local[1] - previous[1]);
             }
-            lastDragX = x;
-            lastDragY = y;
+            target().lastDragX = x;
+            target().lastDragY = y;
         }
     }
 
@@ -551,8 +735,10 @@ public final class InterfaceHost {
     }
 
     private static void resetInput() {
-        pressedButton = -1;
-        InterfaceExtensions.editing().resetInput();
+        Target owner = target();
+        if (owner != null) owner.pressedButton = -1;
+        if (owner != null && owner.element != null && InterfaceExtensions.editing().ownsSession(owner.element.session()))
+            InterfaceExtensions.editing().resetInput();
     }
 
     static int mouseX(Minecraft mc) {
@@ -587,9 +773,9 @@ public final class InterfaceHost {
         }
         List<Component> labels = new ArrayList<>();
         List<Runnable> actions = new ArrayList<>();
-        switch (mode) {
+        switch (mode()) {
             case WATCH -> {
-                if (session.canInteract() && !current.isPanel()) {
+                if (session.canInteract() && !current().isPanel()) {
                     labels.add(Component.translatable("ponderer.ui.interface.try"));
                     actions.add(InterfaceHost::enterTry);
                 }
@@ -639,11 +825,11 @@ public final class InterfaceHost {
             graphics.drawString(font, tab.label(), tab.x() + 4, tab.y() + 2, 0xFFFFFF, false);
         }
         int[] rect = activeRect();
-        Component banner = switch (mode) {
+        Component banner = switch (mode()) {
             case TRY -> Component.translatable("ponderer.ui.interface.try_notice").withStyle(ChatFormatting.GRAY);
-            case EXERCISE -> exerciseHint == null
+            case EXERCISE -> target().exerciseHint == null
                 ? Component.translatable("ponderer.ui.interface.exercise").withStyle(ChatFormatting.YELLOW)
-                : exerciseHint.copy().withStyle(ChatFormatting.YELLOW);
+                : target().exerciseHint.copy().withStyle(ChatFormatting.YELLOW);
             case WATCH -> null;
         };
         if (banner != null && rect != null) {
@@ -662,16 +848,17 @@ public final class InterfaceHost {
     /** The ghost cursor position while an action animates in watch mode, else null. */
     @Nullable
     static double[] cursorPosition(SandboxSession session, float partialTicks) {
-        InterfaceStepSpecs.Action action = cursorAction;
-        if (action == null || mode != Mode.WATCH || !action.cursor() || action.duration() <= 0) {
+        Target owner = targetOf(session);
+        InterfaceStepSpecs.Action action = owner == null ? null : owner.cursorAction;
+        if (action == null || owner.mode != Mode.WATCH || !action.cursor() || action.duration() <= 0) {
             return null;
         }
         double[] end = cursorEnd(session, action);
-        double[] start = cursorRest != null ? cursorRest : center(session);
+        double[] start = owner.cursorRest != null ? owner.cursorRest : center(session);
         if (end == null || start == null) {
             return null;
         }
-        float t = Mth.clamp((Mth.lerp(partialTicks, cursorPrevTick, cursorTick)) / (float) action.duration(), 0, 1);
+        float t = Mth.clamp((Mth.lerp(partialTicks, owner.cursorPrevTick, owner.cursorTick)) / (float) action.duration(), 0, 1);
         if (action.kind() == InterfaceStepSpecs.ActionKind.DRAG) {
             double[] from = SessionOps.point(session, action.target());
             if (from != null) {
@@ -710,14 +897,15 @@ public final class InterfaceHost {
 
     static void renderCursor(GuiGraphics graphics, SandboxSession session, float partialTicks) {
         double[] p = cursorPosition(session, partialTicks);
-        if (p == null || !isNativeRectVisible((int) p[0], (int) p[1], 1, 1)) {
+        if (p == null || !isNativeRectVisible(session, (int) p[0], (int) p[1], 1, 1)) {
             return;
         }
-        if (current != null) p = current.toDisplay(p[0], p[1]);
+        Target owner = targetOf(session);
+        p = owner.element.toDisplay(p[0], p[1]);
         int x = (int) p[0];
         int y = (int) p[1];
-        if (rippleTicks > 0) {
-            int r = 2 + (6 - rippleTicks) * 2;
+        if (owner.rippleTicks > 0) {
+            int r = 2 + (6 - owner.rippleTicks) * 2;
             graphics.renderOutline(x - r, y - r, r * 2, r * 2, 0xA0FFFFFF);
         }
         // Simple arrow: a white wedge with a dark outline.
