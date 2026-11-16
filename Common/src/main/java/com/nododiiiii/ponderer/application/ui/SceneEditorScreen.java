@@ -293,6 +293,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
             entries.add(new SceneStepListEntry(
                 () -> (stepIndex + 1) + ". " + StepPreviewText.title(scene, steps.get(stepIndex)),
                 () -> StepPreviewText.summary(scene, steps.get(stepIndex)),
+                () -> Boolean.TRUE.equals(steps.get(stepIndex).attachKeyFrame),
                 () -> openEditorForStep(stepIndex),
                 List.of(
                     SceneStepListEntry.iconButton(

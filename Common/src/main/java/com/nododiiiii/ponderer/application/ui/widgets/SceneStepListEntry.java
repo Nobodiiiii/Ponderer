@@ -1,7 +1,9 @@
 package com.nododiiiii.ponderer.application.ui.widgets;
 
+import net.createmod.catnip.config.ui.BaseConfigScreen;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.data.Couple;
+import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.DelegatedStencilElement;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.catnip.theme.Color;
@@ -25,6 +27,9 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
     private static final int BUTTON_WIDTH = 26;
     private static final int BUTTON_HEIGHT = 24;
     private static final int MULTI_BUTTON_MIN_WIDTH = 18;
+    private static final Couple<Color> KEYFRAME_TITLE_COLORS = Couple.create(
+        BaseConfigScreen.COLOR_TITLE_C,
+        BaseConfigScreen.COLOR_TITLE_C.copy().darker()).map(Color::setImmutable);
     private static final Couple<Color> SELECTED_COLORS = Couple.create(
         new Color(SectionHeaderRenderer.TEXT_COLOR),
         new Color(SectionHeaderRenderer.TEXT_COLOR).scaleAlpha(0xDD / 255f)).map(Color::setImmutable);
@@ -53,7 +58,18 @@ public class SceneStepListEntry extends ConfigScreenList.LabeledEntry implements
                               Supplier<String> previewGetter,
                               @Nullable Runnable mainClick,
                               List<ActionButton> buttons) {
+        this(labelGetter, previewGetter, () -> false, mainClick, buttons);
+    }
+
+    public SceneStepListEntry(Supplier<String> labelGetter,
+                              Supplier<String> previewGetter,
+                              BooleanSupplier keyFrameGetter,
+                              @Nullable Runnable mainClick,
+                              List<ActionButton> buttons) {
         super("");
+        label.withElementRenderer((graphics, width, height, alpha) -> UIRenderHelper.angledGradient(
+            graphics, 0, 0, height / 2, height, width,
+            keyFrameGetter.getAsBoolean() ? KEYFRAME_TITLE_COLORS : UIRenderHelper.COLOR_TEXT_STRONG_ACCENT));
         this.labelGetter = labelGetter;
         this.previewGetter = previewGetter;
         this.mainClick = mainClick;

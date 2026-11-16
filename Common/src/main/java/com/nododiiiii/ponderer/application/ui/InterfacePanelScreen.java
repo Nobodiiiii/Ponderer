@@ -72,11 +72,11 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
         boolean uiAnchor = hasInterfaceBeforeStep();
         entries.add(FieldSpecs.xyz(point, uiAnchor ? "ponderer.ui.point" : "ponderer.ui.interface_panel.point",
             uiAnchor ? "ponderer.ui.pick.ui.tooltip" : "ponderer.ui.field.position.tooltip", PickState.TargetField.POINT));
+        entries.add(FieldSpecs.xyz(transform, "ponderer.ui.interface_panel.transform", "ponderer.ui.interface_panel.transform.tooltip",
+            FieldType.XYZ, FieldDecorators.xyzHints("ponderer.ui.interface_panel.offset_x", "ponderer.ui.interface_panel.offset_y", "ponderer.ui.interface_panel.scale")));
         entries.add(FieldSpecs.choice("ponderer.ui.show_controls.direction", "ponderer.ui.show_controls.direction.tooltip", 70,
             () -> direction = (direction + 1) % DIRECTIONS.length,
             () -> UIText.of("ponderer.ui.show_controls.direction." + DIRECTIONS[direction])));
-        entries.add(FieldSpecs.xyz(transform, "ponderer.ui.interface_panel.transform", "ponderer.ui.interface_panel.transform.tooltip",
-            FieldType.XYZ, FieldDecorators.xyzHints("ponderer.ui.interface_panel.offset_x", "ponderer.ui.interface_panel.offset_y", "ponderer.ui.interface_panel.scale")));
         entries.add(FieldSpecs.toggle("ponderer.ui.interface_panel.background", "ponderer.ui.interface_panel.background.tooltip",
             () -> panelBackground, () -> panelBackground = !panelBackground));
         entries.add(FieldSpecs.toggle("ponderer.ui.interface_panel.animation", "ponderer.ui.interface_panel.animation.tooltip",
@@ -98,6 +98,7 @@ public final class InterfacePanelScreen extends AbstractStepEditorScreen {
             () -> index == 0 ? UIText.of("ponderer.ui.scene_editor.no_steps")
                 : index + ". " + StepPreviewText.title(children.get(index)),
             () -> index == 0 ? "" : StepPreviewText.summary(children.get(index)),
+            () -> index > 0 && Boolean.TRUE.equals(children.get(index).attachKeyFrame),
             index == 0 ? null : () -> openChild(index, null), List.of(
                 SceneStepListEntry.iconButton(
                     PonderIconStencils.rotated(PonderGuiTextures.ICON_CONFIG_PREV, 90, 12),
