@@ -181,6 +181,9 @@ public class DslScene {
     public static class SceneSegment {
         public String id;
         public LocalizedText title;
+        /** Migrated native code owns its initialization and initial delay. */
+        @Nullable public Boolean explicitInitialization;
+        @Nullable public String structure;
         public List<DslStep> steps = List.of();
     }
 

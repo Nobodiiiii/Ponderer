@@ -4,8 +4,11 @@ import com.nododiiiii.ponderer.support.ui.UIText;
 import com.nododiiiii.ponderer.exporter.JavaModuleExportRequest;
 import com.nododiiiii.ponderer.exporter.JavaModuleExportResult;
 import com.nododiiiii.ponderer.exporter.JavaModuleScanResult;
+import com.nododiiiii.ponderer.application.ui.widgets.ActionStripListEntry;
 import com.nododiiiii.ponderer.application.ui.widgets.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.application.ui.widgets.LabeledActionStripListEntry;
 import com.nododiiiii.ponderer.application.ui.widgets.PondererGuiIcons;
+import net.createmod.catnip.gui.ScreenOpener;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
@@ -23,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScreen {
 
-    private int exportMode = JavaModuleExportRequest.Mode.JAVA_SUPPORT.ordinal();
+    private int exportMode = JavaModuleExportRequest.DEFAULT_MODE.ordinal();
     private String draftTargetRoot = "";
     private Set<String> selectedSceneKeys = new HashSet<>();
 
@@ -40,13 +43,19 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
 
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
-        entries.add(FieldSpecs.cycle(FieldBindings.transientInteger(() -> exportMode, value -> exportMode = value),
-            "ponderer.ui.export_java.mode", null, 180, JavaModuleExportRequest.Mode.values().length,
-            this::clearStatusMessages, () -> switch (JavaModuleExportRequest.Mode.values()[exportMode]) {
-                case JSON_LIB -> "JSON + Lib";
-                case JAVA_LIB -> "Java + Lib";
-                case JAVA_SUPPORT -> "Java + Support";
-            }, () -> 0xFFFFFF));
+        entries.add(screen -> {
+            screen.appendBuiltEntry(new LabeledActionStripListEntry("ponderer.ui.export_java.mode", null, List.of(
+                ActionStripListEntry.button(
+                    () -> exportModeName(JavaModuleExportRequest.Mode.values()[exportMode]),
+                    null,
+                    () -> {
+                        exportMode = (exportMode + 1) % JavaModuleExportRequest.Mode.values().length;
+                        clearStatusMessages();
+                    },
+                    () -> 0xFFFFFF, () -> true),
+                ActionStripListEntry.button("?", UIText.of("ponderer.ui.export_java.mode.help.title"),
+                    this::openExportModeHelp))));
+        });
         entries.add(FieldSpecs.text(
             FieldBindings.transientString(() -> draftTargetRoot, value -> {
                 draftTargetRoot = value;
@@ -92,12 +101,38 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
             return false;
         }
 
+        if (scanResult.legacyExportDetected) {
+            openLegacyExportDialog(request, scanResult);
+            return false;
+        }
+        return continueExport(request, scanResult);
+    }
+
+    private boolean continueExport(JavaModuleExportRequest request, JavaModuleScanResult scanResult) {
         if (scanResult.hasSkippableFindings()) {
             openSkippableWarningDialog(request, scanResult);
             return false;
         }
 
         return runExport(request, scanResult);
+    }
+
+    private void openLegacyExportDialog(JavaModuleExportRequest request, JavaModuleScanResult scanResult) {
+        new PondererDialogScreen(this,
+            List.of(Component.translatable("ponderer.ui.export_java.legacy.title")),
+            List.of(Component.translatable("ponderer.ui.export_java.legacy.message"),
+                Component.translatable("ponderer.ui.export_java.legacy.backup")),
+            List.of(
+                PondererDialogScreen.button(Component.translatable("ponderer.ui.export_java.legacy.convert"), dialog -> {
+                    dialog.closeToSource();
+                    continueExport(request.withLegacyAction(JavaModuleExportRequest.LegacyAction.CONVERT), scanResult);
+                }),
+                PondererDialogScreen.button(Component.translatable("ponderer.ui.export_java.legacy.discard"), dialog -> {
+                    dialog.closeToSource();
+                    continueExport(request.withLegacyAction(JavaModuleExportRequest.LegacyAction.DISCARD), scanResult);
+                }),
+                PondererDialogScreen.closeButton(Component.translatable("ponderer.ui.cancel"))))
+            .open();
     }
 
     @Override
@@ -122,7 +157,12 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
 
     @Override
     protected void restoreSnapshot(Map<String, String> snapshot) {
-        try { exportMode = Math.floorMod(Integer.parseInt(snapshot.getOrDefault("export_mode", "2")), 3); } catch (NumberFormatException ignored) { exportMode = 2; }
+        try {
+            exportMode = Math.floorMod(Integer.parseInt(snapshot.getOrDefault("export_mode",
+                Integer.toString(JavaModuleExportRequest.DEFAULT_MODE.ordinal()))), JavaModuleExportRequest.Mode.values().length);
+        } catch (NumberFormatException ignored) {
+            exportMode = JavaModuleExportRequest.DEFAULT_MODE.ordinal();
+        }
         draftTargetRoot = snapshot.getOrDefault("target_root", "");
         selectedSceneKeys = new HashSet<>();
         int count;
@@ -169,6 +209,21 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
                 clearStatusMessages();
                 rebuildFormPreservingState();
             }, Minecraft.getInstance());
+    }
+
+    private static String exportModeName(JavaModuleExportRequest.Mode mode) {
+        return switch (mode) {
+            case JSON_LIB -> "JSON + Lib";
+            case JAVA_LIB -> UIText.of("ponderer.ui.export_java.mode.help.java_lib.title");
+            case JAVA_SUPPORT -> "Java + Support";
+        };
+    }
+
+    private void openExportModeHelp() {
+        ScreenOpener.open(new ExportModeSelectScreen(this, mode -> {
+            exportMode = mode.ordinal();
+            clearStatusMessages();
+        }));
     }
 
     private void openSkippableWarningDialog(JavaModuleExportRequest request, JavaModuleScanResult scanResult) {

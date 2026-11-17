@@ -1,6 +1,8 @@
 package com.nododiiiii.ponderer.exporter;
 
 import com.nododiiiii.ponderer.scene.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
 
@@ -8,6 +10,10 @@ import java.util.LinkedHashMap;
 final class LibExportSources {
     private LibExportSources() {}
     static boolean usesLib(JavaModuleScanResult.TargetProject target) { return target.mode != JavaModuleExportRequest.Mode.JAVA_SUPPORT; }
+    static String documentId(JavaModuleScanResult.TargetProject target, String id) {
+        return target.mode == JavaModuleExportRequest.Mode.JAVA_LIB
+            ? target.modId + ":" + id.substring(id.indexOf(':') + 1) : id;
+    }
     static String extensionPackage(JavaModuleScanResult.TargetProject target) { return target.basePackage + ".ponderext"; }
     static String jsonPath(JavaModuleScanResult.TargetProject target, JavaModuleScanResult.ScenePlan plan) {
         return "/assets/" + target.modId + "/ponderer/scenes/" + plan.className.toLowerCase(java.util.Locale.ROOT) + ".json";
@@ -18,8 +24,7 @@ final class LibExportSources {
         result.exported = true;
         result.pack = null;
         result.editable = target.mode == JavaModuleExportRequest.Mode.JAVA_LIB;
-        if (target.mode == JavaModuleExportRequest.Mode.JAVA_LIB)
-            result.id = target.modId + ":" + result.id.substring(result.id.indexOf(':') + 1);
+        result.id = documentId(target, result.id);
         result.runtimeSource = target.mode == JavaModuleExportRequest.Mode.JAVA_LIB ? result.id : null;
         Map<String, String> relocated = new LinkedHashMap<>();
         for (var asset : plan.structures) relocated.put(asset.sourceId, asset.targetResourceId);
@@ -40,8 +45,22 @@ final class LibExportSources {
         });
         if (result.scenes != null) for (int i = 0; i < result.scenes.size(); i++) {
             var segment = result.scenes.get(i);
+            segment.structure = relocate(segment.structure, relocated);
+            segment.steps = exportedSteps(segment.steps);
             if (segment.steps == null) continue;
             for (var step : segment.steps) if (step != null) step.structure = relocate(step.structure, relocated);
+        }
+        return result;
+    }
+    private static List<DslScene.DslStep> exportedSteps(List<DslScene.DslStep> steps) {
+        if (steps == null) return null;
+        var result = new ArrayList<DslScene.DslStep>();
+        for (var step : steps) {
+            if (step != null) {
+                if ("shared_text".equalsIgnoreCase(step.type)) continue;
+                step.steps = exportedSteps(step.steps);
+            }
+            result.add(step);
         }
         return result;
     }
@@ -72,9 +91,6 @@ final class LibExportSources {
                     }
                 }
                 public static void prepare() { reload(); }
-                public static void registerSharedText(SharedTextRegistrationHelper helper) {
-                    RUNTIME.plugin().registerSharedText(helper);
-                }
                 public static void close() { RUNTIME.close(); }
 
             """.formatted(plan.className, quote(target.modId), quote(target.modId), extensionPackage(target), JavaSceneSources.members(document));

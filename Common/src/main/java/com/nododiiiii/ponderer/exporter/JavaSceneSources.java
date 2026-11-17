@@ -55,7 +55,14 @@ final class JavaSceneSources {
             source.append("        var scene = new JavaScene(").append(values.value(segment.id)).append(", ")
                 .append(values.value(segment.title)).append(");\n");
             if (segment.steps != null) for (var step : segment.steps) source.append(step(step, document.id));
-            if (segment.steps == null) source.append("        var segment = scene.build();\n        segment.steps = null;\n        return segment;\n");
+            if (segment.explicitInitialization != null || segment.structure != null) {
+                source.append("        var segment = scene.build();\n");
+                if (segment.explicitInitialization != null) source.append("        segment.explicitInitialization = ")
+                    .append(segment.explicitInitialization).append(";\n");
+                if (segment.structure != null) source.append("        segment.structure = ").append(values.value(segment.structure)).append(";\n");
+                if (segment.steps == null) source.append("        segment.steps = null;\n");
+                source.append("        return segment;\n");
+            } else if (segment.steps == null) source.append("        var segment = scene.build();\n        segment.steps = null;\n        return segment;\n");
             else source.append("        return scene.build();\n");
             source.append("    }\n\n");
         }

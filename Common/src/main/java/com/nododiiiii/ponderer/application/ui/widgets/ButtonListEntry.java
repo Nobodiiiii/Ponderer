@@ -24,6 +24,12 @@ public class ButtonListEntry extends ConfigScreenList.LabeledEntry implements Se
     private float controlWidthScale = 1.0f;
     private boolean hasIcon;
 
+    public ButtonListEntry(String labelKey, @Nullable String tooltipKey,
+                           Runnable onClick, Supplier<String> labelGetter) {
+        this(labelKey, tooltipKey, EntryTextSupport.squareSize(), onClick, labelGetter,
+            () -> 0xFFFFFF, (String) null);
+    }
+
     public ButtonListEntry(String labelKey, @Nullable String tooltipKey, int buttonWidth,
                            Runnable onClick, Supplier<String> labelGetter, IntSupplier colorGetter,
                            @Nullable String buttonTooltipText) {

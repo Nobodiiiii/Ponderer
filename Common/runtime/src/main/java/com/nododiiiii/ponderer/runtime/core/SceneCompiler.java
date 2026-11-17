@@ -103,7 +103,7 @@ public final class SceneCompiler {
 
         for (int i = 0; i < sceneList.size(); i++) {
             DslScene.SceneSegment sc = sceneList.get(i);
-            String explicit = extractExplicitStructureRef(sc);
+            String explicit = sc.structure == null ? extractExplicitStructureRef(sc) : sc.structure;
             if (explicit != null) {
                 ResourceLocation next = resolveStructureReference(scene, explicit);
                 if (next != null) {
@@ -340,7 +340,7 @@ public final class SceneCompiler {
                     builder.removeShadow();
                 }
 
-                if (!firstStepIsShowStructure(sc)) {
+                if (!Boolean.TRUE.equals(sc.explicitInitialization) && !firstStepIsShowStructure(sc)) {
                     DslScene.DslStep initial = new DslScene.DslStep();
                     initial.type = "show_structure";
                     executor.applyStep(builder, util, scene, initial, context);

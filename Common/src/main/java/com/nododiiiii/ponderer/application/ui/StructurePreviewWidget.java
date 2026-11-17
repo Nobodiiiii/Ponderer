@@ -8,7 +8,6 @@ import com.nododiiiii.ponderer.runtime.mixin.RenderSystemShaderLightsAccessor;
 import com.nododiiiii.ponderer.runtime.support.structure.ExtraStructurePlanner;
 import com.nododiiiii.ponderer.runtime.support.structure.ExtraStructurePlanner.PlacedBlock;
 import net.createmod.catnip.client.render.model.BakedModelBufferer;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.levelWrappers.SchematicLevel;
 import net.createmod.catnip.render.DefaultSuperRenderTypeBuffer;
@@ -309,9 +308,9 @@ public class StructurePreviewWidget {
             } else if (confirmationParent != null && prepared.blocks.size() > DEFAULT_LARGE_THRESHOLD) {
                 statusKey = PICKER_STATUS + "confirm_pending";
                 long version = loadVersion;
-                new ConfirmationScreen().centered()
-                    .withText(Component.translatable(PICKER_STATUS + "large", prepared.blocks.size()))
-                    .withAction(success -> {
+                PondererDialogScreen.confirm(confirmationParent, List.of(),
+                    List.of(Component.translatable(PICKER_STATUS + "large", prepared.blocks.size())),
+                    success -> {
                         if (version != loadVersion) return;
                         if (sourceLevel != Minecraft.getInstance().level) {
                             setStatus(failureStatus);
@@ -320,7 +319,7 @@ public class StructurePreviewWidget {
                         } else {
                             setStatus(PICKER_STATUS + "skipped");
                         }
-                    }).open(confirmationParent);
+                    });
             } else {
                 beginBuild(prepared.blocks);
             }

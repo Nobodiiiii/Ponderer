@@ -10,7 +10,6 @@ import com.nododiiiii.ponderer.product.catalog.CustomPonderTags;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.product.catalog.PondererAttribution;
 import net.createmod.catnip.config.ui.ConfigScreenList;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.ponder.foundation.PonderIndex;
 import net.createmod.ponder.foundation.PonderTag;
@@ -206,10 +205,10 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
             setErrorMessage(UIText.of("ponderer.ui.custom_tag.error.in_use", reference.sceneKey()));
             return;
         }
-        new ConfirmationScreen().centered()
-            .withText(Component.translatable("ponderer.ui.custom_tag.delete"))
-            .addText(Component.translatable("ponderer.ui.custom_tag.delete.confirm", id))
-            .withAction(confirmed -> {
+        PondererDialogScreen.confirm(this,
+            List.of(Component.translatable("ponderer.ui.custom_tag.delete")),
+            List.of(Component.translatable("ponderer.ui.custom_tag.delete.confirm", id)),
+            confirmed -> {
                 if (confirmed) {
                     customTags.remove(id);
                     selectedTags.remove(id);
@@ -217,7 +216,7 @@ public class SceneTagsScreen extends AbstractDeclarativeListScreen {
                     refreshAvailableTags();
                     rebuildListPreservingScroll();
                 }
-            }).open(this);
+            });
     }
 
     public static String summarize(List<String> tags, Map<String, DslScene.CustomTag> definitions) {

@@ -7,7 +7,6 @@ import com.nododiiiii.ponderer.product.catalog.CustomPonderTags;
 import com.nododiiiii.ponderer.scene.LocalizedText;
 import com.nododiiiii.ponderer.application.ui.widgets.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.application.ui.widgets.LocalizedTextListEntry;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -327,17 +326,15 @@ public class SceneDescEditorScreen extends AbstractStatefulDeclarativeFormScreen
             return;
         }
 
-        new ConfirmationScreen()
-            .centered()
-            .withText(Component.translatable("ponderer.ui.scene_desc.editable.confirm_title"))
-            .addText(Component.translatable("ponderer.ui.scene_desc.editable.confirm"))
-            .withAction(confirmed -> {
+        PondererDialogScreen.confirm(this,
+            List.of(Component.translatable("ponderer.ui.scene_desc.editable.confirm_title")),
+            List.of(Component.translatable("ponderer.ui.scene_desc.editable.confirm")),
+            confirmed -> {
                 if (confirmed) {
                     workingEditable = false;
                     clearStatusMessages();
                 }
-            })
-            .open(this);
+            });
     }
 
     private void togglePonderTitleLang() {

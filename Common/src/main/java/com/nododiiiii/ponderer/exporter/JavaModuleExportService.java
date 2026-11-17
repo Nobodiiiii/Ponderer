@@ -1,5 +1,7 @@
 package com.nododiiiii.ponderer.exporter;
 
+import com.github.javaparser.JavaParser;
+import com.github.javaparser.ParserConfiguration;
 import com.nododiiiii.ponderer.product.catalog.CustomPonderTags;
 import com.nododiiiii.ponderer.product.catalog.PondererAttribution;
 import com.nododiiiii.ponderer.scene.step.ParticleEffectSpec;
@@ -128,6 +130,12 @@ public final class JavaModuleExportService {
         if (targetProject == null) {
             return result;
         }
+        if (request.mode() == JavaModuleExportRequest.Mode.JAVA_LIB) try {
+            result.legacyExportDetected = LegacyJavaExportMigration.detected(targetProject, readManifest(targetProject.targetRoot));
+        } catch (IOException error) {
+            addFinding(result.fatalFindings, "legacy export", null, null, null, null, error.getMessage());
+            return result;
+        }
 
         if (request.supportOnly()) {
             if (request.mode() != JavaModuleExportRequest.Mode.JAVA_SUPPORT) addFinding(result.fatalFindings, "selection", null, null, null, null, "Select scenes for a Lib export.");
@@ -166,14 +174,25 @@ public final class JavaModuleExportService {
         }
 
         JavaModuleExportManifest manifest = readManifest(scanResult.targetProject.targetRoot);
+        LegacyJavaExportMigration.Plan migration = null;
+        if (request.mode() == JavaModuleExportRequest.Mode.JAVA_LIB) try {
+            if (LegacyJavaExportMigration.detected(scanResult.targetProject, manifest)) {
+                if (request.legacyAction() == JavaModuleExportRequest.LegacyAction.PROMPT)
+                    return JavaModuleExportResult.failure("Legacy Java export requires choosing conversion or discard before exporting.");
+                migration = LegacyJavaExportMigration.prepare(scanResult.targetProject, manifest, request.legacyAction());
+            }
+        } catch (IOException | RuntimeException error) {
+            return JavaModuleExportResult.failure(error.getMessage());
+        }
         String previousMode = manifest.mode;
         boolean migratingJson = request.mode() == JavaModuleExportRequest.Mode.JSON_LIB
             && manifest.scenes.values().stream().anyMatch(entry -> entry.resourceId == null || entry.javaFiles != null && !entry.javaFiles.isEmpty());
-        if ((migratingJson || manifest.mode != null && !manifest.mode.equals(request.mode().name()))
+        if (migration == null && (migratingJson || manifest.mode != null && !manifest.mode.equals(request.mode().name()))
             && !scanResult.scenePlans.stream().map(plan -> plan.sceneId).collect(java.util.stream.Collectors.toSet()).containsAll(manifest.scenes.keySet()))
             return JavaModuleExportResult.failure("Changing export mode or migrating to resource-only JSON requires selecting every previously exported scene.");
         if (manifest.generatedSources == null) manifest.generatedSources = new LinkedHashMap<>();
         Map<String, String> previousSources = new LinkedHashMap<>(manifest.generatedSources);
+        if (migration != null) previousSources.putAll(migration.acceptedSources());
         manifest.ownsClientEntrypoint |= previousSources.containsKey("src/main/java/" + packageToPath(scanResult.targetProject.generatedPackage) + "/GeneratedPonderFabricClient.java");
         manifest.mode = request.mode().name();
         applyTargetDefaults(manifest, scanResult.targetProject);
@@ -223,9 +242,39 @@ public final class JavaModuleExportService {
         }
         List<SceneExportOutcome> outcomes = new ArrayList<>();
         Map<String, Set<String>> staleManagedLangKeys = new LinkedHashMap<>();
+        if (migration != null) {
+            for (String key : migration.oldSceneKeys()) {
+                var old = manifest.scenes.remove(key);
+                if (old != null && request.legacyAction() == JavaModuleExportRequest.LegacyAction.DISCARD)
+                    collectManagedLangKeys(old, staleManagedLangKeys);
+            }
+            manifest.scenes.putAll(migration.scenes());
+            migration.writes().forEach((path, content) -> textWrites.add(new TextFile(path, content)));
+            collectOwnedPaths(scanResult.targetProject.targetRoot, new ArrayList<>(migration.deletions()), deletions);
+            for (var entry : migration.scenes().values()) {
+                var outcome = new SceneExportOutcome();
+                outcome.sceneId = entry.sceneId;
+                outcome.sceneKey = entry.sceneKey;
+                outcome.className = entry.className;
+                outcome.replaced = true;
+                outcome.status = SceneExportOutcome.Status.COMPLETE;
+                outcome.messages.add("Migrated legacy Java; unrecognized logic remains compiled Java.");
+                outcome.ownedFiles.addAll(entry.javaFiles);
+                outcomes.add(outcome);
+            }
+            for (String note : migration.notes()) addFinding(scanResult.ignoredFindings, "preserved Java", null, null, null, null, note);
+        }
 
         for (JavaModuleScanResult.ScenePlan scenePlan : scanResult.scenePlans) {
-            JavaModuleExportManifest.SceneEntry existing = manifest.scenes.remove(scenePlan.sceneId);
+            String scenePath = "src/main/java/" + packageToPath(scanResult.targetProject.scenePackage) + "/" + scenePlan.className + ".java";
+            if (migration != null && (migration.scenes().values().stream()
+                .anyMatch(entry -> matchesScene(scanResult.targetProject, entry, scenePlan)) || migration.writes().containsKey(scenePath))) continue;
+            List<String> existingKeys = manifest.scenes.entrySet().stream()
+                .filter(entry -> matchesScene(scanResult.targetProject, entry.getValue(), scenePlan))
+                .map(Map.Entry::getKey).toList();
+            if (existingKeys.size() > 1)
+                return JavaModuleExportResult.failure("Multiple exports already register scene " + scenePlan.sceneId + ": " + existingKeys);
+            JavaModuleExportManifest.SceneEntry existing = existingKeys.isEmpty() ? null : manifest.scenes.remove(existingKeys.getFirst());
             if (existing != null) {
                 collectOwnedPaths(scanResult.targetProject.targetRoot, existing.javaFiles, deletions);
                 collectOwnedPaths(scanResult.targetProject.targetRoot, existing.resourceFiles, deletions);
@@ -264,8 +313,12 @@ public final class JavaModuleExportService {
             .map(outcome -> outcome.sceneId)
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (migration != null) migration.scenes().values().forEach(entry -> currentSceneIds.remove(entry.sceneId));
 
-        try { textWrites.addAll(buildGlobalWrites(scanResult.targetProject, manifest, currentSceneIds, staleManagedLangKeys)); }
+        try {
+            requireUniqueSceneIds(scanResult.targetProject, manifest);
+            textWrites.addAll(buildGlobalWrites(scanResult.targetProject, manifest, currentSceneIds, staleManagedLangKeys));
+        }
         catch (RuntimeException error) { return JavaModuleExportResult.failure("Cannot prepare export resources: " + error.getMessage()); }
 
         Path exportDir = scanResult.targetProject.targetRoot.resolve(GENERATED_DIR).normalize();
@@ -309,15 +362,20 @@ public final class JavaModuleExportService {
             if (!write.relativePath().endsWith(".java") || write.relativePath().endsWith("/ponderext/PonderExtensions.java")) continue;
             Path path = resolveTargetPath(scanResult.targetProject.targetRoot, write.relativePath());
             try {
-                if (Files.exists(path)) {
-                    String current = Files.readString(path, StandardCharsets.UTF_8);
-                    String previous = previousSources.get(write.relativePath());
+                String current = Files.exists(path) ? Files.readString(path, StandardCharsets.UTF_8) : null;
+                if (write.relativePath().endsWith("/GeneratedPonderSupport.java") && !Objects.equals(current, write.previousSource()))
+                    return JavaModuleExportResult.failure("Support source changed during export: " + path);
+                if (current != null) {
+                    String previous = write.previousSource() == null ? previousSources.get(write.relativePath()) : write.previousSource();
                     if (previous != null && !current.equals(previous)) return JavaModuleExportResult.failure("Handwritten changes preserved; export refused to overwrite " + path);
                     if (previous == null && !current.contains("Auto-generated by The Ponderer") && !path.getFileName().toString().equals("GeneratedPonderSupport.java"))
                         return JavaModuleExportResult.failure("Unmanaged Java source preserved: " + path);
                 }
             } catch (IOException error) { return JavaModuleExportResult.failure("Cannot inspect " + path + ": " + error.getMessage()); }
-            manifest.generatedSources.put(write.relativePath(), write.content());
+            boolean handwrittenHelper = migration != null && migration.writes().containsKey(write.relativePath())
+                && !manifest.generatedSources.containsKey(write.relativePath())
+                && migration.scenes().values().stream().noneMatch(entry -> entry.javaFiles.contains(write.relativePath()));
+            if (!handwrittenHelper) manifest.generatedSources.put(write.relativePath(), write.content());
         }
         try {
             TextFile metadata = buildMetadataWrite(scanResult.targetProject, manifest);
@@ -373,6 +431,26 @@ public final class JavaModuleExportService {
         return result;
     }
 
+    private static boolean matchesScene(JavaModuleScanResult.TargetProject target,
+                                        JavaModuleExportManifest.SceneEntry entry, JavaModuleScanResult.ScenePlan plan) {
+        return Objects.equals(entry.sceneId, plan.sceneId) || Objects.equals(entry.sceneKey, plan.sceneKey)
+            || Objects.equals(entry.sceneKey, plan.sourceScene.identity())
+            || target.mode == JavaModuleExportRequest.Mode.JAVA_LIB && entry.sceneId != null
+                && LibExportSources.documentId(target, entry.sceneId).equals(LibExportSources.documentId(target, plan.sceneId));
+    }
+
+    private static void requireUniqueSceneIds(JavaModuleScanResult.TargetProject target, JavaModuleExportManifest manifest) {
+        if (target.mode != JavaModuleExportRequest.Mode.JAVA_LIB) return;
+        Map<String, String> owners = new LinkedHashMap<>();
+        for (var entry : manifest.scenes.values()) {
+            if (entry.sceneId == null || entry.className == null) continue;
+            String id = LibExportSources.documentId(target, entry.sceneId);
+            String previous = owners.putIfAbsent(id, entry.className);
+            if (previous != null) throw new IllegalArgumentException("Duplicate exported Java scene " + id + ": "
+                + previous + " and " + entry.className);
+        }
+    }
+
     private JavaModuleExportResult exportSupportOnly(JavaModuleScanResult.TargetProject targetProject) {
         String relativePath = "src/main/java/" + packageToPath(targetProject.generatedPackage) + "/GeneratedPonderSupport.java";
         Path targetPath;
@@ -383,19 +461,15 @@ public final class JavaModuleExportService {
             boolean replaced = Files.exists(targetPath);
             JavaModuleExportManifest manifest = readManifest(targetProject.targetRoot);
             if (manifest.generatedSources == null) manifest.generatedSources = new LinkedHashMap<>();
-            String previous = manifest.generatedSources.get(relativePath);
-            if (replaced) {
-                String current = Files.readString(targetPath, StandardCharsets.UTF_8);
-                if (previous != null && !previous.equals(current)) return JavaModuleExportResult.failure("Handwritten changes preserved; export refused to overwrite " + targetPath);
-                if (previous == null && !current.contains("Auto-generated by The Ponderer")) return JavaModuleExportResult.failure("Unmanaged Java source preserved: " + targetPath);
-            }
-            String source = buildSupportSource(targetProject);
+            TextFile support = buildSupportSource(targetProject);
+            String current = Files.isRegularFile(targetPath) ? Files.readString(targetPath, StandardCharsets.UTF_8) : null;
+            if (!Objects.equals(current, support.previousSource())) return JavaModuleExportResult.failure("Support source changed during export: " + targetPath);
             TextFile license = buildLicenseWrite();
             Path licensePath = resolveTargetPath(targetProject.targetRoot, license.relativePath());
             Files.createDirectories(licensePath.getParent());
             Files.writeString(licensePath, license.content(), StandardCharsets.UTF_8);
-            Files.writeString(targetPath, source, StandardCharsets.UTF_8);
-            manifest.generatedSources.put(relativePath, source);
+            Files.writeString(targetPath, support.content(), StandardCharsets.UTF_8);
+            manifest.generatedSources.put(relativePath, support.content());
             Path manifestPath = targetProject.targetRoot.resolve(GENERATED_DIR).resolve(MANIFEST_NAME);
             Files.createDirectories(manifestPath.getParent());
             Files.writeString(manifestPath, GSON.toJson(manifest), StandardCharsets.UTF_8);
@@ -583,7 +657,7 @@ public final class JavaModuleExportService {
                 if ("next_scene".equals(stepType)) {
                     continue;
                 }
-                if (!LibExportSources.usesLib(target) && IGNORED_STEP_TYPES.contains(stepType)) {
+                if (IGNORED_STEP_TYPES.contains(stepType)) {
                     plan.hadIgnoredSharedText = true;
                     addFinding(result.ignoredFindings, "ignored-by-design", scene.id, scene.sceneKey(), segmentId(segment),
                         stepType, "shared_text is intentionally omitted from Java module export.");
@@ -718,7 +792,7 @@ public final class JavaModuleExportService {
         StructureResolution current = resolveDefaultStructure(target, scene);
         for (int i = 0; i < segments.size(); i++) {
             DslScene.SceneSegment segment = segments.get(i);
-            String explicit = extractExplicitStructureRef(segment);
+            String explicit = segment.structure == null ? extractExplicitStructureRef(segment) : segment.structure;
             if (explicit != null) {
                 StructureResolution next = resolveStructureReference(target, scene, explicit);
                 if (next != null) {
@@ -891,10 +965,13 @@ public final class JavaModuleExportService {
             }
         }
         JavaModuleExportManifest.SceneEntry entry = new JavaModuleExportManifest.SceneEntry();
-        entry.runtimeFeatures = com.nododiiiii.ponderer.scene.SceneRuntimeRequirements.features(scenePlan.sourceScene).stream().sorted().toList();
+        entry.runtimeFeatures = com.nododiiiii.ponderer.scene.SceneRuntimeRequirements.features(texts == null ? scenePlan.sourceScene : texts.document()).stream().sorted().toList();
         entry.sceneId = scenePlan.sceneId;
         entry.sceneKey = scenePlan.sceneKey;
         entry.className = resourceOnly ? null : target.scenePackage + "." + scenePlan.className;
+        entry.hasPrepare = !resourceOnly;
+        entry.hasClose = target.mode == JavaModuleExportRequest.Mode.JAVA_LIB;
+        entry.sourceApiResolved = true;
         if (resourceOnly) entry.resourceId = target.modId + ":ponderer/scenes/" + scenePlan.className.toLowerCase(Locale.ROOT) + ".json";
         entry.status = scenePlan.blank ? SceneExportOutcome.Status.BLANK.name() : scenePlan.partial
             ? SceneExportOutcome.Status.PARTIAL.name()
@@ -952,7 +1029,7 @@ public final class JavaModuleExportService {
             buildIndexSource(target, manifest)));
         writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderAttribution.java",
             buildAttributionSource(target)));
-        if (!LibExportSources.usesLib(target)) writes.add(new TextFile("src/main/java/" + generatedPackagePath + "/GeneratedPonderSupport.java", buildSupportSource(target)));
+        if (!LibExportSources.usesLib(target)) writes.add(buildSupportSource(target));
         if (LibExportSources.usesLib(target)) {
             String extensionPath = "src/main/java/" + packageToPath(LibExportSources.extensionPackage(target)) + "/PonderExtensions.java";
             // Deliberately excluded from manifest ownership and source-overwrite checks.
@@ -1253,11 +1330,6 @@ public final class JavaModuleExportService {
                 }
 
                 @Override
-                public void registerSharedText(net.createmod.ponder.api.registration.SharedTextRegistrationHelper helper) {
-                    GeneratedPonderIndex.registerSharedText(helper);
-                }
-
-                @Override
                 public void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
                     GeneratedPonderAttribution.registerTag(helper);
                     GeneratedPonderIndex.registerTags(helper);
@@ -1273,7 +1345,6 @@ public final class JavaModuleExportService {
         StringBuilder imports = new StringBuilder();
         StringBuilder sceneBody = new StringBuilder();
         StringBuilder tagBody = new StringBuilder();
-        StringBuilder sharedBody = new StringBuilder();
         StringBuilder closeBody = new StringBuilder();
         StringBuilder prepareBody = new StringBuilder();
         for (JavaModuleExportManifest.SceneEntry entry : manifest.scenes.values()) {
@@ -1284,9 +1355,9 @@ public final class JavaModuleExportService {
             String simpleName = entry.className.substring(entry.className.lastIndexOf('.') + 1);
             sceneBody.append("        ").append(simpleName).append(".register(helper);\n");
             tagBody.append("        ").append(simpleName).append(".registerTags(helper);\n");
-            if (LibExportSources.usesLib(target)) sharedBody.append("        ").append(simpleName).append(".registerSharedText(helper);\n");
-            if (LibExportSources.usesLib(target)) closeBody.append("        ").append(simpleName).append(".close();\n");
-            prepareBody.append("        ").append(simpleName).append(".prepare();\n");
+            if (LibExportSources.usesLib(target) && hasSceneMethod(target, entry, "close"))
+                closeBody.append("        ").append(simpleName).append(".close();\n");
+            if (hasSceneMethod(target, entry, "prepare")) prepareBody.append("        ").append(simpleName).append(".prepare();\n");
         }
 
         return GENERATED_NOTICE_BLOCK + """
@@ -1306,14 +1377,37 @@ public final class JavaModuleExportService {
 
                 public static void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
             %s    }
-                public static void registerSharedText(net.createmod.ponder.api.registration.SharedTextRegistrationHelper helper) {
-            %s    }
                 public static void close() {
             %s    }
                 public static void prepare() {
             %s    }
             }
-            """.formatted(target.generatedPackage, imports, sceneBody, tagBody, sharedBody, closeBody, prepareBody);
+            """.formatted(target.generatedPackage, imports, sceneBody, tagBody, closeBody, prepareBody);
+    }
+
+    private boolean hasSceneMethod(JavaModuleScanResult.TargetProject target, JavaModuleExportManifest.SceneEntry entry, String name) {
+        if (!entry.sourceApiResolved) {
+            Path source = resolveTargetPath(target.targetRoot, "src/main/java/" + packageToPath(entry.className) + ".java");
+            try {
+                var parser = new JavaParser(new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21));
+                var parsed = parser.parse(Files.readString(source, StandardCharsets.UTF_8));
+                if (!parsed.isSuccessful()) throw new IllegalArgumentException("Cannot inspect scene API in " + source + ": " + parsed.getProblems());
+                String simpleName = entry.className.substring(entry.className.lastIndexOf('.') + 1);
+                var type = parsed.getResult().orElseThrow().getClassByName(simpleName).orElseThrow();
+                var methods = type.getMethods().stream().filter(method -> method.isPublic() && method.isStatic()
+                    && method.getType().isVoidType()).toList();
+                entry.hasPrepare = methods.stream().anyMatch(method -> method.getNameAsString().equals("prepare") && method.getParameters().isEmpty());
+                entry.hasClose = methods.stream().anyMatch(method -> method.getNameAsString().equals("close") && method.getParameters().isEmpty());
+                entry.sourceApiResolved = true;
+            } catch (IOException error) {
+                throw new UncheckedIOException("Cannot inspect scene API in " + source, error);
+            }
+        }
+        return switch (name) {
+            case "prepare" -> entry.hasPrepare;
+            case "close" -> entry.hasClose;
+            default -> throw new IllegalArgumentException("Unknown optional scene method: " + name);
+        };
     }
 
     private String buildFabricClientSource(JavaModuleScanResult.TargetProject target) {
@@ -1886,7 +1980,6 @@ public final class JavaModuleExportService {
             import com.nododiiiii.ponderer.scene.LocalizedText;
             import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
             import net.createmod.ponder.api.registration.PonderTagRegistrationHelper;
-            import net.createmod.ponder.api.registration.SharedTextRegistrationHelper;
             import net.minecraft.core.BlockPos;
             import net.minecraft.resources.ResourceLocation;
             import net.minecraft.world.phys.Vec3;
@@ -1933,8 +2026,16 @@ public final class JavaModuleExportService {
     private static final String SUPPORT_TEMPLATE_RESOURCE = "/ponderer/generated_ponder_support.java.template";
     private static volatile String supportTemplateCache;
 
-    private String buildSupportSource(JavaModuleScanResult.TargetProject target) {
-        return loadSupportTemplate().replace("${PACKAGE}", target.generatedPackage);
+    private TextFile buildSupportSource(JavaModuleScanResult.TargetProject target) {
+        String relative = "src/main/java/" + packageToPath(target.generatedPackage) + "/GeneratedPonderSupport.java";
+        Path path = resolveTargetPath(target.targetRoot, relative);
+        String latest = loadSupportTemplate().replace("${PACKAGE}", target.generatedPackage);
+        try {
+            String previous = Files.isRegularFile(path) ? Files.readString(path, StandardCharsets.UTF_8) : null;
+            return new TextFile(relative, previous == null ? latest : SupportSourceCompatibility.extend(previous, latest), previous);
+        } catch (IOException error) {
+            throw new UncheckedIOException("Cannot read installed Support: " + path, error);
+        }
     }
 
     private String loadSupportTemplate() {
@@ -2543,7 +2644,10 @@ public final class JavaModuleExportService {
             .replace("\t", "\\t");
     }
 
-    private record TextFile(String relativePath, String content) {
+    private record TextFile(String relativePath, String content, @Nullable String previousSource) {
+        private TextFile(String relativePath, String content) {
+            this(relativePath, content, null);
+        }
     }
 
     private record BinaryFile(String relativePath, byte[] bytes) {

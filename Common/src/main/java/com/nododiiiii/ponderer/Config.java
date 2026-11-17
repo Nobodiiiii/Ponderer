@@ -39,6 +39,13 @@ public class Config {
                  "If set to 'ponderer:blueprint', it only works when the server enables the built-in Blueprint item.")
         .define("blueprintCarrierItem", "minecraft:paper");
 
+    public static final ModConfigSpec.ConfigValue<String> EDITOR_UI_SCALE = CLIENT_BUILDER
+        .comment("Editor UI size: a positive integer selects a GUI scale;",
+                 "'native' follows Minecraft's GUI Scale setting.",
+                 "The initial 'default' value preserves the previous resolution-based scale and is displayed as a number.")
+        .translation("ponderer.ui.mod_config.editor_ui_scale")
+        .define("editorUiScale", "default", Config::isEditorUiScale);
+
     public static final ModConfigSpec.BooleanValue DEVELOPER_MODE = CLIENT_BUILDER
         .comment("Allow editing scenes that have their 'editable' flag disabled.",
                  "This is intended for pack authors and advanced maintenance.")
@@ -188,6 +195,20 @@ public class Config {
                  "Higher values make overlay text (text windows, input bubbles) larger.",
                  "Default: 1.25. Range: 0.5-5.0.")
         .defineInRange("projector.lifeSizeTextScale", 1.25D, 0.5D, 5.0D);
+
+    private static boolean isEditorUiScale(Object value) {
+        if ("default".equals(value) || "native".equals(value)) {
+            return true;
+        }
+        if (!(value instanceof String scale)) {
+            return false;
+        }
+        try {
+            return Integer.parseInt(scale) > 0;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
 
     /** Resolve auto mode from the URL after legacy provider settings have been migrated. */
     public static String getEffectiveWireApi() {

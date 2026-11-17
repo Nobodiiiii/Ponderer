@@ -1,8 +1,8 @@
 package com.nododiiiii.ponderer.application.ui;
 
-import com.nododiiiii.ponderer.support.ui.BoundedBoxWidget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.nododiiiii.ponderer.support.ui.BoundedBoxWidget;
 import net.createmod.catnip.gui.AbstractSimiScreen;
 import net.createmod.catnip.gui.UIRenderHelper;
 import net.createmod.catnip.gui.element.BoxElement;
@@ -19,6 +19,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
+import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL30;
 
 import javax.annotation.Nonnull;
@@ -26,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class PondererDialogScreen extends AbstractSimiScreen {
+public class PondererDialogScreen extends AbstractSimiScreen implements PondererUiScaling.ScaledScreen {
 
     private static final int BUTTON_HEIGHT = 24;
     private static final int BUTTON_GAP = 4;
@@ -43,6 +44,10 @@ public class PondererDialogScreen extends AbstractSimiScreen {
     private int y;
     private int textWidth;
     private int textHeight;
+    private int titleHeight;
+    private int bodyHeight;
+    private int bodyViewportHeight;
+    private double bodyScroll;
     private BoxElement textBackground;
 
     public record DialogButton(Component label, Consumer<PondererDialogScreen> action) {
@@ -69,6 +74,24 @@ public class PondererDialogScreen extends AbstractSimiScreen {
         return button(label, PondererDialogScreen::closeToSource);
     }
 
+    public static void confirm(Screen source, List<Component> title, List<Component> body, Consumer<Boolean> action) {
+        new PondererDialogScreen(source, title, body, List.of(
+            button(Component.translatable("ponderer.ui.confirm"), dialog -> {
+                dialog.closeToSource();
+                action.accept(true);
+            }),
+            button(Component.translatable("ponderer.ui.cancel"), dialog -> {
+                dialog.closeToSource();
+                action.accept(false);
+            }))) {
+            @Override
+            public void onClose() {
+                super.onClose();
+                action.accept(false);
+            }
+        }.open();
+    }
+
     public void open() {
         Minecraft client = CatnipClientServices.CLIENT_HOOKS.getMinecraftFromScreen(source);
         this.init(client, client.getWindow().getGuiScaledWidth(), client.getWindow().getGuiScaledHeight());
@@ -88,54 +111,55 @@ public class PondererDialogScreen extends AbstractSimiScreen {
         super.init();
 
         text.clear();
+        textWidth = Math.min(MAX_TEXT_WIDTH, Math.max(1, width - 28));
 
         for (Component line : titleLines) {
             addWrappedText(line.copy().withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD), true);
         }
+        titleHeight = text.size() * (font.lineHeight + 1);
         for (Component line : bodyLines) {
             addWrappedText(line, false);
         }
 
-        textHeight = text.size() * (font.lineHeight + 1) + 4;
-        textWidth = MAX_TEXT_WIDTH;
-
-        x = width / 2 - textWidth / 2 - 2;
-        y = height / 2 - textHeight / 2 - 16;
-        if (x + textWidth > width) {
-            x = width - textWidth;
-        }
-        if (y + textHeight + 30 > height) {
-            y = height - textHeight - 30;
-        }
-
-        int totalButtonWidth = 0;
         List<Integer> buttonWidths = new ArrayList<>();
+        int availableWidth = Math.max(1, width - 28);
+        int totalButtonWidth = Math.max(0, buttons.size() - 1) * BUTTON_GAP;
         for (DialogButton button : buttons) {
-            int buttonWidth = Math.max(MIN_BUTTON_WIDTH, font.width(button.label()) + 20);
+            int buttonWidth = Math.min(availableWidth, Math.max(MIN_BUTTON_WIDTH, font.width(button.label()) + 20));
             buttonWidths.add(buttonWidth);
             totalButtonWidth += buttonWidth;
         }
-        if (!buttons.isEmpty()) {
-            totalButtonWidth += Math.max(0, buttons.size() - 1) * BUTTON_GAP;
-        }
+        boolean stackedButtons = totalButtonWidth > availableWidth;
+        int buttonAreaHeight = stackedButtons ? buttons.size() * (BUTTON_HEIGHT + BUTTON_GAP) - BUTTON_GAP : BUTTON_HEIGHT;
+
+        bodyHeight = text.size() * (font.lineHeight + 1) - titleHeight;
+        bodyViewportHeight = Math.min(bodyHeight,
+            Math.max(font.lineHeight + 1, height - titleHeight - buttonAreaHeight - 24));
+        bodyScroll = Math.clamp(bodyScroll, 0, maxBodyScroll());
+        textHeight = titleHeight + bodyViewportHeight + 4;
+
+        x = (width - textWidth) / 2;
+        y = Math.max(5, (height - textHeight - buttonAreaHeight - 8) / 2);
 
         int buttonX = x + textWidth / 2 - totalButtonWidth / 2;
         int buttonY = y + textHeight + 2;
         for (int i = 0; i < buttons.size(); i++) {
             int buttonWidth = buttonWidths.get(i);
+            if (stackedButtons) buttonX = (width - buttonWidth) / 2;
             DialogButton spec = buttons.get(i);
             BoxWidget widget = new BoundedBoxWidget(buttonX, buttonY, buttonWidth, BUTTON_HEIGHT)
                 .withCallback(() -> spec.action().accept(this));
             TextStencilElement textElement = new TextStencilElement(font, spec.label().copy()).centered(true, true);
             widget.showingElement(textElement.withElementRenderer(BoxWidget.gradientFactory.apply(widget)));
             addRenderableWidget(widget);
-            buttonX += buttonWidth + BUTTON_GAP;
+            if (stackedButtons) buttonY += BUTTON_HEIGHT + BUTTON_GAP;
+            else buttonX += buttonWidth + BUTTON_GAP;
         }
 
         textBackground = new BoxElement()
             .withBackground(BoxElement.COLOR_BACKGROUND_FLAT)
             .gradientBorder(AbstractSimiWidget.COLOR_DISABLED)
-            .withBounds(width + 10, textHeight + 35)
+            .withBounds(width + 10, textHeight + buttonAreaHeight + 11)
             .at(-5, y - 5);
 
         if (text.size() == 1) {
@@ -144,9 +168,44 @@ public class PondererDialogScreen extends AbstractSimiScreen {
     }
 
     private void addWrappedText(Component line, boolean title) {
-        for (FormattedText wrapped : font.getSplitter().splitLines(line, MAX_TEXT_WIDTH, Style.EMPTY)) {
+        if (line.getString().isEmpty()) {
+            text.add(new DialogTextLine(line, title));
+            return;
+        }
+        for (FormattedText wrapped : font.getSplitter().splitLines(line, textWidth, Style.EMPTY)) {
             text.add(new DialogTextLine(wrapped, title));
         }
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (maxBodyScroll() > 0) {
+            double nextOffset = switch (keyCode) {
+                case GLFW.GLFW_KEY_PAGE_UP -> bodyScroll - bodyViewportHeight;
+                case GLFW.GLFW_KEY_PAGE_DOWN -> bodyScroll + bodyViewportHeight;
+                case GLFW.GLFW_KEY_HOME -> 0;
+                case GLFW.GLFW_KEY_END -> maxBodyScroll();
+                default -> Double.NaN;
+            };
+            if (!Double.isNaN(nextOffset)) {
+                bodyScroll = Math.clamp(nextOffset, 0, maxBodyScroll());
+                return true;
+            }
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (maxBodyScroll() > 0) {
+            bodyScroll = Math.clamp(bodyScroll - scrollY * (font.lineHeight + 1) * 3, 0, maxBodyScroll());
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    private int maxBodyScroll() {
+        return Math.max(0, bodyHeight - bodyViewportHeight);
     }
 
     @Override
@@ -172,18 +231,34 @@ public class PondererDialogScreen extends AbstractSimiScreen {
     protected void renderWindow(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         textBackground.render(graphics);
         int offset = font.lineHeight + 1;
-        int lineY = y - offset;
+        int lineY = y;
 
         PoseStack poseStack = graphics.pose();
         poseStack.pushPose();
         poseStack.translate(0, 0, 200);
 
         for (DialogTextLine line : text) {
-            lineY += offset;
-            if (line.text() != null) {
+            if (line.title()) {
                 FormattedCharSequence orderedLine = Language.getInstance().getVisualOrder(line.text());
-                graphics.drawString(font, orderedLine, x, lineY, line.title() ? 0xffff55 : 0xeaeaea, false);
+                graphics.drawString(font, orderedLine, x, lineY, 0xffff55, false);
+                lineY += offset;
             }
+        }
+
+        if (maxBodyScroll() > 0)
+            graphics.enableScissor(x, y + titleHeight, x + textWidth, y + titleHeight + bodyViewportHeight);
+        lineY = y + titleHeight - (int) bodyScroll;
+        for (DialogTextLine line : text) {
+            if (!line.title()) {
+                graphics.drawString(font, Language.getInstance().getVisualOrder(line.text()), x, lineY, 0xeaeaea, false);
+                lineY += offset;
+            }
+        }
+        if (maxBodyScroll() > 0) {
+            graphics.disableScissor();
+            int thumbHeight = Math.max(4, bodyViewportHeight * bodyViewportHeight / bodyHeight);
+            int thumbY = y + titleHeight + (int) ((bodyViewportHeight - thumbHeight) * bodyScroll / maxBodyScroll());
+            graphics.fill(x + textWidth + 4, thumbY, x + textWidth + 6, thumbY + thumbHeight, 0xffaaaaaa);
         }
 
         poseStack.popPose();

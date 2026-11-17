@@ -6,6 +6,7 @@ import com.nododiiiii.ponderer.Ponderer;
 import com.nododiiiii.ponderer.application.ui.widgets.AbstractDeclarativeConfigListScreen;
 import com.nododiiiii.ponderer.application.ui.widgets.ConfigEntries;
 import com.nododiiiii.ponderer.application.ui.widgets.DeclarativeFormEntry;
+import com.nododiiiii.ponderer.application.ui.widgets.EditorUiScaleConfigEntry;
 import net.minecraft.client.gui.screens.Screen;
 
 import java.util.List;
@@ -24,6 +25,7 @@ public class PondererGeneralConfigScreen extends AbstractDeclarativeConfigListSc
     @Override
     protected void collectFormEntries(List<DeclarativeFormEntry> entries) {
         entries.add(FieldSpecs.sectionHeader(() -> UIText.of("ponderer.ui.scope.client")));
+        entries.add(screen -> screen.appendBuiltEntry(new EditorUiScaleConfigEntry()));
         entries.add(ConfigEntries.booleanEntry(
             "ponderer.ui.mod_config.developer_mode",
             "ponderer.ui.mod_config.developer_mode.tooltip",
@@ -49,5 +51,17 @@ public class PondererGeneralConfigScreen extends AbstractDeclarativeConfigListSc
             "ponderer.ui.mod_config.pack_orphan_prompt",
             "ponderer.ui.mod_config.pack_orphan_prompt.tooltip",
             Config.PACK_ORPHAN_PROMPT));
+    }
+
+    @Override
+    protected boolean saveEdits() {
+        String previousScale = Config.EDITOR_UI_SCALE.get();
+        if (!super.saveEdits()) {
+            return false;
+        }
+        if (!previousScale.equals(Config.EDITOR_UI_SCALE.get()) && minecraft != null && minecraft.screen == this) {
+            resize(minecraft, width, height);
+        }
+        return true;
     }
 }

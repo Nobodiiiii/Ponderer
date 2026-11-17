@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and sync Ponderer/Lib to Biotech's development dependencies and instance."""
+"""Build Ponderer/Lib and replace the mod JARs in Biotech's Minecraft instance."""
 
 from __future__ import annotations
 
@@ -55,12 +55,11 @@ def managed_jars(directory: Path, prefixes: tuple[str, ...]) -> list[Path]:
 
 
 def copy_jars(sources: list[Path], directory: Path, prefixes: tuple[str, ...]) -> None:
-    """Stage a complete set, roll back failed replacements, and disable obsolete versions."""
+    """Replace the complete set, rolling back failures and removing obsolete versions."""
     directory.mkdir(parents=True, exist_ok=True)
     directory = directory.resolve()
     old = managed_jars(directory, prefixes)
     check_unlocked(old)
-    names = {p.name for p in sources}
     moved: list[tuple[Path, Path]] = []
     installed: list[Path] = []
     staging = Path(tempfile.mkdtemp(prefix=".ponderer-sync-", dir=directory)).resolve()
@@ -77,12 +76,6 @@ def copy_jars(sources: list[Path], directory: Path, prefixes: tuple[str, ...]) -
                 destination = directory / source.name
                 os.replace(staging / source.name, destination)
                 installed.append(destination)
-            for index, (original, backup) in enumerate(moved):
-                if original.name not in names:
-                    disabled = original.with_name(original.name + f".disabled-{staging.name}")
-                    os.replace(backup, disabled)
-                    moved[index] = (original, disabled)
-                    print(f"[DISABLED] {disabled}", flush=True)
         except BaseException as error:
             failures = []
             for path in installed:
@@ -153,31 +146,16 @@ def require_jar(path: Path) -> None:
             raise ValueError(f"Not a NeoForge mod JAR: {path}")
 
 
-def sync_versions(path: Path, editor: str, library: str) -> None:
-    original = path.read_bytes()
-    text = original.decode("utf-8")
-    for key, value in {"ponderer_version": editor, "ponderer_lib_version": library}.items():
-        text, count = re.subn(rf"(?m)^([ \t]*{key}[ \t]*=[ \t]*)[^\r\n]*", rf"\g<1>{value}", text)
-        if count != 1:
-            raise ValueError(f"Expected one {key} entry in {path}")
-    if text.encode("utf-8") != original:
-        path.write_bytes(text.encode("utf-8"))
-        print(f"[VERSIONS] {path}: Ponderer {editor}, Lib {library}", flush=True)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--biotech", type=Path, default=PROJECT_ROOT.parent / "create_biotech",
                         help="Biotech project root (default: adjacent create_biotech)")
     parser.add_argument("--instance", type=Path, help="Instance directory containing mods/ (default: Biotech .minecraft/versions/<MC>-NeoForge)")
-    parser.add_argument("--skip-instance", action="store_true", help="Update development libs and staging only")
     parser.add_argument("--online", action="store_true", help="Allow Gradle dependency downloads (default: offline)")
     parser.add_argument("--timeout", type=int, default=900, help="Timeout per build in seconds (default: 900)")
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("--timeout must be greater than zero")
-    if args.instance and args.skip_instance:
-        parser.error("--instance and --skip-instance cannot be combined")
 
     biotech = args.biotech.resolve(strict=True)
     if biotech == PROJECT_ROOT:
@@ -194,16 +172,11 @@ def main() -> None:
         raise ValueError("This branch does not include NeoForge and RuntimeNeoForge")
     if target.get("minecraft_version") != mc or mod != "create_biotech":
         raise ValueError(f"Target must be a create_biotech project for Minecraft {mc}")
-    # Validate both entries before starting work or changing development dependencies.
-    for key in ("ponderer_version", "ponderer_lib_version"):
-        filename_value(target, key)
-    instance = None if args.skip_instance else (args.instance or biotech / ".minecraft" / "versions" / f"{mc}-NeoForge").resolve(strict=True)
-    if instance is not None and not (instance / "mods").is_dir():
-        raise ValueError(f"Instance has no mods directory: {instance}; use --skip-instance for development-only sync")
+    instance = (args.instance or biotech / ".minecraft" / "versions" / f"{mc}-NeoForge").resolve(strict=True)
+    if not (instance / "mods").is_dir():
+        raise ValueError(f"Instance has no mods directory: {instance}")
     prefixes = (f"ponderer-{mc}-neoforge-", f"pondererlib-{mc}-neoforge-")
-    check_unlocked(managed_jars(biotech / "libs", prefixes))
-    if instance is not None:
-        check_unlocked(managed_jars(instance / "mods", prefixes))
+    check_unlocked(managed_jars(instance / "mods", prefixes))
 
     logs = PROJECT_ROOT / "build" / "biotech-sync"
     build(PROJECT_ROOT, [":NeoForge:build", ":RuntimeNeoForge:build"], args.online, args.timeout, logs / "ponderer.log")
@@ -211,12 +184,8 @@ def main() -> None:
             PROJECT_ROOT / "NeoForge" / "runtime" / "build" / "libs" / f"pondererlib-{mc}-neoforge-{library}.jar"]
     for jar in jars:
         require_jar(jar)
-    sync_versions(biotech / "gradle.properties", editor, library)
-    copy_jars(jars, biotech / "libs", prefixes)
-    copy_jars(jars, biotech / "build" / "quickplay" / "mods", prefixes)
-    if instance is not None:
-        copy_jars(jars, instance / "mods", prefixes)
-    print("[DONE] Ponderer/Lib updated in Biotech development directories" + (" and the instance." if instance else ". Instance skipped."), flush=True)
+    copy_jars(jars, instance / "mods", prefixes)
+    print(f"[DONE] Ponderer/Lib replaced in {instance / 'mods'}", flush=True)
 
 
 if __name__ == "__main__":

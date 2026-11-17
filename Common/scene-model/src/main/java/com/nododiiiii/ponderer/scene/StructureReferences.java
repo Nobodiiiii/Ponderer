@@ -22,7 +22,9 @@ public final class StructureReferences {
         }
 
         for (DslScene.SceneSegment segment : scene.scenes) {
-            if (segment == null || segment.steps == null) {
+            if (segment == null) continue;
+            addStructureReference(resolveStructureReference(pool, segment.structure), structures);
+            if (segment.steps == null) {
                 continue;
             }
             for (DslScene.DslStep step : segment.steps) {

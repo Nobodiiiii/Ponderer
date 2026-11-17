@@ -12,6 +12,7 @@ minecraft {
 
 dependencies {
     api project(":RuntimeCommon")
+    implementation "com.github.javaparser:javaparser-core:3.26.3"
     compileOnly group: "org.spongepowered", name: "mixin", version: "0.8.7"
 
     // NeoForge config spec (ForgeConfigAPIPort provides it on both platforms)

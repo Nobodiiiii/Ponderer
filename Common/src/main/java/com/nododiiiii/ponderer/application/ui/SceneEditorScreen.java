@@ -13,7 +13,6 @@ import com.nododiiiii.ponderer.support.ui.ScreenTooltipBoxWidget;
 import com.nododiiiii.ponderer.application.ui.widgets.SceneStepListEntry;
 import com.nododiiiii.ponderer.application.ui.widgets.SectionHeaderListEntry;
 import com.nododiiiii.ponderer.application.ui.widgets.WorkspaceHeaderListEntry;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.createmod.catnip.gui.ScreenOpener;
 import net.createmod.catnip.gui.widget.BoxWidget;
 import net.createmod.ponder.enums.PonderGuiTextures;
@@ -60,6 +59,7 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
     private final SceneEditorPreview preview = new SceneEditorPreview();
     private boolean syncingListFromPreview;
     private boolean sourceWritable;
+    private boolean supportEditNoticeShown;
 
     @Nullable
     private BoxWidget undoButton;
@@ -105,6 +105,13 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         preview.load(scene, sceneIndex);
         layoutPreview();
         restoreRememberedListScroll();
+        if (!supportEditNoticeShown && com.nododiiiii.ponderer.runtime.api.SceneVariants.isStandalone(scene)) {
+            supportEditNoticeShown = true;
+            new PondererDialogScreen(this,
+                List.of(Component.translatable("ponderer.ui.scene_editor.support_edit.title")),
+                List.of(Component.translatable("ponderer.ui.scene_editor.support_edit.message")),
+                List.of(PondererDialogScreen.closeButton(Component.translatable("ponderer.ui.confirm")))).open();
+        }
     }
 
     @Override
@@ -1028,33 +1035,29 @@ public class SceneEditorScreen extends AbstractDeclarativeListScreen {
         int sceneCount = getSceneCount();
 
         if (sceneCount > 1 && scene.scenes != null && !scene.scenes.isEmpty()) {
-            new ConfirmationScreen()
-                .centered()
-                .withText(net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.delete_scene_title"))
-                .addText(net.minecraft.network.chat.Component.translatable(
+            PondererDialogScreen.confirm(this,
+                List.of(Component.translatable("ponderer.ui.scene_editor.delete_scene_title")),
+                List.of(Component.translatable(
                     "ponderer.ui.scene_editor.delete_scene_msg",
-                    currentSceneName()))
-                .withAction(confirmed -> {
+                    currentSceneName())),
+                confirmed -> {
                     if (confirmed) {
                         deleteCurrentScene();
                     }
-                })
-                .open(this);
+                });
             return;
         }
 
-        new ConfirmationScreen()
-            .centered()
-            .withText(net.minecraft.network.chat.Component.translatable("ponderer.ui.scene_editor.delete_ponder_title"))
-            .addText(net.minecraft.network.chat.Component.translatable(
+        PondererDialogScreen.confirm(this,
+            List.of(Component.translatable("ponderer.ui.scene_editor.delete_ponder_title")),
+            List.of(Component.translatable(
                 "ponderer.ui.scene_editor.delete_ponder_msg",
-                scene.id))
-            .withAction(confirmed -> {
+                scene.id)),
+            confirmed -> {
                 if (confirmed) {
                     deletePonderAndExit();
                 }
-            })
-            .open(this);
+            });
     }
 
     private void deleteCurrentScene() {

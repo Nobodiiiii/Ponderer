@@ -11,7 +11,7 @@ import java.util.Map;
 public class JavaModuleScanResult {
 
     public static class TargetProject {
-        public JavaModuleExportRequest.Mode mode = JavaModuleExportRequest.Mode.JAVA_SUPPORT;
+        public JavaModuleExportRequest.Mode mode = JavaModuleExportRequest.DEFAULT_MODE;
         public String loader;
         public String modId;
         public String basePackage;
@@ -39,6 +39,7 @@ public class JavaModuleScanResult {
 
     public transient TargetProject targetProject;
     public transient List<ScenePlan> scenePlans = new ArrayList<>();
+    public boolean legacyExportDetected;
 
     public List<Finding> fatalFindings = new ArrayList<>();
     public List<Finding> sceneUnsupportedFindings = new ArrayList<>();

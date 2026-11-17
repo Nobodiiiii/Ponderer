@@ -27,8 +27,13 @@ public final class SectionHeaderRenderer {
 
     public static void render(GuiGraphics graphics, Font font, String title, int left, int right,
                               int rowY, int rowHeight, boolean highlighted) {
+        render(graphics, font, title, left, right, rowY, rowHeight, highlighted ? HIGHLIGHT_COLOR : TEXT_COLOR);
+    }
+
+    public static void render(GuiGraphics graphics, Font font, String title, int left, int right,
+                              int rowY, int rowHeight, int textColor) {
         graphics.drawString(font, font.plainSubstrByWidth(title, Math.max(0, right - left)),
-            left, textY(font, rowY, rowHeight), highlighted ? HIGHLIGHT_COLOR : TEXT_COLOR);
+            left, textY(font, rowY, rowHeight), textColor);
         int lineY = lineY(rowY, rowHeight);
         graphics.fill(left, lineY, right, lineY + 1, LINE_COLOR);
     }

@@ -59,6 +59,10 @@ public final class SceneVariants {
         return selected == null || selected.catalog == catalog && Objects.equals(selected.scene.sceneKey(), scene.sceneKey());
     }
     public static boolean hasAlternative(DslScene scene) { return variants(scene).size() > 1; }
+    public static boolean isStandalone(DslScene scene) {
+        RuntimeEngine engine = owner(scene);
+        return engine != null && STANDALONE.containsValue(engine);
+    }
     @Nullable public static String preference(DslScene scene) { return SELECTED.get(scene.identity()); }
     public static void restorePreference(DslScene scene, @Nullable String preference) {
         if (preference == null) SELECTED.remove(scene.identity());

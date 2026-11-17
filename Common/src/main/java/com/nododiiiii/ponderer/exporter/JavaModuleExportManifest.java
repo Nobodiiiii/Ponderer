@@ -24,6 +24,9 @@ public class JavaModuleExportManifest {
         public String resourceId;
         public String status;
         public String contentHash;
+        public Boolean hasPrepare;
+        public Boolean hasClose;
+        public transient boolean sourceApiResolved;
         public List<String> runtimeFeatures = new ArrayList<>();
         public List<String> javaFiles = new ArrayList<>();
         public List<String> resourceFiles = new ArrayList<>();

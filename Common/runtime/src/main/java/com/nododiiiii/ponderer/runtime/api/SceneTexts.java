@@ -39,6 +39,16 @@ public final class SceneTexts {
         }
     }
 
+    /** Migrated Java callbacks retain upstream text keys while adjacent document steps use Lib text. */
+    public static void withNativeText(PonderScene scene, Runnable registration) {
+        boolean removed = resolvedTextScenes.remove(scene);
+        try {
+            registration.run();
+        } finally {
+            if (removed) resolvedTextScenes.add(scene);
+        }
+    }
+
     public static void install() {
         LocalizedText.useReferences((resource, key) -> {
             var values = new TreeMap<>(translations.getOrDefault(resource, Map.of()).getOrDefault(key, Map.of()));

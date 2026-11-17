@@ -6,7 +6,6 @@ import com.nododiiiii.ponderer.editor.capture.CoordPickState;
 import com.nododiiiii.ponderer.scene.DslScene;
 import com.nododiiiii.ponderer.runtime.api.SceneItemBindings;
 import com.nododiiiii.ponderer.nbt.NbtTextCodec;
-import net.createmod.catnip.gui.ConfirmationScreen;
 import net.minecraft.client.Minecraft;
 import com.nododiiiii.ponderer.application.ui.widgets.DeclarativeFormEntry;
 import com.nododiiiii.ponderer.application.ui.widgets.ButtonListEntry;
@@ -388,17 +387,15 @@ public class TriggerEditorScreen extends AbstractSceneEditorFormScreen {
                     .anyMatch(s -> s != scene && s.items != null && s.items.contains(item)))
                 .toList();
             if (!duplicates.isEmpty()) {
-                new ConfirmationScreen()
-                    .centered()
-                    .withText(Component.translatable("ponderer.ui.scene_desc.error.item_exists_title"))
-                    .addText(Component.translatable("ponderer.ui.scene_desc.error.item_exists", String.join(", ", duplicates)))
-                    .withAction(confirmed -> {
+                PondererDialogScreen.confirm(this,
+                    List.of(Component.translatable("ponderer.ui.scene_desc.error.item_exists_title")),
+                    List.of(Component.translatable("ponderer.ui.scene_desc.error.item_exists", String.join(", ", duplicates))),
+                    confirmed -> {
                         if (confirmed) {
                             pendingItemDuplicateConfirm = true;
                             doConfirm();
                         }
-                    })
-                    .open(this);
+                    });
                 return false;
             }
         }

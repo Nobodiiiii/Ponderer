@@ -35,6 +35,7 @@ dependencies {
     modCompileOnly("maven.modrinth:resourcify:${resourcify_version}")
 
     implementation(commonProject)
+    implementation(include("com.github.javaparser:javaparser-core:3.26.3"))
     implementation project(path: ":RuntimeFabric", configuration: "namedElements")
 }
 

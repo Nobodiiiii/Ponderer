@@ -1,13 +1,14 @@
 package com.nododiiiii.ponderer.application.ui;
 
+import com.nododiiiii.ponderer.Config;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 
 import javax.annotation.Nullable;
 
 /**
- * Keeps Ponderer's own screens at a roughly constant physical size across
- * monitor resolutions by temporarily overriding the window's GUI scale.
+ * Applies a configured GUI scale to Ponderer's own screens, or follows
+ * Minecraft's GUI scale when configured.
  *
  * <p>The layout in {@link UILayoutConstants} was tuned against 4K (3840px wide)
  * at GUI Scale 4. At lower resolutions the same constants take up a much larger
@@ -45,7 +46,7 @@ public final class PondererUiScaling {
             return;
         }
 
-        int target = computeTargetScale(mc);
+        int target = computeTargetScale(mc, Config.EDITOR_UI_SCALE.get());
         if (target < 1) {
             return;
         }
@@ -80,7 +81,13 @@ public final class PondererUiScaling {
         mc.tell(PondererUiScaling::maybeRestore);
     }
 
-    private static int computeTargetScale(Minecraft mc) {
+    public static int computeTargetScale(Minecraft mc, String configuredScale) {
+        if ("native".equals(configuredScale)) {
+            return computeNativeScale(mc);
+        }
+        if (!"default".equals(configuredScale)) {
+            return mc.getWindow().calculateScale(Integer.parseInt(configuredScale), mc.isEnforceUnicode());
+        }
         int physical = mc.getWindow().getWidth();
         if (physical <= 0) {
             return -1;
@@ -88,6 +95,10 @@ public final class PondererUiScaling {
         int maxScale = mc.getWindow().calculateScale(0, mc.isEnforceUnicode());
         int ideal = (int) Math.round(physical * (double) REF_SCALE / REF_PHYSICAL_WIDTH);
         return Math.max(1, Math.min(maxScale, ideal));
+    }
+
+    private static int computeNativeScale(Minecraft mc) {
+        return mc.getWindow().calculateScale(mc.options.guiScale().get(), mc.isEnforceUnicode());
     }
 
     private static void syncScreenDimensions(Minecraft mc, Screen screen) {
@@ -105,9 +116,7 @@ public final class PondererUiScaling {
         }
 
         active = false;
-        int requested = mc.options.guiScale().get();
-        int restored = mc.getWindow().calculateScale(requested, mc.isEnforceUnicode());
-        mc.getWindow().setGuiScale(restored);
+        mc.getWindow().setGuiScale(computeNativeScale(mc));
 
         if (mc.screen != null) {
             mc.screen.resize(mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
