@@ -93,7 +93,7 @@ jobs:
               }
               if not is_lib:
                   metadata["relations"] = {"projects": [{
-                      "slug": "ponderer-lib", "projectID": "1808352", "type": "requiredDependency",
+                      "slug": "ponderer-lib", "projectID": 1808352, "type": "requiredDependency",
                   }]}
               meta = root / "metadata.json"
               meta.write_text(json.dumps(metadata), encoding="utf-8")
