@@ -102,6 +102,9 @@ jobs:
       actions: read
       contents: read
     environment: release-1.21.1
+    concurrency:
+      group: release-1.21.1-${{ matrix.site }}-${{ matrix.loader }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix:
