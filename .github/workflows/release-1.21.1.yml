@@ -132,7 +132,6 @@ jobs:
           import subprocess
           import tempfile
           import time
-          import urllib.error
           import urllib.parse
           import urllib.request
           from pathlib import Path
@@ -281,19 +280,25 @@ jobs:
 
               lib_id = curseforge_release(lib_jar, "ponderer-lib", 1808352, lib,
                                           f"Ponderer Lib {lib} for Minecraft {mc} ({label}).")
-              download = f"https://edge.forgecdn.net/files/{lib_id // 1000}/{lib_id % 1000}/{lib_jar.name}"
-              for attempt in range(8):
+
+              def is_public(file_id, jar):
+                  url = f"https://edge.forgecdn.net/files/{file_id // 1000}/{file_id % 1000}/{jar.name}"
                   try:
-                      with urllib.request.urlopen(download, timeout=10) as response:
-                          if response.read(4) == b"PK\x03\x04":
-                              break
-                  except (OSError, urllib.error.URLError):
-                      pass
+                      with urllib.request.urlopen(url, timeout=10) as response:
+                          return response.read(4) == b"PK\x03\x04"
+                  except OSError:
+                      return False
+
+              for attempt in range(8):
+                  if is_public(lib_id, lib_jar):
+                      break
                   if attempt < 7:
                       time.sleep(10)
               else:
                   raise SystemExit(f"Lib file {lib_id} is not public yet; rerun this job after CurseForge review")
-              curseforge_release(mod_jar, "the-ponderer", 1461949, mod, release["notes"], needs_lib=True)
+              mod_id = curseforge_release(mod_jar, "the-ponderer", 1461949, mod, release["notes"], needs_lib=True)
+              status = "verified" if is_public(mod_id, mod_jar) else "not confirmed yet"
+              print(f"CurseForge public download for file {mod_id}: {status}")
           PY
       - name: Save the CurseForge Lib file ID
         if: always() && steps.submit.outputs.lib_receipt != ''
