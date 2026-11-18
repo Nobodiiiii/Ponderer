@@ -26,7 +26,7 @@ Minecraft 1.21.1，Java 21，当前支持 NeoForge 与 Fabric。Lib 扩展上游
 
 ### 发布 Minecraft 1.21.1
 
-在 `1.21.1` 分支更新 `gradle.properties` 和 `CHANGELOG.md`，将提交推送到 GitHub，再推送与 `mod_version` 一致的 `release-1.21.1-v<版本>` 标签。Actions 构建并检查 Fabric 和 NeoForge 的本体与 Lib，然后分别发布到 Modrinth 和 CurseForge。Modrinth 的 Lib 公开列在 Ponderer 项目中，CurseForge 的 Lib 走独立项目，两站都先处理 Lib。
+在 `1.21.1` 分支更新 `gradle.properties` 和 `CHANGELOG.md` 后，将提交推送到 GitHub。打开 Actions，选 **全部发布**、**发布 Modrinth** 或 **发布 CurseForge**，点击 **Run workflow**，选择 `1.21.1` 分支并运行。勾选 **仅构建并检查产物** 可以预演。Actions 会构建并检查 Fabric 和 NeoForge 的本体与 Lib，两站都先处理 Lib。Modrinth 的 Lib 公开列在 Ponderer 项目中，CurseForge 的 Lib 走独立项目。
 
 发布使用 GitHub 环境 `release-1.21.1` 的 `MODRINTH_TOKEN` 和 `CURSEFORGE_TOKEN`。如果 CurseForge 的 Lib 仍在审核，等它公开后重跑失败任务即可。工作流会复用保存的 CurseForge 文件 ID。若要复用手动上传的文件或找回超过保留期的文件，可在同一环境用 `CURSEFORGE_EXISTING_FILES` 提供从 JAR 文件名到数字 ID 的 JSON 对象。Modrinth 的已发布文件按加载器和文件名识别。
 

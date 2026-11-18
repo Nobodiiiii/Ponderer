@@ -1,0 +1,22 @@
+name: 发布 CurseForge
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 仅构建并检查产物
+        type: boolean
+        default: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/1.21.1'
+    uses: ./.github/workflows/release-1.21.1.yml
+    secrets: inherit
+    with:
+      platforms: '["CurseForge"]'
+      dry_run: ${{ inputs.dry_run }}
