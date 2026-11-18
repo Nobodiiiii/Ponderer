@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 6
     env:
       CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_NEOFORGE_RETRY_TOKEN }}
-      PUBLISH_TARGET: lib
+      PUBLISH_TARGET: body
     steps:
       - name: Verify CurseForge API and submit the NeoForge file
         shell: bash
