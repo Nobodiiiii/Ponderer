@@ -1,0 +1,310 @@
+name: Release Ponderer 1.21.1
+
+on:
+  push:
+    branches: ["1.21.1"]
+    paths: [".github/workflows/release-1.21.1.yml"]
+    tags: ["release-1.21.1-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-1.21.1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and check release JARs
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Validate release ref
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            version=$(sed -n 's/^mod_version=//p' gradle.properties | tr -d '\r')
+            [[ "$GITHUB_REF_NAME" == "release-1.21.1-v$version" ]]
+            git merge-base --is-ancestor HEAD origin/1.21.1
+          fi
+      - name: Build both loaders
+        run: bash ./gradlew --no-daemon --console=plain :RuntimeNeoForge:build :RuntimeFabric:build :NeoForge:build :Fabric:build
+      - name: Prepare release artifacts
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          import shutil
+          import tomllib
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          properties = dict(
+              line.split("=", 1) for line in Path("gradle.properties").read_text().splitlines()
+              if "=" in line and not line.lstrip().startswith("#")
+          )
+          mc, mod, lib = [properties[key] for key in ("minecraft_version", "mod_version", "lib_version")]
+          if mc != "1.21.1":
+              raise SystemExit(f"Unexpected Minecraft version: {mc}")
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          notes = re.search(rf"^## {re.escape(mod)}[ \t]*\n(.*?)(?=^## |\Z)", changelog, re.M | re.S)
+          if not notes:
+              raise SystemExit(f"Missing changelog for Ponderer {mod}")
+          root = Path("release-artifacts")
+          root.mkdir()
+          (root / "release.json").write_text(json.dumps({
+              "mc": mc, "mod": mod, "lib": lib, "notes": notes[1].strip().removesuffix("---").strip(),
+          }), encoding="utf-8")
+          for module in ("NeoForge", "Fabric"):
+              loader = module.lower()
+              for mod_id, version, directory in (
+                  ("pondererlib", lib, "runtime/build/libs"), ("ponderer", mod, "build/libs"),
+              ):
+                  jar = Path(module, directory, f"{mod_id}-{mc}-{loader}-{version}.jar")
+                  with ZipFile(jar) as archive:
+                      if loader == "fabric":
+                          metadata = json.loads(archive.read("fabric.mod.json"))
+                          assert (metadata["id"], metadata["version"]) == (mod_id, version)
+                          if mod_id == "ponderer":
+                              assert metadata["depends"]["pondererlib"] == f">={lib}"
+                      else:
+                          metadata = tomllib.loads(archive.read("META-INF/neoforge.mods.toml").decode())
+                          assert (metadata["mods"][0]["modId"], metadata["mods"][0]["version"]) == (mod_id, version)
+                          if mod_id == "ponderer":
+                              assert any(item["modId"] == "pondererlib" and item["type"] == "required"
+                                         and item["versionRange"] == f"[{lib},)"
+                                         for item in metadata["dependencies"]["ponderer"])
+                  shutil.copy2(jar, root / jar.name)
+                  print(f"Verified {jar.name}")
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ponderer-release-jars
+          path: release-artifacts/
+          if-no-files-found: error
+
+  publish:
+    name: Publish ${{ matrix.loader }} to ${{ matrix.site }}
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    environment: release-1.21.1
+    strategy:
+      fail-fast: false
+      matrix:
+        site: [Modrinth, CurseForge]
+        loader: [NeoForge, Fabric]
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ponderer-release-jars
+          path: release-artifacts
+      - name: Submit Lib before Ponderer
+        id: submit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SITE: ${{ matrix.site }}
+          LOADER: ${{ matrix.loader }}
+          MODRINTH_TOKEN: ${{ matrix.site == 'Modrinth' && secrets.MODRINTH_TOKEN || '' }}
+          CURSEFORGE_TOKEN: ${{ matrix.site == 'CurseForge' && secrets.CURSEFORGE_TOKEN || '' }}
+          CURSEFORGE_EXISTING_FILES: ${{ vars.CURSEFORGE_EXISTING_FILES }}
+        run: |
+          python3 - <<'PY'
+          import io
+          import json
+          import os
+          import subprocess
+          import tempfile
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          root = Path("release-artifacts")
+          release = json.loads((root / "release.json").read_text(encoding="utf-8"))
+          mc, mod, lib = [release[key] for key in ("mc", "mod", "lib")]
+          site, label = os.environ["SITE"], os.environ["LOADER"]
+          loader = label.lower()
+          token = os.environ[site.upper() + "_TOKEN"]
+          if not token:
+              raise SystemExit(f"Set {site.upper()}_TOKEN in the release-1.21.1 environment")
+          lib_jar = root / f"pondererlib-{mc}-{loader}-{lib}.jar"
+          mod_jar = root / f"ponderer-{mc}-{loader}-{mod}.jar"
+          modrinth_api = "https://api.modrinth.com/v2"
+          curseforge_api = "https://minecraft.curseforge.com/api"
+          user_agent = "Nobodiiiii/Ponderer-release (https://github.com/Nobodiiiii/Ponderer)"
+
+          def api_json(url, jar=None, metadata=None, auth_header=None, field="metadata"):
+              with tempfile.TemporaryDirectory() as tmp:
+                  body = Path(tmp, "response.json")
+                  headers = Path(tmp, "headers.txt")
+                  args = ["curl", "--silent", "--show-error", "--connect-timeout", "15",
+                          "--max-time", "120", "--user-agent", user_agent,
+                          "--header", "@-", "--dump-header", str(headers), "--output", str(body),
+                          "--write-out", "%{http_code}", url]
+                  if jar:
+                      data = Path(tmp, "metadata.json")
+                      data.write_text(json.dumps(metadata), encoding="utf-8")
+                      args += ["--form", f"{field}=<{data}", "--form", f"file=@{jar};type=application/java-archive"]
+                  request_headers = "Accept: application/json\n"
+                  if auth_header:
+                      request_headers += f"{auth_header}: {token}\n"
+                  response = subprocess.run(args, input=request_headers, text=True, capture_output=True, timeout=125)
+                  if response.returncode:
+                      raise SystemExit(f"{site} transport error ({response.returncode}); check the platform before retrying")
+                  status = int(response.stdout)
+                  response_headers = dict(
+                      (key.lower(), value.strip()) for line in headers.read_text().splitlines()
+                      for key, sep, value in [line.partition(":")] if sep
+                  )
+                  if response_headers.get("cf-mitigated") == "challenge":
+                      raise SystemExit(f"{site} Cloudflare challenge, Ray ID {response_headers.get('cf-ray')}")
+                  try:
+                      result = json.loads(body.read_text(encoding="utf-8"))
+                  except ValueError:
+                      raise SystemExit(f"{site} returned HTTP {status} without JSON")
+                  if not 200 <= status < 300:
+                      detail = json.dumps(result, ensure_ascii=False).replace(token, "***")
+                      raise SystemExit(f"{site} HTTP {status}: {detail[:1600]}")
+                  return result
+
+          def report(url, filename):
+              print(f"{site}: {filename} — {url}", flush=True)
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+                  summary.write(f"- [{filename}]({url})\n")
+
+          if site == "Modrinth":
+              project = "voXQB5Hr"
+              filters = urllib.parse.urlencode({"loaders": json.dumps([loader]), "game_versions": json.dumps([mc])})
+              versions = api_json(f"{modrinth_api}/project/{project}/version?{filters}", auth_header="Authorization")
+
+              def modrinth_release(jar, number, title, notes, dependencies, featured):
+                  existing = next((entry for entry in versions
+                                   if any(file["filename"] == jar.name for file in entry["files"])), None)
+                  if existing:
+                      if existing["status"] != "listed":
+                          raise SystemExit(f"Existing Modrinth file is not listed: {jar.name}")
+                      version_id = existing["id"]
+                      lib = next((item["version_id"] for item in dependencies if "version_id" in item), None)
+                      if lib and not any(item.get("version_id") == lib and item["dependency_type"] == "required"
+                                         for item in existing["dependencies"]):
+                          raise SystemExit(f"Existing Modrinth file has a different Lib dependency: {jar.name}")
+                  else:
+                      result = api_json(f"{modrinth_api}/version", jar, {
+                          "name": title, "version_number": number, "changelog": notes,
+                          "game_versions": [mc], "loaders": [loader], "version_type": "release",
+                          "featured": featured, "status": "listed", "project_id": project,
+                          "file_parts": ["file"], "dependencies": dependencies,
+                      }, auth_header="Authorization", field="data")
+                      version_id = result.get("id")
+                      if not isinstance(version_id, str) or not version_id:
+                          raise SystemExit(f"Missing Modrinth version ID for {jar.name}")
+                  report(f"https://modrinth.com/mod/the-ponderer/version/{version_id}", jar.name)
+                  return version_id
+
+              lib_id = modrinth_release(lib_jar, f"lib-{lib}-{mc}-{loader}", f"Lib {lib} [{label}] {mc}",
+                                         f"Ponderer Lib {lib} for Minecraft {mc} ({label}).", [], False)
+              link = f"https://modrinth.com/mod/the-ponderer/version/{lib_id}"
+              notes = f"**必需前置 / Required dependency:** [Ponderer Lib ({label})]({link})\n\n"
+              notes += "请将对应 Lib JAR 放入 `mods`。 Install the linked Lib JAR in `mods`.\n\n"
+              modrinth_release(mod_jar, mod, f"Ponderer - 思索者 [{label}] {mc} - {mod}",
+                               notes + release["notes"], [
+                                   {"version_id": lib_id, "dependency_type": "required"},
+                                   {"project_id": "u6dRKJwZ", "dependency_type": "optional"},
+                               ], True)
+          else:
+              versions = api_json(f"{curseforge_api}/game/versions", auth_header="X-Api-Token")
+              game_ids = [11779, 10150 if loader == "neoforge" else 7499, 9638, 9639]
+              if not set(game_ids).issubset({item["id"] for item in versions}):
+                  raise SystemExit(f"Missing CurseForge game version IDs for {label}")
+              receipt_dir = Path("curseforge-receipts")
+              receipt_dir.mkdir()
+              existing_files = {
+                  "pondererlib-1.21.1-fabric-0.1.1.jar": 9681316,
+                  "pondererlib-1.21.1-neoforge-0.1.1.jar": 9681373,
+                  "ponderer-1.21.1-fabric-1.12.0.jar": 9681336,
+                  "ponderer-1.21.1-neoforge-1.12.0.jar": 9681377,
+                  **json.loads(os.environ["CURSEFORGE_EXISTING_FILES"] or "{}"),
+              }
+
+              def curseforge_release(jar, slug, project, version, notes, needs_lib=False):
+                  receipt_name = f"curseforge-file-{jar.stem}"
+                  file_id = existing_files.get(jar.name)
+                  if file_id is None:
+                      endpoint = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/artifacts"
+                      query = urllib.parse.urlencode({"name": receipt_name})
+                      receipts = json.loads(subprocess.check_output(["gh", "api", f"{endpoint}?{query}"], timeout=30))
+                      receipt = next((item for item in receipts["artifacts"] if not item["expired"]), None)
+                      if receipt:
+                          archive = subprocess.check_output(["gh", "api", receipt["archive_download_url"]], timeout=30)
+                          with ZipFile(io.BytesIO(archive)) as zip_file:
+                              file_id = int(zip_file.read(f"{receipt_name}.txt"))
+                  if file_id is None:
+                      content = {
+                          "changelog": notes, "changelogType": "markdown", "releaseType": "release",
+                          "displayName": f"{'Ponderer' if needs_lib else 'Ponderer Lib'} - [{label}] {mc} - {version}",
+                          "gameVersions": game_ids,
+                      }
+                      if needs_lib:
+                          content["relations"] = {"projects": [{
+                              "slug": "ponderer-lib", "projectID": 1808352, "type": "requiredDependency",
+                          }]}
+                      result = api_json(f"{curseforge_api}/projects/{project}/upload-file", jar, content,
+                                        auth_header="X-Api-Token")
+                      file_id = result.get("id")
+                      if type(file_id) is int and file_id > 0:
+                          (receipt_dir / f"{receipt_name}.txt").write_text(str(file_id), encoding="ascii")
+                          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as outputs:
+                              outputs.write(f"{'mod' if needs_lib else 'lib'}_receipt={receipt_name}\n")
+                  if type(file_id) is not int or file_id <= 0:
+                      raise SystemExit(f"Invalid CurseForge file ID for {jar.name}")
+                  report(f"https://www.curseforge.com/minecraft/mc-mods/{slug}/files/{file_id}", jar.name)
+                  return file_id
+
+              lib_id = curseforge_release(lib_jar, "ponderer-lib", 1808352, lib,
+                                          f"Ponderer Lib {lib} for Minecraft {mc} ({label}).")
+              download = f"https://edge.forgecdn.net/files/{lib_id // 1000}/{lib_id % 1000}/{lib_jar.name}"
+              for attempt in range(8):
+                  try:
+                      with urllib.request.urlopen(download, timeout=10) as response:
+                          if response.read(4) == b"PK\x03\x04":
+                              break
+                  except (OSError, urllib.error.URLError):
+                      pass
+                  if attempt < 7:
+                      time.sleep(10)
+              else:
+                  raise SystemExit(f"Lib file {lib_id} is not public yet; rerun this job after CurseForge review")
+              curseforge_release(mod_jar, "the-ponderer", 1461949, mod, release["notes"], needs_lib=True)
+          PY
+      - name: Save the CurseForge Lib file ID
+        if: always() && steps.submit.outputs.lib_receipt != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.submit.outputs.lib_receipt }}
+          path: curseforge-receipts/${{ steps.submit.outputs.lib_receipt }}.txt
+          if-no-files-found: error
+          retention-days: 90
+      - name: Save the CurseForge Ponderer file ID
+        if: always() && steps.submit.outputs.mod_receipt != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.submit.outputs.mod_receipt }}
+          path: curseforge-receipts/${{ steps.submit.outputs.mod_receipt }}.txt
+          if-no-files-found: error
+          retention-days: 90

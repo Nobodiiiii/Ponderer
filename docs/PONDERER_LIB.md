@@ -1,6 +1,6 @@
 # Ponderer Lib
 
-Minecraft 1.21.1，Java 21，当前支持 NeoForge 与 Fabric。Lib 扩展上游 Ponder，不 fork Ponder。库版本为 `0.1.0`，内容格式版本为 `1`。原场景、物品、方块、语言键和存储 ID 保持不变。
+Minecraft 1.21.1，Java 21，当前支持 NeoForge 与 Fabric。Lib 扩展上游 Ponder，不 fork Ponder。库版本为 `0.1.1`，内容格式版本为 `1`。原场景、物品、方块、语言键和存储 ID 保持不变。
 
 ## 构建与分发边界
 
@@ -13,7 +13,7 @@ Minecraft 1.21.1，Java 21，当前支持 NeoForge 与 Fabric。Lib 扩展上游
 | Common | Common/src | 编辑、工作区、AI、同步、导出与产品组合 |
 | NeoForge / Fabric | 原平台目录 | 完整 Ponderer 的平台入口与分发 |
 
-两个 Lib JAR 的加载器身份都为 `pondererlib`。完整产品将对应加载器的 Lib 作为外置必需依赖，不再内嵌 Lib，也不在外层重复打包场景模型和运行类。玩家需将产品 JAR 与对应的 `pondererlib-1.21.1-<loader>-0.1.0.jar` 一起放入 `mods`；多个宿主共用同一份 Lib。开发运行保留项目依赖，快速启动脚本构建、复制并清理旧版独立 Lib。Ponder、Flywheel 后备依赖仍由 Lib 携带；Fabric 的 Ponder 后备包本身携带 ForgeConfigAPIPort。产品自己的配置依赖保留在产品中。Fabric 的 Flywheel 仅客户端加载，因此通用元数据使用建议依赖，客户端入口按其中的版本条件强制检查；专服不被要求加载客户端渲染库。
+两个 Lib JAR 的加载器身份都为 `pondererlib`。完整产品将对应加载器的 Lib 作为外置必需依赖，不再内嵌 Lib，也不在外层重复打包场景模型和运行类。玩家需将产品 JAR 与对应的 `pondererlib-1.21.1-<loader>-0.1.1.jar` 一起放入 `mods`；多个宿主共用同一份 Lib。开发运行保留项目依赖，快速启动脚本构建、复制并清理旧版独立 Lib。Ponder、Flywheel 后备依赖仍由 Lib 携带；Fabric 的 Ponder 后备包本身携带 ForgeConfigAPIPort。产品自己的配置依赖保留在产品中。Fabric 的 Flywheel 仅客户端加载，因此通用元数据使用建议依赖，客户端入口按其中的版本条件强制检查；专服不被要求加载客户端渲染库。
 
 运行包不依赖产品、编辑器、工作区、AI、同步、投影仪、蓝图或 JEI/AE2/Resourcify 实现。共享叶子工具位于 `runtime.support`，平台 Mixin 位于 `runtime.platform.mixin`，防止 NeoForge 模块层的 split-package 冲突。`api` / `spi` 是消费入口，Mixin 所需的 public 实现类不自动成为稳定 API。
 
@@ -22,16 +22,22 @@ Minecraft 1.21.1，Java 21，当前支持 NeoForge 与 Fabric。Lib 扩展上游
 .\gradlew.bat :RuntimeNeoForge:publishMavenJavaPublicationToLibStagingRepository :RuntimeFabric:publishMavenJavaPublicationToLibStagingRepository --offline
 ```
 
-第二条发布到项目内的 `build/lib-repository`，没有上传远端仓库。当前 Maven 坐标为 `com.nododiiiii:RuntimeFabric:0.1.0`、`com.nododiiiii:RuntimeNeoForge:0.1.0`。发布仓库地址仍由维护者决定。
+第二条发布到项目内的 `build/lib-repository`，没有上传远端仓库。当前 Maven 坐标为 `com.nododiiiii:RuntimeFabric:0.1.1`、`com.nododiiiii:RuntimeNeoForge:0.1.1`。发布仓库地址仍由维护者决定。
+
+### 发布 Minecraft 1.21.1
+
+在 `1.21.1` 分支更新 `gradle.properties` 和 `CHANGELOG.md`，将提交推送到 GitHub，再推送与 `mod_version` 一致的 `release-1.21.1-v<版本>` 标签。Actions 构建并检查 Fabric 和 NeoForge 的本体与 Lib，然后分别发布到 Modrinth 和 CurseForge。Modrinth 的 Lib 公开列在 Ponderer 项目中，CurseForge 的 Lib 走独立项目，两站都先处理 Lib。
+
+发布使用 GitHub 环境 `release-1.21.1` 的 `MODRINTH_TOKEN` 和 `CURSEFORGE_TOKEN`。如果 CurseForge 的 Lib 仍在审核，等它公开后重跑失败任务即可。工作流会复用保存的 CurseForge 文件 ID。若要复用手动上传的文件或找回超过保留期的文件，可在同一环境用 `CURSEFORGE_EXISTING_FILES` 提供从 JAR 文件名到数字 ID 的 JSON 对象。Modrinth 的已发布文件按加载器和文件名识别。
 
 独立宿主按加载器声明外置 Lib 依赖，并在模组元数据中将 `pondererlib` 声明为必需依赖。Gradle 编译/开发运行使用以下依赖，不配置 `include` 或 `jarJar` 内嵌 Lib；安装时单独放置 Lib JAR，保留原身份：
 
 ```groovy
 // Fabric Loom，repositories 先加入实际发布仓库。
-modImplementation "com.nododiiiii:RuntimeFabric:0.1.0"
+modImplementation "com.nododiiiii:RuntimeFabric:0.1.1"
 
 // NeoForge ModDevGradle。
-implementation "com.nododiiiii:RuntimeNeoForge:0.1.0"
+implementation "com.nododiiiii:RuntimeNeoForge:0.1.1"
 ```
 
 Ponder 的旧坐标 `Ponder-NeoForge-1.21.1` 与新坐标 `ponder-neoforge` 指向同一模组身份。Lib 的 JarJar 元数据统一使用后者，让 Create 携带的较新版参与同一次版本选择。仅 Support 的宿主自行配置上游依赖时也需要处理这项版本协调；不能让旧坐标强选低于 Create 最低要求的 Ponder。

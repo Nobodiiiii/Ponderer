@@ -1,5 +1,59 @@
 # Changelog
 
+## 1.12.0
+
+### 中文
+
+#### 安装与升级
+
+- **新增必需依赖 Ponderer Lib**。Minecraft `1.21.1` 的 NeoForge 和 Fabric 版本均需单独安装对应加载器的 **Ponderer Lib `0.1.1` 或更新版本**。从 `1.11.0` 升级时，请将 Ponderer 本体与 Lib 的两个 JAR 一起放入 `mods`。Ponder 和 Flywheel 的后备版本由 Lib 提供。Fabric 端仍需 Fabric API。
+- Ponderer Lib 可独立运行，加载内容模组或客户端资源包中的思索。安装完整 Ponderer 后可使用游戏内编辑器和播放器增强功能。
+
+#### 思索导出与编辑
+
+- **Java + Lib** 导出可编辑的 Java 场景与配套资源，保留界面思索、NBT 挂载和运行时物品标签，并支持自定义 Java 步骤。绑定源码工程后，游戏内保存会直接写回 Java 和文本资源，并刷新当前游戏中的思索。手动修改场景源码后，可通过 V 菜单的「重载」或 `/ponderer java reload` 应用场景数据。修改 Java 扩展实现仍需重新编译。
+- **JSON + Lib** 导出纯资源内容。Lib 在客户端资源加载和重载时自动注册场景及其分类，并加载配套结构和文本。
+- **Java + Support** 继续导出原生 Ponder 故事板和 `GeneratedPonderSupport.java`，无需安装 Ponderer Lib。导出报告会标出界面步骤等无法完整保留的内容。同一目标模组使用一种导出模式，导出器可将旧版导出转换为 Lib 格式。
+- 两种 Lib 导出模式将标题、字幕和分类等可本地化文本写入每个场景独立的语言文件。编辑器也可在关联的原稿和导出版本之间切换。
+
+#### 界面思索与编辑器
+
+- 新增 **显示界面**（`interface_panel`）步骤，可在结构或界面场景中嵌入教程面板。面板支持裁切、缩放、偏移和进出动画，可等待子步骤完成，也可与主场景并行播放。多个面板可各自运行槽位操作、点击和文字提示等子步骤。
+- 从世界捕获界面时，打开目标界面后按 `C` 确认。资源包可配置嵌入界面的控件排除规则，内置了 JEI 和部分 FTB 界面控件的规则。
+- 编辑器界面大小可单独设置或跟随 Minecraft。分场景首步可在「显示结构」和「显示界面」之间切换。「放置实体」支持用 `minecraft:player` 显示当前观看者的玩家模型。
+
+#### 兼容性与修复
+
+- 播放器增强和界面相关功能按启动需求启用，也可通过配置控制。修复半透明区段的绘制顺序，以及实体和方块实体贴图未跟随思索相机的问题。复用原生 Ponder 故事板时保留其本地化文本。
+- 修复世界或连接切换后 AI 生成界面可能一直显示忙碌的问题。保存或远程覆盖成功后若场景刷新失败，界面会单独报告刷新错误，可用 `/ponderer reload` 重试。
+
+### English
+
+#### Installation and Upgrades
+
+- **Ponderer Lib is now required.** Install **Ponderer Lib `0.1.1` or newer** for your Minecraft `1.21.1` loader, NeoForge or Fabric. When upgrading from `1.11.0`, put both the Ponderer and Lib JARs in `mods`. The Lib bundles fallback copies of Ponder and Flywheel. Fabric still requires Fabric API.
+- Ponderer Lib can load scenes from content mods and client resource packs on its own. Install the full Ponderer mod for the in-game editor and playback enhancements.
+
+#### Scene Export and Editing
+
+- **Java + Lib** exports editable Java scenes and assets, preserving interface Ponders, NBT bindings, and runtime item tags, with support for custom Java steps. After binding the source project, saving in-game writes changes back to the Java and text files and refreshes the scenes in the current session. To apply scene data after editing the source manually, use Reload in the V menu or `/ponderer java reload`. Changes to Java extension code still require recompilation.
+- **JSON + Lib** exports resource-only content. When client resources load or reload, the Lib registers scenes and their categories and loads their structures and text.
+- **Java + Support** still exports native Ponder storyboards and `GeneratedPonderSupport.java` without a Ponderer Lib dependency. The export report flags content it cannot fully preserve, including interface steps. Each target mod uses one export mode, and the exporter can convert legacy exports to a Lib format.
+- Both Lib export modes write localizable titles, captions, categories, and other text to per-scene language files. The editor can also switch between a linked original and exported version of a scene.
+
+#### Interface Ponders and the Editor
+
+- Added the **Show Interface** (`interface_panel`) step to embed a tutorial panel in a structure or interface scene. Panels support cropping, scaling, offsets, and entry and exit animations. They can wait for their child steps to finish or play alongside the main scene. Multiple panels can run their own slot actions, clicks, and text cues.
+- To capture an interface from the world, open it and press `C` to confirm. Resource packs can configure which controls to exclude from embedded interfaces, with built-in rules for JEI and some FTB controls.
+- The editor can use its own GUI scale or follow Minecraft's setting. A segment can switch its first step between Show Structure and Show Interface. Place Entity supports `minecraft:player` to display the current viewer's player model.
+
+#### Compatibility and Fixes
+
+- Playback enhancements and interface features activate at startup based on demand and can be controlled through configuration. Fixed translucent section draw order and entity and block-entity textures that failed to follow the Ponder camera. Adopted native Ponder storyboards retain their localized text.
+- Fixed an AI generation screen that could stay busy after a world or connection change. When a save or remote overwrite succeeds but the scene refresh fails, the interface reports the refresh error separately. Use `/ponderer reload` to retry.
+
+---
+
 ## 1.11.0
 
 ### 中文

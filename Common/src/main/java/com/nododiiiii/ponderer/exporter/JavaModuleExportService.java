@@ -14,6 +14,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -110,6 +111,8 @@ public final class JavaModuleExportService {
     private static final String MANIFEST_NAME = "manifest.json";
     private static final String REPORT_NAME = "last-report.json";
     private static final String LICENSE_RESOURCE = "/META-INF/licenses/ponderer/LICENSE";
+    private static final String MIN_LIB_VERSION = "0.1.1";
+    private static final String LEGACY_LIB_VERSION = "0.1.0";
 
     private final StructureResourceSource resources;
 
@@ -979,7 +982,7 @@ public final class JavaModuleExportService {
             content.scenes = manifest.scenes.values().stream().map(entry -> entry.resourceId).filter(Objects::nonNull).sorted().toList();
             content.attribution = true;
             writes.add(new TextFile("src/main/resources/assets/" + target.modId + "/ponderer/content/ponderer_export.json", GSON.toJson(content)));
-            writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This resource-only export requires external pondererlib >= 0.1.0 and upstream Ponder.\nLib discovers assets/<namespace>/ponderer/content/*.json and registers scenes on client resource reload.\nNo generated Java or content entrypoint is required. Install the loader-specific pondererlib JAR separately in mods; do not embed it in the host.\nThe same assets tree works in a client resource pack.\nOptional compiled providers register with ResourceSceneContents.registerExtension; manifests select provider IDs in extensions.\n"));
+            writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This resource-only export requires external pondererlib >= " + MIN_LIB_VERSION + " and upstream Ponder.\nLib discovers assets/<namespace>/ponderer/content/*.json and registers scenes on client resource reload.\nNo generated Java or content entrypoint is required. Install the loader-specific pondererlib JAR separately in mods; do not embed it in the host.\nThe same assets tree works in a client resource pack.\nOptional compiled providers register with ResourceSceneContents.registerExtension; manifests select provider IDs in extensions.\n"));
             writes.addAll(buildLangWrites(target, manifest, currentSceneIds, staleManagedLangKeys));
             return writes;
         }
@@ -995,7 +998,7 @@ public final class JavaModuleExportService {
             String extensionPath = "src/main/java/" + packageToPath(LibExportSources.extensionPackage(target)) + "/PonderExtensions.java";
             // Deliberately excluded from manifest ownership and source-overwrite checks.
             if (!Files.exists(target.targetRoot.resolve(extensionPath))) writes.add(new TextFile(extensionPath, LibExportSources.extension(target)));
-            writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This export requires external pondererlib >= 0.1.0 and upstream Ponder.\nDeclare the loader-specific pondererlib artifact with Fabric modImplementation or NeoForge implementation for development; do not use include or jarJar for Lib.\nInstall the pondererlib JAR separately in mods; multiple hosts share one copy.\nHandwritten custom steps belong in " + LibExportSources.extensionPackage(target) + ".PonderExtensions.\n"));
+            writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This export requires external pondererlib >= " + MIN_LIB_VERSION + " and upstream Ponder.\nDeclare the loader-specific pondererlib artifact with Fabric modImplementation or NeoForge implementation for development; do not use include or jarJar for Lib.\nInstall the pondererlib JAR separately in mods; multiple hosts share one copy.\nHandwritten custom steps belong in " + LibExportSources.extensionPackage(target) + ".PonderExtensions.\n"));
         } else {
             writes.add(new TextFile(".ponderer-export/DEPENDENCIES.md", "This export uses upstream Ponder and generated Support without pondererlib.\nConfigure loader-specific Ponder/Flywheel dependencies in the host build.\nWhen embedding legacy NeoForge Ponder coordinates, coordinate JarJar identity with modern Create-provided ponder-neoforge.\n"));
         }
@@ -2020,14 +2023,17 @@ public final class JavaModuleExportService {
         if (targetProject.metadataPath == null) return null;
         if ("neoforge".equals(targetProject.loader)) {
             String contents = Files.readString(targetProject.metadataPath, StandardCharsets.UTF_8);
-            String dependency = "\n# Ponderer Lib export dependency\n[[dependencies." + targetProject.modId + "]]\nmodId=\"pondererlib\"\ntype=\"required\"\nversionRange=\"[0.1.0,)\"\nordering=\"AFTER\"\nside=\"CLIENT\"\n# End Ponderer Lib export dependency\n";
+            String dependency = neoForgeLibDependency(targetProject.modId, MIN_LIB_VERSION);
+            String legacyDependency = neoForgeLibDependency(targetProject.modId, LEGACY_LIB_VERSION);
             if (LibExportSources.usesLib(targetProject)) {
-                if (!contents.matches("(?s).*modId\\s*=\\s*\"pondererlib\".*")) {
+                if (manifest.ownsLibDependency && contents.contains(legacyDependency)) {
+                    contents = contents.replace(legacyDependency, dependency);
+                } else if (!contents.matches("(?s).*modId\\s*=\\s*\"pondererlib\".*")) {
                     contents += dependency;
                     manifest.ownsLibDependency = true;
                 }
             } else if (manifest.ownsLibDependency) {
-                contents = contents.replace(dependency, "");
+                contents = contents.replace(dependency, "").replace(legacyDependency, "");
                 manifest.ownsLibDependency = false;
             }
             return new TextFile(relativeToRoot(targetProject.targetRoot, targetProject.metadataPath), contents);
@@ -2071,20 +2077,38 @@ public final class JavaModuleExportService {
         else entrypoints.remove("client");
         if (!entrypoints.isEmpty()) root.add("entrypoints", entrypoints);
         else root.remove("entrypoints");
+        JsonPrimitive minimumLib = new JsonPrimitive(">=" + MIN_LIB_VERSION);
+        JsonPrimitive legacyLib = new JsonPrimitive(">=" + LEGACY_LIB_VERSION);
         if (LibExportSources.usesLib(targetProject)) {
             JsonObject dependencies = root.has("depends") && root.get("depends").isJsonObject() ? root.getAsJsonObject("depends") : new JsonObject();
-            if (!dependencies.has("pondererlib")) {
-                dependencies.addProperty("pondererlib", ">=0.1.0");
+            JsonElement lib = dependencies.get("pondererlib");
+            if (lib == null || (manifest.ownsLibDependency && legacyLib.equals(lib))) {
+                dependencies.add("pondererlib", minimumLib);
                 manifest.ownsLibDependency = true;
             }
             root.add("depends", dependencies);
-        } else if (manifest.ownsLibDependency && root.has("depends")) {
-            JsonObject dependencies = root.getAsJsonObject("depends");
-            if (dependencies.has("pondererlib") && dependencies.get("pondererlib").isJsonPrimitive()
-                && ">=0.1.0".equals(dependencies.get("pondererlib").getAsString())) dependencies.remove("pondererlib");
+        } else if (manifest.ownsLibDependency) {
+            if (root.get("depends") instanceof JsonObject dependencies) {
+                JsonElement lib = dependencies.get("pondererlib");
+                if (minimumLib.equals(lib) || legacyLib.equals(lib)) dependencies.remove("pondererlib");
+            }
             manifest.ownsLibDependency = false;
         }
         return new TextFile(relativeToRoot(targetProject.targetRoot, targetProject.metadataPath), GSON.toJson(root));
+    }
+
+    private static String neoForgeLibDependency(String modId, String version) {
+        return """
+
+            # Ponderer Lib export dependency
+            [[dependencies.%s]]
+            modId="pondererlib"
+            type="required"
+            versionRange="[%s,)"
+            ordering="AFTER"
+            side="CLIENT"
+            # End Ponderer Lib export dependency
+            """.formatted(modId, version);
     }
 
     private JavaModuleExportManifest readManifest(Path targetRoot) {
