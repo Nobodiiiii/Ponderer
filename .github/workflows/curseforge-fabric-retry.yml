@@ -114,7 +114,16 @@ jobs:
                   name, sep, value = line.partition(":")
                   if sep:
                       headers[name.lower()] = value.strip()
-              validate_response(int(result.stdout), {
+              status = int(result.stdout)
+              response_type = headers.get("content-type", "")
+              if 400 <= status < 500 and "application/json" in response_type:
+                  try:
+                      error = json.loads(body_file.read_text(encoding="utf-8"))
+                  except ValueError:
+                      error = {"message": "Invalid JSON response"}
+                  message = json.dumps(error, ensure_ascii=False).replace(token, "***")
+                  print("CurseForge API rejection: " + " ".join(message.split())[:1600], flush=True)
+              validate_response(status, {
                   name: headers.get(name.lower(), "")
                   for name in ("CF-Ray", "cf-mitigated", "Content-Type")
               })
