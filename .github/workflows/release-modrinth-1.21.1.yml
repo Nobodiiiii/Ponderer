@@ -1,0 +1,21 @@
+name: 发布 Modrinth
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 仅构建并检查产物
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  select-branch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Select the release branch
+        run: |
+          echo "::error::Select the 1.21.1 branch when running this workflow."
+          exit 1
