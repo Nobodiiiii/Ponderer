@@ -1,0 +1,139 @@
+name: Retry NeoForge release on CurseForge
+
+on:
+  push:
+    branches: [codex/curseforge-neoforge-retry-20261118]
+    paths: [.github/workflows/curseforge-neoforge-retry.yml]
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_NEOFORGE_RETRY_TOKEN }}
+      PUBLISH_TARGET: lib
+    steps:
+      - name: Verify CurseForge API and submit the NeoForge file
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          import tempfile
+          import tomllib
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          token = os.environ["CURSEFORGE_TOKEN"]
+          if not token:
+              raise SystemExit("GitHub Actions secret is missing")
+          api = "https://minecraft.curseforge.com/api"
+          def validate_response(status, headers):
+              ray = headers.get("CF-Ray", "unavailable")
+              if headers.get("cf-mitigated") == "challenge":
+                  raise SystemExit(f"Cloudflare challenge: HTTP {status}, CF-Ray {ray}")
+              if not 200 <= status < 300:
+                  raise SystemExit(f"CurseForge API returned HTTP {status}, CF-Ray {ray}")
+              if "application/json" not in headers.get("Content-Type", ""):
+                  raise SystemExit(f"Expected CurseForge JSON, HTTP {status}, CF-Ray {ray}")
+
+          request = urllib.request.Request(
+              api + "/game/versions",
+              headers={"Accept": "application/json", "X-Api-Token": token},
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  validate_response(response.status, response.headers)
+                  versions = json.load(response)
+          except urllib.error.HTTPError as error:
+              validate_response(error.code, error.headers)
+              raise
+          for required_id in (11779, 10150, 9638, 9639):
+              if not any(v.get("id") == required_id for v in versions):
+                  raise SystemExit(f"Missing CurseForge game version ID {required_id}")
+          print("Authenticated CurseForge preflight: HTTP 200 JSON", flush=True)
+
+          is_lib = os.environ["PUBLISH_TARGET"] == "lib"
+          project_id, mod_id, project_name, version, version_id = (
+              (1808352, "pondererlib", "Ponderer Lib", "0.1.1", "zGf6mIsf")
+              if is_lib else (1461949, "ponderer", "Ponderer", "1.12.0", "8UWz9exc")
+          )
+          filename = f"{mod_id}-1.21.1-neoforge-{version}.jar"
+          request = urllib.request.Request(
+              f"https://api.modrinth.com/v2/version/{version_id}",
+              headers={"User-Agent": "Nobodiiiii/Ponderer-CurseForge-publish"},
+          )
+          with urllib.request.urlopen(request, timeout=25) as response:
+              release = json.load(response)
+          assert release["project_id"] == "voXQB5Hr"
+          assert release["loaders"] == ["neoforge"] and "1.21.1" in release["game_versions"]
+          artifact = next(f for f in release["files"] if f["primary"] and f["filename"] == filename)
+          assert artifact["url"].startswith("https://cdn.modrinth.com/")
+          with tempfile.TemporaryDirectory(prefix="ponderer-release-") as directory:
+              root = Path(directory)
+              jar = root / filename
+              with urllib.request.urlopen(artifact["url"], timeout=40) as response:
+                  jar.write_bytes(response.read())
+              with ZipFile(jar) as archive:
+                  info = tomllib.loads(archive.read("META-INF/neoforge.mods.toml").decode("utf-8"))
+                  assert info["mods"][0]["modId"] == mod_id and info["mods"][0]["version"] == version
+                  if not is_lib:
+                      assert any(
+                          item["modId"] == "pondererlib" and item["type"] == "required"
+                          and item["versionRange"] == "[0.1.1,)"
+                          for item in info["dependencies"][mod_id]
+                      )
+              changelog = release["changelog"]
+              if not is_lib and changelog.startswith("**必需前置 / Required dependency:**"):
+                  changelog = changelog.split("\n\n", 2)[2]
+              metadata = {
+                  "changelog": changelog, "changelogType": "markdown",
+                  "displayName": f"{project_name} - [NeoForge] 1.21.1 - {version}",
+                  "gameVersions": [11779, 10150, 9638, 9639], "releaseType": "release",
+              }
+              if not is_lib:
+                  metadata["relations"] = {"projects": [{
+                      "slug": "ponderer-lib", "projectID": 1808352, "type": "requiredDependency",
+                  }]}
+              meta = root / "metadata.json"
+              meta.write_text(json.dumps(metadata), encoding="utf-8")
+              headers_file = root / "headers.txt"
+              body_file = root / "response.json"
+              result = subprocess.run([
+                  "curl", "--silent", "--show-error", "--connect-timeout", "15", "--max-time", "150",
+                  "--dump-header", str(headers_file), "--output", str(body_file),
+                  "--write-out", "%{http_code}", "--header", "@-",
+                  "--form", f"metadata=<{meta}", "--form", f"file=@{jar};type=application/java-archive",
+                  f"{api}/projects/{project_id}/upload-file",
+              ], input=f"X-Api-Token: {token}\nAccept: application/json\n",
+                 text=True, capture_output=True, timeout=155)
+              if result.returncode:
+                  raise SystemExit(f"Upload returned curl exit {result.returncode}; submission unconfirmed")
+              headers = {}
+              for line in headers_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                  name, sep, value = line.partition(":")
+                  if sep:
+                      headers[name.lower()] = value.strip()
+              status = int(result.stdout)
+              response_type = headers.get("content-type", "")
+              if 400 <= status < 500 and "application/json" in response_type:
+                  try:
+                      error = json.loads(body_file.read_text(encoding="utf-8"))
+                  except ValueError:
+                      error = {"message": "Invalid JSON response"}
+                  message = json.dumps(error, ensure_ascii=False).replace(token, "***")
+                  print("CurseForge API rejection: " + " ".join(message.split())[:1600], flush=True)
+              validate_response(status, {
+                  name: headers.get(name.lower(), "")
+                  for name in ("CF-Ray", "cf-mitigated", "Content-Type")
+              })
+              file_id = json.loads(body_file.read_text(encoding="utf-8")).get("id")
+              if type(file_id) is not int or file_id <= 0:
+                  raise SystemExit("CurseForge response is missing the file ID")
+              print(f"CurseForge accepted {filename}: project {project_id}, file ID {file_id}", flush=True)
+          PY
