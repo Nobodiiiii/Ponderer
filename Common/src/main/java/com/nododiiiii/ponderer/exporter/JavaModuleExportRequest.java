@@ -34,10 +34,6 @@ public record JavaModuleExportRequest(Path targetRoot, Set<String> selectedScene
     public JavaModuleExportRequest(Path root, Set<String> keys, java.util.List<com.nododiiiii.ponderer.scene.SceneSnapshot> scenes) { this(root, keys, scenes, DEFAULT_MODE); }
     public JavaModuleExportRequest(Path root, Set<String> keys) { this(root, keys, java.util.List.of()); }
 
-    public boolean supportOnly() {
-        return selectedSceneKeys.isEmpty();
-    }
-
     @Nullable
     public String firstSelectedSceneKey() {
         return selectedSceneKeys.stream().findFirst().orElse(null);

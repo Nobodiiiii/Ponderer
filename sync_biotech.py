@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build Ponderer/Lib and replace the mod JARs in Biotech's Minecraft instance."""
+"""Build Ponderer/Lib and replace the mod JARs in Biotech's libs and Minecraft instance."""
 
 from __future__ import annotations
 
@@ -176,7 +176,9 @@ def main() -> None:
     if not (instance / "mods").is_dir():
         raise ValueError(f"Instance has no mods directory: {instance}")
     prefixes = (f"ponderer-{mc}-neoforge-", f"pondererlib-{mc}-neoforge-")
-    check_unlocked(managed_jars(instance / "mods", prefixes))
+    destinations = (biotech / "libs", instance / "mods")
+    for directory in destinations:
+        check_unlocked(managed_jars(directory, prefixes))
 
     logs = PROJECT_ROOT / "build" / "biotech-sync"
     build(PROJECT_ROOT, [":NeoForge:build", ":RuntimeNeoForge:build"], args.online, args.timeout, logs / "ponderer.log")
@@ -184,8 +186,9 @@ def main() -> None:
             PROJECT_ROOT / "NeoForge" / "runtime" / "build" / "libs" / f"pondererlib-{mc}-neoforge-{library}.jar"]
     for jar in jars:
         require_jar(jar)
-    copy_jars(jars, instance / "mods", prefixes)
-    print(f"[DONE] Ponderer/Lib replaced in {instance / 'mods'}", flush=True)
+    for directory in destinations:
+        copy_jars(jars, directory, prefixes)
+    print(f"[DONE] Ponderer/Lib replaced in {' and '.join(map(str, destinations))}", flush=True)
 
 
 if __name__ == "__main__":

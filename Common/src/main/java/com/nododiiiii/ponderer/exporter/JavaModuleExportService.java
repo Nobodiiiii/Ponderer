@@ -123,6 +123,10 @@ public final class JavaModuleExportService {
             addFinding(result.fatalFindings, "fatal", null, null, null, null, "Target mod root is required.");
             return result;
         }
+        if (request.selectedSceneKeys().isEmpty()) {
+            addFinding(result.fatalFindings, "selection", null, null, null, null, "Select at least one scene to export.");
+            return result;
+        }
 
         JavaModuleScanResult.TargetProject targetProject = detectTargetProject(request.targetRoot(), request.mode(), result.fatalFindings);
         result.targetProject = targetProject;
@@ -134,11 +138,6 @@ public final class JavaModuleExportService {
             result.legacyExportDetected = LegacyJavaExportMigration.detected(targetProject, readManifest(targetProject.targetRoot));
         } catch (IOException error) {
             addFinding(result.fatalFindings, "legacy export", null, null, null, null, error.getMessage());
-            return result;
-        }
-
-        if (request.supportOnly()) {
-            if (request.mode() != JavaModuleExportRequest.Mode.JAVA_SUPPORT) addFinding(result.fatalFindings, "selection", null, null, null, null, "Select scenes for a Lib export.");
             return result;
         }
 
@@ -162,15 +161,14 @@ public final class JavaModuleExportService {
         if (request == null || scanResult == null) {
             return JavaModuleExportResult.failure("Missing export request or scan result.");
         }
+        if (request.selectedSceneKeys().isEmpty()) {
+            return JavaModuleExportResult.failure("Select at least one scene to export.");
+        }
         if (scanResult.hasFatalFindings()) {
             return JavaModuleExportResult.failure(firstMessage(scanResult.fatalFindings, "Scan contains fatal problems."));
         }
         if (scanResult.targetProject == null) {
             return JavaModuleExportResult.failure("Target project information is unavailable.");
-        }
-
-        if (request.supportOnly()) {
-            return exportSupportOnly(scanResult.targetProject);
         }
 
         JavaModuleExportManifest manifest = readManifest(scanResult.targetProject.targetRoot);
@@ -448,43 +446,6 @@ public final class JavaModuleExportService {
             String previous = owners.putIfAbsent(id, entry.className);
             if (previous != null) throw new IllegalArgumentException("Duplicate exported Java scene " + id + ": "
                 + previous + " and " + entry.className);
-        }
-    }
-
-    private JavaModuleExportResult exportSupportOnly(JavaModuleScanResult.TargetProject targetProject) {
-        String relativePath = "src/main/java/" + packageToPath(targetProject.generatedPackage) + "/GeneratedPonderSupport.java";
-        Path targetPath;
-        try {
-            targetPath = resolveTargetPath(targetProject.targetRoot, relativePath);
-            ensureInsideRoot(targetProject.targetRoot, targetPath);
-            Files.createDirectories(targetPath.getParent());
-            boolean replaced = Files.exists(targetPath);
-            JavaModuleExportManifest manifest = readManifest(targetProject.targetRoot);
-            if (manifest.generatedSources == null) manifest.generatedSources = new LinkedHashMap<>();
-            TextFile support = buildSupportSource(targetProject);
-            String current = Files.isRegularFile(targetPath) ? Files.readString(targetPath, StandardCharsets.UTF_8) : null;
-            if (!Objects.equals(current, support.previousSource())) return JavaModuleExportResult.failure("Support source changed during export: " + targetPath);
-            TextFile license = buildLicenseWrite();
-            Path licensePath = resolveTargetPath(targetProject.targetRoot, license.relativePath());
-            Files.createDirectories(licensePath.getParent());
-            Files.writeString(licensePath, license.content(), StandardCharsets.UTF_8);
-            Files.writeString(targetPath, support.content(), StandardCharsets.UTF_8);
-            manifest.generatedSources.put(relativePath, support.content());
-            Path manifestPath = targetProject.targetRoot.resolve(GENERATED_DIR).resolve(MANIFEST_NAME);
-            Files.createDirectories(manifestPath.getParent());
-            Files.writeString(manifestPath, GSON.toJson(manifest), StandardCharsets.UTF_8);
-            JavaModuleExportResult result = new JavaModuleExportResult();
-            result.success = true;
-            result.supportOnly = true;
-            result.supportFilePath = targetPath;
-            if (replaced) {
-                result.replacedCount = 1;
-            } else {
-                result.addedCount = 1;
-            }
-            return result;
-        } catch (Exception e) {
-            return JavaModuleExportResult.failure("Failed to write GeneratedPonderSupport.java: " + e.getMessage());
         }
     }
 

@@ -7,6 +7,7 @@ import com.nododiiiii.ponderer.application.ui.widgets.SectionHeaderRenderer;
 import com.nododiiiii.ponderer.exporter.JavaModuleExportRequest.Mode;
 import net.createmod.catnip.config.ui.ConfigScreenList;
 import net.createmod.catnip.gui.UIRenderHelper;
+import net.createmod.catnip.lang.FontHelper.Palette;
 import net.createmod.catnip.platform.CatnipClientServices;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
@@ -32,6 +33,7 @@ public class ExportModeSelectScreen extends AbstractReadonlyDeclarativeListScree
 
     private final Consumer<Mode> onSelect;
     private final List<Option> options = createOptions();
+    private final Component introduction = createIntroduction();
 
     private record Option(Mode mode, Component title, List<Component> body) {
     }
@@ -58,12 +60,41 @@ public class ExportModeSelectScreen extends AbstractReadonlyDeclarativeListScree
                     textY += lineHeight();
                 }
             }
+
+            @Override
+            public Component getNarration() {
+                return Component.translatable(titleKey);
+            }
+        });
+        entries.add(new ConfigScreenList.Entry() {
+            @Override
+            public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
+                               int mouseX, int mouseY, boolean hovered, float partialTicks) {
+                int textY = y + TEXT_PADDING;
+                for (FormattedCharSequence line : wrapText(introduction, textWidth(width))) {
+                    graphics.drawString(font, line, EntryTextSupport.contentLeft(x), textY, textColor(), false);
+                    textY += lineHeight();
+                }
+            }
+
+            @Override
+            public Component getNarration() {
+                return introduction;
+            }
         });
     }
 
     @Override
     protected int getHeaderEntryHeight() {
-        return UILayoutConstants.LIST_ENTRY_H;
+        int rowWidth = currentListWidthValue() - 2 * UILayoutConstants.LIST_ROW_MARGIN;
+        int introductionHeight = wrapText(introduction, textWidth(rowWidth)).size() * lineHeight()
+            + TEXT_PADDING * 2 + 4;
+        return Math.max(titleHeight(rowWidth), introductionHeight);
+    }
+
+    private int titleHeight(int rowWidth) {
+        return Math.max(UILayoutConstants.LIST_ENTRY_H,
+            wrapText(Component.translatable(titleKey), textWidth(rowWidth)).size() * lineHeight() + TEXT_PADDING * 2);
     }
 
     @Override
@@ -71,7 +102,6 @@ public class ExportModeSelectScreen extends AbstractReadonlyDeclarativeListScree
         for (Option option : options) {
             entries.add(new OptionEntry(option));
         }
-        entries.add(new AdviceEntry());
     }
 
     @Override
@@ -86,9 +116,9 @@ public class ExportModeSelectScreen extends AbstractReadonlyDeclarativeListScree
     @Override
     protected int listBottomPadding(int viewportHeight) {
         int rowWidth = currentListWidthValue() - 2 * UILayoutConstants.LIST_ROW_MARGIN;
-        int adviceHeight = wrapText(Component.translatable(HELP_KEY + "pack_author_advice"), textWidth(rowWidth)).size()
-            * lineHeight() + TEXT_PADDING * 2 + 4;
-        return Math.min(0, adviceHeight - getEntryHeight());
+        int lastOptionHeight = HEADING_HEIGHT + TEXT_PADDING
+            + wrappedBody(options.getLast(), rowWidth).size() * lineHeight() + TEXT_PADDING + 4;
+        return Math.min(0, lastOptionHeight - getEntryHeight());
     }
 
     private List<FormattedCharSequence> wrappedBody(Option option, int rowWidth) {
@@ -163,6 +193,13 @@ public class ExportModeSelectScreen extends AbstractReadonlyDeclarativeListScree
 
     private static int titleColor() {
         return UIRenderHelper.COLOR_TEXT_STRONG_ACCENT.getFirst().getRGB();
+    }
+
+    private static Component createIntroduction() {
+        return Component.empty().withStyle(ChatFormatting.WHITE)
+            .append(Component.translatable(HELP_KEY + "exclusive_warning").withStyle(Palette.STANDARD_CREATE.highlight()))
+            .append("\n")
+            .append(Component.translatable(HELP_KEY + "pack_author_advice"));
     }
 
     private static List<Option> createOptions() {
@@ -258,34 +295,6 @@ public class ExportModeSelectScreen extends AbstractReadonlyDeclarativeListScree
         @Override
         public Component getNarration() {
             return narration();
-        }
-    }
-
-    private class AdviceEntry extends ConfigScreenList.Entry implements SearchableListEntry {
-        private final Component text = Component.translatable(HELP_KEY + "pack_author_advice");
-
-        @Override
-        public void render(GuiGraphics graphics, int index, int y, int x, int width, int height,
-                           int mouseX, int mouseY, boolean hovered, float partialTicks) {
-            int textY = y + TEXT_PADDING;
-            for (FormattedCharSequence line : wrapText(text, textWidth(width))) {
-                graphics.drawString(font, line, EntryTextSupport.contentLeft(x), textY, textColor(), false);
-                textY += lineHeight();
-            }
-        }
-
-        @Override
-        public boolean matchesQuery(String query) {
-            return text.getString().toLowerCase(Locale.ROOT).contains(query);
-        }
-
-        @Override
-        public void highlightEntry() {
-        }
-
-        @Override
-        public Component getNarration() {
-            return text;
         }
     }
 }

@@ -72,12 +72,17 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
             null,
             this::openSceneSelector,
             this::currentSceneSelectionButtonLabel,
-            this::currentSceneSelectionTooltip));
+            null));
     }
 
     @Override
     protected boolean saveEdits() {
         clearStatusMessages();
+
+        if (selectedSceneKeys.isEmpty()) {
+            setErrorMessage(UIText.of("ponderer.ui.export_java.no_scenes"));
+            return false;
+        }
 
         String targetRoot = draftTargetRoot == null ? "" : draftTargetRoot.trim();
         if (targetRoot.isEmpty()) {
@@ -286,12 +291,6 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
         }
 
         markStateSaved();
-        if (exportResult.supportOnly) {
-            setInfoMessage(UIText.of(
-                "ponderer.ui.export_java.success.support_only",
-                exportResult.supportFilePath == null ? "" : exportResult.supportFilePath.toString()));
-            return true;
-        }
         setInfoMessage(UIText.of(
             "ponderer.ui.export_java.success",
             exportResult.addedCount,
@@ -306,12 +305,6 @@ public class JavaModuleExportScreen extends AbstractStatefulDeclarativeFormScree
     private String currentSceneSelectionButtonLabel() {
         return selectedSceneKeys.isEmpty()
             ? UIText.of("ponderer.ui.export.select_scenes")
-            : UIText.of("ponderer.ui.export.selected_scenes", selectedSceneKeys.size());
-    }
-
-    private String currentSceneSelectionTooltip() {
-        return selectedSceneKeys.isEmpty()
-            ? UIText.of("ponderer.ui.export_java.support_only.tooltip")
             : UIText.of("ponderer.ui.export.selected_scenes", selectedSceneKeys.size());
     }
 }
